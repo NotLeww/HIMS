@@ -2,40 +2,55 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <div>
-                <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+                <h2 class="text-xl font-semibold leading-tight text-[var(--text)]">
                     Supply Chain & Inventory
                 </h2>
-                <p class="text-sm text-gray-600 mt-1">Core modules for purchasing, receiving, stock movement, alerts, and reporting.</p>
+                <p class="mt-1 text-sm text-[var(--muted)]">Core modules for purchasing, receiving, stock movement, alerts, and reporting.</p>
             </div>
         </div>
     </x-slot>
 
-    <div class="py-10">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                <a href="{{ route('inventory.suppliers') }}" class="block rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition">
-                    <h3 class="text-lg font-semibold text-gray-900">Supplier & Vendor Management</h3>
-                    <p class="mt-2 text-sm text-gray-600">Maintain vendor profiles, rebates, and supplier records.</p>
+    <div class="py-6">
+        <div class="mx-auto max-w-7xl space-y-6 sm:px-6 lg:px-8">
+            <div class="grid gap-4 md:grid-cols-3">
+                <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm">
+                    <p class="text-sm text-[var(--muted)]">Total suppliers</p>
+                    <p class="mt-2 text-3xl font-semibold text-[var(--text)]">{{ $totalSuppliers }}</p>
+                </div>
+                <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm">
+                    <p class="text-sm text-[var(--muted)]">Active suppliers</p>
+                    <p class="mt-2 text-3xl font-semibold text-emerald-600">{{ $activeSuppliers }}</p>
+                </div>
+                <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-sm">
+                    <p class="text-sm text-[var(--muted)]">Inactive suppliers</p>
+                    <p class="mt-2 text-3xl font-semibold text-amber-600">{{ $inactiveSuppliers }}</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                <a href="{{ route('inventory.suppliers') }}" class="block rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                    <h3 class="text-lg font-semibold text-[var(--text)]">Supplier & Vendor Management</h3>
+                    <p class="mt-2 text-sm text-[var(--muted)]">Maintain vendor profiles, rebates, and supplier records.</p>
                 </a>
 
-                <a href="{{ route('inventory.purchases') }}" class="block rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition">
-                    <h3 class="text-lg font-semibold text-gray-900">Purchase Orders & Receiving</h3>
-                    <p class="mt-2 text-sm text-gray-600">Track purchase requisitions, purchase orders, and goods receiving.</p>
+                <a href="{{ route('inventory.purchases') }}" class="block rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                    <h3 class="text-lg font-semibold text-[var(--text)]">Purchase Orders & Receiving</h3>
+                    <p class="mt-2 text-sm text-[var(--muted)]">Track purchase requisitions, purchase orders, and goods receiving.</p>
                 </a>
 
-                <a href="{{ route('inventory.stock') }}" class="block rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition">
-                    <h3 class="text-lg font-semibold text-gray-900">Stock Movement & Transfers</h3>
-                    <p class="mt-2 text-sm text-gray-600">Monitor stock in, stock out, internal transfers, and warehouse movement.</p>
+                <a href="{{ route('inventory.stock') }}" class="block rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                    <h3 class="text-lg font-semibold text-[var(--text)]">Stock Movement & Transfers</h3>
+                    <p class="mt-2 text-sm text-[var(--muted)]">Monitor stock in, stock out, internal transfers, and warehouse movement.</p>
                 </a>
 
-                <a href="{{ route('inventory.alerts') }}" class="block rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition">
-                    <h3 class="text-lg font-semibold text-gray-900">Low Stock & Alerts</h3>
-                    <p class="mt-2 text-sm text-gray-600">Flag critical items, reorder points, and expiry risk.</p>
+                <a href="{{ route('inventory.alerts') }}" class="block rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                    <h3 class="text-lg font-semibold text-[var(--text)]">Low Stock & Alerts</h3>
+                    <p class="mt-2 text-sm text-[var(--muted)]">Flag critical items, reorder points, and expiry risk.</p>
                 </a>
 
-                <a href="{{ route('inventory.reports') }}" class="block rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition">
-                    <h3 class="text-lg font-semibold text-gray-900">Reports & Dashboard</h3>
-                    <p class="mt-2 text-sm text-gray-600">Review inventory summaries, movement history, and usage reporting.</p>
+                <a href="{{ route('inventory.reports') }}" class="block rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                    <h3 class="text-lg font-semibold text-[var(--text)]">Reports & Dashboard</h3>
+                    <p class="mt-2 text-sm text-[var(--muted)]">Review inventory summaries, movement history, and usage reporting.</p>
                 </a>
             </div>
         </div>

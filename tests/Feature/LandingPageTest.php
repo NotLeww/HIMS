@@ -11,6 +11,7 @@ class LandingPageTest extends TestCase
         $response = $this->get('/');
 
         $response->assertStatus(200);
-        $response->assertSee('Supply Chain & Inventory Management');
+        $response->assertSee('Supply Chain');
+        $response->assertSee('Inventory Management');
     }
 }

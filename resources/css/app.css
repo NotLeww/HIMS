@@ -1,3 +1,31 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+    --primary: #0f9d73;
+    --primary-dark: #0b7d5b;
+    --primary-light: #e8f7f0;
+    --background: #f4f8fb;
+    --card: #ffffff;
+    --border: #e5e7eb;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --success: #059669;
+    --danger: #dc2626;
+    --warning: #f59e0b;
+}
+
+body {
+    margin: 0;
+    font-family: "Inter", sans-serif;
+    background: var(--background);
+    color: var(--text);
+}
+
+.menu-link.active {
+    background: var(--primary);
+    color: #fff;
+    border-radius: 8px;
+    margin: 0 2px;
+}

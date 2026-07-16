@@ -3,13 +3,18 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
+use App\Models\Models\Supplier;
 use Illuminate\View\View;
 
 class InventoryController extends Controller
 {
     public function index(): View
     {
-        return view('inventory.index');
+        $totalSuppliers = Supplier::count();
+        $activeSuppliers = Supplier::where('status', 'active')->count();
+        $inactiveSuppliers = Supplier::where('status', 'inactive')->count();
+
+        return view('inventory.index', compact('totalSuppliers', 'activeSuppliers', 'inactiveSuppliers'));
     }
 
     public function suppliers(): View
