@@ -6,8 +6,14 @@
         <title>HIMS | Supply Chain & Inventory Management</title>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="min-h-screen bg-slate-950 text-slate-100">
-        <div class="mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-6 lg:px-8">
+    <body class="min-h-screen text-slate-100">
+        <div class="relative min-h-screen overflow-hidden">
+            <div class="absolute inset-0 z-0">
+                <img src="{{ asset('img/landingpage.jpg') }}" alt="Hospital background" class="h-full w-full object-cover" />
+                <div class="absolute inset-0 bg-slate-950/70"></div>
+            </div>
+
+            <div class="relative z-10 mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-6 lg:px-8">
             <header class="flex items-center justify-between rounded-full border border-slate-800/80 bg-slate-900/70 px-5 py-3 shadow-lg shadow-black/20 backdrop-blur">
                 <a href="{{ url('/') }}" class="flex items-center gap-3 text-lg font-semibold tracking-wide text-white">
                     <span class="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-300">H</span>
@@ -130,6 +136,7 @@
                     </div>
                 </section>
             </main>
+            </div>
         </div>
     </body>
 </html>
