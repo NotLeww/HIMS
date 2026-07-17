@@ -33,6 +33,21 @@
                     <p class="mt-2 text-sm text-[var(--muted)]">Maintain vendor profiles, rebates, and supplier records.</p>
                 </a>
 
+                <a href="{{ route('inventory.items') }}" class="block rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                    <h3 class="text-lg font-semibold text-[var(--text)]">Inventory Items</h3>
+                    <p class="mt-2 text-sm text-[var(--muted)]">Register stock items, track quantities, and link them to suppliers and warehouse locations.</p>
+                </a>
+
+                <a href="{{ route('inventory.storage-locations') }}" class="block rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                    <h3 class="text-lg font-semibold text-[var(--text)]">Storage Locations</h3>
+                    <p class="mt-2 text-sm text-[var(--muted)]">Define warehouse zones, shelves, bins, and storage points for smart warehousing.</p>
+                </a>
+
+                <a href="{{ route('inventory.adjustments') }}" class="block rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                    <h3 class="text-lg font-semibold text-[var(--text)]">Stock Adjustments</h3>
+                    <p class="mt-2 text-sm text-[var(--muted)]">Correct discrepancies, record damage or loss, and update inventory counts safely.</p>
+                </a>
+
                 <a href="{{ route('inventory.purchases') }}" class="block rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
                     <h3 class="text-lg font-semibold text-[var(--text)]">Purchase Orders & Receiving</h3>
                     <p class="mt-2 text-sm text-[var(--muted)]">Track purchase requisitions, purchase orders, and goods receiving.</p>

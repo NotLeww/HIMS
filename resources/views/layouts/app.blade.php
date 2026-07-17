@@ -25,22 +25,75 @@
                     </div>
                 </div>
 
-                <nav class="space-y-1">
-                    <a href="{{ route('dashboard') }}" class="menu-link {{ request()->routeIs('dashboard') ? 'active' : '' }} flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white">
+                <nav class="space-y-2">
+                    <a href="{{ route('dashboard') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white {{ request()->routeIs('dashboard') ? 'bg-[var(--primary)] text-white' : '' }}">
                         <span>◉</span>
                         <span>Dashboard</span>
                     </a>
-                    <a href="{{ route('inventory') }}" class="menu-link {{ request()->routeIs('inventory*') ? 'active' : '' }} flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white">
+                    <a href="{{ route('inventory') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white {{ request()->routeIs('inventory*') ? 'bg-[var(--primary)] text-white' : '' }}">
                         <span>◉</span>
-                        <span>Inventory</span>
+                        <span>Inventory Dashboard</span>
                     </a>
-                    <a href="{{ route('profile.edit') }}" class="menu-link {{ request()->routeIs('profile*') ? 'active' : '' }} flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white">
+
+                    <div class="pt-1">
+                        <p class="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--muted)]">SWS</p>
+                        <a href="{{ route('inventory.storage-locations') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white {{ request()->routeIs('inventory.storage-locations*') ? 'bg-[var(--primary)] text-white' : '' }}">
+                            <span class="text-[10px]">•</span>
+                            <span>Storage Locations</span>
+                        </a>
+                        <a href="{{ route('inventory.stock-movements') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white {{ request()->routeIs('inventory.stock-movements*') ? 'bg-[var(--primary)] text-white' : '' }}">
+                            <span class="text-[10px]">•</span>
+                            <span>Stock Movement & Transfers</span>
+                        </a>
+                    </div>
+
+                    <div class="pt-1">
+                        <p class="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--muted)]">IMS</p>
+                        <a href="{{ route('inventory.items') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white {{ request()->routeIs('inventory.items*') ? 'bg-[var(--primary)] text-white' : '' }}">
+                            <span class="text-[10px]">•</span>
+                            <span>Inventory Items</span>
+                        </a>
+                        <a href="{{ route('inventory.adjustments') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white {{ request()->routeIs('inventory.adjustments*') ? 'bg-[var(--primary)] text-white' : '' }}">
+                            <span class="text-[10px]">•</span>
+                            <span>Stock Adjustments</span>
+                        </a>
+                        <a href="{{ route('inventory.reports') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white {{ request()->routeIs('inventory.reports') ? 'bg-[var(--primary)] text-white' : '' }}">
+                            <span class="text-[10px]">•</span>
+                            <span>Inventory Reports</span>
+                        </a>
+                    </div>
+
+                    <div class="pt-1">
+                        <p class="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--muted)]">PSM</p>
+                        <a href="{{ route('inventory.purchases') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white {{ request()->routeIs('inventory.purchases') ? 'bg-[var(--primary)] text-white' : '' }}">
+                            <span class="text-[10px]">•</span>
+                            <span>Purchase Orders & Receiving</span>
+                        </a>
+                    </div>
+
+                    <div class="pt-1">
+                        <p class="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--muted)]">SVM</p>
+                        <a href="{{ route('inventory.suppliers') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white {{ request()->routeIs('inventory.suppliers*') ? 'bg-[var(--primary)] text-white' : '' }}">
+                            <span class="text-[10px]">•</span>
+                            <span>Supplier Directory</span>
+                        </a>
+                    </div>
+
+                    <div class="pt-1">
+                        <p class="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--muted)]">DTRS</p>
+                        <a href="{{ route('inventory.logistics') }}" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white {{ request()->routeIs('inventory.logistics') ? 'bg-[var(--primary)] text-white' : '' }}">
+                            <span class="text-[10px]">•</span>
+                            <span>Logistics & Records</span>
+                        </a>
+                    </div>
+
+                    <a href="{{ route('profile.edit') }}" class="mt-2 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white {{ request()->routeIs('profile*') ? 'bg-[var(--primary)] text-white' : '' }}">
                         <span>◉</span>
                         <span>Profile</span>
                     </a>
-                    <form method="POST" action="{{ route('logout') }}" class="mt-4">
+                    <form method="POST" action="{{ route('logout') }}" class="mt-1">
                         @csrf
-                        <button type="submit" class="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white">
+                        <button type="submit" class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--primary)] hover:text-white">
                             <span>◉</span>
                             <span>Logout</span>
                         </button>
