@@ -1,31 +1,52 @@
+@import url('https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Bridge tokens. Existing views reference these custom properties directly
+ * (var(--card), var(--border), ...). They now resolve to the same clinical
+ * blue / neutral scale defined in tailwind.config.js, so old screens and new
+ * components stay visually consistent while pages are migrated.
+ */
 :root {
-    --primary: #0f9d73;
-    --primary-dark: #0b7d5b;
-    --primary-light: #e8f7f0;
-    --background: #f4f8fb;
+    --primary: #1c75f5;
+    --primary-dark: #145ee1;
+    --primary-light: #eef7ff;
+    --background: #fafafa;
     --card: #ffffff;
-    --border: #e5e7eb;
-    --text: #1f2937;
-    --muted: #6b7280;
-    --success: #059669;
+    --border: #e5e5e5;
+    --text: #262626;
+    --muted: #737373;
+    --success: #16a34a;
+    --warning: #d97706;
     --danger: #dc2626;
-    --warning: #f59e0b;
 }
 
-body {
-    margin: 0;
-    font-family: "Inter", sans-serif;
-    background: var(--background);
-    color: var(--text);
+@layer base {
+    body {
+        @apply bg-neutral-50 text-neutral-800 antialiased;
+        margin: 0;
+    }
+
+    /* Visible focus ring on every focusable element, not just form controls. */
+    :focus-visible {
+        @apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-white;
+    }
 }
 
-.menu-link.active {
-    background: var(--primary);
-    color: #fff;
-    border-radius: 8px;
-    margin: 0 2px;
+@layer base {
+    /* Keeps Alpine-hidden elements (modals, dropdowns) from flashing pre-boot. */
+    [x-cloak] {
+        display: none !important;
+    }
+}
+
+@layer components {
+    /* Legacy sidebar links in layouts/navigation.blade.php. */
+    .menu-link.active {
+        @apply bg-primary-600 text-white rounded-md;
+        margin: 0 2px;
+    }
 }

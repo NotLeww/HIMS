@@ -2,43 +2,31 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Models\InventoryItem;
+use App\Models\InventoryItem;
+use App\Services\InventoryAutomationService;
+use App\Services\StockAlertService;
 use Illuminate\Console\Command;
 
 class CheckInventoryAlerts extends Command
 {
     protected $signature = 'inventory:check-alerts';
 
-    protected $description = 'Check inventory items for low stock and out of stock conditions';
+    protected $description = 'Refresh cached stock totals and raise/resolve low-stock and expiry alerts';
 
-    public function handle(): int
+    public function handle(StockAlertService $alerts, InventoryAutomationService $inventory): int
     {
-        $items = InventoryItem::query()->get();
+        // Re-derive the cached rollups first so the alert sweep reads the
+        // same numbers the dashboard shows.
+        InventoryItem::query()->each(fn (InventoryItem $item) => $inventory->syncItemTotals($item));
 
-        foreach ($items as $item) {
-            $status = $this->resolveStatus($item);
+        $result = $alerts->sweep();
 
-            if ($item->status !== $status) {
-                $item->status = $status;
-                $item->save();
-            }
-        }
-
-        $this->info('Inventory alerts checked successfully.');
+        $this->info(sprintf(
+            'Inventory alerts checked: %d raised, %d resolved.',
+            $result['raised'],
+            $result['resolved']
+        ));
 
         return self::SUCCESS;
-    }
-
-    private function resolveStatus(InventoryItem $item): string
-    {
-        if ((int) $item->quantity_on_hand <= 0) {
-            return 'out_of_stock';
-        }
-
-        if ((int) $item->reorder_level > 0 && $item->quantity_on_hand <= (int) $item->reorder_level) {
-            return 'low_stock';
-        }
-
-        return 'in_stock';
     }
 }

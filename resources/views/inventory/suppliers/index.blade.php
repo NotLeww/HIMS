@@ -70,7 +70,7 @@
                                 <th class="px-3 py-2 text-left font-semibold text-[var(--muted)]">Status</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-[var(--border)]">
+                        <tbody id="suppliers-table-body" class="divide-y divide-[var(--border)]">
                             @forelse ($suppliers as $supplier)
                                 <tr>
                                     <td class="px-3 py-2">{{ $supplier->name }}</td>
@@ -83,10 +83,57 @@
                                     <td colspan="4" class="px-3 py-4 text-[var(--muted)]">No suppliers yet.</td>
                                 </tr>
                             @endforelse
-                        </tbody>
-                    </table>
+                            </tbody>
+                        </table>
+                        <div id="suppliers-api-status" class="mt-3 text-sm text-[var(--muted)]">Loading suppliers from API...</div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <script>
+        async function loadSuppliersFromApi() {
+            const status = document.getElementById('suppliers-api-status');
+            const tbody = document.getElementById('suppliers-table-body');
+
+            try {
+                await fetch('/sanctum/csrf-cookie', { credentials: 'same-origin' });
+                const response = await fetch('/api/v1/suppliers?per_page=100', {
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API request failed with status ${response.status}`);
+                }
+
+                const payload = await response.json();
+                const suppliers = payload.data || [];
+
+                if (suppliers.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" class="px-3 py-4 text-[var(--muted)]">No suppliers found via API.</td></tr>`;
+                } else {
+                    tbody.innerHTML = suppliers.map(supplier => `
+                        <tr>
+                            <td class="px-3 py-2">${supplier.name}</td>
+                            <td class="px-3 py-2">${supplier.contact_person || '—'}</td>
+                            <td class="px-3 py-2">${supplier.email || '—'}</td>
+                            <td class="px-3 py-2">${supplier.status || 'unknown'}</td>
+                        </tr>
+                    `).join('');
+                }
+
+                status.textContent = 'Suppliers loaded from API.';
+            } catch (error) {
+                console.error(error);
+                status.textContent = 'Unable to load suppliers from API. Check console for details.';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadSuppliersFromApi);
+    </script>
 </x-app-layout>

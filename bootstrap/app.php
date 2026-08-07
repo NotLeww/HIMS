@@ -11,7 +11,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // The Blade screens call /api/v1/* with the session cookie rather than a
+        // bearer token. Without this, the api group never starts a session, so
+        // auth:sanctum cannot resolve the logged-in user and every call 401s.
+        $middleware->statefulApi();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

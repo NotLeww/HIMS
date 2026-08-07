@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
-use App\Models\Models\DemandPlan;
-use App\Models\Models\InventoryItem;
+use App\Models\DemandPlan;
+use App\Models\InventoryItem;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models\Models;
+namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
@@ -29,5 +29,10 @@ class ProcurementRequest extends Model
     public function item()
     {
         return $this->belongsTo(InventoryItem::class, 'item_id');
+    }
+
+    public function supplier()
+    {
+        return $this->belongsTo(Supplier::class);
     }
 }

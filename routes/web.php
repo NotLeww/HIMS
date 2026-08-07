@@ -18,6 +18,10 @@ Route::get('/', function () {
 
 Route::get('/dashboard', [InventoryController::class, 'index'])->middleware('auth')->name('dashboard');
 
+// Polled by the dashboard's alert panel every 30s. Sits on the web routes so
+// it authenticates with the session cookie the page already has.
+Route::get('/dashboard/live', [InventoryController::class, 'live'])->middleware('auth')->name('dashboard.live');
+
 Route::middleware('auth')->group(function () {
     Route::get('/inventory', function () {
         return redirect()->route('dashboard');

@@ -2,16 +2,22 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Enums\MovementType;
 use App\Http\Controllers\Controller;
-use App\Models\Models\InventoryItem;
-use App\Models\Models\PurchaseOrder;
-use App\Models\Models\Supplier;
+use App\Models\InventoryItem;
+use App\Models\PurchaseOrder;
+use App\Models\StorageLocation;
+use App\Models\Supplier;
+use App\Services\InventoryAutomationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class PurchaseOrderController extends Controller
 {
+    public function __construct(private readonly InventoryAutomationService $automationService) {}
+
     public function index(): View
     {
         $purchaseOrders = PurchaseOrder::with(['supplier', 'item'])->latest('requested_at')->get();
@@ -43,6 +49,16 @@ class PurchaseOrderController extends Controller
         return redirect()->route('inventory.purchases')->with('success', 'Purchase order created successfully.');
     }
 
+    /**
+     * Post a received purchase order into stock.
+     *
+     * This used to add the quantity straight onto `quantity_on_hand` and
+     * record nothing else. That left `item_stock_levels` — which is what the
+     * quantity is actually recomputed from — untouched, so the next stock
+     * movement silently threw the receipt away. Routing through the service
+     * writes the level row, the movement and the rollup in one transaction,
+     * and re-evaluates the item's alerts on the way out.
+     */
     public function receive(PurchaseOrder $purchaseOrder): RedirectResponse
     {
         if ($purchaseOrder->status === 'received') {
@@ -50,25 +66,31 @@ class PurchaseOrderController extends Controller
         }
 
         $item = $purchaseOrder->item;
-        $item->quantity_on_hand += $purchaseOrder->quantity;
 
-        $schemaBuilder = $item->getConnection()->getSchemaBuilder();
-        $hasTotalValueColumn = $schemaBuilder->hasColumn($item->getTable(), 'total_value');
-        $hasUnitCostColumn = $schemaBuilder->hasColumn($item->getTable(), 'unit_cost');
+        // Goods have to land somewhere. Fall back to the item's default
+        // location, then to any location at all, so a seeded demo PO can
+        // still be received without the operator picking a bin.
+        $locationId = $item->default_location_id ?? StorageLocation::query()->orderBy('id')->value('id');
 
-        if ($hasTotalValueColumn) {
-            $item->total_value = round($item->quantity_on_hand * (float) ($item->unit_cost ?? 0), 2);
+        if ($locationId === null) {
+            return redirect()->route('inventory.purchases')
+                ->withErrors(['receive' => 'No storage location exists to receive this order into.']);
         }
 
-        if ($hasUnitCostColumn) {
-            $item->unit_cost = (float) ($item->unit_cost ?? $purchaseOrder->unit_cost);
-        }
+        DB::transaction(function () use ($purchaseOrder, $item, $locationId): void {
+            $this->automationService->recordMovement([
+                'item_id' => $item->id,
+                'movement_type' => MovementType::StockIn,
+                'quantity' => (int) $purchaseOrder->quantity,
+                'to_location_id' => $locationId,
+                'unit_cost' => $purchaseOrder->unit_cost ?? $item->unit_cost,
+                'remarks' => 'Received against '.$purchaseOrder->po_number,
+            ], auth()->id(), $purchaseOrder);
 
-        $item->save();
-
-        $purchaseOrder->status = 'received';
-        $purchaseOrder->received_at = now();
-        $purchaseOrder->save();
+            $purchaseOrder->status = 'received';
+            $purchaseOrder->received_at = now();
+            $purchaseOrder->save();
+        });
 
         return redirect()->route('inventory.purchases')->with('success', 'Goods received and inventory updated.');
     }

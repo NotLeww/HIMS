@@ -1,0 +1,46 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\InventoryItem;
+use App\Models\StockMovement;
+use App\Models\StorageLocation;
+use App\Models\Supplier;
+use Illuminate\Http\Request;
+
+class DashboardController extends Controller
+{
+    public function summary(Request $request)
+    {
+        $totalItems = InventoryItem::count();
+        $lowStockItems = InventoryItem::whereIn('status', ['low_stock', 'out_of_stock'])->count();
+        $outOfStockItems = InventoryItem::where('status', 'out_of_stock')->count();
+        $totalOnHand = InventoryItem::sum('quantity_on_hand');
+        $totalInventoryValue = InventoryItem::sum('total_value');
+        $totalSuppliers = Supplier::count();
+        $activeSuppliers = Supplier::where('status', 'active')->count();
+        $storageLocations = StorageLocation::count();
+        $recentMovements = StockMovement::with(['item'])->latest('moved_at')->take(6)->get()->map(function ($movement) {
+            return [
+                'id' => $movement->id,
+                'item' => $movement->item?->name,
+                'movement_type' => $movement->movement_type,
+                'quantity' => $movement->quantity,
+                'moved_at' => optional($movement->moved_at)->toDateTimeString(),
+            ];
+        });
+
+        return response()->json([
+            'total_items' => $totalItems,
+            'low_stock_items' => $lowStockItems,
+            'out_of_stock_items' => $outOfStockItems,
+            'total_on_hand' => $totalOnHand,
+            'total_inventory_value' => $totalInventoryValue,
+            'total_suppliers' => $totalSuppliers,
+            'active_suppliers' => $activeSuppliers,
+            'storage_locations' => $storageLocations,
+            'recent_movements' => $recentMovements,
+        ]);
+    }
+}

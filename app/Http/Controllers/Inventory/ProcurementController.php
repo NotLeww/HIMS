@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
-use App\Models\Models\InventoryItem;
-use App\Models\Models\ProcurementRequest;
-use App\Models\Models\Supplier;
-use App\Models\Models\SupplierQuote;
+use App\Models\InventoryItem;
+use App\Models\ProcurementRequest;
+use App\Models\Supplier;
+use App\Models\SupplierQuote;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -15,12 +15,10 @@ class ProcurementController extends Controller
 {
     public function index(): View
     {
-        $requests = ProcurementRequest::with('item')->latest('requested_at')->get();
-        $quotes = SupplierQuote::with(['procurementRequest', 'supplier'])->latest()->get();
         $items = InventoryItem::all();
         $suppliers = Supplier::where('status', 'active')->get();
 
-        return view('inventory.purchases.index', compact('requests', 'quotes', 'items', 'suppliers'));
+        return view('inventory.purchases.index', compact('items', 'suppliers'));
     }
 
     public function storeRequest(Request $request): RedirectResponse

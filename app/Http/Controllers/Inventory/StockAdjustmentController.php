@@ -2,19 +2,25 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Enums\MovementType;
 use App\Http\Controllers\Controller;
-use App\Models\Models\InventoryItem;
+use App\Models\InventoryItem;
+use App\Models\StorageLocation;
+use App\Services\InventoryAutomationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class StockAdjustmentController extends Controller
 {
+    public function __construct(private readonly InventoryAutomationService $automationService) {}
+
     public function index(): View
     {
         $items = InventoryItem::latest()->get();
+        $locations = StorageLocation::orderBy('name')->get();
 
-        return view('inventory.adjustments.index', compact('items'));
+        return view('inventory.adjustments.index', compact('items', 'locations'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -22,31 +28,39 @@ class StockAdjustmentController extends Controller
         $validated = $request->validate([
             'item_id' => ['required', 'exists:inventory_items,id'],
             'adjustment_type' => ['required', 'in:increase,decrease,correction'],
-            'quantity' => ['required', 'integer'],
+            'quantity' => ['required', 'integer', 'min:0'],
+            'location_id' => ['required', 'exists:storage_locations,id'],
             'reason' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $item = InventoryItem::findOrFail($validated['item_id']);
         $quantity = (int) $validated['quantity'];
+        $locationId = (int) $validated['location_id'];
 
-        if ($validated['adjustment_type'] === 'increase') {
-            $item->quantity_on_hand += $quantity;
-        } elseif ($validated['adjustment_type'] === 'decrease') {
-            $item->quantity_on_hand = max(0, $item->quantity_on_hand - $quantity);
-        } else {
-            $item->quantity_on_hand = $quantity;
+        // An adjustment is recorded as a signed movement, so the three form
+        // options all collapse to a delta. A correction states the count the
+        // shelf should read, so its delta is the gap between that and what
+        // the location currently holds.
+        $delta = match ($validated['adjustment_type']) {
+            'increase' => $quantity,
+            'decrease' => -$quantity,
+            'correction' => $quantity - $this->automationService->availableAt(
+                (int) $validated['item_id'],
+                $locationId
+            ),
+        };
+
+        if ($delta === 0) {
+            return redirect()->route('inventory.adjustments')
+                ->with('info', 'No adjustment applied — the recorded count already matches.');
         }
 
-        $schemaBuilder = $item->getConnection()->getSchemaBuilder();
-        if ($schemaBuilder->hasColumn($item->getTable(), 'total_value')) {
-            $item->total_value = round($item->quantity_on_hand * (float) ($item->unit_cost ?? 0), 2);
-        }
-
-        if ($schemaBuilder->hasColumn($item->getTable(), 'unit_cost')) {
-            $item->unit_cost = (float) ($item->unit_cost ?? 0);
-        }
-
-        $item->save();
+        $this->automationService->recordMovement([
+            'item_id' => $validated['item_id'],
+            'movement_type' => MovementType::Adjustment,
+            'quantity' => $delta,
+            'to_location_id' => $locationId,
+            'remarks' => $validated['reason'] ?? null,
+        ], auth()->id());
 
         return redirect()->route('inventory.adjustments')->with('success', 'Stock adjustment applied successfully.');
     }

@@ -71,7 +71,7 @@
                                 <th class="px-3 py-2 text-left font-semibold text-[var(--muted)]">Status</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-[var(--border)]">
+                        <tbody id="storage-locations-table-body" class="divide-y divide-[var(--border)]">
                             @forelse ($locations as $location)
                                 <tr>
                                     <td class="px-3 py-2">{{ $location->name }}</td>
@@ -87,8 +87,60 @@
                             @endforelse
                         </tbody>
                     </table>
+                    <div id="locations-api-status" class="mt-3 text-sm text-[var(--muted)]">Loading storage locations from API...</div>
                 </div>
             </div>
         </div>
     </div>
+
+    <script>
+        async function loadStorageLocationsFromApi() {
+            const status = document.getElementById('locations-api-status');
+            const tbody = document.getElementById('storage-locations-table-body');
+
+            try {
+                const csrfResponse = await fetch('/sanctum/csrf-cookie', { credentials: 'same-origin' });
+                if (!csrfResponse.ok) {
+                    throw new Error(`CSRF cookie request failed with status ${csrfResponse.status}`);
+                }
+
+                const response = await fetch('/api/v1/storage-locations?per_page=100', {
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    const body = await response.text();
+                    console.error('Storage locations API error body:', body);
+                    throw new Error(`API request failed with status ${response.status}: ${body}`);
+                }
+
+                const payload = await response.json();
+                const locations = payload.data || [];
+
+                if (locations.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="px-3 py-4 text-[var(--muted)]">No storage locations found via API.</td></tr>`;
+                } else {
+                    tbody.innerHTML = locations.map(location => `
+                        <tr>
+                            <td class="px-3 py-2">${location.name}</td>
+                            <td class="px-3 py-2">${location.code}</td>
+                            <td class="px-3 py-2">${location.zone || '—'}</td>
+                            <td class="px-3 py-2">${location.capacity ?? '—'}</td>
+                            <td class="px-3 py-2">${location.status || 'unknown'}</td>
+                        </tr>
+                    `).join('');
+                }
+
+                status.textContent = 'Storage locations loaded from API.';
+            } catch (error) {
+                console.error('Storage locations load failed:', error);
+                status.textContent = `Unable to load storage locations from API (${error.message}). Check console for details.`;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadStorageLocationsFromApi);
+    </script>
 </x-app-layout>

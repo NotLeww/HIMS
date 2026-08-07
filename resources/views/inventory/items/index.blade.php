@@ -45,7 +45,7 @@
                         <label class="block text-sm font-medium text-[var(--muted)]">Supplier</label>
                         <select name="supplier_id" class="mt-1 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2">
                             <option value="">Select supplier</option>
-                            @foreach (App\Models\Models\Supplier::all() as $supplier)
+                            @foreach (App\Models\Supplier::all() as $supplier)
                                 <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
                             @endforeach
                         </select>
@@ -73,7 +73,7 @@
                                 <th class="px-3 py-2 text-left font-semibold text-[var(--muted)]">Supplier</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-[var(--border)]">
+                        <tbody id="inventory-items-table-body" class="divide-y divide-[var(--border)]">
                             @forelse ($items as $item)
                                 <tr>
                                     <td class="px-3 py-2">{{ $item->name }}</td>
@@ -90,7 +90,54 @@
                         </tbody>
                     </table>
                 </div>
+                <div id="inventory-api-status" class="mt-3 text-sm text-[var(--muted)]">Loading inventory from API...</div>
             </div>
         </div>
     </div>
+
+    <script>
+        async function loadInventoryItemsFromApi() {
+            const status = document.getElementById('inventory-api-status');
+            const tbody = document.getElementById('inventory-items-table-body');
+
+            try {
+                await fetch('/sanctum/csrf-cookie', { credentials: 'same-origin' });
+                const response = await fetch('/api/v1/inventory-items', {
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API request failed with status ${response.status}`);
+                }
+
+                const payload = await response.json();
+                const items = payload.data || [];
+
+                if (items.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="px-3 py-4 text-[var(--muted)]">No inventory items found via API.</td></tr>`;
+                } else {
+                    tbody.innerHTML = items.map(item => `
+                        <tr>
+                            <td class="px-3 py-2">${item.name}</td>
+                            <td class="px-3 py-2">${item.sku}</td>
+                            <td class="px-3 py-2">${item.quantity_on_hand}</td>
+                            <td class="px-3 py-2">${item.reorder_level}</td>
+                            <td class="px-3 py-2">${item.supplier ? item.supplier.name : '—'}</td>
+                        </tr>
+                    `).join('');
+                }
+
+                status.textContent = 'Inventory loaded from API.';
+            } catch (error) {
+                console.error(error);
+                status.textContent = 'Unable to load inventory from API. Check console for details.';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadInventoryItemsFromApi);
+    </script>
 </x-app-layout>

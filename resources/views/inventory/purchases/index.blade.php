@@ -16,7 +16,7 @@
                     @csrf
                     <div>
                         <label class="mb-1 block text-sm font-medium text-[var(--text)]">Item</label>
-                        <select name="item_id" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required>
+                        <select id="demand-plan-item-select" name="item_id" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required>
                             <option value="">Select item</option>
                             @foreach($items as $item)
                                 <option value="{{ $item->id }}">{{ $item->name }} ({{ $item->sku }})</option>
@@ -51,23 +51,10 @@
 
             <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
                 <h3 class="text-lg font-semibold text-[var(--text)]">Demand plans</h3>
-                <div class="mt-4 space-y-2">
-                    @php $plans = App\Models\Models\DemandPlan::with('item')->latest()->get(); @endphp
-                    @forelse($plans as $plan)
-                        <div class="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-3 text-sm">
-                            <div class="flex flex-wrap items-center justify-between gap-2">
-                                <span class="font-semibold text-[var(--text)]">{{ $plan->item?->name ?? '-' }}</span>
-                                <span class="rounded-full bg-[var(--primary-light)] px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--primary)]">{{ $plan->status }}</span>
-                            </div>
-                            <p class="mt-1 text-[var(--muted)]">Current stock: {{ $plan->current_stock }} • Historical usage: {{ $plan->historical_usage }} • Upcoming need: {{ $plan->upcoming_need }} • Reorder point: {{ $plan->reorder_point }}</p>
-                            @if($plan->trigger_reason)
-                                <p class="mt-1 text-[var(--muted)]">Trigger: {{ $plan->trigger_reason }}</p>
-                            @endif
-                        </div>
-                    @empty
-                        <p class="rounded-lg border border-dashed border-[var(--border)] bg-[var(--background)] px-3 py-4 text-sm text-[var(--muted)]">No demand plans have been created yet.</p>
-                    @endforelse
+                <div id="demand-plans-list" class="mt-4 space-y-2">
+                    <p class="rounded-lg border border-dashed border-[var(--border)] bg-[var(--background)] px-3 py-4 text-sm text-[var(--muted)]">Loading demand plans from API...</p>
                 </div>
+                <div id="demand-plans-api-status" class="mt-3 text-sm text-[var(--muted)]">Loading demand plans from API...</div>
             </div>
 
             <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
@@ -88,7 +75,7 @@
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium text-[var(--text)]">Item</label>
-                        <select name="item_id" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required>
+                        <select id="request-item-select" name="item_id" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required>
                             <option value="">Select item</option>
                             @foreach($items as $item)
                                 <option value="{{ $item->id }}">{{ $item->name }} ({{ $item->sku }})</option>
@@ -105,7 +92,7 @@
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium text-[var(--text)]">Preferred supplier</label>
-                        <select name="supplier_id" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2">
+                        <select id="request-supplier-select" name="supplier_id" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2">
                             <option value="">Select supplier</option>
                             @foreach($suppliers as $supplier)
                                 <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
@@ -140,66 +127,18 @@
 
             <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
                 <h3 class="text-lg font-semibold text-[var(--text)]">Procurement requests</h3>
-                <div class="mt-4 space-y-3">
-                    @forelse($requests as $request)
-                        <div class="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4">
-                            <div class="flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                    <p class="font-semibold text-[var(--text)]">{{ $request->title }}</p>
-                                    <p class="text-sm text-[var(--muted)]">{{ $request->item?->name ?? '-' }} • Qty: {{ $request->requested_quantity }}</p>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="rounded-full bg-[var(--primary-light)] px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--primary)]">{{ $request->priority }}</span>
-                                    <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">{{ $request->status }}</span>
-                                </div>
-                            </div>
-                            <div class="mt-3 flex flex-wrap gap-2">
-                                <form method="POST" action="{{ route('inventory.purchases.requests.approve', $request) }}" class="flex flex-wrap items-center gap-2">
-                                    @csrf
-                                    <input type="text" name="approved_by" placeholder="Approver" class="rounded-lg border border-[var(--border)] px-2 py-1 text-sm" />
-                                    <input type="text" name="approval_notes" placeholder="Approval notes" class="rounded-lg border border-[var(--border)] px-2 py-1 text-sm" />
-                                    <select name="evaluation_status" class="rounded-lg border border-[var(--border)] bg-white px-2 py-1 text-sm">
-                                        <option value="approved">Approved</option>
-                                        <option value="rejected">Rejected</option>
-                                    </select>
-                                    <input type="number" step="0.01" name="evaluation_score" placeholder="Score" class="w-24 rounded-lg border border-[var(--border)] px-2 py-1 text-sm" />
-                                    <button type="submit" class="rounded-lg border border-emerald-500 px-3 py-1 text-sm font-medium text-emerald-600">Approve</button>
-                                </form>
-                                <form method="POST" action="{{ route('inventory.purchases.quotes.store') }}" class="flex flex-wrap items-center gap-2">
-                                    @csrf
-                                    <input type="hidden" name="procurement_request_id" value="{{ $request->id }}" />
-                                    <select name="supplier_id" class="rounded-lg border border-[var(--border)] bg-white px-2 py-1 text-sm" required>
-                                        <option value="">Select supplier</option>
-                                        @foreach($suppliers as $supplier)
-                                            <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
-                                        @endforeach
-                                    </select>
-                                    <input type="number" step="0.01" name="quoted_price" placeholder="Quoted price" class="w-32 rounded-lg border border-[var(--border)] px-2 py-1 text-sm" required />
-                                    <button type="submit" class="rounded-lg border border-[var(--border)] px-3 py-1 text-sm font-medium text-[var(--text)]">Submit quote</button>
-                                </form>
-                            </div>
-                        </div>
-                    @empty
-                        <p class="rounded-lg border border-dashed border-[var(--border)] bg-[var(--background)] px-3 py-4 text-sm text-[var(--muted)]">No procurement requests yet.</p>
-                    @endforelse
+                <div id="procurement-requests-list" class="mt-4 space-y-3">
+                    <p class="rounded-lg border border-dashed border-[var(--border)] bg-[var(--background)] px-3 py-4 text-sm text-[var(--muted)]">Loading procurement requests from API...</p>
                 </div>
+                <div id="procurement-requests-api-status" class="mt-3 text-sm text-[var(--muted)]">Loading procurement requests from API...</div>
             </div>
 
             <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
                 <h3 class="text-lg font-semibold text-[var(--text)]">Supplier quotations</h3>
-                <div class="mt-4 space-y-2">
-                    @forelse($quotes as $quote)
-                        <div class="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-3 text-sm">
-                            <div class="flex flex-wrap items-center justify-between gap-2">
-                                <span class="font-semibold text-[var(--text)]">{{ $quote->supplier?->name ?? '-' }}</span>
-                                <span class="text-[var(--muted)]">₱{{ number_format($quote->quoted_price, 2) }}</span>
-                            </div>
-                            <p class="mt-1 text-[var(--muted)]">Request: {{ $quote->procurementRequest?->title ?? '-' }} • Status: {{ $quote->status }}</p>
-                        </div>
-                    @empty
-                        <p class="rounded-lg border border-dashed border-[var(--border)] bg-[var(--background)] px-3 py-4 text-sm text-[var(--muted)]">No quotes submitted yet.</p>
-                    @endforelse
+                <div id="supplier-quotes-list" class="mt-4 space-y-2">
+                    <p class="rounded-lg border border-dashed border-[var(--border)] bg-[var(--background)] px-3 py-4 text-sm text-[var(--muted)]">Loading supplier quotes from API...</p>
                 </div>
+                <div id="supplier-quotes-api-status" class="mt-3 text-sm text-[var(--muted)]">Loading supplier quotes from API...</div>
             </div>
 
             <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
@@ -208,7 +147,7 @@
                     @csrf
                     <div>
                         <label class="mb-1 block text-sm font-medium text-[var(--text)]">Supplier</label>
-                        <select name="supplier_id" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required>
+                        <select id="po-supplier-select" name="supplier_id" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required>
                             <option value="">Select supplier</option>
                             @foreach($suppliers as $supplier)
                                 <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
@@ -217,7 +156,7 @@
                     </div>
                     <div>
                         <label class="mb-1 block text-sm font-medium text-[var(--text)]">Item</label>
-                        <select name="item_id" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required>
+                        <select id="po-item-select" name="item_id" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required>
                             <option value="">Select item</option>
                             @foreach($items as $item)
                                 <option value="{{ $item->id }}">{{ $item->name }} ({{ $item->sku }})</option>
@@ -257,38 +196,211 @@
                                 <th class="px-3 py-2">Action</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-[var(--border)]">
-                            @php $purchaseOrders = App\Models\Models\PurchaseOrder::with(['supplier', 'item'])->latest('requested_at')->get(); @endphp
-                            @forelse($purchaseOrders as $order)
-                                <tr>
-                                    <td class="px-3 py-2 font-medium text-[var(--text)]">{{ $order->po_number }}</td>
-                                    <td class="px-3 py-2">{{ $order->supplier?->name ?? '-' }}</td>
-                                    <td class="px-3 py-2">{{ $order->item?->name ?? '-' }}</td>
-                                    <td class="px-3 py-2">{{ $order->quantity }}</td>
-                                    <td class="px-3 py-2">₱{{ number_format($order->unit_cost, 2) }}</td>
-                                    <td class="px-3 py-2">
-                                        <span class="rounded-full bg-[var(--primary-light)] px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--primary)]">{{ $order->status }}</span>
-                                    </td>
-                                    <td class="px-3 py-2">
-                                        @if($order->status !== 'received')
-                                            <form method="POST" action="{{ route('inventory.purchases.receive', $order) }}">
-                                                @csrf
-                                                <button type="submit" class="rounded-lg border border-emerald-500 px-3 py-1 text-sm font-medium text-emerald-600">Receive goods</button>
-                                            </form>
-                                        @else
-                                            <span class="text-sm text-[var(--muted)]">Received</span>
-                                        @endif
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="px-3 py-4 text-center text-[var(--muted)]">No purchase orders yet.</td>
-                                </tr>
-                            @endforelse
+                        <tbody id="purchase-orders-table-body" class="divide-y divide-[var(--border)]">
+                            <tr>
+                                <td colspan="7" class="px-3 py-4 text-center text-[var(--muted)]">Loading purchase orders from API...</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
+                <div id="purchase-orders-api-status" class="mt-3 text-sm text-[var(--muted)]">Loading purchase orders from API...</div>
             </div>
         </div>
     </div>
+
+    <script>
+        async function fetchApiJson(path) {
+            await fetch('/sanctum/csrf-cookie', { credentials: 'same-origin' });
+            const response = await fetch(path, {
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`API request failed with status ${response.status}`);
+            }
+
+            return response.json();
+        }
+
+        function formatCurrency(amount) {
+            return `₱${parseFloat(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+
+        function renderDemandPlans(plans) {
+            const container = document.getElementById('demand-plans-list');
+            if (!plans.length) {
+                container.innerHTML = '<p class="rounded-lg border border-dashed border-[var(--border)] bg-[var(--background)] px-3 py-4 text-sm text-[var(--muted)]">No demand plans found via API.</p>';
+                return;
+            }
+
+            container.innerHTML = plans.map(plan => `
+                <div class="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-3 text-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="font-semibold text-[var(--text)]">${plan.item ? plan.item.name : '-'}</span>
+                        <span class="rounded-full bg-[var(--primary-light)] px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--primary)]">${plan.status}</span>
+                    </div>
+                    <p class="mt-1 text-[var(--muted)]">Current stock: ${plan.current_stock} • Historical usage: ${plan.historical_usage} • Upcoming need: ${plan.upcoming_need} • Reorder point: ${plan.reorder_point}</p>
+                    ${plan.trigger_reason ? `<p class="mt-1 text-[var(--muted)]">Trigger: ${plan.trigger_reason}</p>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function renderProcurementRequests(requests) {
+            const container = document.getElementById('procurement-requests-list');
+            if (!requests.length) {
+                container.innerHTML = '<p class="rounded-lg border border-dashed border-[var(--border)] bg-[var(--background)] px-3 py-4 text-sm text-[var(--muted)]">No procurement requests found via API.</p>';
+                return;
+            }
+
+            container.innerHTML = requests.map(request => `
+                <div class="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p class="font-semibold text-[var(--text)]">${request.title}</p>
+                            <p class="text-sm text-[var(--muted)]">${request.item ? request.item.name : '-'} • Qty: ${request.requested_quantity}</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="rounded-full bg-[var(--primary-light)] px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--primary)]">${request.priority}</span>
+                            <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">${request.status}</span>
+                        </div>
+                    </div>
+                    ${request.description ? `<p class="mt-3 text-sm text-[var(--muted)]">${request.description}</p>` : ''}
+                    ${request.supplier ? `<p class="mt-2 text-sm text-[var(--muted)]"><strong>Preferred supplier:</strong> ${request.supplier.name}</p>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function renderSupplierQuotes(quotes) {
+            const container = document.getElementById('supplier-quotes-list');
+            if (!quotes.length) {
+                container.innerHTML = '<p class="rounded-lg border border-dashed border-[var(--border)] bg-[var(--background)] px-3 py-4 text-sm text-[var(--muted)]">No supplier quotes found via API.</p>';
+                return;
+            }
+
+            container.innerHTML = quotes.map(quote => `
+                <div class="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-3 text-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="font-semibold text-[var(--text)]">${quote.supplier ? quote.supplier.name : '-'}</span>
+                        <span class="text-[var(--muted)]">${formatCurrency(quote.quoted_price)}</span>
+                    </div>
+                    <p class="mt-1 text-[var(--muted)]">Request: ${quote.procurement_request ? quote.procurement_request.request_number : '-'} • Status: ${quote.status}</p>
+                </div>
+            `).join('');
+        }
+
+        async function loadPurchaseOrdersFromApi() {
+            const status = document.getElementById('purchase-orders-api-status');
+            const tbody = document.getElementById('purchase-orders-table-body');
+
+            try {
+                const payload = await fetchApiJson('/api/v1/purchase-orders');
+                const items = payload.data || [];
+
+                if (items.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" class="px-3 py-4 text-[var(--muted)]">No purchase orders found via API.</td></tr>`;
+                } else {
+                    tbody.innerHTML = items.map(order => `
+                        <tr>
+                            <td class="px-3 py-2 font-medium text-[var(--text)]">${order.po_number}</td>
+                            <td class="px-3 py-2">${order.supplier ? order.supplier.name : '-'}</td>
+                            <td class="px-3 py-2">${order.item ? order.item.name : '-'}</td>
+                            <td class="px-3 py-2">${order.quantity}</td>
+                            <td class="px-3 py-2">${formatCurrency(order.unit_cost)}</td>
+                            <td class="px-3 py-2"><span class="rounded-full bg-[var(--primary-light)] px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--primary)]">${order.status}</span></td>
+                            <td class="px-3 py-2"><span class="text-sm text-[var(--muted)]">Live API</span></td>
+                        </tr>
+                    `).join('');
+                }
+
+                status.textContent = 'Purchase orders loaded from API.';
+            } catch (error) {
+                console.error(error);
+                status.textContent = 'Unable to load purchase orders from API. Check console for details.';
+            }
+        }
+
+        async function loadDemandPlansFromApi() {
+            const status = document.getElementById('demand-plans-api-status');
+
+            try {
+                const payload = await fetchApiJson('/api/v1/demand-plans?per_page=100');
+                renderDemandPlans(payload.data || []);
+                status.textContent = 'Demand plans loaded from API.';
+            } catch (error) {
+                console.error(error);
+                status.textContent = 'Unable to load demand plans from API. Check console for details.';
+            }
+        }
+
+        async function loadProcurementRequestsFromApi() {
+            const status = document.getElementById('procurement-requests-api-status');
+
+            try {
+                const payload = await fetchApiJson('/api/v1/procurement-requests?per_page=100');
+                renderProcurementRequests(payload.data || []);
+                status.textContent = 'Procurement requests loaded from API.';
+            } catch (error) {
+                console.error(error);
+                status.textContent = 'Unable to load procurement requests from API. Check console for details.';
+            }
+        }
+
+        async function loadSupplierQuotesFromApi() {
+            const status = document.getElementById('supplier-quotes-api-status');
+
+            try {
+                const payload = await fetchApiJson('/api/v1/supplier-quotes?per_page=100');
+                renderSupplierQuotes(payload.data || []);
+                status.textContent = 'Supplier quotes loaded from API.';
+            } catch (error) {
+                console.error(error);
+                status.textContent = 'Unable to load supplier quotes from API. Check console for details.';
+            }
+        }
+
+        async function loadItemsAndSuppliersForForm() {
+            const itemSelectIds = ['demand-plan-item-select', 'request-item-select', 'po-item-select'];
+            const supplierSelectIds = ['request-supplier-select', 'po-supplier-select'];
+
+            try {
+                const [itemsPayload, suppliersPayload] = await Promise.all([
+                    fetchApiJson('/api/v1/inventory-items?per_page=100'),
+                    fetchApiJson('/api/v1/suppliers?per_page=100')
+                ]);
+
+                const items = itemsPayload.data || [];
+                const suppliers = suppliersPayload.data || [];
+
+                const itemOptions = ['<option value="">Select item</option>', ...items.map(item => `<option value="${item.id}">${item.name} (${item.sku || ''})</option>`)];
+                const supplierOptions = ['<option value="">Select supplier</option>', ...suppliers.map(supplier => `<option value="${supplier.id}">${supplier.name}</option>`)];
+
+                itemSelectIds.forEach(id => {
+                    const select = document.getElementById(id);
+                    if (select) {
+                        select.innerHTML = itemOptions.join('');
+                    }
+                });
+
+                supplierSelectIds.forEach(id => {
+                    const select = document.getElementById(id);
+                    if (select) {
+                        select.innerHTML = supplierOptions.join('');
+                    }
+                });
+            } catch (error) {
+                console.error('Unable to load form select options from API.', error);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPurchaseOrdersFromApi();
+            loadDemandPlansFromApi();
+            loadProcurementRequestsFromApi();
+            loadSupplierQuotesFromApi();
+            loadItemsAndSuppliersForForm();
+        });
+    </script>
 </x-app-layout>
