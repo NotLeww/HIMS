@@ -20,12 +20,17 @@
         those rules so the form only ever asks for the locations that apply.
         Issuance and returns additionally name a counterparty, which is stored
         on the movement's polymorphic reference.
+
+        The whole card is skipped for an account that may record nothing — a
+        viewer or auditor gets the history below without a form that would only
+        refuse them. $movementTypes is already filtered to what they may post.
     --}}
+    @if (! empty($movementTypes))
     <x-ui.card
         title="Record Movement"
         subtitle="Balances update immediately; outbound quantities are drawn earliest-expiry-first."
         x-data="{
-            type: '{{ old('movement_type', 'stock_in') }}',
+            type: '{{ old('movement_type', $movementTypes[0]->value) }}',
             itemId: '{{ old('item_id', $items->first()?->id) }}',
             stock: {{ Js::from($availability->map(fn ($levels) => $levels->map(fn ($l) => [
                 'location' => $l->location?->name,
@@ -55,19 +60,17 @@
                     @endforeach
                 </x-ui.field>
 
+                {{-- Only the types this account may record. A pharmacy user is
+                     not offered "Stock In", because the POST would refuse it. --}}
                 <x-ui.field
                     name="movement_type"
                     label="Movement Type"
                     type="select"
                     required
                     x-model="type"
-                    :options="[
-                        'stock_in' => 'Stock In — receive into a location',
-                        'stock_out' => 'Stock Out — issue from a location',
-                        'issuance' => 'Issuance — dispense to a ward or department',
-                        'transfer' => 'Transfer — move between locations',
-                        'return_to_supplier' => 'Return to Supplier — send back to vendor',
-                    ]" />
+                    :options="collect($movementTypes)
+                        ->mapWithKeys(fn ($type) => [$type->value => $type->label().' — '.$type->hint()])
+                        ->all()" />
 
                 <div x-show="needsSource" x-cloak>
                     <x-ui.field
@@ -178,6 +181,7 @@
             </div>
         </form>
     </x-ui.card>
+    @endif
 
     <x-ui.card title="Movement History" :subtitle="$movements->count().' recorded'" :padding="false">
         <x-ui.table>

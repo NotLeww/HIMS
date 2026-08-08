@@ -50,7 +50,10 @@ class InventoryModuleTest extends TestCase
             'requested_at' => now(),
         ]);
 
-        $user = User::factory()->create();
+        // Needs to both record a movement and see the purchase-order card, so
+        // the actor is the manager rather than the warehouse — a warehouse
+        // account is refused procurement and the card is hidden from it.
+        $user = User::factory()->inventoryManager()->create();
 
         $this->actingAs($user)
             ->post('/inventory/stock-movements', [
@@ -75,7 +78,7 @@ class InventoryModuleTest extends TestCase
 
     public function test_stock_out_updates_inventory_balance_and_status_automatically(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->warehouseStaff()->create();
         $location = StorageLocation::create(['name' => 'Warehouse', 'code' => 'WH01', 'status' => 'active']);
 
         $item = InventoryItem::create([
@@ -112,7 +115,7 @@ class InventoryModuleTest extends TestCase
 
     public function test_transfer_rejects_insufficient_stock_before_updating_balance(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->warehouseStaff()->create();
         $source = StorageLocation::create([
             'name' => 'Main Store',
             'code' => 'MAIN-01',
@@ -163,7 +166,9 @@ class InventoryModuleTest extends TestCase
      */
     public function test_purchase_order_receive_posts_stock_through_the_service(): void
     {
-        $user = User::factory()->create();
+        // Receiving a delivery needs record_movements, which the warehouse holds
+        // and procurement-only accounts do not.
+        $user = User::factory()->warehouseStaff()->create();
         $supplier = Supplier::create([
             'name' => 'Metro Med Supply',
             'contact_person' => 'Ana',
@@ -225,7 +230,9 @@ class InventoryModuleTest extends TestCase
 
     public function test_purchase_order_receive_is_rejected_when_no_storage_location_exists(): void
     {
-        $user = User::factory()->create();
+        // Receiving a delivery needs record_movements, which the warehouse holds
+        // and procurement-only accounts do not.
+        $user = User::factory()->warehouseStaff()->create();
         $supplier = Supplier::create([
             'name' => 'Metro Med Supply',
             'contact_person' => 'Ana',

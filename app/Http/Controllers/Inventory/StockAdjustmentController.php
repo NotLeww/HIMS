@@ -3,16 +3,35 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Enums\MovementType;
+use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use App\Models\StorageLocation;
 use App\Services\InventoryAutomationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\View\View;
 
-class StockAdjustmentController extends Controller
+class StockAdjustmentController extends Controller implements HasMiddleware
 {
+    /**
+     * An adjustment is the one operation that creates or destroys stock with no
+     * counterparty — no supplier delivered it, no ward received it. It is how a
+     * miscount gets papered over, so it stays with the inventory manager rather
+     * than the staff who did the counting.
+     *
+     * @return array<int, Middleware|string>
+     */
+    public static function middleware(): array
+    {
+        return [
+            'auth',
+            new Middleware('can:'.Permission::AdjustStock->value),
+        ];
+    }
+
     public function __construct(private readonly InventoryAutomationService $automationService) {}
 
     public function index(): View

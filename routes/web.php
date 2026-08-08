@@ -1,6 +1,8 @@
 <?php
 
-use App\Http\Controllers\Inventory\DemandPlanningController;
+use App\Http\Controllers\Admin\PermissionMatrixController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Inventory\DemandForecastController;
 use App\Http\Controllers\Inventory\InventoryController;
 use App\Http\Controllers\Inventory\InventoryItemController;
 use App\Http\Controllers\Inventory\ProcurementController;
@@ -22,6 +24,13 @@ Route::get('/dashboard', [InventoryController::class, 'index'])->middleware('aut
 // it authenticates with the session cookie the page already has.
 Route::get('/dashboard/live', [InventoryController::class, 'live'])->middleware('auth')->name('dashboard.live');
 
+/*
+ * The inventory surface. `auth` here only establishes that somebody is signed
+ * in — the permission each route requires is declared on its controller via
+ * HasMiddleware, so a method added later cannot slip out from behind the guard
+ * by being forgotten in this file. See App\Enums\UserRole::permissions() for
+ * who holds what, and /admin/permissions for the matrix that renders it.
+ */
 Route::middleware('auth')->group(function () {
     Route::get('/inventory', function () {
         return redirect()->route('dashboard');
@@ -38,7 +47,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/inventory/adjustments', [StockAdjustmentController::class, 'store'])->name('inventory.adjustments.store');
     Route::get('/inventory/logistics', [InventoryController::class, 'logistics'])->name('inventory.logistics');
     Route::get('/inventory/purchases', [ProcurementController::class, 'index'])->name('inventory.purchases');
-    Route::post('/inventory/purchases/plans', [DemandPlanningController::class, 'store'])->name('inventory.purchases.plans.store');
     Route::post('/inventory/purchases/requests', [ProcurementController::class, 'storeRequest'])->name('inventory.purchases.requests.store');
     Route::post('/inventory/purchases/quotes', [ProcurementController::class, 'storeQuote'])->name('inventory.purchases.quotes.store');
     Route::post('/inventory/purchases/requests/{procurementRequest}/approve', [ProcurementController::class, 'approve'])->name('inventory.purchases.requests.approve');
@@ -48,9 +56,33 @@ Route::middleware('auth')->group(function () {
     Route::get('/inventory/alerts', [InventoryController::class, 'alerts'])->name('inventory.alerts');
     Route::get('/inventory/reports', [InventoryController::class, 'reports'])->name('inventory.reports');
 
+    // Demand Forecasting. Reading the forecast needs view_reports; saving a
+    // plan needs generate_forecasts. Both are declared on the controller.
+    Route::get('/inventory/demand-forecast', [DemandForecastController::class, 'index'])->name('inventory.demand-forecast');
+    Route::post('/inventory/demand-forecast', [DemandForecastController::class, 'store'])->name('inventory.demand-forecast.store');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+/*
+ * User Management. Administrator-only — the guard is declared on the controller
+ * itself (HasMiddleware) rather than here, so a method added later cannot slip
+ * out from behind it.
+ */
+Route::prefix('admin')->name('admin.')->group(function () {
+    Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::get('/users/create', [UserController::class, 'create'])->name('users.create');
+    Route::post('/users', [UserController::class, 'store'])->name('users.store');
+    Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
+    Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
+    Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
+    Route::patch('/users/{user}/status', [UserController::class, 'toggleStatus'])->name('users.toggle-status');
+
+    // The role-versus-module matrix, generated from the same enum the gates are
+    // registered from, so it cannot drift from what is actually enforced.
+    Route::get('/permissions', [PermissionMatrixController::class, 'index'])->name('permissions');
 });
 
 require __DIR__.'/auth.php';

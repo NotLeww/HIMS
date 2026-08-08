@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Enums\MovementType;
+use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use App\Models\PurchaseOrder;
@@ -11,11 +12,30 @@ use App\Models\Supplier;
 use App\Services\InventoryAutomationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
-class PurchaseOrderController extends Controller
+class PurchaseOrderController extends Controller implements HasMiddleware
 {
+    /**
+     * Raising a purchase order and receiving the delivery are separate jobs and
+     * separate permissions: procurement commits the money, the warehouse counts
+     * what arrives on the dock. Splitting them keeps a warehouse hand able to
+     * book in a delivery without also being able to order stock.
+     *
+     * @return array<int, Middleware|string>
+     */
+    public static function middleware(): array
+    {
+        return [
+            'auth',
+            new Middleware('can:'.Permission::ManageProcurement->value, only: ['index', 'store']),
+            new Middleware('can:'.Permission::RecordMovements->value, only: ['receive']),
+        ];
+    }
+
     public function __construct(private readonly InventoryAutomationService $automationService) {}
 
     public function index(): View

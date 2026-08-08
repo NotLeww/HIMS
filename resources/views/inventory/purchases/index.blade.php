@@ -10,43 +10,22 @@
 
     <div class="py-6">
         <div class="mx-auto max-w-7xl space-y-6 sm:px-6 lg:px-8">
+            {{--
+                Stage 1 used to be a form asking the user to type in the current
+                stock, historical usage and reorder point by hand — the very
+                figures a forecast is supposed to produce. It now lives on its own
+                screen and derives all of them from recorded stock movements.
+            --}}
             <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
-                <h3 class="text-lg font-semibold text-[var(--text)]">Stage 1 • Planning & Demand Forecasting</h3>
-                <form method="POST" action="{{ route('inventory.purchases.plans.store') }}" class="mt-4 grid gap-4 md:grid-cols-2">
-                    @csrf
-                    <div>
-                        <label class="mb-1 block text-sm font-medium text-[var(--text)]">Item</label>
-                        <select id="demand-plan-item-select" name="item_id" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required>
-                            <option value="">Select item</option>
-                            @foreach($items as $item)
-                                <option value="{{ $item->id }}">{{ $item->name }} ({{ $item->sku }})</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="mb-1 block text-sm font-medium text-[var(--text)]">Current stock</label>
-                        <input type="number" name="current_stock" min="0" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required />
-                    </div>
-                    <div>
-                        <label class="mb-1 block text-sm font-medium text-[var(--text)]">Historical usage</label>
-                        <input type="number" name="historical_usage" min="0" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required />
-                    </div>
-                    <div>
-                        <label class="mb-1 block text-sm font-medium text-[var(--text)]">Upcoming need</label>
-                        <input type="number" name="upcoming_need" min="0" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required />
-                    </div>
-                    <div>
-                        <label class="mb-1 block text-sm font-medium text-[var(--text)]">Reorder point</label>
-                        <input type="number" name="reorder_point" min="0" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required />
-                    </div>
-                    <div>
-                        <label class="mb-1 block text-sm font-medium text-[var(--text)]">Trigger reason</label>
-                        <input type="text" name="trigger_reason" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" />
-                    </div>
-                    <div class="md:col-span-2">
-                        <button type="submit" class="rounded-xl bg-[var(--primary)] px-4 py-2 font-semibold text-white">Create demand plan</button>
-                    </div>
-                </form>
+                <h3 class="text-lg font-semibold text-[var(--text)]">Stage 1 • Planning &amp; Demand Forecasting</h3>
+                <p class="mt-2 text-sm text-[var(--muted)]">
+                    Forecasts are now calculated from consumption history — average daily usage, safety stock,
+                    reorder point and a suggested order quantity per item — rather than entered by hand.
+                </p>
+                <a href="{{ route('inventory.demand-forecast') }}"
+                   class="mt-4 inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2 font-semibold text-white">
+                    Open Demand Forecasting
+                </a>
             </div>
 
             <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">

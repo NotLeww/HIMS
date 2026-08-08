@@ -25,7 +25,9 @@ class StockAdjustmentTest extends TestCase
      */
     private function stockedItem(int $quantity = 100, int $reorderLevel = 50): array
     {
-        $user = User::factory()->create();
+        // Correcting a counted balance needs adjust_stock, which sits with the
+        // inventory manager rather than the staff who did the counting.
+        $user = User::factory()->inventoryManager()->create();
 
         $location = StorageLocation::create([
             'name' => 'Main Store',

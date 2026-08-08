@@ -2,13 +2,29 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Permission;
 use App\Models\Supplier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\View\View;
 
-class SupplierController extends Controller
+class SupplierController extends Controller implements HasMiddleware
 {
+    /**
+     * The supplier directory is procurement's, not the wards'.
+     *
+     * @return array<int, Middleware|string>
+     */
+    public static function middleware(): array
+    {
+        return [
+            'auth',
+            new Middleware('can:'.Permission::ManageSuppliers->value),
+        ];
+    }
+
     public function index(): View
     {
         $suppliers = Supplier::latest()->get();

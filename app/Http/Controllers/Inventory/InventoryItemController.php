@@ -2,14 +2,33 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\View\View;
 
-class InventoryItemController extends Controller
+class InventoryItemController extends Controller implements HasMiddleware
 {
+    /**
+     * Reading the item list and editing the item master are different jobs.
+     * Every department needs to look up an item; only the inventory manager
+     * may create or change one.
+     *
+     * @return array<int, Middleware|string>
+     */
+    public static function middleware(): array
+    {
+        return [
+            'auth',
+            new Middleware('can:'.Permission::ViewInventory->value, only: ['index']),
+            new Middleware('can:'.Permission::ManageItems->value, only: ['store']),
+        ];
+    }
+
     public function index(): View
     {
         $items = InventoryItem::with('supplier')->latest()->get();

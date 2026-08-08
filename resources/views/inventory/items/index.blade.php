@@ -13,6 +13,10 @@
                 </div>
             @endif
 
+            {{-- The catalogue is readable by anyone with view_inventory, but only
+                 manage_items may add to it, so the form is hidden rather than
+                 shown-and-refused. --}}
+            @can(\App\Enums\Permission::ManageItems->value)
             <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
                 <h3 class="text-lg font-semibold text-[var(--text)]">Create Inventory Item</h3>
                 <form method="POST" action="{{ route('inventory.items.store') }}" class="mt-4 grid gap-4 md:grid-cols-2">
@@ -59,6 +63,7 @@
                     </div>
                 </form>
             </div>
+            @endcan
 
             <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
                 <h3 class="text-lg font-semibold text-[var(--text)]">Inventory List</h3>

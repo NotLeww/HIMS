@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Enums\AlertStatus;
+use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use App\Models\ItemBatch;
@@ -12,10 +13,33 @@ use App\Models\StockMovement;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\View\View;
 
-class InventoryController extends Controller
+class InventoryController extends Controller implements HasMiddleware
 {
+    /**
+     * The read-only screens, each gated on what it actually shows.
+     *
+     * index() and live() are deliberately left on plain `auth`: /dashboard is
+     * where login redirects, so a 403 there would put a signed-in user in a
+     * loop with no way out. It shows counts and alerts, nothing a member of
+     * staff should not see, and the panels inside it are individually gated.
+     *
+     * @return array<int, Middleware|string>
+     */
+    public static function middleware(): array
+    {
+        return [
+            'auth',
+            new Middleware('can:'.Permission::ViewInventory->value, only: ['stock', 'alerts']),
+            new Middleware('can:'.Permission::ViewReports->value, only: ['reports', 'logistics']),
+            new Middleware('can:'.Permission::ManageSuppliers->value, only: ['suppliers']),
+            new Middleware('can:'.Permission::ManageProcurement->value, only: ['purchases']),
+        ];
+    }
+
     public function index(): View
     {
         $totalSuppliers = Supplier::count();

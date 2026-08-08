@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use App\Models\ProcurementRequest;
@@ -9,10 +10,26 @@ use App\Models\Supplier;
 use App\Models\SupplierQuote;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\View\View;
 
-class ProcurementController extends Controller
+class ProcurementController extends Controller implements HasMiddleware
 {
+    /**
+     * Requisitions and quote evaluation are procurement's, end to end —
+     * including approve(), which commits hospital money.
+     *
+     * @return array<int, Middleware|string>
+     */
+    public static function middleware(): array
+    {
+        return [
+            'auth',
+            new Middleware('can:'.Permission::ManageProcurement->value),
+        ];
+    }
+
     public function index(): View
     {
         $items = InventoryItem::all();

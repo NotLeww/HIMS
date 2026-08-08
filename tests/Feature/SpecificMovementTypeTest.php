@@ -35,7 +35,10 @@ class SpecificMovementTypeTest extends TestCase
      */
     private function stockedItem(int $quantity = 100, int $reorderLevel = 50): array
     {
-        $user = User::factory()->create();
+        // Warehouse staff hold both issue_stock and record_movements, so one
+        // actor covers every type this file exercises. The narrower pharmacy
+        // case — issuance yes, stock_in no — is pinned in RoleBasedAccessTest.
+        $user = User::factory()->warehouseStaff()->create();
 
         $location = StorageLocation::create([
             'name' => 'Central Pharmacy',
@@ -372,7 +375,7 @@ class SpecificMovementTypeTest extends TestCase
 
     public function test_the_form_offers_both_new_types(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->warehouseStaff()->create();
 
         $this->actingAs($user)->get('/inventory/stock-movements')
             ->assertStatus(200)

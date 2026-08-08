@@ -46,7 +46,7 @@ class StockMovementScreenTest extends TestCase
     public function test_stock_in_without_a_destination_shows_an_error_instead_of_failing_silently(): void
     {
         [$item] = $this->stockedItem();
-        $user = User::factory()->create();
+        $user = User::factory()->warehouseStaff()->create();
 
         $response = $this->actingAs($user)->from('/inventory/stock-movements')->post('/inventory/stock-movements', [
             'item_id' => $item->id,
@@ -68,7 +68,7 @@ class StockMovementScreenTest extends TestCase
     public function test_stock_out_beyond_available_quantity_shows_the_shortfall(): void
     {
         [$item, $location] = $this->stockedItem(8);
-        $user = User::factory()->create();
+        $user = User::factory()->warehouseStaff()->create();
 
         $this->actingAs($user)->from('/inventory/stock-movements')->post('/inventory/stock-movements', [
             'item_id' => $item->id,
@@ -87,7 +87,7 @@ class StockMovementScreenTest extends TestCase
     public function test_successful_movement_reports_what_was_recorded_and_lists_it(): void
     {
         [$item, $location] = $this->stockedItem();
-        $user = User::factory()->create();
+        $user = User::factory()->warehouseStaff()->create();
 
         $this->actingAs($user)->post('/inventory/stock-movements', [
             'item_id' => $item->id,
@@ -109,7 +109,7 @@ class StockMovementScreenTest extends TestCase
     public function test_api_movement_updates_balances_rather_than_only_logging_a_row(): void
     {
         [$item, $location] = $this->stockedItem(40);
-        $user = User::factory()->create();
+        $user = User::factory()->warehouseStaff()->create();
 
         $this->actingAs($user)->postJson('/api/v1/stock-movements', [
             'item_id' => $item->id,
@@ -126,7 +126,7 @@ class StockMovementScreenTest extends TestCase
     public function test_api_rejects_a_movement_type_that_is_not_a_real_enum_case(): void
     {
         [$item, $location] = $this->stockedItem();
-        $user = User::factory()->create();
+        $user = User::factory()->warehouseStaff()->create();
 
         // 'in' and 'out' were accepted before; the resulting rows threw a
         // ValueError on the enum cast and took the whole history table down.
@@ -145,7 +145,7 @@ class StockMovementScreenTest extends TestCase
     public function test_history_lists_the_newest_movement_first(): void
     {
         [$item, $location] = $this->stockedItem(100);
-        $user = User::factory()->create();
+        $user = User::factory()->warehouseStaff()->create();
 
         foreach ([1, 2, 3] as $quantity) {
             $this->actingAs($user)->post('/inventory/stock-movements', [

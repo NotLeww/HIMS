@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -20,6 +22,10 @@ class UserFactory extends Factory
     /**
      * Define the model's default state.
      *
+     * Defaults to the least-privileged role. A test that needs to do something
+     * has to say so, which keeps the permission being exercised visible in the
+     * test itself rather than inherited silently from the factory.
+     *
      * @return array<string, mixed>
      */
     public function definition(): array
@@ -30,6 +36,11 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            'role' => UserRole::Viewer,
+            'status' => UserStatus::Active,
+            'employee_id' => 'EMP-'.fake()->unique()->numberBetween(1000, 9999),
+            'department' => fake()->randomElement(['Pharmacy', 'Central Supply', 'Laboratory', 'Nursing']),
+            'phone' => '09'.fake()->numerify('#########'),
         ];
     }
 
@@ -41,5 +52,40 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
         ]);
+    }
+
+    public function role(UserRole $role): static
+    {
+        return $this->state(fn (array $attributes) => ['role' => $role]);
+    }
+
+    public function administrator(): static
+    {
+        return $this->role(UserRole::Administrator);
+    }
+
+    public function inventoryManager(): static
+    {
+        return $this->role(UserRole::InventoryManager);
+    }
+
+    public function warehouseStaff(): static
+    {
+        return $this->role(UserRole::WarehouseStaff);
+    }
+
+    public function pharmacyStaff(): static
+    {
+        return $this->role(UserRole::PharmacyStaff);
+    }
+
+    public function viewer(): static
+    {
+        return $this->role(UserRole::Viewer);
+    }
+
+    public function inactive(): static
+    {
+        return $this->state(fn (array $attributes) => ['status' => UserStatus::Inactive]);
     }
 }

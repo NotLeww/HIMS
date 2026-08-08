@@ -48,6 +48,69 @@ enum MovementType: string
     }
 
     /**
+     * Whether this movement represents real demand for the item.
+     *
+     * Demand forecasting counts only stock that was actually consumed by the
+     * hospital. A transfer relocates stock without anyone using it, a disposal
+     * is waste rather than demand, a return goes back to the vendor, and an
+     * adjustment corrects a counting error — treating any of them as demand
+     * would inflate the forecast and order stock nobody needs.
+     */
+    public function isConsumption(): bool
+    {
+        return in_array($this, [self::StockOut, self::Issuance], true);
+    }
+
+    /**
+     * The stored values that count as consumption, for use in a where-in.
+     *
+     * @return array<int, string>
+     */
+    public static function consumptionValues(): array
+    {
+        return array_values(array_map(
+            fn (self $type) => $type->value,
+            array_filter(self::cases(), fn (self $type) => $type->isConsumption())
+        ));
+    }
+
+    /**
+     * A short explanation of what the type does, shown beside its name in the
+     * movement form's dropdown.
+     */
+    public function hint(): string
+    {
+        return match ($this) {
+            self::StockIn => 'receive into a location',
+            self::StockOut => 'consume from a location',
+            self::Transfer => 'move between locations',
+            self::Adjustment => 'correct a counted balance',
+            self::Disposal => 'write off damaged or expired stock',
+            self::Issuance => 'dispense to a ward or department',
+            self::ReturnToSupplier => 'send back to vendor',
+        };
+    }
+
+    /**
+     * The ability a user must hold to record this type of movement.
+     *
+     * Dispensing to a ward and receiving a delivery are different jobs, so they
+     * are gated separately: pharmacy staff hold issue_stock and can therefore
+     * record an issuance or a stock-out, but a transfer, a disposal or a return
+     * to the supplier needs the wider record_movements, and correcting a
+     * balance needs adjust_stock. Declaring it on the type means the controller
+     * and the form dropdown both read the rule from the same place.
+     */
+    public function requiredPermission(): Permission
+    {
+        return match ($this) {
+            self::Issuance, self::StockOut => Permission::IssueStock,
+            self::Adjustment => Permission::AdjustStock,
+            default => Permission::RecordMovements,
+        };
+    }
+
+    /**
      * Adjustments carry a signed quantity and are applied directly rather
      * than moving stock between two locations.
      */

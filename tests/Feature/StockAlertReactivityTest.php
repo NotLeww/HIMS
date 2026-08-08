@@ -28,7 +28,7 @@ class StockAlertReactivityTest extends TestCase
      */
     private function stockedItem(int $quantity = 100, int $reorderLevel = 50): array
     {
-        $user = User::factory()->create();
+        $user = User::factory()->warehouseStaff()->create();
 
         $location = StorageLocation::create([
             'name' => 'Main Store',

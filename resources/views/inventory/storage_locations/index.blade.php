@@ -19,11 +19,14 @@
                         <h3 class="text-lg font-semibold text-[var(--text)]">Storage Locations</h3>
                         <p class="text-sm text-[var(--muted)]">Manage warehouse zones, bins, racks, and storage points.</p>
                     </div>
-                    <button type="button" onclick="document.getElementById('add-location-form').classList.toggle('hidden')" class="rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--primary-dark)]">
-                        Add Location
-                    </button>
+                    @can(\App\Enums\Permission::ManageLocations->value)
+                        <button type="button" onclick="document.getElementById('add-location-form').classList.toggle('hidden')" class="rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--primary-dark)]">
+                            Add Location
+                        </button>
+                    @endcan
                 </div>
 
+                @can(\App\Enums\Permission::ManageLocations->value)
                 <div id="add-location-form" class="mt-5 hidden rounded-2xl border border-[var(--border)] bg-[var(--background)]/50 p-5">
                     <form method="POST" action="{{ route('inventory.storage-locations.store') }}" class="grid gap-4 md:grid-cols-2">
                         @csrf
@@ -59,6 +62,7 @@
                         </div>
                     </form>
                 </div>
+                @endcan
 
                 <div class="mt-6 overflow-x-auto">
                     <table class="min-w-full divide-y divide-[var(--border)] text-sm">

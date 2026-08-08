@@ -1,0 +1,136 @@
+<?php
+
+namespace App\Enums;
+
+/**
+ * Who a staff member is, and therefore what they may do.
+ *
+ * Roles are stored as a single column on `users` rather than in pivot tables.
+ * A hospital storeroom has a handful of well-known job functions, not
+ * arbitrary permission sets, so the extra tables would carry no information
+ * this enum does not already state — and this version is readable at a glance.
+ *
+ * If per-user overrides are ever needed, the Gate layer in AppServiceProvider
+ * is the only thing that has to change; the checks in controllers and views
+ * ask about a Permission and stay as they are.
+ */
+enum UserRole: string
+{
+    case Administrator = 'administrator';
+    case InventoryManager = 'inventory_manager';
+    case WarehouseStaff = 'warehouse_staff';
+    case PharmacyStaff = 'pharmacy_staff';
+    case Viewer = 'viewer';
+
+    public function label(): string
+    {
+        return match ($this) {
+            self::Administrator => 'Administrator',
+            self::InventoryManager => 'Inventory Manager',
+            self::WarehouseStaff => 'Warehouse Staff',
+            self::PharmacyStaff => 'Pharmacy Staff',
+            self::Viewer => 'Viewer',
+        };
+    }
+
+    public function description(): string
+    {
+        return match ($this) {
+            self::Administrator => 'Full access, including user accounts.',
+            self::InventoryManager => 'Runs the storeroom: items, procurement, forecasts.',
+            self::WarehouseStaff => 'Receives and moves stock; clears alerts.',
+            self::PharmacyStaff => 'Issues and dispenses stock to wards.',
+            self::Viewer => 'Read-only access for auditors and observers.',
+        };
+    }
+
+    /**
+     * The abilities this role holds, mapped to what the job actually involves.
+     *
+     * Read the list downwards: every role sees stock and reports, because a
+     * storeroom nobody can look into is useless. Above that the grants narrow
+     * to the work each department is accountable for, and nothing wider.
+     *
+     * @return array<int, Permission>
+     */
+    public function permissions(): array
+    {
+        return match ($this) {
+            self::Administrator => Permission::cases(),
+
+            // Owns the storeroom records: the item master, supplier directory,
+            // procurement, forecasting, and the balance corrections that follow
+            // a cycle count. The only role that may reshape inventory data.
+            self::InventoryManager => [
+                Permission::ViewInventory,
+                Permission::ViewReports,
+                Permission::IssueStock,
+                Permission::RecordMovements,
+                Permission::AcknowledgeAlerts,
+                Permission::AdjustStock,
+                Permission::ManageItems,
+                Permission::ManageLocations,
+                Permission::ManageSuppliers,
+                Permission::ManageProcurement,
+                Permission::GenerateForecasts,
+            ],
+
+            // Physically handles stock: receives deliveries, transfers between
+            // zones, issues to wards, and clears the alerts that result. No
+            // authority over the records themselves — an item they cannot count
+            // is a question for the inventory manager, not a row they may edit,
+            // and adjust_stock is withheld for the same reason: correcting a
+            // balance must not be done by the person who counted it.
+            self::WarehouseStaff => [
+                Permission::ViewInventory,
+                Permission::ViewReports,
+                Permission::IssueStock,
+                Permission::RecordMovements,
+                Permission::AcknowledgeAlerts,
+            ],
+
+            // Dispenses to wards and nothing else. They need to see what is on
+            // the shelf to dispense against it, so view_inventory is granted —
+            // this is the view-only access to medicine stock the department
+            // genuinely needs. issue_stock covers dispensing; the receiving,
+            // transfer and return types stay with the warehouse.
+            self::PharmacyStaff => [
+                Permission::ViewInventory,
+                Permission::ViewReports,
+                Permission::IssueStock,
+            ],
+
+            // Auditors and observers. Reads everything, writes nothing.
+            self::Viewer => [
+                Permission::ViewInventory,
+                Permission::ViewReports,
+            ],
+        };
+    }
+
+    public function grants(Permission $permission): bool
+    {
+        return in_array($permission, $this->permissions(), true);
+    }
+
+    /**
+     * Only an administrator may reach the user-management screens. Kept as a
+     * named check so the intent reads clearly at the call site.
+     */
+    public function isAdministrator(): bool
+    {
+        return $this === self::Administrator;
+    }
+
+    /**
+     * Value => label, for populating a <select>.
+     *
+     * @return array<string, string>
+     */
+    public static function options(): array
+    {
+        return collect(self::cases())
+            ->mapWithKeys(fn (self $role) => [$role->value => $role->label()])
+            ->all();
+    }
+}

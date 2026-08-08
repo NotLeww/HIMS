@@ -10,9 +10,11 @@ class SupplierManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_authenticated_user_can_create_a_supplier(): void
+    public function test_an_inventory_manager_can_create_a_supplier(): void
     {
-        $user = User::factory()->create();
+        // The vendor directory needs manage_suppliers; being signed in is not
+        // enough, which RoleBasedAccessTest asserts from the other direction.
+        $user = User::factory()->inventoryManager()->create();
 
         $response = $this->actingAs($user)->post('/inventory/suppliers', [
             'name' => 'Acme Medical Supplies',

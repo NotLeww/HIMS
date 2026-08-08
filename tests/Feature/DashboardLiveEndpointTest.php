@@ -23,7 +23,9 @@ class DashboardLiveEndpointTest extends TestCase
      */
     private function stockedItem(int $quantity = 100, int $reorderLevel = 50): array
     {
-        $user = User::factory()->create();
+        // The counters are driven by recording movements, so the actor needs
+        // record_movements. The endpoint itself is open to any signed-in user.
+        $user = User::factory()->warehouseStaff()->create();
 
         $location = StorageLocation::create([
             'name' => 'Main Store',

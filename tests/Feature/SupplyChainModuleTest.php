@@ -11,9 +11,10 @@ class SupplyChainModuleTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_authenticated_user_can_create_an_inventory_item(): void
+    public function test_an_inventory_manager_can_create_an_inventory_item(): void
     {
-        $user = User::factory()->create();
+        // The item master needs manage_items — the storeroom owns the catalogue.
+        $user = User::factory()->inventoryManager()->create();
         $supplier = Supplier::create([
             'name' => 'Acme Medical Supplies',
             'email' => 'sales@acme.com',

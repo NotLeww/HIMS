@@ -146,16 +146,22 @@
             </div>
         </x-ui.card>
 
-        {{-- Operational snapshot --}}
+        {{-- Operational snapshot. The supplier and purchase-order figures are
+             procurement's business, so an account without it sees the stock
+             lines only rather than counts it cannot act on. --}}
         <x-ui.card title="Operational snapshot">
             <dl class="divide-y divide-neutral-100">
-                @foreach ([
-                    ['Suppliers', number_format($totalSuppliers), 'text-neutral-900'],
-                    ['Active suppliers', number_format($activeSuppliers), 'text-success-700'],
-                    ['Storage locations', number_format($storageLocations), 'text-neutral-900'],
-                    ['Pending purchase orders', number_format($pendingPoCount), $pendingPoCount > 0 ? 'text-warning-700' : 'text-neutral-900'],
-                    ['Out of stock', number_format($outOfStockItems), $outOfStockItems > 0 ? 'text-danger-700' : 'text-neutral-900'],
-                ] as [$label, $figure, $tone])
+                @foreach (array_merge(
+                    auth()->user()->can(\App\Enums\Permission::ManageSuppliers->value) ? [
+                        ['Suppliers', number_format($totalSuppliers), 'text-neutral-900'],
+                        ['Active suppliers', number_format($activeSuppliers), 'text-success-700'],
+                    ] : [],
+                    [['Storage locations', number_format($storageLocations), 'text-neutral-900']],
+                    auth()->user()->can(\App\Enums\Permission::ManageProcurement->value) ? [
+                        ['Pending purchase orders', number_format($pendingPoCount), $pendingPoCount > 0 ? 'text-warning-700' : 'text-neutral-900'],
+                    ] : [],
+                    [['Out of stock', number_format($outOfStockItems), $outOfStockItems > 0 ? 'text-danger-700' : 'text-neutral-900']],
+                ) as [$label, $figure, $tone])
                     <div class="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
                         <dt class="text-sm text-neutral-600">{{ $label }}</dt>
                         <dd class="text-sm font-semibold tabular-nums {{ $tone }}">{{ $figure }}</dd>
@@ -166,7 +172,10 @@
     </div>
 
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {{-- Pending purchase orders --}}
+        {{-- Pending purchase orders. Hidden without manage_procurement: the
+             card's "View all" leads to a screen that would refuse them, and
+             the rows name suppliers and amounts they have no business in. --}}
+        @can(\App\Enums\Permission::ManageProcurement->value)
         <x-ui.card :padding="false">
             <x-slot:header>
                 <h2 class="text-sm font-semibold text-neutral-900">Pending purchase orders</h2>
@@ -213,6 +222,7 @@
                 </tbody>
             </x-ui.table>
         </x-ui.card>
+        @endcan
 
         {{-- Recent stock movements --}}
         <x-ui.card :padding="false">
