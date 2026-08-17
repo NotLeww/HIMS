@@ -18,6 +18,7 @@
 /public/storage
 /storage/*.key
 /storage/pail
+/supply_chain
 /vendor
 Homestead.json
 Homestead.yaml
