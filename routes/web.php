@@ -7,6 +7,7 @@ use App\Http\Controllers\Inventory\InventoryController;
 use App\Http\Controllers\Inventory\InventoryItemController;
 use App\Http\Controllers\Inventory\ProcurementController;
 use App\Http\Controllers\Inventory\PurchaseOrderController;
+use App\Http\Controllers\Inventory\ReportController;
 use App\Http\Controllers\Inventory\StockAdjustmentController;
 use App\Http\Controllers\Inventory\StockMovementController;
 use App\Http\Controllers\Inventory\StorageLocationController;
@@ -54,7 +55,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/inventory/purchases/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])->name('inventory.purchases.receive');
     Route::get('/inventory/stock', [InventoryController::class, 'stock'])->name('inventory.stock');
     Route::get('/inventory/alerts', [InventoryController::class, 'alerts'])->name('inventory.alerts');
-    Route::get('/inventory/reports', [InventoryController::class, 'reports'])->name('inventory.reports');
+    Route::get('/inventory/reports', [ReportController::class, 'index'])->name('inventory.reports');
 
     // Demand Forecasting. Reading the forecast needs view_reports; saving a
     // plan needs generate_forecasts. Both are declared on the controller.

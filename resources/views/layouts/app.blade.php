@@ -47,6 +47,13 @@
                         <x-ui.alert variant="danger" dismissible>{{ session('error') }}</x-ui.alert>
                     @endif
 
+                    {{-- Controllers that redirect with a neutral notice — an
+                         already-received purchase order, say — used to flash
+                         into nothing, because only success and error rendered. --}}
+                    @if (session('info'))
+                        <x-ui.alert variant="info" dismissible>{{ session('info') }}</x-ui.alert>
+                    @endif
+
                     {{ $slot }}
                 </div>
             </main>

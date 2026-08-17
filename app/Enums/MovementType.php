@@ -62,16 +62,23 @@ enum MovementType: string
     }
 
     /**
+     * The types that count as consumption.
+     *
+     * @return array<int, self>
+     */
+    public static function consumptionCases(): array
+    {
+        return array_values(array_filter(self::cases(), fn (self $type) => $type->isConsumption()));
+    }
+
+    /**
      * The stored values that count as consumption, for use in a where-in.
      *
      * @return array<int, string>
      */
     public static function consumptionValues(): array
     {
-        return array_values(array_map(
-            fn (self $type) => $type->value,
-            array_filter(self::cases(), fn (self $type) => $type->isConsumption())
-        ));
+        return array_map(fn (self $type) => $type->value, self::consumptionCases());
     }
 
     /**

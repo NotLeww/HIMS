@@ -35,7 +35,14 @@ class ProcurementController extends Controller implements HasMiddleware
         $items = InventoryItem::all();
         $suppliers = Supplier::where('status', 'active')->get();
 
-        return view('inventory.purchases.index', compact('items', 'suppliers'));
+        // The quote form needs to name a request to attach itself to. The list
+        // below it is still fetched from the API; this is only the dropdown, so
+        // it is server-rendered like every other select on the page.
+        $requests = ProcurementRequest::with(['item', 'supplier'])
+            ->latest('id')
+            ->get();
+
+        return view('inventory.purchases.index', compact('items', 'suppliers', 'requests'));
     }
 
     public function storeRequest(Request $request): RedirectResponse

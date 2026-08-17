@@ -112,6 +112,69 @@
                 <div id="procurement-requests-api-status" class="mt-3 text-sm text-[var(--muted)]">Loading procurement requests from API...</div>
             </div>
 
+            {{--
+                Stage 3 had a backend route and controller from the start but no
+                form, so a quote could never be raised from the screen and the
+                list below always read empty. This is that missing form; it posts
+                to the existing inventory.purchases.quotes.store.
+            --}}
+            <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
+                <h3 class="text-lg font-semibold text-[var(--text)]">Stage 3 &bull; Supplier quotation</h3>
+                <p class="mt-2 text-sm text-[var(--muted)]">
+                    Record what each vendor quoted against a request. Canvass several suppliers on the
+                    same request, then approve the request naming the one you picked.
+                </p>
+
+                @if ($requests->isEmpty())
+                    <p class="mt-4 rounded-lg border border-dashed border-[var(--border)] bg-[var(--background)] px-3 py-4 text-sm text-[var(--muted)]">
+                        Create a procurement request first — a quote has to attach to one.
+                    </p>
+                @else
+                    <form method="POST" action="{{ route('inventory.purchases.quotes.store') }}" class="mt-4 grid gap-4 md:grid-cols-2">
+                        @csrf
+                        <div>
+                            <label for="quote-request" class="mb-1 block text-sm font-medium text-[var(--text)]">Procurement request</label>
+                            <select id="quote-request" name="procurement_request_id" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required>
+                                <option value="">Select request</option>
+                                @foreach ($requests as $procurementRequest)
+                                    <option value="{{ $procurementRequest->id }}" @selected(old('procurement_request_id') == $procurementRequest->id)>
+                                        {{ $procurementRequest->request_number }} — {{ $procurementRequest->title }}
+                                        ({{ $procurementRequest->item?->name ?? 'no item' }})
+                                    </option>
+                                @endforeach
+                            </select>
+                            <x-input-error :messages="$errors->get('procurement_request_id')" class="mt-1" />
+                        </div>
+                        <div>
+                            <label for="quote-supplier" class="mb-1 block text-sm font-medium text-[var(--text)]">Supplier</label>
+                            <select id="quote-supplier" name="supplier_id" class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required>
+                                <option value="">Select supplier</option>
+                                @foreach ($suppliers as $supplier)
+                                    <option value="{{ $supplier->id }}" @selected(old('supplier_id') == $supplier->id)>{{ $supplier->name }}</option>
+                                @endforeach
+                            </select>
+                            <x-input-error :messages="$errors->get('supplier_id')" class="mt-1" />
+                        </div>
+                        <div>
+                            <label for="quote-price" class="mb-1 block text-sm font-medium text-[var(--text)]">Quoted price</label>
+                            <input id="quote-price" type="number" step="0.01" min="0" name="quoted_price" value="{{ old('quoted_price') }}"
+                                   class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" required />
+                            <x-input-error :messages="$errors->get('quoted_price')" class="mt-1" />
+                        </div>
+                        <div>
+                            <label for="quote-notes" class="mb-1 block text-sm font-medium text-[var(--text)]">Notes</label>
+                            <input id="quote-notes" type="text" name="notes" value="{{ old('notes') }}" maxlength="255"
+                                   placeholder="Lead time, payment terms, inclusions"
+                                   class="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2" />
+                            <x-input-error :messages="$errors->get('notes')" class="mt-1" />
+                        </div>
+                        <div class="md:col-span-2">
+                            <button type="submit" class="rounded-xl bg-[var(--primary)] px-4 py-2 font-semibold text-white">Submit quote</button>
+                        </div>
+                    </form>
+                @endif
+            </div>
+
             <div class="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
                 <h3 class="text-lg font-semibold text-[var(--text)]">Supplier quotations</h3>
                 <div id="supplier-quotes-list" class="mt-4 space-y-2">
@@ -238,18 +301,70 @@
                 <div class="rounded-xl border border-[var(--border)] bg-[var(--background)] p-4">
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                            <p class="font-semibold text-[var(--text)]">${request.title}</p>
-                            <p class="text-sm text-[var(--muted)]">${request.item ? request.item.name : '-'} • Qty: ${request.requested_quantity}</p>
+                            <p class="font-semibold text-[var(--text)]">${escapeHtml(request.title)}</p>
+                            <p class="text-sm text-[var(--muted)]">${request.item ? escapeHtml(request.item.name) : '-'} • Qty: ${request.requested_quantity}</p>
                         </div>
                         <div class="flex items-center gap-2">
-                            <span class="rounded-full bg-[var(--primary-light)] px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--primary)]">${request.priority}</span>
-                            <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">${request.status}</span>
+                            <span class="rounded-full bg-[var(--primary-light)] px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--primary)]">${escapeHtml(request.priority)}</span>
+                            <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">${escapeHtml(request.status)}</span>
                         </div>
                     </div>
-                    ${request.description ? `<p class="mt-3 text-sm text-[var(--muted)]">${request.description}</p>` : ''}
-                    ${request.supplier ? `<p class="mt-2 text-sm text-[var(--muted)]"><strong>Preferred supplier:</strong> ${request.supplier.name}</p>` : ''}
+                    ${request.description ? `<p class="mt-3 text-sm text-[var(--muted)]">${escapeHtml(request.description)}</p>` : ''}
+                    ${request.supplier ? `<p class="mt-2 text-sm text-[var(--muted)]"><strong>Preferred supplier:</strong> ${escapeHtml(request.supplier.name)}</p>` : ''}
+                    ${renderApprovalForm(request)}
                 </div>
             `).join('');
+        }
+
+        /*
+         * Stage 4. The approve route existed but nothing on the page posted to
+         * it, so a request stayed PENDING forever. Already-approved requests get
+         * a stamp instead of a second button — approve() has no transition guard,
+         * so re-approving would silently overwrite who signed off.
+         */
+        function renderApprovalForm(request) {
+            if (request.status === 'approved') {
+                return `
+                    <p class="mt-3 border-t border-[var(--border)] pt-3 text-sm text-[var(--muted)]">
+                        Approved${request.approved_by ? ` by <strong class="text-[var(--text)]">${escapeHtml(request.approved_by)}</strong>` : ''}.
+                        Raise the purchase order below.
+                    </p>
+                `;
+            }
+
+            return `
+                <form method="POST" action="/inventory/purchases/requests/${request.id}/approve"
+                      class="mt-3 grid gap-3 border-t border-[var(--border)] pt-3 md:grid-cols-3">
+                    <input type="hidden" name="_token" value="${csrfToken()}">
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-[var(--muted)]">Approved by</label>
+                        <input type="text" name="approved_by" maxlength="255" required
+                               class="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-[var(--muted)]">Approval notes</label>
+                        <input type="text" name="approval_notes" maxlength="255"
+                               class="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm" />
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" class="w-full rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white">
+                            Approve request
+                        </button>
+                    </div>
+                </form>
+            `;
+        }
+
+        function csrfToken() {
+            return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        }
+
+        // These rows are built by string concatenation, so anything coming back
+        // from the API is escaped before it is interpolated.
+        function escapeHtml(value) {
+            const div = document.createElement('div');
+            div.textContent = value ?? '';
+            return div.innerHTML;
         }
 
         function renderSupplierQuotes(quotes) {
@@ -270,6 +385,43 @@
             `).join('');
         }
 
+        /*
+         * A pending order is one nobody has booked in yet. Receiving it is what
+         * turns a paid-for order into stock on the shelf: receive() posts a
+         * stock_in through InventoryAutomationService and stamps the PO
+         * `received`. The route existed from the start but this cell only ever
+         * held a placeholder label, so there was no way to trigger it.
+         *
+         * Gated on record_movements rather than on the page's own permission —
+         * counting what arrives on the dock is warehouse work, not procurement's.
+         */
+        function renderReceiveForm(order) {
+            if (order.status === 'received') {
+                return '<span class="text-sm text-[var(--muted)]">Received</span>';
+            }
+
+            @can(\App\Enums\Permission::RecordMovements->value)
+                return `
+                    <form method="POST" action="/inventory/purchases/${order.id}/receive">
+                        <input type="hidden" name="_token" value="${csrfToken()}">
+                        <button type="submit" class="rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-semibold text-white">
+                            Receive
+                        </button>
+                    </form>
+                `;
+            @else
+                return '<span class="text-sm text-[var(--muted)]">Awaiting delivery</span>';
+            @endcan
+        }
+
+        function renderOrderStatus(status) {
+            const tone = status === 'received'
+                ? 'bg-emerald-50 text-emerald-700'
+                : 'bg-[var(--primary-light)] text-[var(--primary)]';
+
+            return `<span class="rounded-full ${tone} px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em]">${escapeHtml(status)}</span>`;
+        }
+
         async function loadPurchaseOrdersFromApi() {
             const status = document.getElementById('purchase-orders-api-status');
             const tbody = document.getElementById('purchase-orders-table-body');
@@ -283,13 +435,13 @@
                 } else {
                     tbody.innerHTML = items.map(order => `
                         <tr>
-                            <td class="px-3 py-2 font-medium text-[var(--text)]">${order.po_number}</td>
-                            <td class="px-3 py-2">${order.supplier ? order.supplier.name : '-'}</td>
-                            <td class="px-3 py-2">${order.item ? order.item.name : '-'}</td>
+                            <td class="px-3 py-2 font-medium text-[var(--text)]">${escapeHtml(order.po_number)}</td>
+                            <td class="px-3 py-2">${order.supplier ? escapeHtml(order.supplier.name) : '-'}</td>
+                            <td class="px-3 py-2">${order.item ? escapeHtml(order.item.name) : '-'}</td>
                             <td class="px-3 py-2">${order.quantity}</td>
                             <td class="px-3 py-2">${formatCurrency(order.unit_cost)}</td>
-                            <td class="px-3 py-2"><span class="rounded-full bg-[var(--primary-light)] px-2 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--primary)]">${order.status}</span></td>
-                            <td class="px-3 py-2"><span class="text-sm text-[var(--muted)]">Live API</span></td>
+                            <td class="px-3 py-2">${renderOrderStatus(order.status)}</td>
+                            <td class="px-3 py-2">${renderReceiveForm(order)}</td>
                         </tr>
                     `).join('');
                 }

@@ -34,7 +34,7 @@ class InventoryController extends Controller implements HasMiddleware
         return [
             'auth',
             new Middleware('can:'.Permission::ViewInventory->value, only: ['stock', 'alerts']),
-            new Middleware('can:'.Permission::ViewReports->value, only: ['reports', 'logistics']),
+            new Middleware('can:'.Permission::ViewReports->value, only: ['logistics']),
             new Middleware('can:'.Permission::ManageSuppliers->value, only: ['suppliers']),
             new Middleware('can:'.Permission::ManageProcurement->value, only: ['purchases']),
         ];
@@ -152,11 +152,6 @@ class InventoryController extends Controller implements HasMiddleware
     public function alerts(): View
     {
         return view('inventory.alerts.index');
-    }
-
-    public function reports(): View
-    {
-        return view('inventory.reports.index');
     }
 
     public function logistics(): View
