@@ -17,7 +17,7 @@ class DataImportValidator
      */
     public const REQUIRED_HEADERS = [
         'items' => ['sku', 'name'],
-        'locations' => ['code', 'name'],
+        'locations' => ['code', 'name', 'type'],
         'suppliers' => ['name'],
     ];
 
@@ -66,7 +66,6 @@ class DataImportValidator
      * Validate Inventory Items table.
      *
      * @param  array<string, mixed>  $tableData
-     * @param  string  $mode
      * @return array<string, mixed>
      */
     protected function validateItems(array $tableData, string $mode): array
@@ -109,9 +108,9 @@ class DataImportValidator
                     [
                         'row' => $headerRow,
                         'field' => implode(', ', $missingHeaders),
-                        'value' => ! empty($originalHeaders) ? 'Detected: [' . implode(', ', array_slice($originalHeaders, 0, 8)) . ']' : '[None]',
+                        'value' => ! empty($originalHeaders) ? 'Detected: ['.implode(', ', array_slice($originalHeaders, 0, 8)).']' : '[None]',
                         'type' => 'missing_header',
-                        'message' => "Missing required {$term}: " . implode(', ', $missingHeaders) . '. Required headers are: ' . implode(', ', $hints) . '.',
+                        'message' => "Missing required {$term}: ".implode(', ', $missingHeaders).'. Required headers are: '.implode(', ', $hints).'.',
                     ],
                 ],
                 'warnings' => [],
@@ -214,7 +213,7 @@ class DataImportValidator
                 $rowErrors[] = [
                     'row' => $rowNum,
                     'field' => 'name',
-                    'value' => substr($rawName, 0, 30) . '...',
+                    'value' => substr($rawName, 0, 30).'...',
                     'type' => 'invalid_value',
                     'message' => "Item name on row {$rowNum} exceeds maximum length of 255 characters.",
                 ];
@@ -352,10 +351,7 @@ class DataImportValidator
                 }
             }
 
-            $unit = trim((string) ($row['unit'] ?? 'unit'));
-            if ($unit === '') {
-                $unit = 'unit';
-            }
+            $unit = trim((string) ($row['unit'] ?? ''));
 
             $requiresColdChain = $this->parseBoolean($row['requires_cold_chain'] ?? false);
             $isDangerousDrug = $this->parseBoolean($row['is_dangerous_drug'] ?? false);
@@ -385,7 +381,7 @@ class DataImportValidator
                     'description' => trim((string) ($row['description'] ?? '')),
                     'category_id' => $resolvedCategoryId,
                     'default_location_id' => $resolvedLocationId,
-                    'unit' => $unit,
+                    'unit' => $unit !== '' ? $unit : null,
                     'unit_cost' => $unitCost,
                     'reorder_level' => $reorderLevel,
                     'safety_stock' => $safetyStock,
@@ -407,7 +403,7 @@ class DataImportValidator
                     'name' => $rawName ?: '-',
                     'category' => $rawCat ?: 'None',
                     'location' => $rawLoc ?: 'None',
-                    'unit_cost' => '₱' . number_format($unitCost, 2),
+                    'unit_cost' => '₱'.number_format($unitCost, 2),
                     'reorder_level' => $reorderLevel,
                     'status' => $rowValid ? ($isExisting ? 'update' : 'valid') : 'invalid',
                     'errors' => array_column($rowErrors, 'message'),
@@ -437,7 +433,6 @@ class DataImportValidator
      * Validate Storage Locations table.
      *
      * @param  array<string, mixed>  $tableData
-     * @param  string  $mode
      * @return array<string, mixed>
      */
     protected function validateLocations(array $tableData, string $mode): array
@@ -477,9 +472,9 @@ class DataImportValidator
                     [
                         'row' => $headerRow,
                         'field' => implode(', ', $missingHeaders),
-                        'value' => ! empty($originalHeaders) ? 'Detected: [' . implode(', ', array_slice($originalHeaders, 0, 8)) . ']' : '[None]',
+                        'value' => ! empty($originalHeaders) ? 'Detected: ['.implode(', ', array_slice($originalHeaders, 0, 8)).']' : '[None]',
                         'type' => 'missing_header',
-                        'message' => "Missing required {$term}: " . implode(', ', $missingHeaders) . '. Required headers are: ' . implode(', ', $hints) . '.',
+                        'message' => "Missing required {$term}: ".implode(', ', $missingHeaders).'. Required headers are: '.implode(', ', $hints).'.',
                     ],
                 ],
                 'warnings' => [],
@@ -565,7 +560,7 @@ class DataImportValidator
                 $rowErrors[] = [
                     'row' => $rowNum,
                     'field' => 'name',
-                    'value' => substr($rawName, 0, 30) . '...',
+                    'value' => substr($rawName, 0, 30).'...',
                     'type' => 'invalid_value',
                     'message' => "Location name on row {$rowNum} exceeds maximum length of 255 characters.",
                 ];
@@ -588,8 +583,17 @@ class DataImportValidator
                 }
             }
 
-            $type = trim((string) ($row['type'] ?? 'room'));
-            $zone = trim((string) ($row['zone'] ?? 'General'));
+            $type = trim((string) ($row['type'] ?? ''));
+            $zone = trim((string) ($row['zone'] ?? ''));
+            if ($type === '') {
+                $rowErrors[] = [
+                    'row' => $rowNum,
+                    'field' => 'type',
+                    'value' => '',
+                    'type' => 'empty_required',
+                    'message' => "Empty value in required field 'type'. Row {$rowNum} must provide the location type.",
+                ];
+            }
             $status = strtolower(trim((string) ($row['status'] ?? 'active'))) === 'inactive' ? 'inactive' : 'active';
 
             $codeNormalized = strtolower($rawCode);
@@ -608,11 +612,11 @@ class DataImportValidator
                 $validatedRecords[] = [
                     'code' => $rawCode,
                     'name' => $rawName,
-                    'type' => $type ?: 'room',
-                    'zone' => $zone ?: 'General',
+                    'type' => $type,
+                    'zone' => $zone !== '' ? $zone : null,
                     'capacity' => $capacity,
-                    'storage_classification' => trim((string) ($row['storage_classification'] ?? 'ambient')),
-                    'temperature_classification' => trim((string) ($row['temperature_classification'] ?? 'ambient')),
+                    'storage_classification' => trim((string) ($row['storage_classification'] ?? '')) ?: null,
+                    'temperature_classification' => trim((string) ($row['temperature_classification'] ?? '')) ?: null,
                     'status' => $status,
                     '_mode' => $isExisting ? 'update' : 'create',
                     '_existing_id' => $isExisting ? $existingLocations[$codeNormalized]->id : null,
@@ -655,7 +659,6 @@ class DataImportValidator
      * Validate Suppliers table.
      *
      * @param  array<string, mixed>  $tableData
-     * @param  string  $mode
      * @return array<string, mixed>
      */
     protected function validateSuppliers(array $tableData, string $mode): array
@@ -691,9 +694,9 @@ class DataImportValidator
                     [
                         'row' => $headerRow,
                         'field' => 'name',
-                        'value' => ! empty($originalHeaders) ? 'Detected: [' . implode(', ', array_slice($originalHeaders, 0, 8)) . ']' : '[None]',
+                        'value' => ! empty($originalHeaders) ? 'Detected: ['.implode(', ', array_slice($originalHeaders, 0, 8)).']' : '[None]',
                         'type' => 'missing_header',
-                        'message' => "Missing required {$term}: name. Required header: " . implode(', ', $hints) . '.',
+                        'message' => "Missing required {$term}: name. Required header: ".implode(', ', $hints).'.',
                     ],
                 ],
                 'warnings' => [],
@@ -735,7 +738,7 @@ class DataImportValidator
                 $rowErrors[] = [
                     'row' => $rowNum,
                     'field' => 'name',
-                    'value' => substr($rawName, 0, 30) . '...',
+                    'value' => substr($rawName, 0, 30).'...',
                     'type' => 'invalid_value',
                     'message' => "Supplier name on row {$rowNum} exceeds maximum length of 255 characters.",
                 ];
@@ -777,9 +780,17 @@ class DataImportValidator
                 ];
             }
 
-            $leadDays = isset($row['standard_lead_time_days']) && trim((string) $row['standard_lead_time_days']) !== ''
-                ? (int) $row['standard_lead_time_days']
-                : 7;
+            $rawLeadDays = trim((string) ($row['standard_lead_time_days'] ?? ''));
+            $leadDays = $rawLeadDays !== '' ? (int) $rawLeadDays : null;
+            if ($rawLeadDays !== '' && (! ctype_digit($rawLeadDays) || $leadDays < 1)) {
+                $rowErrors[] = [
+                    'row' => $rowNum,
+                    'field' => 'standard_lead_time_days',
+                    'value' => $rawLeadDays,
+                    'type' => 'invalid_value',
+                    'message' => "Standard lead time on row {$rowNum} must be a positive whole number.",
+                ];
+            }
 
             $nameNormalized = strtolower($rawName);
             $isExisting = $rawName !== '' && isset($existingSuppliersByName[$nameNormalized]);
@@ -801,8 +812,8 @@ class DataImportValidator
                     'phone' => trim((string) ($row['phone'] ?? '')) ?: null,
                     'address' => trim((string) ($row['address'] ?? '')) ?: null,
                     'tax_number' => trim((string) ($row['tax_id'] ?? $row['tax_number'] ?? $row['tin'] ?? '')) ?: null,
-                    'payment_terms' => trim((string) ($row['payment_terms'] ?? '30 Days Net')),
-                    'standard_lead_time_days' => max(1, $leadDays),
+                    'payment_terms' => trim((string) ($row['payment_terms'] ?? '')) ?: null,
+                    'standard_lead_time_days' => $leadDays,
                     'status' => 'active',
                     '_mode' => $isExisting ? 'update' : 'create',
                     '_existing_id' => $isExisting ? $existingSuppliersByName[$nameNormalized]->id : null,

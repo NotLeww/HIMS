@@ -2,21 +2,22 @@
 
 namespace Tests\Feature;
 
-use App\Enums\MovementType;
-use App\Enums\PurchaseOrderStatus;
+use App\Enums\DocumentType;
 use App\Enums\UserRole;
+use App\Enums\WarehouseTaskStatus;
+use App\Models\BarcodeAlias;
 use App\Models\CycleCountDoc;
 use App\Models\GoodsReceiptNote;
 use App\Models\InventoryItem;
 use App\Models\LogisticsDocument;
 use App\Models\MaterialRequisition;
 use App\Models\PurchaseOrder;
-use App\Models\PurchaseRequest;
 use App\Models\Shipment;
-use App\Models\StockMovement;
 use App\Models\StockTransfer;
+use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Models\WarehouseTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -172,6 +173,7 @@ class GlobalSearchTest extends TestCase
             'shipment_number' => 'SHP-2026-GLM-901',
             'tracking_number' => 'TRACK-99887766',
             'carrier_name' => 'DHL Express Philippines',
+            'destination_facility' => 'Main Receiving Dock',
             'supplier_id' => $supplier->id,
             'purchase_order_id' => $po->id,
             'status' => 'in_transit',
@@ -180,7 +182,7 @@ class GlobalSearchTest extends TestCase
         $document = LogisticsDocument::create([
             'tracking_number' => 'DOC-2026-WAYBILL-55',
             'reference_number' => 'REF-WB-5544',
-            'document_type' => \App\Enums\DocumentType::Waybill,
+            'document_type' => DocumentType::Waybill,
             'uploaded_by_id' => $superAdmin->id,
             'title' => 'Carrier Waybill & Customs Clearance',
             'status' => 'verified',
@@ -224,7 +226,7 @@ class GlobalSearchTest extends TestCase
             'status' => 'active',
         ]);
 
-        $loc1 = \App\Models\StorageLocation::create([
+        $loc1 = StorageLocation::create([
             'code' => 'ZONE-A-SHELF-01',
             'name' => 'Main Warehouse Shelf 01',
             'type' => 'shelf',
@@ -232,7 +234,7 @@ class GlobalSearchTest extends TestCase
             'status' => 'active',
         ]);
 
-        $loc2 = \App\Models\StorageLocation::create([
+        $loc2 = StorageLocation::create([
             'code' => 'ZONE-B-RACK-05',
             'name' => 'Pharmacy Bulk Rack 05',
             'type' => 'rack',
@@ -279,7 +281,7 @@ class GlobalSearchTest extends TestCase
     {
         $staff = User::factory()->role(UserRole::WarehouseStaff)->create();
 
-        $loc = \App\Models\StorageLocation::create([
+        $loc = StorageLocation::create([
             'code' => 'COLD-VAULT-01',
             'name' => 'Cold Storage Vault 01',
             'type' => 'warehouse',
@@ -304,12 +306,12 @@ class GlobalSearchTest extends TestCase
             'snapshot_timestamp' => now(),
         ]);
 
-        $task = \App\Models\WarehouseTask::create([
+        $task = WarehouseTask::create([
             'task_number' => 'TSK-2026-REPLEN-007',
             'task_type' => 'replenishment',
             'inventory_item_id' => $item->id,
             'source_location_id' => $loc->id,
-            'status' => \App\Enums\WarehouseTaskStatus::Ready,
+            'status' => WarehouseTaskStatus::Ready,
             'created_by_user_id' => $staff->id,
         ]);
 
@@ -360,7 +362,7 @@ class GlobalSearchTest extends TestCase
             'total_value' => 8500,
         ]);
 
-        \App\Models\BarcodeAlias::create([
+        BarcodeAlias::create([
             'code' => 'ALT-BARCODE-998811',
             'symbology' => 'code128',
             'target_type' => 'inventory_item',
@@ -404,4 +406,3 @@ class GlobalSearchTest extends TestCase
         $this->assertNotContains('Jeffrey Arbolante', $returnedTitles);
     }
 }
-

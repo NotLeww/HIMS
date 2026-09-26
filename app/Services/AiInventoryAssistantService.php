@@ -2,23 +2,15 @@
 
 namespace App\Services;
 
-use App\Enums\AlertType;
 use App\Enums\AuditAction;
-use App\Enums\DemandTrend;
-use App\Enums\MovementType;
 use App\Enums\Permission;
-use App\Models\InventoryItem;
-use App\Models\ItemBatch;
-use App\Models\PurchaseOrder;
-use App\Models\StockAlert;
-use App\Models\StockMovement;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Models\User;
-use App\Services\Ai\ConversationState;
-use App\Services\Ai\ConversationStateTracker;
 use App\Services\Ai\ConversationalEntityTracker;
 use App\Services\Ai\ConversationalIntentResolver;
+use App\Services\Ai\ConversationState;
+use App\Services\Ai\ConversationStateTracker;
 use App\Services\Ai\HimsAiToolRegistry;
 use App\Services\Ai\HimsCapabilityRegistry;
 use App\Services\Ai\HimsDomainKnowledge;
@@ -26,10 +18,8 @@ use App\Services\Privacy\AiDataSanitizerService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
-use InvalidArgumentException;
 use Throwable;
 
 class AiInventoryAssistantService
@@ -313,7 +303,7 @@ class AiInventoryAssistantService
      */
     public function gatherContext(string $query, array $history = [], ?User $actor = null, array $entityResolution = []): array
     {
-        $actor ??= auth()->user() ?? User::factory()->make();
+        $actor = $this->requireActor($actor);
 
         $candidateItem = $entityResolution['candidate_item'] ?? $this->entityTracker->extractItemCandidate($query);
         $resolution = $this->intentResolver->resolve($query, $candidateItem);
@@ -535,7 +525,7 @@ class AiInventoryAssistantService
         )));
         $modelsToTry = array_values(array_unique(array_filter(array_merge([$primaryModel], $fallbackCandidates))));
 
-        $actorRole = $actor?->role?->label() ?? 'Staff';
+        $actorRole = $actor?->role?->label() ?? 'Not recorded';
         $actorPermissions = $actor?->role?->permissions() ?? [];
         $systemPrompt = $this->buildSystemPrompt($contextData, $actorRole, $actorPermissions);
 
@@ -643,7 +633,7 @@ class AiInventoryAssistantService
                         $pinned = $this->intentDataset(
                             (string) $contextData['detected_intent'],
                             (int) ($contextData['detected_intent_expiry_window_days'] ?? 90),
-                            $actor ?? auth()->user() ?? User::factory()->make(),
+                            $this->requireActor($actor),
                         );
 
                         return $this->sanitizeAssistantText(
@@ -661,6 +651,7 @@ class AiInventoryAssistantService
                 }
             } catch (Throwable $e) {
                 $lastException = $e;
+
                 continue;
             }
         }
@@ -676,7 +667,7 @@ class AiInventoryAssistantService
      */
     private function executeToolCall(string $name, array $args, ?User $actor): ?array
     {
-        $actor ??= auth()->user() ?? User::factory()->make();
+        $actor = $this->requireActor($actor);
 
         return match ($name) {
             'search_inventory' => $this->tools->searchInventory(
@@ -734,8 +725,8 @@ class AiInventoryAssistantService
 
         if (isset($result['requires_replenishment'])) {
             if ($result['items'] === []) {
-                return "Good news! **Nothing in HIMS inventory needs replenishment right now.** "
-                    . "Every active item is holding stock above its reorder level, and no item is out of stock.";
+                return 'Good news! **Nothing in HIMS inventory needs replenishment right now.** '
+                    .'Every active item is holding stock above its reorder level, and no item is out of stock.';
             }
 
             $lines = ["### Items Requiring Replenishment\n"];
@@ -846,15 +837,16 @@ class AiInventoryAssistantService
 
         if (isset($result['items']) && is_array($result['items'])) {
             if (empty($result['items'])) {
-                return "No matching inventory items found for your request.";
+                return 'No matching inventory items found for your request.';
             }
 
             $lines = ["### Matching Inventory Records\n"];
-            $lines[] = "| Item Name | SKU | Available Stock | Reorder Level | Status | Supplier |";
-            $lines[] = "| :--- | :--- | :--- | :--- | :--- | :--- |";
+            $lines[] = '| Item Name | SKU | Available Stock | Reorder Level | Status | Supplier |';
+            $lines[] = '| :--- | :--- | :--- | :--- | :--- | :--- |';
             foreach ($result['items'] as $i) {
                 $lines[] = "| **{$i['name']}** | {$i['sku']} | {$i['available_stock']} {$i['unit']} | {$i['reorder_level']} | {$i['status_label']} | {$i['primary_supplier']} |";
             }
+
             return implode("\n", $lines);
         }
 
@@ -870,6 +862,7 @@ class AiInventoryAssistantService
             foreach ($result['locations'] as $loc) {
                 $lines[] = "| **{$loc['name']}** | {$loc['code']} | {$loc['type']} | {$loc['zone']} | {$loc['temperature_classification']} | {$loc['status']} |";
             }
+
             return implode("\n", $lines);
         }
 
@@ -885,6 +878,7 @@ class AiInventoryAssistantService
             foreach ($result['alerts'] as $a) {
                 $lines[] = "| **{$a['item_name']}** | {$a['sku']} | {$a['type']} | {$a['severity']} | {$a['status']} | {$a['current_value']} / {$a['threshold_value']} | {$a['message']} |";
             }
+
             return implode("\n", $lines);
         }
 
@@ -899,7 +893,7 @@ class AiInventoryAssistantService
 
             $lines = ["### Receiving & Inspection Records\n"];
             if (! empty($grns)) {
-                $lines[] = "#### Goods Receipt Notes (GRN)";
+                $lines[] = '#### Goods Receipt Notes (GRN)';
                 $lines[] = '| GRN Number | DR Number | Supplier | PO Number | Receipt Status | Received Date |';
                 $lines[] = '| :--- | :--- | :--- | :--- | :--- | :--- |';
                 foreach ($grns as $g) {
@@ -909,7 +903,7 @@ class AiInventoryAssistantService
             }
 
             if (! empty($iars)) {
-                $lines[] = "#### Inspection & Acceptance Reports (IAR)";
+                $lines[] = '#### Inspection & Acceptance Reports (IAR)';
                 $lines[] = '| IAR Number | Supplier | PO Number | Inspection Status | Report Status | Date |';
                 $lines[] = '| :--- | :--- | :--- | :--- | :--- | :--- |';
                 foreach ($iars as $i) {
@@ -932,6 +926,7 @@ class AiInventoryAssistantService
             foreach ($result['records'] as $r) {
                 $lines[] = "| **{$r['custody_number']}** | {$r['event_type']} | {$r['releasing_party']} | {$r['receiving_party']} | {$r['transferred_at']} | {$r['package_condition']} |";
             }
+
             return implode("\n", $lines);
         }
 
@@ -947,6 +942,7 @@ class AiInventoryAssistantService
             foreach ($result['users'] as $u) {
                 $lines[] = "| **{$u['name']}** | {$u['email']} | {$u['role']} | {$u['status']} | {$u['department']} | {$u['employee_id']} |";
             }
+
             return implode("\n", $lines);
         }
 
@@ -959,10 +955,11 @@ class AiInventoryAssistantService
                 $access = $rep['accessible'] ? 'Available' : 'Restricted';
                 $lines[] = "| **{$rep['name']}** | {$rep['category']} | {$rep['description']} | {$access} |";
             }
+
             return implode("\n", $lines);
         }
 
-        return "Here is the verified information from the HIMS database:\n\n" . json_encode($result, JSON_PRETTY_PRINT);
+        return "Here is the verified information from the HIMS database:\n\n".json_encode($result, JSON_PRETTY_PRINT);
     }
 
     /**
@@ -981,7 +978,7 @@ class AiInventoryAssistantService
 
         if ($items === []) {
             return "I couldn't find any items currently recorded without an expiry date. "
-                . 'Every active item in HIMS either has an expiry date on its batches or is holding no stock.';
+                .'Every active item in HIMS either has an expiry date on its batches or is holding no stock.';
         }
 
         $total = (int) ($result['total_matching'] ?? $result['count'] ?? count($items));
@@ -997,7 +994,7 @@ class AiInventoryAssistantService
         }
 
         $lines[] = '';
-        $lines[] = "I found **{$total}** matching " . ($total === 1 ? 'item' : 'items') . '.';
+        $lines[] = "I found **{$total}** matching ".($total === 1 ? 'item' : 'items').'.';
 
         // Having no expiry date means one of two different things, and the
         // difference matters: an item that is not expiry-tracked is fine as it
@@ -1012,8 +1009,8 @@ class AiInventoryAssistantService
 
         if ($incomplete > 0) {
             $lines[] = '';
-            $lines[] = "**Note:** {$incomplete} of these " . ($incomplete === 1 ? 'is an expiry-tracked item that has' : 'are expiry-tracked items that have')
-                . ' no expiry date captured yet — an incomplete record rather than a non-perishable item.';
+            $lines[] = "**Note:** {$incomplete} of these ".($incomplete === 1 ? 'is an expiry-tracked item that has' : 'are expiry-tracked items that have')
+                .' no expiry date captured yet — an incomplete record rather than a non-perishable item.';
         }
 
         $lines[] = '';
@@ -1036,7 +1033,7 @@ class AiInventoryAssistantService
         }
 
         $count = (int) ($result['count'] ?? count($batches));
-        $lines = ['There ' . ($count === 1 ? 'is' : 'are') . " **{$count} expired " . ($count === 1 ? 'batch' : 'batches') . '** still holding stock in HIMS inventory:'];
+        $lines = ['There '.($count === 1 ? 'is' : 'are')." **{$count} expired ".($count === 1 ? 'batch' : 'batches').'** still holding stock in HIMS inventory:'];
         $lines[] = '';
         $lines[] = '| Item Name | Batch / Lot | Remaining Qty | Expiry Date | Days Since Expiry | Action |';
         $lines[] = '| :--- | :--- | :--- | :--- | :--- | :--- |';
@@ -1062,12 +1059,12 @@ class AiInventoryAssistantService
 
         if ($batches === []) {
             return "There are currently **no inventory batches nearing expiration** within the next {$window} days. "
-                . 'All active stock is well within safe clinical shelf-life parameters.';
+                .'All active stock is well within safe clinical shelf-life parameters.';
         }
 
         $count = (int) ($result['count'] ?? count($batches));
-        $lines = ['There ' . ($count === 1 ? 'is' : 'are') . " **{$count} " . ($count === 1 ? 'batch' : 'batches')
-            . " nearing expiration within the next {$window} days** (FEFO Priority):"];
+        $lines = ['There '.($count === 1 ? 'is' : 'are')." **{$count} ".($count === 1 ? 'batch' : 'batches')
+            ." nearing expiration within the next {$window} days** (FEFO Priority):"];
         $lines[] = '';
         $lines[] = '| Item Name | Batch / Lot | Remaining Qty | Expiry Date | Days Left | Priority Action |';
         $lines[] = '| :--- | :--- | :--- | :--- | :--- | :--- |';
@@ -1172,7 +1169,7 @@ class AiInventoryAssistantService
         $lines[] = '| PO Number | Supplier | Status | Expected Delivery | Items | Total Amount |';
         $lines[] = '| :--- | :--- | :--- | :--- | :--- | :--- |';
         foreach ($result['orders'] as $po) {
-            $amt = is_numeric($po['total_amount']) ? '₱' . number_format($po['total_amount'], 2) : $po['total_amount'];
+            $amt = is_numeric($po['total_amount']) ? '₱'.number_format($po['total_amount'], 2) : $po['total_amount'];
             $lines[] = "| **{$po['po_number']}** | {$po['supplier_name']} | {$po['status']} | {$po['expected_delivery_date']} | {$po['items_count']} | {$amt} |";
         }
         $lines[] = "\nReview and approve purchase orders at [Procurement & Purchases](/inventory/purchases).";
@@ -1211,9 +1208,9 @@ class AiInventoryAssistantService
     {
         $lines = [
             '### HIMS Inventory Monetary Valuation',
-            '- **Total Active Inventory SKUs:** ' . number_format($result['total_items']),
-            '- **Total Physical Units on Hand:** ' . number_format($result['total_units_on_hand']),
-            '- **Total Hospital Inventory Valuation:** **₱' . number_format($result['total_valuation_php'], 2) . '**',
+            '- **Total Active Inventory SKUs:** '.number_format($result['total_items']),
+            '- **Total Physical Units on Hand:** '.number_format($result['total_units_on_hand']),
+            '- **Total Hospital Inventory Valuation:** **₱'.number_format($result['total_valuation_php'], 2).'**',
             '',
             '**Top Categories by Valuation:**',
             '',
@@ -1221,7 +1218,7 @@ class AiInventoryAssistantService
         $lines[] = '| Category | Item Count | Total Units | Total Valuation |';
         $lines[] = '| :--- | :--- | :--- | :--- |';
         foreach ($result['category_breakdown'] as $c) {
-            $lines[] = "| **{$c['category']}** | {$c['items']} | " . number_format($c['units']) . ' | ₱' . number_format($c['valuation'], 2) . ' |';
+            $lines[] = "| **{$c['category']}** | {$c['items']} | ".number_format($c['units']).' | ₱'.number_format($c['valuation'], 2).' |';
         }
 
         return implode("\n", $lines);
@@ -1234,13 +1231,13 @@ class AiInventoryAssistantService
      */
     private function formatDailySummaryBlock(array $summary): string
     {
-        return "### HIMS Inventory Daily Status ({$summary['date']})\n\n" .
-            "- **Active Catalog SKUs:** {$summary['active_items_count']}\n" .
-            "- **Items Out of Stock:** **{$summary['out_of_stock_count']}**\n" .
-            "- **Items Below Reorder Level:** **{$summary['low_stock_count']}**\n" .
-            "- **Stock Movements Logged Today:** {$summary['movements_today_count']} ({$summary['units_issued_today']} units issued, {$summary['units_received_today']} units received)\n" .
-            "- **Batches Expiring Within 90 Days:** {$summary['expiring_batches_90_days']}\n" .
-            "- **Pending Department Requisitions:** {$summary['pending_requisitions_count']}\n" .
+        return "### HIMS Inventory Daily Status ({$summary['date']})\n\n".
+            "- **Active Catalog SKUs:** {$summary['active_items_count']}\n".
+            "- **Items Out of Stock:** **{$summary['out_of_stock_count']}**\n".
+            "- **Items Below Reorder Level:** **{$summary['low_stock_count']}**\n".
+            "- **Stock Movements Logged Today:** {$summary['movements_today_count']} ({$summary['units_issued_today']} units issued, {$summary['units_received_today']} units received)\n".
+            "- **Batches Expiring Within 90 Days:** {$summary['expiring_batches_90_days']}\n".
+            "- **Pending Department Requisitions:** {$summary['pending_requisitions_count']}\n".
             "- **Pending Purchase Orders:** {$summary['pending_purchase_orders_count']}";
     }
 
@@ -1276,23 +1273,23 @@ class AiInventoryAssistantService
      */
     private function formatDemandForecastBlock(array $forecast): string
     {
-        $unit = $forecast['unit'] ?? 'units';
+        $unit = $forecast['unit'] ?? 'Not recorded';
         $daysOfCover = $forecast['days_of_cover'];
         $horizonDays = $forecast['forecast_horizon_days'] ?? 30;
 
         $lines = [
-            "### Demand Forecast: **{$forecast['item_name']}**" . (isset($forecast['sku']) ? " (SKU: {$forecast['sku']})" : ''),
+            "### Demand Forecast: **{$forecast['item_name']}**".(isset($forecast['sku']) ? " (SKU: {$forecast['sku']})" : ''),
             "- **Current Stock:** {$forecast['current_stock']} {$unit}",
             "- **Available Stock:** **{$forecast['available_stock']} {$unit}**",
             "- **Projected Demand ({$horizonDays} days):** **{$forecast['predicted_demand_units']} {$unit}**",
             "- **Average Daily Usage:** {$forecast['average_daily_usage']} {$unit}/day",
-            '- **Days of Cover:** ' . ($daysOfCover !== null ? "**{$daysOfCover} days**" : 'Insufficient movement data'),
+            '- **Days of Cover:** '.($daysOfCover !== null ? "**{$daysOfCover} days**" : 'Insufficient movement data'),
             "- **Suggested Reorder Quantity:** **{$forecast['suggested_reorder_quantity']} {$unit}**",
         ];
 
         if (! empty($forecast['limited_data']) && ! empty($forecast['explanation'])) {
             $lines[] = '';
-            $lines[] = '**Data Note:** ' . $forecast['explanation'];
+            $lines[] = '**Data Note:** '.$forecast['explanation'];
         }
 
         return implode("\n", $lines);
@@ -1355,7 +1352,7 @@ PROMPT;
         if (! empty($resolution['greeting_prefix'])) {
             $salutation = $this->resolveSalutationFromPrefix($resolution['greeting_prefix']);
             if ($salutation !== '' && ! Str::startsWith(ltrim($rawReply), $salutation)) {
-                return $salutation . "\n\n" . $rawReply;
+                return $salutation."\n\n".$rawReply;
             }
         }
 
@@ -1378,7 +1375,7 @@ PROMPT;
         array $history = [],
         array $entityResolution = []
     ): string {
-        $actor ??= auth()->user() ?? User::factory()->make();
+        $actor = $this->requireActor($actor);
 
         // 1. Attached document analysis
         if ($attachment !== null) {
@@ -1417,14 +1414,14 @@ PROMPT;
                 $leadTime = (int) ($item->lead_time_days ?: ($supplier->standard_lead_time_days ?: 7));
                 $lines = [
                     "**{$item->name}** (SKU: {$item->sku}) is supplied by **{$supplier->name}**.",
-                    "- **Contact Person:** " . ($supplier->contact_person ?? 'Not Specified'),
-                    "- **Phone:** " . ($supplier->phone ?? 'N/A'),
-                    "- **Email:** " . ($supplier->email ?? 'N/A'),
+                    '- **Contact Person:** '.($supplier->contact_person ?? 'Not Specified'),
+                    '- **Phone:** '.($supplier->phone ?? 'N/A'),
+                    '- **Email:** '.($supplier->email ?? 'N/A'),
                     "- **Standard Lead Time:** {$leadTime} days",
                     "- **Current On-Hand Stock:** {$item->quantity_on_hand} {$item->unit} (Reorder Level: {$item->reorder_level})",
                 ];
 
-                return implode("\n", $lines) . "\n\n*(Verified HIMS supplier record)*";
+                return implode("\n", $lines)."\n\n*(Verified HIMS supplier record)*";
             }
 
             // 2a-2. Storage location inquiry for resolved item
@@ -1437,13 +1434,13 @@ PROMPT;
                 $lines = ["### Storage Location for **{$item->name}** (SKU: {$item->sku})\n"];
                 foreach ($locations as $loc) {
                     if ($loc->quantity > 0) {
-                        $locName = $loc->storageLocation?->name ?? 'Unknown Location';
+                        $locName = $loc->storageLocation?->name ?? 'Not recorded';
                         $locCode = $loc->storageLocation?->code ?? 'N/A';
                         $lines[] = "- **{$locName}** ({$locCode}): **{$loc->quantity} {$item->unit}** (Reserved: {$loc->reserved_quantity} {$item->unit})";
                     }
                 }
 
-                return implode("\n", $lines) . "\n\n*(Verified HIMS database record)*";
+                return implode("\n", $lines)."\n\n*(Verified HIMS database record)*";
             }
 
             // 2a-3. Pricing / valuation inquiry for resolved item
@@ -1453,8 +1450,8 @@ PROMPT;
                     return "Unit costs and financial valuation for **{$item->name}** are restricted to authorized procurement personnel.";
                 }
 
-                $cost = $item->unit_cost !== null ? '₱' . number_format($item->unit_cost, 2) : 'No unit cost recorded';
-                $totalVal = $item->unit_cost !== null ? '₱' . number_format($item->quantity_on_hand * $item->unit_cost, 2) : 'N/A';
+                $cost = $item->unit_cost !== null ? '₱'.number_format($item->unit_cost, 2) : 'No unit cost recorded';
+                $totalVal = $item->unit_cost !== null ? '₱'.number_format($item->quantity_on_hand * $item->unit_cost, 2) : 'N/A';
                 $lines = [
                     "### Pricing & Valuation: **{$item->name}** (SKU: {$item->sku})",
                     "- **Unit Cost:** **{$cost}**",
@@ -1462,19 +1459,19 @@ PROMPT;
                     "- **Total Value on Hand:** **{$totalVal}**",
                 ];
 
-                return implode("\n", $lines) . "\n\n*(Verified HIMS financial record)*";
+                return implode("\n", $lines)."\n\n*(Verified HIMS financial record)*";
             }
 
             // 2a-4. Multi-turn quantity inquiry ("ilan?", "how many are left?", "ilan pa?")
             if (preg_match('/^(?:and\s+)?(?:ilan|how\s+many|how\s+much\s+stock|meron\s+pa\s+ba)\b/iu', $q)
                 || in_array($q, ['ilan', 'ilan?', 'ilan pa', 'ilan pa?', 'ilan na lang', 'how many', 'how many?', 'how many left', 'how many left?'], true)) {
                 $avail = $item->availableQuantity();
-                $unit = $item->unit ?? 'units';
+                $unit = $item->unit ?? 'Not recorded';
                 $onHand = $item->quantity_on_hand;
                 $reserved = $item->stockLevels->sum('reserved_quantity');
 
                 if ($avail > 0) {
-                    return "**{$avail} {$unit}** of **{$item->name}** (SKU: {$item->sku}) are currently **available for dispensing** (Total physical on hand: {$onHand} {$unit}" . ($reserved > 0 ? ", Reserved: {$reserved} {$unit}" : '') . ").\n\n*(Verified HIMS database record)*";
+                    return "**{$avail} {$unit}** of **{$item->name}** (SKU: {$item->sku}) are currently **available for dispensing** (Total physical on hand: {$onHand} {$unit}".($reserved > 0 ? ", Reserved: {$reserved} {$unit}" : '').").\n\n*(Verified HIMS database record)*";
                 }
 
                 return "**Notice:** **{$item->name}** (SKU: {$item->sku}) is currently **out of stock** (0 {$unit} available for dispensing, {$onHand} {$unit} physical on hand).\n\n*(Verified HIMS database record)*";
@@ -1498,16 +1495,16 @@ PROMPT;
                         "- **Reserved Stock:** {$forecast['reserved_stock']} {$unit}",
                         "- **Available Stock for Dispensing:** **{$available} {$unit}**",
                         "- **Projected 30-Day Demand:** **{$predicted} {$unit}** (Average Daily Usage: {$dailyUsage} {$unit}/day)",
-                        "- **Estimated Days of Cover:** " . ($daysOfCover !== null ? "**{$daysOfCover} days**" : "Insufficient movement data"),
-                        "",
+                        '- **Estimated Days of Cover:** '.($daysOfCover !== null ? "**{$daysOfCover} days**" : 'Insufficient movement data'),
+                        '',
                     ];
 
                     if ($forecast['limited_data']) {
-                        $lines[] = "**Data Note:** " . $forecast['explanation'];
+                        $lines[] = '**Data Note:** '.$forecast['explanation'];
                     }
 
                     if ($isAdequate) {
-                        $lines[] = "**Verdict:** Current available stock is **adequate** to cover projected clinical consumption for the upcoming 30-day window.";
+                        $lines[] = '**Verdict:** Current available stock is **adequate** to cover projected clinical consumption for the upcoming 30-day window.';
                     } else {
                         $deficit = max(0, $predicted - $available);
                         $suggestedOrder = $forecast['suggested_reorder_quantity'];
@@ -1528,12 +1525,13 @@ PROMPT;
                 }
 
                 $lines = ["### Recent Stock Movements: **{$item->name}** (SKU: {$item->sku})\n"];
-                $lines[] = "| Date | Movement Type | Quantity | Logged By | Notes |";
-                $lines[] = "| :--- | :--- | :--- | :--- | :--- |";
+                $lines[] = '| Date | Movement Type | Quantity | Logged By | Notes |';
+                $lines[] = '| :--- | :--- | :--- | :--- | :--- |';
                 foreach ($movements['movements'] as $m) {
                     $notes = $m['notes'] ? htmlspecialchars($m['notes']) : 'Standard transaction';
                     $lines[] = "| {$m['date']} | {$m['type']} | **{$m['quantity']}** {$m['unit']} | {$m['actor']} | {$notes} |";
                 }
+
                 return implode("\n", $lines);
             }
 
@@ -1541,14 +1539,14 @@ PROMPT;
             // natin?", "may pending order na ba nun?") — answered for the item
             // already under discussion, without making the user name it again.
             if (Str::contains($q, ['order', 'orderin', 'reorder', 'restock', 'replenish', 'bilhin', 'kailangan', 'how much', 'magkano', 'pending'])) {
-                $unit = $item->unit ?? 'units';
+                $unit = $item->unit ?? 'Not recorded';
                 $recommendation = collect($this->tools->getReplenishmentRecommendations($actor, 15)['items'])
                     ->firstWhere('id', $item->id);
 
                 if ($recommendation === null) {
                     return "**{$item->name}** (SKU: {$item->sku}) is **not flagged for replenishment**. "
-                        . "It is holding {$item->availableQuantity()} {$unit} available against a reorder level of {$item->reorder_level} {$unit}, "
-                        . "so no order is needed at this time.\n\n*(Verified HIMS database record)*";
+                        ."It is holding {$item->availableQuantity()} {$unit} available against a reorder level of {$item->reorder_level} {$unit}, "
+                        ."so no order is needed at this time.\n\n*(Verified HIMS database record)*";
                 }
 
                 $lines = ["### Replenishment: **{$item->name}** (SKU: {$item->sku})"];
@@ -1560,20 +1558,20 @@ PROMPT;
 
                 $incoming = $recommendation['incoming_stock_quantity'];
                 if ($incoming === null) {
-                    $lines[] = "- **Already On Order:** No open purchase order quantity recorded for this item.";
+                    $lines[] = '- **Already On Order:** No open purchase order quantity recorded for this item.';
                 } elseif ($incoming > 0) {
                     $lines[] = "- **Already On Order:** **{$incoming} {$unit}** against open purchase orders";
                 } else {
-                    $lines[] = "- **Already On Order:** None — no open purchase order quantity for this item.";
+                    $lines[] = '- **Already On Order:** None — no open purchase order quantity for this item.';
                 }
 
                 $lines[] = $recommendation['recommended_order_quantity'] > 0
                     ? "- **Suggested Order Quantity:** **{$recommendation['recommended_order_quantity']} {$unit}**"
-                    : "- **Suggested Order Quantity:** None required at this time.";
+                    : '- **Suggested Order Quantity:** None required at this time.';
                 $lines[] = "- **Supplier Lead Time:** {$recommendation['lead_time_days']} days";
                 $lines[] = "- **Primary Supplier:** **{$recommendation['primary_supplier']}**";
 
-                return implode("\n", $lines) . "\n\n*(Verified HIMS database record)*";
+                return implode("\n", $lines)."\n\n*(Verified HIMS database record)*";
             }
 
             // 2e. General resolved item details
@@ -1590,7 +1588,7 @@ PROMPT;
                     }
                 }
 
-                return $lead . $this->formatItemDossier($dossier);
+                return $lead.$this->formatItemDossier($dossier);
             }
         }
 
@@ -1606,7 +1604,7 @@ PROMPT;
                 foreach ($matchingItems as $idx => $mItem) {
                     $num = $idx + 1;
                     $avail = $mItem->availableQuantity();
-                    $status = $mItem->stock_status?->label() ?? 'In Stock';
+                    $status = $mItem->stock_status?->label() ?? 'Not recorded';
                     $lines[] = "{$num}. **{$mItem->name}** (SKU: {$mItem->sku}) — Available: **{$avail} {$mItem->unit}** | Status: *{$status}*";
                 }
                 $lines[] = "\nPlease specify the item name, SKU, or number (e.g. \"1\" or \"the first one\").";
@@ -1627,14 +1625,14 @@ PROMPT;
                     $leadTime = (int) ($foundItem->lead_time_days ?: ($supplier->standard_lead_time_days ?: 7));
                     $lines = [
                         "**{$foundItem->name}** (SKU: {$foundItem->sku}) is supplied by **{$supplier->name}**.",
-                        "- **Contact Person:** " . ($supplier->contact_person ?? 'Not Specified'),
-                        "- **Phone:** " . ($supplier->phone ?? 'N/A'),
-                        "- **Email:** " . ($supplier->email ?? 'N/A'),
+                        '- **Contact Person:** '.($supplier->contact_person ?? 'Not Specified'),
+                        '- **Phone:** '.($supplier->phone ?? 'N/A'),
+                        '- **Email:** '.($supplier->email ?? 'N/A'),
                         "- **Standard Lead Time:** {$leadTime} days",
                         "- **Current On-Hand Stock:** {$foundItem->quantity_on_hand} {$foundItem->unit} (Reorder Level: {$foundItem->reorder_level})",
                     ];
 
-                    return implode("\n", $lines) . "\n\n*(Verified HIMS supplier record)*";
+                    return implode("\n", $lines)."\n\n*(Verified HIMS supplier record)*";
                 }
 
                 // Item-specific storage location query
@@ -1647,13 +1645,13 @@ PROMPT;
                     $lines = ["### Storage Location for **{$foundItem->name}** (SKU: {$foundItem->sku})\n"];
                     foreach ($locations as $loc) {
                         if ($loc->quantity > 0) {
-                            $locName = $loc->storageLocation?->name ?? 'Unknown Location';
+                            $locName = $loc->storageLocation?->name ?? 'Not recorded';
                             $locCode = $loc->storageLocation?->code ?? 'N/A';
                             $lines[] = "- **{$locName}** ({$locCode}): **{$loc->quantity} {$foundItem->unit}** (Reserved: {$loc->reserved_quantity} {$foundItem->unit})";
                         }
                     }
 
-                    return implode("\n", $lines) . "\n\n*(Verified HIMS database record)*";
+                    return implode("\n", $lines)."\n\n*(Verified HIMS database record)*";
                 }
 
                 // Item-specific price / valuation query
@@ -1663,8 +1661,8 @@ PROMPT;
                         return "Unit costs and financial valuation for **{$foundItem->name}** are restricted to authorized procurement personnel.";
                     }
 
-                    $cost = $foundItem->unit_cost !== null ? '₱' . number_format($foundItem->unit_cost, 2) : 'No unit cost recorded';
-                    $totalVal = $foundItem->unit_cost !== null ? '₱' . number_format($foundItem->quantity_on_hand * $foundItem->unit_cost, 2) : 'N/A';
+                    $cost = $foundItem->unit_cost !== null ? '₱'.number_format($foundItem->unit_cost, 2) : 'No unit cost recorded';
+                    $totalVal = $foundItem->unit_cost !== null ? '₱'.number_format($foundItem->quantity_on_hand * $foundItem->unit_cost, 2) : 'N/A';
                     $lines = [
                         "### Pricing & Valuation: **{$foundItem->name}** (SKU: {$foundItem->sku})",
                         "- **Unit Cost:** **{$cost}**",
@@ -1672,7 +1670,7 @@ PROMPT;
                         "- **Total Value on Hand:** **{$totalVal}**",
                     ];
 
-                    return implode("\n", $lines) . "\n\n*(Verified HIMS financial record)*";
+                    return implode("\n", $lines)."\n\n*(Verified HIMS financial record)*";
                 }
 
                 // Item-specific movements query
@@ -1683,8 +1681,8 @@ PROMPT;
                     }
 
                     $lines = ["### Recent Stock Movements: **{$foundItem->name}** (SKU: {$foundItem->sku})\n"];
-                    $lines[] = "| Date | Movement Type | Quantity | Logged By | Notes |";
-                    $lines[] = "| :--- | :--- | :--- | :--- | :--- |";
+                    $lines[] = '| Date | Movement Type | Quantity | Logged By | Notes |';
+                    $lines[] = '| :--- | :--- | :--- | :--- | :--- |';
                     foreach ($movements['movements'] as $m) {
                         $notes = $m['notes'] ? htmlspecialchars($m['notes']) : 'Standard transaction';
                         $lines[] = "| {$m['date']} | {$m['type']} | **{$m['quantity']}** {$m['unit']} | {$m['actor']} | {$notes} |";
@@ -1695,14 +1693,14 @@ PROMPT;
 
                 // Item-specific replenishment query
                 if ($intent === ConversationalIntentResolver::REPLENISHMENT || Str::contains($q, ['order', 'orderin', 'reorder', 'restock', 'replenish', 'bilhin', 'kailangan', 'pending'])) {
-                    $unit = $foundItem->unit ?? 'units';
+                    $unit = $foundItem->unit ?? 'Not recorded';
                     $recommendation = collect($this->tools->getReplenishmentRecommendations($actor, 15)['items'])
                         ->firstWhere('id', $foundItem->id);
 
                     if ($recommendation === null) {
                         return "**{$foundItem->name}** (SKU: {$foundItem->sku}) is **not flagged for replenishment**. "
-                            . "It is holding {$foundItem->availableQuantity()} {$unit} available against a reorder level of {$foundItem->reorder_level} {$unit}, "
-                            . "so no order is needed at this time.\n\n*(Verified HIMS database record)*";
+                            ."It is holding {$foundItem->availableQuantity()} {$unit} available against a reorder level of {$foundItem->reorder_level} {$unit}, "
+                            ."so no order is needed at this time.\n\n*(Verified HIMS database record)*";
                     }
 
                     $lines = ["### Replenishment: **{$foundItem->name}** (SKU: {$foundItem->sku})"];
@@ -1714,20 +1712,20 @@ PROMPT;
 
                     $incoming = $recommendation['incoming_stock_quantity'];
                     if ($incoming === null) {
-                        $lines[] = "- **Already On Order:** No open purchase order quantity recorded for this item.";
+                        $lines[] = '- **Already On Order:** No open purchase order quantity recorded for this item.';
                     } elseif ($incoming > 0) {
                         $lines[] = "- **Already On Order:** **{$incoming} {$unit}** against open purchase orders";
                     } else {
-                        $lines[] = "- **Already On Order:** None — no open purchase order quantity for this item.";
+                        $lines[] = '- **Already On Order:** None — no open purchase order quantity for this item.';
                     }
 
                     $lines[] = $recommendation['recommended_order_quantity'] > 0
                         ? "- **Suggested Order Quantity:** **{$recommendation['recommended_order_quantity']} {$unit}**"
-                        : "- **Suggested Order Quantity:** None required at this time.";
+                        : '- **Suggested Order Quantity:** None required at this time.';
                     $lines[] = "- **Supplier Lead Time:** {$recommendation['lead_time_days']} days";
                     $lines[] = "- **Primary Supplier:** **{$recommendation['primary_supplier']}**";
 
-                    return implode("\n", $lines) . "\n\n*(Verified HIMS database record)*";
+                    return implode("\n", $lines)."\n\n*(Verified HIMS database record)*";
                 }
 
                 // General item dossier & availability
@@ -1744,7 +1742,7 @@ PROMPT;
                         }
                     }
 
-                    return $lead . $this->formatItemDossier($dossier);
+                    return $lead.$this->formatItemDossier($dossier);
                 }
             }
 
@@ -1758,8 +1756,8 @@ PROMPT;
                             'sku' => $mItem['sku'] ?? 'N/A',
                             'barcode' => null,
                             'generic_name' => $mItem['generic_name'] ?? null,
-                            'category' => $mItem['category'] ?? 'General',
-                            'unit' => $mItem['unit'] ?? 'units',
+                            'category' => $mItem['category'] ?? 'Not recorded',
+                            'unit' => $mItem['unit'] ?? 'Not recorded',
                             'quantity_on_hand' => $mItem['current_stock'] ?? $mItem['quantity_on_hand'] ?? 0,
                             'reserved_quantity' => 0,
                             'available_stock' => $mItem['available_stock'] ?? $mItem['current_stock'] ?? 0,
@@ -1811,8 +1809,8 @@ PROMPT;
 
             $count = $outResult['count'];
             $lines = ["There are currently **{$count} items completely out of stock** in HIMS inventory:\n"];
-            $lines[] = "| Item Name | SKU | Category | Reorder Level | Primary Supplier |";
-            $lines[] = "| :--- | :--- | :--- | :--- | :--- |";
+            $lines[] = '| Item Name | SKU | Category | Reorder Level | Primary Supplier |';
+            $lines[] = '| :--- | :--- | :--- | :--- | :--- |';
             foreach ($outResult['items'] as $item) {
                 $lines[] = "| **{$item['name']}** | {$item['sku']} | {$item['category']} | {$item['reorder_level']} | {$item['primary_supplier']} |";
             }
@@ -1825,7 +1823,7 @@ PROMPT;
         if ($intent === ConversationalIntentResolver::SUPPLIER) {
             $suppliersResult = $this->tools->searchSuppliers($actor, '', null, 8);
             if ($suppliersResult['count'] === 0) {
-                return "No supplier records found in the HIMS database.";
+                return 'No supplier records found in the HIMS database.';
             }
 
             return $this->formatSupplierTable($suppliersResult);
@@ -1852,7 +1850,7 @@ PROMPT;
         if ($intent === ConversationalIntentResolver::MOVEMENTS) {
             $movementsResult = $this->tools->getStockMovements($actor, null, null, 30, 8);
             if ($movementsResult['count'] === 0) {
-                return "No recent stock movements recorded in the last 30 days.";
+                return 'No recent stock movements recorded in the last 30 days.';
             }
 
             return $this->formatMovementsTable($movementsResult);
@@ -1862,7 +1860,7 @@ PROMPT;
         if ($intent === ConversationalIntentResolver::PROCUREMENT) {
             $poResult = $this->tools->getProcurementRecords($actor, null, null, 8);
             if ($poResult['count'] === 0) {
-                return "There are currently no active purchase orders recorded in the procurement registry.";
+                return 'There are currently no active purchase orders recorded in the procurement registry.';
             }
 
             return $this->formatProcurementTable($poResult);
@@ -1872,7 +1870,7 @@ PROMPT;
         if ($intent === ConversationalIntentResolver::REQUISITIONS) {
             $reqResult = $this->tools->getDepartmentRequisitions($actor, null, null, 8);
             if ($reqResult['count'] === 0) {
-                return "No pending department requisitions found.";
+                return 'No pending department requisitions found.';
             }
 
             return $this->formatRequisitionTable($reqResult);
@@ -1884,8 +1882,8 @@ PROMPT;
             $shipmentResult = $this->tools->getShipmentsAndDeliveries($actor, null, $delayedOnly, 8);
             if ($shipmentResult['count'] === 0) {
                 return $delayedOnly
-                    ? "Good news! There are currently **no delayed supplier shipments** detected in the tracking register."
-                    : "No active shipment or delivery records found.";
+                    ? 'Good news! There are currently **no delayed supplier shipments** detected in the tracking register.'
+                    : 'No active shipment or delivery records found.';
             }
 
             return $this->formatShipmentTable($shipmentResult, $delayedOnly);
@@ -1911,14 +1909,14 @@ PROMPT;
                 ->get();
 
             if ($locations->isEmpty()) {
-                return "No active storage locations found in the HIMS database.";
+                return 'No active storage locations found in the HIMS database.';
             }
 
             $lines = ["### HIMS Storage Locations\n"];
-            $lines[] = "| Location Name | Code | Type | Stored Lots |";
-            $lines[] = "| :--- | :--- | :--- | :--- |";
+            $lines[] = '| Location Name | Code | Type | Stored Lots |';
+            $lines[] = '| :--- | :--- | :--- | :--- |';
             foreach ($locations as $loc) {
-                $type = ucfirst($loc->type ?? 'General');
+                $type = ucfirst($loc->type ?? 'Not recorded');
                 $lines[] = "| **{$loc->name}** | {$loc->code} | {$type} | {$loc->stock_levels_count} lots |";
             }
 
@@ -1934,8 +1932,8 @@ PROMPT;
 
             $count = count($forecasts);
             $lines = ["The HIMS demand forecast identifies **{$count} items requiring prioritized replenishment**:\n"];
-            $lines[] = "| Item Name | Current Stock | Projected 30-Day Demand | Recommended Reorder | Risk Level |";
-            $lines[] = "| :--- | :--- | :--- | :--- | :--- |";
+            $lines[] = '| Item Name | Current Stock | Projected 30-Day Demand | Recommended Reorder | Risk Level |';
+            $lines[] = '| :--- | :--- | :--- | :--- | :--- |';
             foreach ($forecasts as $item) {
                 $name = $item['item_name'] ?? 'Item';
                 $reorder = $item['recommended_reorder_quantity'] ?? ($item['predicted_demand'] ?? 0);
@@ -1957,15 +1955,15 @@ PROMPT;
 
         $summary = $this->tools->getDailySummary($actor);
 
-        return $this->formatDailySummaryBlock($summary) . "\n\n" .
-            "You can ask me specific questions such as:\n" .
-            "- *\"Which items are currently low in stock?\"*\n" .
-            "- *\"What items are out of stock?\"*\n" .
-            "- *\"Which items have no expiry date?\"*\n" .
-            "- *\"Which items are expiring soon?\"*\n" .
-            "- *\"Which suppliers provide [Item Name]?\"*\n" .
-            "- *\"Show recent stock movements.\"*\n" .
-            "- *\"What procurement requests are pending?\"*";
+        return $this->formatDailySummaryBlock($summary)."\n\n".
+            "You can ask me specific questions such as:\n".
+            "- *\"Which items are currently low in stock?\"*\n".
+            "- *\"What items are out of stock?\"*\n".
+            "- *\"Which items have no expiry date?\"*\n".
+            "- *\"Which items are expiring soon?\"*\n".
+            "- *\"Which suppliers provide [Item Name]?\"*\n".
+            "- *\"Show recent stock movements.\"*\n".
+            '- *"What procurement requests are pending?"*';
     }
 
     /**
@@ -1982,12 +1980,12 @@ PROMPT;
 
         if ($result['count'] === 0) {
             return "Good news! **Nothing in HIMS inventory needs replenishment right now.**\n\n"
-                . "Every active item is holding stock above its reorder level, and no item is out of stock.";
+                .'Every active item is holding stock above its reorder level, and no item is out of stock.';
         }
 
         $count = $result['count'];
-        $lines = ["**Yes — {$count} " . ($count === 1 ? 'item needs' : 'items need') . " replenishment.** "
-            . "These are out of stock or at or below their reorder level:\n"];
+        $lines = ["**Yes — {$count} ".($count === 1 ? 'item needs' : 'items need').' replenishment.** '
+            ."These are out of stock or at or below their reorder level:\n"];
 
         foreach ($result['items'] as $i => $item) {
             $num = $i + 1;
@@ -2008,14 +2006,14 @@ PROMPT;
             }
 
             if ($detail !== []) {
-                $lines[] = '   - ' . implode(' | ', $detail);
+                $lines[] = '   - '.implode(' | ', $detail);
             }
         }
 
         $lines[] = "\nThat is **{$result['out_of_stock_count']} out of stock** and "
-            . "**{$result['low_stock_count']} at or below reorder level**.";
+            ."**{$result['low_stock_count']} at or below reorder level**.";
         $lines[] = "\nOrder quantities are the figures HIMS has already calculated for each item. "
-            . "Raise orders at [Procurement & Purchases](/inventory/purchases), or review the underlying projections at [Demand Forecast](/inventory/demand-forecast).";
+            .'Raise orders at [Procurement & Purchases](/inventory/purchases), or review the underlying projections at [Demand Forecast](/inventory/demand-forecast).';
 
         return implode("\n", $lines);
     }
@@ -2047,14 +2045,16 @@ PROMPT;
 
         if ($matched === null) {
             $terms = implode(', ', array_map(fn ($t) => ucwords($t), array_keys($glossary)));
+
             return "I can explain the following HIMS inventory terms:\n\n{$terms}\n\n"
-                . "Which one would you like me to explain?";
+                .'Which one would you like me to explain?';
         }
 
         $title = ucwords($matchedTerm);
+
         return "**{$title}**\n\n"
-            . "{$matched['definition']}\n\n"
-            . "**In HIMS:** {$matched['context']}";
+            ."{$matched['definition']}\n\n"
+            ."**In HIMS:** {$matched['context']}";
     }
 
     /**
@@ -2132,8 +2132,8 @@ PROMPT;
         }
 
         if ($intent === ConversationalIntentResolver::CLARIFY) {
-            return "I want to make sure I look at the right thing. Do you mean stock levels and reordering, "
-                . "expiring batches, suppliers and purchase orders, deliveries, or the system itself?";
+            return 'I want to make sure I look at the right thing. Do you mean stock levels and reordering, '
+                .'expiring batches, suppliers and purchase orders, deliveries, or the system itself?';
         }
 
         if ($intent === ConversationalIntentResolver::GREETING || $this->looksLikeGreeting($normalizedQuery)) {
@@ -2169,6 +2169,7 @@ PROMPT;
 
             if (! empty($matchedCap['tool_method']) && method_exists($this->tools, $matchedCap['tool_method'])) {
                 $toolData = $this->tools->{$matchedCap['tool_method']}($actor);
+
                 return $this->formatToolExecutionResult($matchedCap['tool_method'], $toolData, $normalizedQuery);
             }
         }
@@ -2179,9 +2180,9 @@ PROMPT;
         if (preg_match('/\b(?:bawal|pwede|puwede|kaya|allowed|can i)\b/i', $normalizedQuery)
             && preg_match('/\b(?:tanong|itanong|magtanong|ask|outside|iba|other|off topic)\b/i', $normalizedQuery)) {
             return "I'm specifically built for HIMS hospital inventory and supply operations. "
-                . "General knowledge, math, writing, and other off-topic questions are outside my scope — "
-                . "but anything about stock, items, suppliers, procurement, deliveries, or the system itself is fair game. "
-                . "Just ask naturally in English, Filipino, or Taglish.";
+                .'General knowledge, math, writing, and other off-topic questions are outside my scope — '
+                .'but anything about stock, items, suppliers, procurement, deliveries, or the system itself is fair game. '
+                .'Just ask naturally in English, Filipino, or Taglish.';
         }
 
         // Short, concise out-of-scope responses without repetitive capability dumping
@@ -2208,7 +2209,7 @@ PROMPT;
      */
     private function formatCapabilities(User $actor): string
     {
-        $roleLabel = $actor->role?->label() ?? 'Staff';
+        $roleLabel = $actor->role?->label() ?? 'Not recorded';
         $canViewFinances = $actor->can(Permission::ViewProcurementSensitiveData->value);
         $canViewAudit = $actor->can(Permission::ViewReports->value);
         $canManageRecovery = $actor->can(Permission::ManageSystemRecovery->value);
@@ -2278,13 +2279,13 @@ PROMPT;
             $restricted[] = 'system recovery diagnostics';
         }
         if ($restricted !== []) {
-            $lines[] = "**Not available to your role ({$roleLabel}):** " . implode(', ', $restricted)
-                . '. Ask a user who holds those permissions, or ask me about anything else above.';
+            $lines[] = "**Not available to your role ({$roleLabel}):** ".implode(', ', $restricted)
+                .'. Ask a user who holds those permissions, or ask me about anything else above.';
             $lines[] = '';
         }
 
         $lines[] = '**Ask me things like:** "Ano yung mga paubos na?", "May expired stock ba?", '
-            . '"Sino supplier ng Paracetamol?", "Anong items ang mag-e-expire this month?", "Ano ang FEFO?"';
+            .'"Sino supplier ng Paracetamol?", "Anong items ang mag-e-expire this month?", "Ano ang FEFO?"';
         $lines[] = '';
         $lines[] = 'Anything outside hospital supply operations — general knowledge, arithmetic, writing — is not something I answer.';
 
@@ -2302,14 +2303,14 @@ PROMPT;
         $delayed = $this->tools->getShipmentsAndDeliveries($actor, null, true, 3);
 
         if ($replenishment['count'] === 0 && $expiring['count'] === 0 && $delayed['count'] === 0) {
-            return "Nothing needs your attention right now. No items are out of stock or below their reorder level, "
-                . "no batches are nearing expiry within 90 days, and no supplier shipments are overdue.";
+            return 'Nothing needs your attention right now. No items are out of stock or below their reorder level, '
+                .'no batches are nearing expiry within 90 days, and no supplier shipments are overdue.';
         }
 
         $lines = ["### HIMS Inventory Attention Areas\n"];
 
         if ($replenishment['count'] > 0) {
-            $lines[] = "**Replenishment needed — {$replenishment['count']} " . ($replenishment['count'] === 1 ? 'item' : 'items') . ":**";
+            $lines[] = "**Replenishment needed — {$replenishment['count']} ".($replenishment['count'] === 1 ? 'item' : 'items').':**';
             foreach ($replenishment['items'] as $item) {
                 $order = $item['recommended_order_quantity'] > 0
                     ? " — suggested order **{$item['recommended_order_quantity']} {$item['unit']}**"
@@ -2371,7 +2372,7 @@ PROMPT;
         ?ConversationState $state = null,
         ?User $actor = null
     ): string {
-        $actor ??= auth()->user() ?? User::factory()->make();
+        $actor = $this->requireActor($actor);
 
         // 1. Context A: Preceded by Low-Stock or Replenishment inquiry
         if ($state !== null && $state->isLowStockContext()) {
@@ -2383,11 +2384,11 @@ PROMPT;
                     : 'a replenishment order';
 
                 return "Alright. Looking at the low-stock items, **{$item['name']}** (SKU: {$item['sku']}) is currently the most urgent concern with **{$item['available_stock']} {$item['unit']}** available (Reorder level: {$item['reorder_level']} {$item['unit']}).\n\n"
-                    . "HIMS suggests ordering {$orderQty} from **{$item['primary_supplier']}**.\n\n"
-                    . "Would you like me to check its primary supplier contact details or open purchase orders for this item?";
+                    ."HIMS suggests ordering {$orderQty} from **{$item['primary_supplier']}**.\n\n"
+                    .'Would you like me to check its primary supplier contact details or open purchase orders for this item?';
             }
 
-            return "Alright. All active inventory items currently hold stock above their reorder levels. We can inspect expiring batches or incoming supplier shipments instead. What would you like to review?";
+            return 'Alright. All active inventory items currently hold stock above their reorder levels. We can inspect expiring batches or incoming supplier shipments instead. What would you like to review?';
         }
 
         // 2. Context B: Preceded by Priority / "Which item should I check first?"
@@ -2398,15 +2399,15 @@ PROMPT;
                 $leadTime = $item['lead_time_days'] ?? 7;
 
                 return "Understood. Based on current stock data, let's start with **{$item['name']}** (SKU: {$item['sku']}). "
-                    . "It has **{$item['available_stock']} {$item['unit']}** available against a reorder level of {$item['reorder_level']}.\n\n"
-                    . "Its primary supplier is **{$item['primary_supplier']}** with a standard lead time of {$leadTime} days. "
-                    . "Would you like me to show open purchase orders or prepare a reorder recommendation?";
+                    ."It has **{$item['available_stock']} {$item['unit']}** available against a reorder level of {$item['reorder_level']}.\n\n"
+                    ."Its primary supplier is **{$item['primary_supplier']}** with a standard lead time of {$leadTime} days. "
+                    .'Would you like me to show open purchase orders or prepare a reorder recommendation?';
             }
         }
 
         // 3. Context C: Preceded by Greeting
         if ($state !== null && $state->isGreetingContext()) {
-            return "Sure. What would you like me to check in HIMS? We can review low-stock items needing replenishment, batches nearing expiry, or incoming supplier shipments.";
+            return 'Sure. What would you like me to check in HIMS? We can review low-stock items needing replenishment, batches nearing expiry, or incoming supplier shipments.';
         }
 
         // 4. Context D: Preceded by Item Dossier / Specific Item Discussion
@@ -2417,7 +2418,7 @@ PROMPT;
         }
 
         // 5. Context E: Standalone or fresh conversation
-        return "Sure! I can help you check stock levels, items needing reordering, expiring medication batches, or supplier deliveries in HIMS. Where would you like to start?";
+        return 'Sure! I can help you check stock levels, items needing reordering, expiring medication batches, or supplier deliveries in HIMS. Where would you like to start?';
     }
 
     /**
@@ -2451,12 +2452,12 @@ PROMPT;
         }
 
         if ($lastAssistantMessage !== null && $lastAssistantMessage !== '') {
-            return "To clarify my previous message: I was letting you know how I can assist with the hospital inventory system. "
-                . "You can ask me about stock quantities on hand, items that need reordering, expiring medication batches, purchase orders, shipments, or suppliers. "
-                . "What specific inventory detail would you like me to look up?";
+            return 'To clarify my previous message: I was letting you know how I can assist with the hospital inventory system. '
+                .'You can ask me about stock quantities on hand, items that need reordering, expiring medication batches, purchase orders, shipments, or suppliers. '
+                .'What specific inventory detail would you like me to look up?';
         }
 
-        return "I am the HIMS inventory assistant. I help hospital staff check inventory levels, reordering needs, expiring batches, purchase orders, and supplier shipments. What would you like to check in HIMS?";
+        return 'I am the HIMS inventory assistant. I help hospital staff check inventory levels, reordering needs, expiring batches, purchase orders, and supplier shipments. What would you like to check in HIMS?';
     }
 
     /**
@@ -2522,7 +2523,7 @@ PROMPT;
                 "{$salutation}! Let me know what you need—stock levels, suppliers, orders, or reports.",
             ];
 
-            return $repeatVariations[crc32($normalized . $userTurns) % count($repeatVariations)];
+            return $repeatVariations[crc32($normalized.$userTurns) % count($repeatVariations)];
         }
 
         // Opening greeting for a new conversation (concise 1-2 sentences, no capability dump)
@@ -2599,10 +2600,10 @@ PROMPT;
         $lines[] = "- **Reorder Level:** {$dossier['reorder_level']} {$dossier['unit']}";
         $lines[] = "- **Safety Stock:** {$dossier['safety_stock']} {$dossier['unit']}";
         $lines[] = "- **Supplier Lead Time:** {$dossier['lead_time_days']} days";
-        $lines[] = "- **Primary Supplier:** **{$dossier['supplier_name']}**" . (! empty($dossier['supplier_contact']) ? " (Contact: {$dossier['supplier_contact']})" : '');
+        $lines[] = "- **Primary Supplier:** **{$dossier['supplier_name']}**".(! empty($dossier['supplier_contact']) ? " (Contact: {$dossier['supplier_contact']})" : '');
 
         if ($dossier['unit_cost'] !== null) {
-            $lines[] = "- **Unit Cost:** ₱" . number_format($dossier['unit_cost'], 2);
+            $lines[] = '- **Unit Cost:** ₱'.number_format($dossier['unit_cost'], 2);
         }
 
         $lines[] = "- **Current Status:** **{$dossier['status_label']}**";
@@ -2630,12 +2631,12 @@ PROMPT;
         if (! empty($dossier['recent_movements'])) {
             $lines[] = "\n**Recent Stock Movements:**";
             foreach ($dossier['recent_movements'] as $m) {
-                $actorName = $m['actor'] ?? ($m['user'] ?? 'System');
+                $actorName = $m['actor'] ?? ($m['user'] ?? 'Not recorded');
                 $lines[] = "- {$m['type']}: **{$m['quantity']} units** on {$m['date']} by {$actorName}";
             }
         }
 
-        return implode("\n", $lines) . "\n\n*(Verified HIMS database record)*";
+        return implode("\n", $lines)."\n\n*(Verified HIMS database record)*";
     }
 
     /**
@@ -2649,12 +2650,12 @@ PROMPT;
         $lines = ["### Analysis of Attached File: {$attachment['name']} ({$attachment['formatted_size']})\n"];
 
         if ($attachment['type'] === 'spreadsheet') {
-            $lines[] = "I have extracted the tabular records from your spreadsheet and cross-referenced them with the active HIMS inventory catalog.";
+            $lines[] = 'I have extracted the tabular records from your spreadsheet and cross-referenced them with the active HIMS inventory catalog.';
             $lowItems = $context['low_stock_items'] ?? [];
             if (! empty($lowItems)) {
                 $lines[] = "\n**Matching Hospital Inventory Attention Areas:**";
                 foreach (array_slice($lowItems, 0, 5) as $i => $item) {
-                    $lines[] = ($i + 1) . ". **{$item['name']}** (SKU: {$item['sku']}) — Available: {$item['available_stock']} {$item['unit']} (Reorder Level: {$item['reorder_level']})";
+                    $lines[] = ($i + 1).". **{$item['name']}** (SKU: {$item['sku']}) — Available: {$item['available_stock']} {$item['unit']} (Reorder Level: {$item['reorder_level']})";
                 }
             }
             $lines[] = "\n*(Note: Attaching files to the AI assistant is strictly for analytical comparison and does not modify the HIMS database. To import new catalog items or inventory records permanently, please use [HIMS Import Data](/inventory/import).)*";
@@ -2687,6 +2688,7 @@ PROMPT;
             if ($type === 'spreadsheet') {
                 return 'Reviewing your inventory file...';
             }
+
             return 'Reviewing your report...';
         }
 
@@ -2815,7 +2817,7 @@ PROMPT;
         if (! empty($knownItems)) {
             usort($knownItems, fn ($a, $b) => strlen($b) <=> strlen($a));
             foreach ($knownItems as $item) {
-                if (strlen($item) >= 3 && preg_match('/\b' . preg_quote($item, '/') . '\b/i', $trimmed)) {
+                if (strlen($item) >= 3 && preg_match('/\b'.preg_quote($item, '/').'\b/i', $trimmed)) {
                     return $item;
                 }
             }
@@ -2865,6 +2867,17 @@ PROMPT;
         $cleaned = preg_replace('/`([A-Za-z0-9_\-\.\/#]+)`/', '$1', $cleaned) ?? $cleaned;
 
         return trim($cleaned);
+    }
+
+    private function requireActor(?User $actor): User
+    {
+        $resolved = $actor ?? auth()->user();
+
+        if (! $resolved instanceof User) {
+            throw new \LogicException('An authenticated user is required for inventory assistant data access.');
+        }
+
+        return $resolved;
     }
 
     /**

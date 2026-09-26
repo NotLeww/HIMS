@@ -46,7 +46,7 @@
                     ...l,
                     open_quantity: open,
                     received_quantity: open,
-                    item_condition: 'good',
+                    item_condition: '',
                     discrepancy_type: '',
                     discrepancy_action: 'quarantine',
                     discrepancy_notes: '',
@@ -514,8 +514,10 @@
                                                         <select
                                                             :name="`lines[${index}][item_condition]`"
                                                             x-model="line.item_condition"
+                                                            required
                                                             class="mt-0.5 block w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs py-1.5 px-2 text-neutral-900 dark:text-neutral-100 focus:border-primary-500 focus:ring-primary-500"
                                                         >
+                                                            <option value="">Select observed condition</option>
                                                             <option value="good">Good / Pristine</option>
                                                             <option value="damaged">Damaged Package</option>
                                                             <option value="compromised">Compromised / Seal Broken</option>
@@ -525,7 +527,7 @@
                                                     </div>
 
                                                     {{-- Discrepancy Resolution Action (revealed if condition != good or quantity differs) --}}
-                                                    <template x-if="line.item_condition !== 'good' || line.received_quantity !== line.open_quantity">
+                                                    <template x-if="(line.item_condition && line.item_condition !== 'good') || line.received_quantity !== line.open_quantity">
                                                         <div class="p-2 rounded-lg bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 space-y-1.5">
                                                             <label class="block text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">Discrepancy Action</label>
                                                             <select

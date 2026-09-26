@@ -68,6 +68,10 @@ class ShipmentTrackingService
      */
     public function registerInboundShipment(array $data, User $actor): Shipment
     {
+        if (blank($data['carrier_name'] ?? null) || blank($data['destination_facility'] ?? null)) {
+            throw new InvalidArgumentException('Carrier and destination facility are required to register a shipment.');
+        }
+
         if (! empty($data['sscc']) && ! $this->validateSscc($data['sscc'])) {
             throw new InvalidArgumentException("The provided SSCC [{$data['sscc']}] is not a valid 18-digit GS1 SSCC with check digit.");
         }
@@ -84,7 +88,7 @@ class ShipmentTrackingService
                 'shipment_number' => $shipmentNumber,
                 'purchase_order_id' => $po?->id,
                 'supplier_id' => $po?->supplier_id ?? $data['supplier_id'] ?? null,
-                'carrier_name' => $data['carrier_name'] ?? 'In-house / Vendor Fleet',
+                'carrier_name' => $data['carrier_name'],
                 'tracking_number' => $data['tracking_number'] ?? null,
                 'waybill_number' => $data['waybill_number'] ?? null,
                 'vehicle_plate_number' => $data['vehicle_plate_number'] ?? null,
@@ -92,9 +96,9 @@ class ShipmentTrackingService
                 'driver_contact' => $data['driver_contact'] ?? null,
                 'sscc' => $data['sscc'] ?? null,
                 'origin_address' => $data['origin_address'] ?? null,
-                'destination_facility' => $data['destination_facility'] ?? 'HIMS Central Receiving Dock',
+                'destination_facility' => $data['destination_facility'],
                 'dispatch_date' => $data['dispatch_date'] ?? now()->toDateString(),
-                'estimated_delivery_date' => $data['estimated_delivery_date'] ?? ($po?->delivery_date?->toDateString() ?? now()->toDateString()),
+                'estimated_delivery_date' => $data['estimated_delivery_date'] ?? $po?->delivery_date?->toDateString(),
                 'status' => 'dispatched',
                 'is_cold_chain' => (bool) ($data['is_cold_chain'] ?? false),
                 'temp_logger_serial' => $data['temp_logger_serial'] ?? null,
@@ -105,13 +109,13 @@ class ShipmentTrackingService
             $this->custodyService->recordTransfer(
                 trackable: $shipment,
                 data: [
-                    'event_type' => 'dock_arrival',
+                    'event_type' => 'shipment_dispatched',
                     'releasing_party_name' => $shipment->driver_name ?? $shipment->carrier_name,
                     'receiving_user_id' => $actor->id,
-                    'receiving_party_name' => 'In-Transit Courier',
-                    'origin_location' => $shipment->origin_address ?? 'Origin Hub',
+                    'receiving_party_name' => $shipment->carrier_name,
+                    'origin_location' => $shipment->origin_address,
                     'destination_location' => $shipment->destination_facility,
-                    'package_condition' => 'good_order',
+                    'package_condition' => null,
                     'verification_method' => 'credential_auth',
                     'notes' => "Shipment {$shipmentNumber} dispatched via {$shipment->carrier_name}. SSCC: ".($shipment->sscc ?? 'N/A'),
                 ],
@@ -158,7 +162,9 @@ class ShipmentTrackingService
                 'temp_max' => $tempMax,
                 'temp_logger_serial' => $dockData['temp_logger_serial'] ?? $shipment->temp_logger_serial,
                 'temp_excursion' => $tempExcursion,
-                'notes' => trim(($shipment->notes ?? '')."\nArrival Notes: ".($dockData['notes'] ?? 'Arrived at dock.')),
+                'notes' => filled($dockData['notes'] ?? null)
+                    ? trim(implode("\n", array_filter([$shipment->notes, 'Arrival Notes: '.$dockData['notes']])))
+                    : $shipment->notes,
             ]);
 
             // Chain of custody transfer to hospital receiving officer
@@ -169,9 +175,9 @@ class ShipmentTrackingService
                     'releasing_party_name' => $shipment->driver_name ?? $shipment->carrier_name,
                     'receiving_user_id' => $receiver->id,
                     'receiving_party_name' => $receiver->name.' (Receiving Officer)',
-                    'origin_location' => $shipment->origin_address ?? 'In-Transit Vehicle',
-                    'destination_location' => 'Central Receiving Dock',
-                    'package_condition' => $tempExcursion ? 'cold_chain_excursion' : 'good_order',
+                    'origin_location' => $shipment->origin_address,
+                    'destination_location' => $shipment->destination_facility,
+                    'package_condition' => $tempExcursion ? 'cold_chain_excursion' : $dockData['package_condition'],
                     'verification_method' => 'credential_auth',
                     'notes' => 'Shipment arrived. Cold Chain: '.($isColdChain ? 'YES' : 'NO').
                              ($isColdChain ? " (Min: {$tempMin}°C, Max: {$tempMax}°C, Excursion: ".($tempExcursion ? 'DETECTED-QUARANTINE' : 'PASS').')' : ''),
@@ -206,7 +212,7 @@ class ShipmentTrackingService
                 'receiving_party_name' => $shipment->carrier_name,
                 'origin_location' => $location,
                 'destination_location' => $location,
-                'package_condition' => 'good_order',
+                'package_condition' => null,
                 'verification_method' => 'credential_auth',
                 'notes' => "Status changed from {$oldStatus} to {$status}. Remarks: {$remarks}",
             ],

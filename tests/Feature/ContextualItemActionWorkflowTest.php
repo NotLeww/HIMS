@@ -333,7 +333,10 @@ class ContextualItemActionWorkflowTest extends TestCase
             'name' => 'Novel Diagnostic Reagent',
             'sku' => 'LAB-NEW-001',
             'quantity_on_hand' => 5,
-            'reorder_level' => 20,
+            'reorder_level' => 0,
+            'reorder_point' => 0,
+            'safety_stock' => 0,
+            'economic_order_quantity' => 0,
         ]);
 
         $response = $this->actingAs($user)->get(route('inventory.requisitions.index', ['item_id' => $item->id]));
@@ -346,7 +349,7 @@ class ContextualItemActionWorkflowTest extends TestCase
         });
 
         $response->assertSee('AI Forecast: Insufficient Data');
-        $response->assertSee('Insufficient historical consumption data');
+        $response->assertSee('No forecast or configured planning quantity is available.');
     }
 
     public function test_material_requisitions_store_records_ai_suggestion_and_user_quantity_in_audit_log(): void
@@ -387,4 +390,3 @@ class ContextualItemActionWorkflowTest extends TestCase
         $this->assertStringContainsString('Requested: 150', $audit->description);
     }
 }
-

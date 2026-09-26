@@ -2,11 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Enums\Permission;
 use App\Models\InventoryItem;
 use App\Models\ItemCategory;
 use App\Models\StorageLocation;
-use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -187,8 +185,8 @@ class DataImportTest extends TestCase
         $user = $this->inventoryManager();
 
         // Create a native OpenXML XLSX file
-        $tmpPath = tempnam(sys_get_temp_dir(), 'test_xlsx_') . '.xlsx';
-        $zip = new ZipArchive();
+        $tmpPath = tempnam(sys_get_temp_dir(), 'test_xlsx_').'.xlsx';
+        $zip = new ZipArchive;
         $zip->open($tmpPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
         $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -200,7 +198,7 @@ class DataImportTest extends TestCase
         $strings = ['sku', 'name', 'unit_cost', 'MED-ORAL-01', 'Oral Rehydration Salts', '12.50'];
         $sstXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="6" uniqueCount="6">';
         foreach ($strings as $s) {
-            $sstXml .= '<si><t>' . htmlspecialchars($s) . '</t></si>';
+            $sstXml .= '<si><t>'.htmlspecialchars($s).'</t></si>';
         }
         $sstXml .= '</sst>';
         $zip->addFromString('xl/sharedStrings.xml', $sstXml);
@@ -238,6 +236,7 @@ class DataImportTest extends TestCase
             'sku' => 'MED-ORAL-01',
             'name' => 'Oral Rehydration Salts',
             'unit_cost' => 12.50,
+            'unit' => null,
         ]);
 
         @unlink($tmpPath);
@@ -288,7 +287,7 @@ class DataImportTest extends TestCase
         $previewRes->assertStatus(200)
             ->assertJsonPath('is_valid', false);
 
-        $this->assertStringContainsString("already exists in the database", $previewRes->json('errors.0.message'));
+        $this->assertStringContainsString('already exists in the database', $previewRes->json('errors.0.message'));
     }
 
     public function test_update_or_create_mode_updates_existing_records(): void
@@ -297,6 +296,7 @@ class DataImportTest extends TestCase
         $item = InventoryItem::create([
             'sku' => 'MED-UPDATE-01',
             'name' => 'Original Name',
+            'unit' => 'capsule',
             'unit_cost' => 10.00,
             'quantity_on_hand' => 10,
         ]);
@@ -330,6 +330,7 @@ class DataImportTest extends TestCase
         $item->refresh();
         $this->assertEquals('Updated Item Description', $item->name);
         $this->assertEquals(25.50, (float) $item->unit_cost);
+        $this->assertSame('capsule', $item->unit);
     }
 
     public function test_preview_detects_non_existent_category_or_location(): void
@@ -479,7 +480,7 @@ class DataImportTest extends TestCase
 
         // 2. UTF-16LE BOM (\xFF\xFE)
         $rawUtf8 = "sku\tname\tunit_cost\nMED-UTF16-01\tDextrose 5% 500mL\t45.00\n";
-        $utf16leContent = "\xFF\xFE" . mb_convert_encoding($rawUtf8, 'UTF-16LE', 'UTF-8');
+        $utf16leContent = "\xFF\xFE".mb_convert_encoding($rawUtf8, 'UTF-16LE', 'UTF-8');
         $utf16File = UploadedFile::fake()->createWithContent('bom_utf16.csv', $utf16leContent);
 
         $resUtf16 = $this->actingAs($user)->postJson('/inventory/import/preview', [
@@ -1040,8 +1041,8 @@ class DataImportTest extends TestCase
 
         // 3. Valid zip archive with corrupted worksheet XML
         $tempZip = tempnam(sys_get_temp_dir(), 'xlsx_corrupt_test');
-        $zip = new \ZipArchive();
-        $zip->open($tempZip, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+        $zip = new ZipArchive;
+        $zip->open($tempZip, ZipArchive::CREATE | ZipArchive::OVERWRITE);
         $zip->addFromString('xl/worksheets/sheet1.xml', '<worksheet><unclosed_corrupted_xml');
         $zip->close();
         $corruptXmlContent = file_get_contents($tempZip);
@@ -1299,4 +1300,3 @@ class DataImportTest extends TestCase
         $this->assertSame($initialItemCount, InventoryItem::count());
     }
 }
-

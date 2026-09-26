@@ -3,14 +3,11 @@
 namespace Tests\Feature;
 
 use App\Enums\MovementType;
-use App\Enums\Permission;
-use App\Enums\UserRole;
+use App\Models\CostCenter;
 use App\Models\InventoryItem;
-use App\Models\ItemBatch;
 use App\Models\ItemStockLevel;
-use App\Models\PdeaDangerousDrugsRegister;
-use App\Models\StorageLocation;
 use App\Models\StockMovement;
+use App\Models\StorageLocation;
 use App\Models\SurgicalConsignmentBillOnly;
 use App\Models\User;
 use App\Services\Warehouse\ConsignmentService;
@@ -282,6 +279,13 @@ class SmartWarehousingAdvancedWorkflowTest extends TestCase
 
     public function test_surgical_consignment_implant_consumption_and_bill_only_pr_creation(): void
     {
+        CostCenter::create([
+            'code' => 'CC-OR-TEST',
+            'name' => 'Operating Room',
+            'department' => 'Surgery',
+            'is_active' => true,
+        ]);
+
         $orLocation = StorageLocation::create([
             'name' => 'OR Suite 3 Sterile Core',
             'code' => 'OR-03-CORE',
@@ -308,7 +312,7 @@ class SmartWarehousingAdvancedWorkflowTest extends TestCase
             'quantity' => 5,
         ]);
 
-        $nurse = User::factory()->warehouseStaff()->create();
+        $nurse = User::factory()->warehouseStaff()->create(['department' => 'Surgery']);
         $service = app(ConsignmentService::class);
 
         $record = $service->recordImplantUsage([

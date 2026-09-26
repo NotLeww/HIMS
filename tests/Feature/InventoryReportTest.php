@@ -12,14 +12,14 @@ use App\Models\ItemCategory;
 use App\Models\ItemStockLevel;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
-use App\Models\WarehouseTask;
 use App\Models\StockMovement;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Models\User;
-use App\Services\InventoryReportService;
+use App\Models\WarehouseTask;
 use App\Services\Inventory\GoodsReceiptService;
 use App\Services\Inventory\QualityControlService;
+use App\Services\InventoryReportService;
 use App\Services\Warehouse\WarehouseTaskService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -547,6 +547,14 @@ class InventoryReportTest extends TestCase
         $location = $this->location();
         $item = $this->stockedItem('N95 Respirator Mask', 'PPE-N95', 0, 45.00, location: $location);
         $supplier = Supplier::create(['name' => 'Jeffrey Corporation', 'status' => 'active']);
+        StorageLocation::create([
+            'name' => 'Receiving Quarantine', 'code' => 'LOC-QUARANTINE', 'status' => 'active',
+            'is_quarantine' => true,
+        ]);
+        StorageLocation::create([
+            'name' => 'Receiving Staging', 'code' => 'LOC-STAGING', 'status' => 'active',
+            'is_receiving_staging' => true,
+        ]);
 
         $purchaseOrder = PurchaseOrder::create([
             'po_number' => 'PO-20260808120000',
@@ -578,7 +586,7 @@ class InventoryReportTest extends TestCase
 
         $grn = app(GoodsReceiptService::class)->receiveOrder($purchaseOrder, [
             'lines' => [['po_line_id' => $poLine->id, 'received_quantity' => 500,
-                'batch_number' => 'LOT-N95-REPORT', 'expiry_date' => now()->addYear()->toDateString()]],
+                'item_condition' => 'good', 'batch_number' => 'LOT-N95-REPORT', 'expiry_date' => now()->addYear()->toDateString()]],
         ], $operator);
         $line = $grn->lines()->firstOrFail();
         $reportBeforeQc = $this->reports()->build(30);

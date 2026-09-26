@@ -4,9 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\AuditAction;
 use App\Enums\MovementType;
-use App\Enums\Permission;
 use App\Enums\PurchaseOrderStatus;
-use App\Enums\UserRole;
 use App\Models\AuditLog;
 use App\Models\InventoryItem;
 use App\Models\ItemBatch;
@@ -22,9 +20,9 @@ use App\Models\User;
 use App\Models\WarehouseTask;
 use App\Services\Inventory\GoodsReceiptService;
 use App\Services\Inventory\QualityControlService;
-use App\Services\Warehouse\WarehouseTaskService;
-use App\Services\InventoryAutomationService;
 use App\Services\Inventory\TransferService;
+use App\Services\InventoryAutomationService;
+use App\Services\Warehouse\WarehouseTaskService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
@@ -36,10 +34,15 @@ class StorageLocationLifecycleTest extends TestCase
     use RefreshDatabase;
 
     private User $superAdmin;
+
     private User $admin;
+
     private User $manager;
+
     private User $staff;
+
     private InventoryAutomationService $automationService;
+
     private TransferService $transferService;
 
     private function receiveInto(PurchaseOrder $po, StorageLocation $destination, int $quantity): void
@@ -48,7 +51,7 @@ class StorageLocationLifecycleTest extends TestCase
         $grn = app(GoodsReceiptService::class)->receiveOrder($po, [
             'destination_location_id' => $destination->id,
             'lines' => [['po_line_id' => $line->id, 'received_quantity' => $quantity,
-                'batch_number' => 'LOT-'.$po->id, 'expiry_date' => now()->addYear()->toDateString()]],
+                'item_condition' => 'good', 'batch_number' => 'LOT-'.$po->id, 'expiry_date' => now()->addYear()->toDateString()]],
         ], $this->staff);
         $this->assertSame(0, $line->item->fresh()->quantity_on_hand);
         $inspection = $grn->lines()->firstOrFail()->inspections()->firstOrFail();
@@ -84,6 +87,19 @@ class StorageLocationLifecycleTest extends TestCase
 
         $this->automationService = app(InventoryAutomationService::class);
         $this->transferService = app(TransferService::class);
+
+        StorageLocation::create([
+            'name' => 'Receiving Quarantine', 'code' => 'LOC-QUARANTINE', 'type' => 'room',
+            'status' => 'active', 'is_quarantine' => true,
+        ]);
+        StorageLocation::create([
+            'name' => 'Receiving Staging', 'code' => 'LOC-STAGING', 'type' => 'room',
+            'status' => 'active', 'is_receiving_staging' => true,
+        ]);
+        StorageLocation::create([
+            'name' => 'Transfer Buffer', 'code' => 'LOC-IN-TRANSIT', 'type' => 'zone',
+            'status' => 'active', 'is_in_transit' => true,
+        ]);
     }
 
     private function createLocation(string $name, string $code, string $status = 'active', string $type = 'shelf'): StorageLocation
@@ -300,7 +316,7 @@ class StorageLocationLifecycleTest extends TestCase
             app(GoodsReceiptService::class)->receiveOrder($po, [
                 'destination_location_id' => $inactiveLoc->id,
                 'lines' => [['po_line_id' => $po->lines()->firstOrFail()->id, 'received_quantity' => 20,
-                    'batch_number' => 'LOT-INACTIVE-20', 'expiry_date' => now()->addYear()->toDateString()]],
+                    'item_condition' => 'good', 'batch_number' => 'LOT-INACTIVE-20', 'expiry_date' => now()->addYear()->toDateString()]],
             ], $this->staff);
             $this->fail('Inactive destination was accepted.');
         } catch (ValidationException $exception) {
@@ -656,7 +672,7 @@ class StorageLocationLifecycleTest extends TestCase
             app(GoodsReceiptService::class)->receiveOrder($po, [
                 'destination_location_id' => $location->id,
                 'lines' => [['po_line_id' => $po->lines()->firstOrFail()->id, 'received_quantity' => 24,
-                    'batch_number' => 'LOT-INACTIVE-24', 'expiry_date' => now()->addYear()->toDateString()]],
+                    'item_condition' => 'good', 'batch_number' => 'LOT-INACTIVE-24', 'expiry_date' => now()->addYear()->toDateString()]],
             ], $this->staff);
             $this->fail('Inactive destination was accepted.');
         } catch (ValidationException $exception) {
@@ -869,9 +885,9 @@ class StorageLocationLifecycleTest extends TestCase
             ->get(route('inventory.warehousing.locations'));
 
         $response->assertOk();
-        $response->assertSee('btn-deactivate-location-' . $location->id, false);
+        $response->assertSee('btn-deactivate-location-'.$location->id, false);
         $response->assertSee('Are you sure you want to deactivate this storage location?', false);
-        $response->assertSee('Are you sure you want to deactivate ' . $location->code, false);
+        $response->assertSee('Are you sure you want to deactivate '.$location->code, false);
         $response->assertSee('Yes, Deactivate Location', false);
     }
 
@@ -888,7 +904,7 @@ class StorageLocationLifecycleTest extends TestCase
         $response->assertOk();
         $response->assertSee('Deactivate', false);
         $response->assertSee('Are you sure you want to deactivate this storage location?', false);
-        $response->assertSee('Are you sure you want to deactivate ' . $location->code, false);
+        $response->assertSee('Are you sure you want to deactivate '.$location->code, false);
         $response->assertSee('Yes, Deactivate Location', false);
     }
 }

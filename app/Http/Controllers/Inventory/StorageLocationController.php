@@ -6,17 +6,18 @@ use App\Enums\AuditAction;
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Models\StorageLocation;
-use App\Models\WarehouseTask;
 use App\Services\AuditLogger;
 use App\Services\Warehouse\WarehouseLabelService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
-use Illuminate\View\View;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 
 class StorageLocationController extends Controller implements HasMiddleware
 {
@@ -79,6 +80,7 @@ class StorageLocationController extends Controller implements HasMiddleware
             'is_pick_face' => ['nullable', 'boolean'],
             'is_reserve' => ['nullable', 'boolean'],
             'is_dispatch_staging' => ['nullable', 'boolean'],
+            'is_in_transit' => ['nullable', 'boolean'],
             'is_returns_area' => ['nullable', 'boolean'],
             'is_damaged_stock' => ['nullable', 'boolean'],
             'sort_sequence' => ['nullable', 'integer', 'min:0', 'max:100000'],
@@ -94,8 +96,14 @@ class StorageLocationController extends Controller implements HasMiddleware
         $code = strtoupper($validated['code'] ?: 'LOC-'.substr((string) Str::ulid(), -10));
         $validated['code'] = $code;
         $validated['barcode_value'] = $code;
-        foreach (['is_receiving_staging', 'is_quarantine', 'is_pick_face', 'is_reserve', 'is_dispatch_staging', 'is_returns_area', 'is_damaged_stock'] as $flag) {
+        foreach (['is_receiving_staging', 'is_quarantine', 'is_pick_face', 'is_reserve', 'is_dispatch_staging', 'is_in_transit', 'is_returns_area', 'is_damaged_stock'] as $flag) {
             $validated[$flag] = (bool) ($validated[$flag] ?? false);
+        }
+
+        if ($validated['is_in_transit'] && StorageLocation::query()->where('is_in_transit', true)->exists()) {
+            throw ValidationException::withMessages([
+                'is_in_transit' => ['An in-transit buffer is already configured. Update the existing location before assigning another.'],
+            ]);
         }
 
         $location = StorageLocation::create($validated);
@@ -104,13 +112,18 @@ class StorageLocationController extends Controller implements HasMiddleware
             actor: $request->user(),
             target: $location,
             description: "Created storage location {$location->code}",
-            newValues: ['code' => $location->code, 'type' => $location->type, 'status' => $location->status],
+            newValues: [
+                'code' => $location->code,
+                'type' => $location->type,
+                'status' => $location->status,
+                'is_in_transit' => $location->is_in_transit,
+            ],
         );
 
         return redirect()->route('inventory.storage-locations')->with('success', 'Storage location created successfully.');
     }
 
-    public function updateStatus(Request $request, StorageLocation $storageLocation): RedirectResponse|\Illuminate\Http\JsonResponse
+    public function updateStatus(Request $request, StorageLocation $storageLocation): RedirectResponse|JsonResponse
     {
         abort_unless($request->user()?->isSuperAdministrator(), 403, 'Only Super Administrators can change storage location status.');
 
@@ -123,7 +136,7 @@ class StorageLocationController extends Controller implements HasMiddleware
         $newStatus = $validated['status'];
         $reason = $validated['reason'] ?? ($newStatus === 'active' ? 'Reactivated location' : 'Deactivated location');
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($storageLocation, $newStatus, $oldStatus, $reason, $request) {
+        DB::transaction(function () use ($storageLocation, $newStatus, $oldStatus, $reason, $request) {
             $storageLocation->status = $newStatus;
             $storageLocation->save();
 

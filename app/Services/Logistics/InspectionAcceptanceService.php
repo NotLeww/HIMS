@@ -28,7 +28,7 @@ class InspectionAcceptanceService
     public function createFromReceipt(GoodsReceiptNote $grn, array $data, User $actor): InspectionAcceptanceReport
     {
         return DB::transaction(function () use ($grn, $data, $actor): InspectionAcceptanceReport {
-            $lockedGrn = GoodsReceiptNote::lockForUpdate()->with('purchaseOrder')->findOrFail($grn->id);
+            $lockedGrn = GoodsReceiptNote::lockForUpdate()->with(['purchaseOrder', 'quarantineLocation'])->findOrFail($grn->id);
 
             if ($lockedGrn->inspectionAcceptanceReport()->exists()) {
                 throw new DomainException("An Inspection and Acceptance Report already exists for Delivery Receipt / GRN #{$lockedGrn->grn_number}.");
@@ -63,7 +63,7 @@ class InspectionAcceptanceService
                 'invoice_number' => $lockedGrn->sales_invoice_number ?? ($data['invoice_number'] ?? null),
                 'iar_date' => now(),
                 'status' => 'pending_inspection',
-                'delivery_status' => $data['delivery_status'] ?? ($lockedGrn->delivery_status ?? 'complete'),
+                'delivery_status' => $data['delivery_status'] ?? $lockedGrn->delivery_status,
                 'days_delayed' => $daysDelayed,
                 'liquidated_damages_amount' => $liquidatedDamages,
                 'coa_transmittal_deadline_at' => $coaDeadline,
@@ -74,10 +74,10 @@ class InspectionAcceptanceService
             $this->custodyService->recordTransfer($iar, [
                 'event_type' => 'inspection_handover',
                 'releasing_user_id' => $actor->id,
-                'releasing_party_name' => $actor->name . ' (Receiving Dock Officer)',
-                'origin_location' => 'Receiving Quarantine Dock',
-                'destination_location' => 'Technical Inspection Holding Area',
-                'package_condition' => $lockedGrn->temp_excursion ? 'cold_chain_excursion' : 'good_order',
+                'releasing_party_name' => $actor->name,
+                'origin_location' => $lockedGrn->quarantineLocation?->name,
+                'destination_location' => null,
+                'package_condition' => $lockedGrn->temp_excursion ? 'cold_chain_excursion' : null,
                 'verification_method' => 'credential_auth',
                 'notes' => "Initiated IAR {$iarNumber} for Delivery Receipt {$lockedGrn->dr_number}. Handed over for technical evaluation.",
             ], $actor);
@@ -107,7 +107,11 @@ class InspectionAcceptanceService
     public function performTechnicalInspection(InspectionAcceptanceReport $iar, array $data, User $inspector): InspectionAcceptanceReport
     {
         return DB::transaction(function () use ($iar, $data, $inspector): InspectionAcceptanceReport {
-            $locked = InspectionAcceptanceReport::lockForUpdate()->with(['goodsReceiptNote.lines', 'purchaseOrder'])->findOrFail($iar->id);
+            $locked = InspectionAcceptanceReport::lockForUpdate()->with([
+                'goodsReceiptNote.quarantineLocation',
+                'goodsReceiptNote.lines.destinationLocation',
+                'purchaseOrder',
+            ])->findOrFail($iar->id);
 
             if ($locked->isInspected()) {
                 throw new DomainException("IAR #{$locked->iar_number} has already completed technical inspection.");
@@ -119,7 +123,12 @@ class InspectionAcceptanceService
                 throw new DomainException('Segregation of duties: The procurement officer who drafted the PO cannot inspect the delivery.');
             }
 
-            $decision = $data['inspection_status'] ?? 'in_order'; // in_order, defective, short_delivery, rejected
+            $decision = $data['inspection_status'] ?? null;
+            if (! in_array($decision, ['in_order', 'defective', 'short_delivery', 'rejected'], true)) {
+                throw ValidationException::withMessages([
+                    'inspection_status' => ['Select the observed inspection result.'],
+                ]);
+            }
             $findings = $data['inspection_findings'] ?? null;
             $grn = $locked->goodsReceiptNote;
 
@@ -133,6 +142,9 @@ class InspectionAcceptanceService
             }
 
             $isPassed = in_array($decision, ['in_order', 'short_delivery'], true);
+            $destination = $isPassed
+                ? $grn?->lines->pluck('destinationLocation.name')->filter()->unique()->join(', ')
+                : $grn?->quarantineLocation?->name;
 
             $locked->inspection_date = now();
             $locked->inspected_by_id = $inspector->id;
@@ -145,10 +157,10 @@ class InspectionAcceptanceService
             $this->custodyService->recordTransfer($locked, [
                 'event_type' => 'inspection_completed',
                 'releasing_user_id' => $inspector->id,
-                'releasing_party_name' => $inspector->name . ' (Technical Inspection Officer)',
-                'origin_location' => 'Technical Inspection Holding Area',
-                'destination_location' => $isPassed ? 'Property Custodian Acceptance Office' : 'Quarantine Rejection Depot',
-                'package_condition' => $isPassed ? 'good_order' : 'damaged_packaging',
+                'releasing_party_name' => $inspector->name,
+                'origin_location' => $grn?->quarantineLocation?->name,
+                'destination_location' => filled($destination) ? $destination : null,
+                'package_condition' => $decision === 'in_order' ? 'good_order' : null,
                 'verification_method' => 'credential_auth',
                 'notes' => "Technical evaluation completed: Result: {$decision}. Findings: {$findings}",
             ], $inspector);
@@ -178,9 +190,14 @@ class InspectionAcceptanceService
      */
     public function performCustodialAcceptance(InspectionAcceptanceReport $iar, array $data, User $custodian): InspectionAcceptanceReport
     {
-        return DB::transaction(function () use ($iar, $data, $custodian): InspectionAcceptanceReport {
+        return DB::transaction(function () use ($iar, $custodian): InspectionAcceptanceReport {
             $locked = InspectionAcceptanceReport::lockForUpdate()
-                ->with(['goodsReceiptNote.lines', 'purchaseOrder'])
+                ->with([
+                    'goodsReceiptNote.lines.stagingLocation',
+                    'goodsReceiptNote.lines.destinationLocation',
+                    'purchaseOrder',
+                    'inspectedBy',
+                ])
                 ->findOrFail($iar->id);
             if ($locked->status !== 'inspected_passed') {
                 throw new DomainException("IAR {$locked->iar_number} has not passed technical inspection or was already accepted.");
@@ -218,14 +235,17 @@ class InspectionAcceptanceService
             $locked->status = 'accepted';
             $locked->save();
 
+            $origin = $grn->lines->pluck('stagingLocation.name')->filter()->unique()->join(', ');
+            $destination = $grn->lines->pluck('destinationLocation.name')->filter()->unique()->join(', ');
+
             $this->custodyService->recordTransfer($locked, [
                 'event_type' => 'acceptance_custody',
                 'releasing_user_id' => $locked->inspected_by_id,
-                'releasing_party_name' => $locked->inspectedBy?->name ?? 'Inspection Officer',
+                'releasing_party_name' => $locked->inspectedBy?->name,
                 'receiving_user_id' => $custodian->id,
-                'receiving_party_name' => $custodian->name.' (Property Custodian)',
-                'origin_location' => 'Technical Inspection Holding Area',
-                'destination_location' => 'Property Custodian Acceptance Office',
+                'receiving_party_name' => $custodian->name,
+                'origin_location' => filled($origin) ? $origin : null,
+                'destination_location' => filled($destination) ? $destination : null,
                 'package_condition' => $rejected > 0 ? 'partially_rejected' : 'good_order',
                 'verification_method' => 'credential_auth',
                 'notes' => "IAR reconciled to QC: {$accepted} accepted and {$rejected} rejected purchase units. No inventory was posted by IAR.",
@@ -239,6 +259,7 @@ class InspectionAcceptanceService
                 newValues: ['status' => 'accepted', 'accepted_quantity' => $accepted,
                     'rejected_quantity' => $rejected, 'acceptance_date' => $locked->acceptance_date],
             );
+
             return $locked;
         });
     }
@@ -254,23 +275,23 @@ class InspectionAcceptanceService
             $locked = InspectionAcceptanceReport::lockForUpdate()->findOrFail($iar->id);
 
             if ($locked->status !== 'accepted') {
-                throw new DomainException("Only fully accepted IAR records can be transmitted to the resident COA Auditor.");
+                throw new DomainException('Only fully accepted IAR records can be transmitted to the resident COA Auditor.');
             }
 
             $locked->coa_transmitted_at = now();
-            $locked->coa_received_by = $data['coa_received_by'] ?? 'COA Resident Audit Staff';
+            $locked->coa_received_by = $data['coa_received_by'];
             $locked->save();
 
             $this->custodyService->recordTransfer($locked, [
                 'event_type' => 'coa_transmittal',
                 'releasing_user_id' => $officer->id,
-                'releasing_party_name' => $officer->name . ' (Supply Records Officer)',
+                'releasing_party_name' => $officer->name,
                 'receiving_party_name' => $locked->coa_received_by,
-                'origin_location' => 'HIMS Logistics & Document Archive',
-                'destination_location' => 'Commission on Audit (COA) Resident Office',
-                'package_condition' => 'good_order',
+                'origin_location' => null,
+                'destination_location' => null,
+                'package_condition' => null,
                 'verification_method' => 'conforme_signed',
-                'notes' => "Transmitted PO, DR, IAR, and Invoice documentation to COA under the 5-day mandatory transmittal rule.",
+                'notes' => 'Transmitted PO, DR, IAR, and Invoice documentation to COA under the 5-day mandatory transmittal rule.',
             ], $officer);
 
             $this->auditLogger->record(

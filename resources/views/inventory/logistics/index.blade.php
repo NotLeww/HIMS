@@ -329,8 +329,8 @@
                                                     <div class="flex items-center justify-between gap-2 text-xs">
                                                         <div class="min-w-0 flex-1">
                                                             <span class="block text-[10px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">From</span>
-                                                            <p class="truncate text-xs font-medium text-neutral-800 dark:text-neutral-200" title="{{ $log->releasing_party_name ?? ($log->releasingUser->name ?? 'Issuer') }}">
-                                                                {{ $log->releasing_party_name ?? ($log->releasingUser->name ?? 'Issuer') }}
+                                                            <p class="truncate text-xs font-medium text-neutral-800 dark:text-neutral-200" title="{{ $log->releasing_party_name ?? ($log->releasingUser->name ?? 'Not recorded') }}">
+                                                                {{ $log->releasing_party_name ?? ($log->releasingUser->name ?? 'Not recorded') }}
                                                             </p>
                                                         </div>
                                                         <div class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-neutral-200/60 text-neutral-500 dark:bg-neutral-700/60 dark:text-neutral-400">
@@ -338,8 +338,8 @@
                                                         </div>
                                                         <div class="min-w-0 flex-1 text-right">
                                                             <span class="block text-[10px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">To</span>
-                                                            <p class="truncate text-xs font-medium text-neutral-800 dark:text-neutral-200" title="{{ $log->receiving_party_name ?? ($log->receivingUser->name ?? 'Recipient') }}">
-                                                                {{ $log->receiving_party_name ?? ($log->receivingUser->name ?? 'Recipient') }}
+                                                            <p class="truncate text-xs font-medium text-neutral-800 dark:text-neutral-200" title="{{ $log->receiving_party_name ?? ($log->receivingUser->name ?? 'Not recorded') }}">
+                                                                {{ $log->receiving_party_name ?? ($log->receivingUser->name ?? 'Not recorded') }}
                                                             </p>
                                                         </div>
                                                     </div>
@@ -349,7 +349,7 @@
                                                 <div class="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-neutral-400 dark:text-neutral-500">
                                                     <span class="inline-flex items-center gap-1 truncate" title="{{ $log->destination_location ?? $log->origin_location }}">
                                                         <x-ui.icon name="map-pin" class="h-3.5 w-3.5 shrink-0" />
-                                                        <span class="truncate">{{ $log->destination_location ?? ($log->origin_location ?? 'Dock Terminal') }}</span>
+                                                        <span class="truncate">{{ $log->destination_location ?? ($log->origin_location ?? 'Not recorded') }}</span>
                                                     </span>
                                                     @if($log->package_condition)
                                                         <span class="shrink-0 font-medium text-neutral-500 dark:text-neutral-400">

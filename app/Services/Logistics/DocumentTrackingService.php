@@ -88,12 +88,12 @@ class DocumentTrackingService
                 // Record custody entry
                 $this->custodyService->recordTransfer($document, [
                     'event_type' => 'dock_receiving',
-                    'releasing_party_name' => $document->supplier?->name ?? 'External Issuer / Carrier',
+                    'releasing_party_name' => $document->supplier?->name,
                     'receiving_user_id' => $uploader->id,
-                    'receiving_party_name' => $uploader->name.' (Records Custodian)',
-                    'origin_location' => 'External Issuance',
-                    'destination_location' => 'HIMS Secure Logistics Repository',
-                    'package_condition' => 'good_order',
+                    'receiving_party_name' => $uploader->name,
+                    'origin_location' => null,
+                    'destination_location' => null,
+                    'package_condition' => null,
                     'verification_method' => 'credential_auth',
                     'notes' => "Uploaded document {$trackingNumber} ({$document->title}). SHA-256: {$checksum}.",
                 ], $uploader);

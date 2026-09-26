@@ -9,10 +9,10 @@ use App\Models\InventoryItem;
 use App\Models\ItemStockLevel;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
-use App\Models\WarehouseTask;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Models\WarehouseTask;
 use App\Services\Inventory\GoodsReceiptService;
 use App\Services\Inventory\QualityControlService;
 use App\Services\Warehouse\WarehouseTaskService;
@@ -189,6 +189,18 @@ class InventoryModuleTest extends TestCase
             'code' => 'MAIN-01',
             'status' => 'active',
         ]);
+        StorageLocation::create([
+            'name' => 'Receiving Quarantine',
+            'code' => 'LOC-QUARANTINE',
+            'status' => 'active',
+            'is_quarantine' => true,
+        ]);
+        StorageLocation::create([
+            'name' => 'Receiving Staging',
+            'code' => 'LOC-STAGING',
+            'status' => 'active',
+            'is_receiving_staging' => true,
+        ]);
         $item = InventoryItem::create([
             'name' => 'Bandages',
             'sku' => 'BAND-001',
@@ -231,7 +243,7 @@ class InventoryModuleTest extends TestCase
         $this->assertSame(10, $item->fresh()->quantity_on_hand);
         $grn = app(GoodsReceiptService::class)->receiveOrder($purchaseOrder, [
             'lines' => [['po_line_id' => $line->id, 'received_quantity' => 5,
-                'batch_number' => 'LOT-BAND-001', 'expiry_date' => now()->addYear()->toDateString()]],
+                'item_condition' => 'good', 'batch_number' => 'LOT-BAND-001', 'expiry_date' => now()->addYear()->toDateString()]],
         ], $user);
         $this->assertSame(PurchaseOrderStatus::UnderInspection->value, $purchaseOrder->fresh()->status);
         $this->assertSame(10, $item->fresh()->quantity_on_hand);

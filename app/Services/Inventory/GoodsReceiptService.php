@@ -59,6 +59,7 @@ class GoodsReceiptService
                         || ($data['packing_slip_number'] ?? null) !== $existing->packing_slip_number) {
                         throw ValidationException::withMessages(['receipt_key' => ['This receiving key was already used for a different delivery.']]);
                     }
+
                     return $existing;
                 }
             }
@@ -83,26 +84,21 @@ class GoodsReceiptService
                 throw ValidationException::withMessages(['actual_supplier_id' => ['The delivering supplier does not match the approved purchase order.']]);
             }
 
-            // Ensure Quarantine location exists
-            $quarantineLocation = StorageLocation::firstOrCreate(
-                ['code' => 'LOC-QUARANTINE'],
-                [
-                    'name' => 'Receiving Quarantine Holding Area',
-                    'type' => 'zone',
-                    'zone' => 'Quarantine',
-                    'status' => 'active',
-                    'is_quarantine' => true,
-                    'description' => 'Designated holding zone for inbound receipts awaiting QA/QC inspection.',
-                ]
-            );
+            $quarantineLocations = StorageLocation::query()
+                ->active()
+                ->where('is_quarantine', true)
+                ->limit(2)
+                ->get();
 
-            if ($quarantineLocation->status !== 'active') {
-                throw new DomainException("Receiving location {$quarantineLocation->name} ({$quarantineLocation->code}) is inactive and cannot receive new inventory.");
+            if ($quarantineLocations->count() !== 1) {
+                throw new DomainException(
+                    $quarantineLocations->isEmpty()
+                        ? 'Configure one active quarantine storage location before receiving stock.'
+                        : 'Multiple active quarantine locations are configured. Keep exactly one active quarantine location for receiving.'
+                );
             }
-            if (! $quarantineLocation->is_quarantine) {
-                $quarantineLocation->is_quarantine = true;
-                $quarantineLocation->save();
-            }
+
+            $quarantineLocation = $quarantineLocations->first();
 
             $grnNumber = 'GRN-'.now()->format('Ymd').'-'.Str::ulid();
 
@@ -209,7 +205,12 @@ class GoodsReceiptService
                 }
 
                 // Discrepancy & Item Condition Detection
-                $itemCondition = $lineInput['item_condition'] ?? 'good';
+                $itemCondition = $lineInput['item_condition'] ?? null;
+                if (! in_array($itemCondition, ['good', 'damaged', 'compromised', 'wrong_item', 'expired'], true)) {
+                    throw ValidationException::withMessages([
+                        'lines' => ["Record the observed item condition for PO line #{$poLine->line_number}."],
+                    ]);
+                }
                 $discrepancyType = $lineInput['discrepancy_type'] ?? null;
                 if ($itemCondition !== 'good' && empty($discrepancyType)) {
                     $discrepancyType = $itemCondition === 'damaged' || $itemCondition === 'compromised' ? 'damage' : $itemCondition;
@@ -321,8 +322,8 @@ class GoodsReceiptService
                 // Place into quarantine stock balance using base units
                 $this->automationService->adjustQuarantinedStock($item->id, $quarantineLocation->id, $batch?->id, $receivedBaseQty);
 
-                $pUnit = $poLine->purchase_unit ?: $item->unit ?: 'unit';
-                $bUnit = $item->unit ?: 'unit';
+                $pUnit = $poLine->purchase_unit ?: $item->unit ?: 'unit not recorded';
+                $bUnit = $item->unit ?: 'unit not recorded';
                 $unitDisplay = $conversionFactor > 1.0
                     ? "{$receivedQty} {$pUnit} ({$receivedBaseQty} {$bUnit})"
                     : "{$receivedBaseQty} {$bUnit}";
@@ -376,6 +377,8 @@ class GoodsReceiptService
 
             // Update Purchase Order fulfillment status
             $po->syncReceivingStatus();
+            $grn->delivery_status = $po->isFullyReceived() ? 'complete' : 'partial';
+            $grn->save();
 
             $this->auditLogger->record(
                 AuditAction::CreatedGoodsReceipt,
@@ -393,7 +396,7 @@ class GoodsReceiptService
             $this->notifications->sendToPermission(
                 Permission::InspectStock,
                 "grn-qc-pending-{$grn->id}",
-                "Inbound Delivery Awaiting QC",
+                'Inbound Delivery Awaiting QC',
                 "Goods Receipt Note {$grn->grn_number} for PO {$po->po_number} has been received into Quarantine and is awaiting QC inspection.",
                 NotificationPriority::Info,
                 NotificationDestination::QualityControl,
@@ -403,7 +406,7 @@ class GoodsReceiptService
                 $this->notifications->sendToPermission(
                     Permission::ViewProcurement,
                     "grn-discrepancy-{$grn->id}",
-                    "Delivery Discrepancy Flagged",
+                    'Delivery Discrepancy Flagged',
                     "Discrepancies were noted during dock intake for PO {$po->po_number} (GRN: {$grn->grn_number}).",
                     NotificationPriority::Warning,
                     NotificationDestination::GoodsReceipt,

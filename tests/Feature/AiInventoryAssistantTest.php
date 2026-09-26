@@ -4,13 +4,19 @@ namespace Tests\Feature;
 
 use App\Enums\MovementType;
 use App\Enums\Permission;
+use App\Enums\UserRole;
 use App\Models\InventoryItem;
 use App\Models\ItemBatch;
 use App\Models\ItemStockLevel;
+use App\Models\MaterialRequisition;
+use App\Models\PurchaseOrder;
+use App\Models\Shipment;
 use App\Models\StockMovement;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\Ai\ConversationalIntentResolver;
+use App\Services\AiInventoryAssistantService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
@@ -307,7 +313,7 @@ class AiInventoryAssistantTest extends TestCase
         config()->set('services.gemini.key', 'test-api-key');
         $manager = User::factory()->inventoryManager()->create();
 
-        $supplier = \App\Models\Supplier::create([
+        $supplier = Supplier::create([
             'name' => 'Metro Pharma Logistics Corp',
             'contact_person' => 'Maria Santos',
             'phone' => '09171234567',
@@ -354,17 +360,18 @@ class AiInventoryAssistantTest extends TestCase
             'status' => 'active',
         ]);
 
-        $po = \App\Models\PurchaseOrder::create([
+        $po = PurchaseOrder::create([
             'po_number' => 'PO-2026-TEST-001',
             'supplier_id' => $supplier->id,
             'status' => 'approved',
             'delivery_date' => now()->addDays(5)->toDateString(),
         ]);
 
-        \App\Models\Shipment::create([
+        Shipment::create([
             'shipment_number' => 'SHIP-2026-TEST',
             'purchase_order_id' => $po->id,
             'supplier_id' => $supplier->id,
+            'destination_facility' => 'Main Receiving Dock',
             'carrier_name' => 'Express Logistics',
             'tracking_number' => 'TRK-111222333',
             'dispatch_date' => now()->subDays(10)->toDateString(),
@@ -372,7 +379,7 @@ class AiInventoryAssistantTest extends TestCase
             'status' => 'in_transit',
         ]);
 
-        \App\Models\MaterialRequisition::create([
+        MaterialRequisition::create([
             'requisition_number' => 'REQ-2026-TEST-001',
             'requesting_user_id' => $manager->id,
             'department' => 'Intensive Care Unit',
@@ -506,7 +513,7 @@ class AiInventoryAssistantTest extends TestCase
 
     public function test_context_aware_intent_status_detection_matches_user_inquiry_categories(): void
     {
-        $service = app(\App\Services\AiInventoryAssistantService::class);
+        $service = app(AiInventoryAssistantService::class);
 
         // Exact examples from requirement
         $this->assertSame('Checking low-stock items...', $service->determineIntentStatus('Which items are low in stock?'));
@@ -546,7 +553,8 @@ class AiInventoryAssistantTest extends TestCase
 
     public function test_fallback_and_system_prompt_exclude_emojis_and_badge_backticks(): void
     {
-        $service = app(\App\Services\AiInventoryAssistantService::class);
+        $service = app(AiInventoryAssistantService::class);
+        $manager = User::factory()->inventoryManager()->create();
         $context = [
             'mentioned_items' => [[
                 'name' => 'Surgical Gloves',
@@ -560,7 +568,7 @@ class AiInventoryAssistantTest extends TestCase
             ]],
         ];
 
-        $reply = $service->generateGroundedFallback('Why is Surgical Gloves low stock?', $context);
+        $reply = $service->generateGroundedFallback('Why is Surgical Gloves low stock?', $context, actor: $manager);
 
         // No emojis
         $this->assertDoesNotMatchRegularExpression('/[\x{1F300}-\x{1FAFF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u', $reply);
@@ -571,8 +579,8 @@ class AiInventoryAssistantTest extends TestCase
 
     public function test_sanitize_assistant_text_strips_emojis_and_id_backticks(): void
     {
-        $service = app(\App\Services\AiInventoryAssistantService::class);
-        $rawText = "Ang item na `AMOX-500` 📦 ay may 5 units lamang ⚠️! Batch: `BATCH-2024-X` ✅.";
+        $service = app(AiInventoryAssistantService::class);
+        $rawText = 'Ang item na `AMOX-500` 📦 ay may 5 units lamang ⚠️! Batch: `BATCH-2024-X` ✅.';
 
         $sanitized = $service->sanitizeAssistantText($rawText);
 
@@ -590,7 +598,7 @@ class AiInventoryAssistantTest extends TestCase
         config()->set('services.gemini.key', '');
         $manager = User::factory()->inventoryManager()->create();
 
-        $supplier = \App\Models\Supplier::create([
+        $supplier = Supplier::create([
             'name' => 'Metro Pharma Logistics Corp',
             'contact_person' => 'Maria Santos',
             'phone' => '09171234567',
@@ -678,7 +686,7 @@ class AiInventoryAssistantTest extends TestCase
         ]);
 
         // User without ViewProcurementSensitiveData (Viewer role)
-        $viewer = User::factory()->create(['role' => \App\Enums\UserRole::Viewer]);
+        $viewer = User::factory()->create(['role' => UserRole::Viewer]);
 
         $resViewer = $this->actingAs($viewer)
             ->postJson(route('dashboard.ai-assistant'), [
@@ -752,7 +760,7 @@ class AiInventoryAssistantTest extends TestCase
         config()->set('services.gemini.key', '');
         $manager = User::factory()->inventoryManager()->create();
 
-        $supplier = \App\Models\Supplier::create([
+        $supplier = Supplier::create([
             'name' => 'FastCare Medical Logistics',
             'contact_person' => 'Juan Dela Cruz',
             'phone' => '09189876543',
@@ -760,17 +768,18 @@ class AiInventoryAssistantTest extends TestCase
             'status' => 'active',
         ]);
 
-        $po = \App\Models\PurchaseOrder::create([
+        $po = PurchaseOrder::create([
             'po_number' => 'PO-2026-DEL-001',
             'supplier_id' => $supplier->id,
             'status' => 'approved',
             'delivery_date' => now()->subDays(3)->toDateString(),
         ]);
 
-        \App\Models\Shipment::create([
+        Shipment::create([
             'shipment_number' => 'SHIP-2026-DELAYED',
             'purchase_order_id' => $po->id,
             'supplier_id' => $supplier->id,
+            'destination_facility' => 'Main Receiving Dock',
             'carrier_name' => 'Express Logistics',
             'tracking_number' => 'TRK-999888777',
             'dispatch_date' => now()->subDays(10)->toDateString(),
@@ -795,7 +804,7 @@ class AiInventoryAssistantTest extends TestCase
         config()->set('services.gemini.key', '');
         $manager = User::factory()->inventoryManager()->create();
 
-        \App\Models\MaterialRequisition::create([
+        MaterialRequisition::create([
             'requisition_number' => 'REQ-2026-ICU-001',
             'requesting_user_id' => $manager->id,
             'department' => 'Intensive Care Unit',
@@ -825,7 +834,7 @@ class AiInventoryAssistantTest extends TestCase
         config()->set('services.gemini.key', '');
         $manager = User::factory()->inventoryManager()->create();
 
-        $supplier = \App\Models\Supplier::create([
+        $supplier = Supplier::create([
             'name' => 'Metro Pharma Logistics Corp',
             'contact_person' => 'Maria Santos',
             'phone' => '09171234567',
@@ -1232,7 +1241,7 @@ class AiInventoryAssistantTest extends TestCase
         config()->set('services.gemini.key', '');
         $manager = User::factory()->inventoryManager()->create();
 
-        $supplier = \App\Models\Supplier::create([
+        $supplier = Supplier::create([
             'name' => 'Metro Pharma Logistics Corp',
             'contact_person' => 'Maria Santos',
             'phone' => '09171234567',
@@ -1630,52 +1639,52 @@ class AiInventoryAssistantTest extends TestCase
     {
         return [
             // NO_EXPIRY
-            'walang expiry tagalog'      => ['anong mga items ang walang expiry?', 'no_expiry'],
-            'no expiry english'          => ['which items have no expiry?', 'no_expiry'],
-            'walang expiration date'     => ['may items bang walang expiration date?', 'no_expiry'],
-            'alin walang expiry'         => ['alin yung walang expiry?', 'no_expiry'],
-            'hindi nag-e-expire'         => ['ano yung mga hindi nag-e-expire?', 'no_expiry'],
-            'without expiry'             => ['items without expiry', 'no_expiry'],
+            'walang expiry tagalog' => ['anong mga items ang walang expiry?', 'no_expiry'],
+            'no expiry english' => ['which items have no expiry?', 'no_expiry'],
+            'walang expiration date' => ['may items bang walang expiration date?', 'no_expiry'],
+            'alin walang expiry' => ['alin yung walang expiry?', 'no_expiry'],
+            'hindi nag-e-expire' => ['ano yung mga hindi nag-e-expire?', 'no_expiry'],
+            'without expiry' => ['items without expiry', 'no_expiry'],
 
             // EXPIRY (nearing)
-            'malapit nang mag-expire'    => ['ano yung malapit nang mag-expire?', 'expiry'],
-            'expire within 90 days'      => ['which items expire within 90 days?', 'expiry'],
-            'expiring soon'              => ['expiring soon', 'expiry'],
-            'mag-e-expire this month'    => ['anong items ang mag-e-expire this month?', 'expiry'],
+            'malapit nang mag-expire' => ['ano yung malapit nang mag-expire?', 'expiry'],
+            'expire within 90 days' => ['which items expire within 90 days?', 'expiry'],
+            'expiring soon' => ['expiring soon', 'expiry'],
+            'mag-e-expire this month' => ['anong items ang mag-e-expire this month?', 'expiry'],
 
             // EXPIRED
-            'expired na'                 => ['ano yung expired na?', 'expired'],
-            'may expired stock'          => ['may expired stock ba?', 'expired'],
-            'already expired'            => ['already expired items', 'expired'],
+            'expired na' => ['ano yung expired na?', 'expired'],
+            'may expired stock' => ['may expired stock ba?', 'expired'],
+            'already expired' => ['already expired items', 'expired'],
 
             // REPLENISHMENT
-            'need replenishment'         => ['which items need replenishment?', 'replenishment'],
-            'kailangan i-restock'        => ['may kailangan bang i-restock?', 'replenishment'],
-            'kailangan orderin'          => ['ano yung kailangan orderin?', 'replenishment'],
+            'need replenishment' => ['which items need replenishment?', 'replenishment'],
+            'kailangan i-restock' => ['may kailangan bang i-restock?', 'replenishment'],
+            'kailangan orderin' => ['ano yung kailangan orderin?', 'replenishment'],
 
             // SUPPLIER
-            'sino supplier nito'         => ['sino supplier nito?', 'supplier'],
+            'sino supplier nito' => ['sino supplier nito?', 'supplier'],
 
             // OUT_OF_SCOPE
-            'math question'              => ['1+1?', 'out_of_scope'],
-            'capital of japan'           => ["What's the capital of Japan?", 'out_of_scope'],
-            'tell me a joke'             => ['Tell me a joke.', 'out_of_scope'],
-            'write a poem'               => ['Write a poem.', 'out_of_scope'],
+            'math question' => ['1+1?', 'out_of_scope'],
+            'capital of japan' => ["What's the capital of Japan?", 'out_of_scope'],
+            'tell me a joke' => ['Tell me a joke.', 'out_of_scope'],
+            'write a poem' => ['Write a poem.', 'out_of_scope'],
 
             // META-SCOPE — no longer capabilities
-            'bawal magtanong outside'    => ['bawal ako magtanong na outside sa system or diyan?', 'out_of_scope'],
-            'bawal ba magtanong iba'     => ['bawal ba akong magtanong ng iba?', 'out_of_scope'],
+            'bawal magtanong outside' => ['bawal ako magtanong na outside sa system or diyan?', 'out_of_scope'],
+            'bawal ba magtanong iba' => ['bawal ba akong magtanong ng iba?', 'out_of_scope'],
 
             // CAPABILITIES — real capability questions still work
-            'pwede kong itanong'         => ['ano ang pwede kong itanong?', 'capabilities'],
-            'what can you do'            => ['what can you do?', 'capabilities'],
+            'pwede kong itanong' => ['ano ang pwede kong itanong?', 'capabilities'],
+            'what can you do' => ['what can you do?', 'capabilities'],
         ];
     }
 
     #[DataProvider('intentResolutionCases')]
     public function test_intent_resolver_classifies_correctly(string $query, string $expectedIntent): void
     {
-        $resolver = new \App\Services\Ai\ConversationalIntentResolver();
+        $resolver = new ConversationalIntentResolver;
         $result = $resolver->resolve($query);
         $this->assertSame(
             $expectedIntent,
@@ -2393,7 +2402,7 @@ class AiInventoryAssistantTest extends TestCase
 
         $history = [
             ['role' => 'user', 'content' => 'May Zonrox ba tayo?'],
-            ['role' => 'assistant', 'content' => "**Yes**, we have **Zonrox Bleach 500mL** (SKU: ZNX-BLC-500) in stock. Available for dispensing: **18 bottles**."],
+            ['role' => 'assistant', 'content' => '**Yes**, we have **Zonrox Bleach 500mL** (SKU: ZNX-BLC-500) in stock. Available for dispensing: **18 bottles**.'],
         ];
 
         $response = $this->actingAs($manager)

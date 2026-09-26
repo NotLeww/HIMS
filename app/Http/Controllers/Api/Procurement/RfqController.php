@@ -7,6 +7,7 @@ use App\Enums\ProcurementMethod;
 use App\Enums\RfqBiddingType;
 use App\Enums\RfqStatus;
 use App\Http\Controllers\Controller;
+use App\Models\InventoryItem;
 use App\Models\PurchaseRequest;
 use App\Models\SourcingRfq;
 use App\Models\Supplier;
@@ -17,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class RfqController extends Controller implements HasMiddleware
 {
@@ -72,6 +74,7 @@ class RfqController extends Controller implements HasMiddleware
             'bidding_type' => ['nullable', 'in:sealed,open'],
             'submission_deadline' => ['required', 'date', 'after:now'],
             'terms_conditions' => ['nullable', 'string'],
+            'currency' => ['nullable', 'required_without:purchase_request_id', 'string', 'size:3'],
             'weight_price' => ['nullable', 'numeric', 'min:0', 'max:1'],
             'weight_technical' => ['nullable', 'numeric', 'min:0', 'max:1'],
             'weight_quality' => ['nullable', 'numeric', 'min:0', 'max:1'],
@@ -102,6 +105,7 @@ class RfqController extends Controller implements HasMiddleware
 
         if ($eligibleSuppliers->count() < count($validated['invited_supplier_ids'])) {
             $ineligibleIds = array_diff($validated['invited_supplier_ids'], $eligibleSuppliers->pluck('id')->all());
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'One or more invited suppliers are not accredited or have active compliance blocks.',
@@ -123,7 +127,7 @@ class RfqController extends Controller implements HasMiddleware
                 'submission_deadline' => $validated['submission_deadline'],
                 'status' => RfqStatus::Published->value,
                 'terms_conditions' => $validated['terms_conditions'] ?? null,
-                'currency' => $pr?->currency ?? 'PHP',
+                'currency' => strtoupper((string) ($pr?->currency ?? $validated['currency'])),
                 'weight_price' => $validated['weight_price'] ?? 0.40,
                 'weight_technical' => $validated['weight_technical'] ?? 0.30,
                 'weight_quality' => $validated['weight_quality'] ?? 0.15,
@@ -142,7 +146,7 @@ class RfqController extends Controller implements HasMiddleware
                         'target_quantity' => $prLine->quantity,
                         'uom' => $prLine->uom,
                         'item_description' => $prLine->item_description,
-                        'technical_specifications' => "Standard clinical specification for {$prLine->item->name}.",
+                        'technical_specifications' => null,
                         'max_budget_unit_price' => $prLine->estimated_unit_price,
                     ]);
                 }
@@ -150,11 +154,18 @@ class RfqController extends Controller implements HasMiddleware
                 $pr->save();
             } elseif (! empty($validated['lines'])) {
                 foreach ($validated['lines'] as $lineData) {
+                    $item = InventoryItem::findOrFail($lineData['item_id']);
+                    $uom = $lineData['uom'] ?? $item->unit;
+                    if (blank($uom)) {
+                        throw ValidationException::withMessages([
+                            'lines' => ["Add a unit of measure for {$item->name} before publishing the RFQ."],
+                        ]);
+                    }
                     $rfq->lines()->create([
                         'item_id' => $lineData['item_id'],
                         'line_number' => $lineNum++,
                         'target_quantity' => $lineData['target_quantity'],
-                        'uom' => $lineData['uom'] ?? 'unit',
+                        'uom' => $uom,
                         'technical_specifications' => $lineData['technical_specifications'] ?? null,
                         'max_budget_unit_price' => $lineData['max_budget_unit_price'] ?? null,
                     ]);

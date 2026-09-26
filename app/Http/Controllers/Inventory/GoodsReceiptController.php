@@ -10,6 +10,7 @@ use App\Models\GoodsReceiptNoteLine;
 use App\Models\PurchaseOrder;
 use App\Models\QualityInspection;
 use App\Models\StorageLocation;
+use App\Models\Supplier;
 use App\Services\Inventory\GoodsReceiptService;
 use App\Services\Inventory\QualityControlService;
 use DomainException;
@@ -70,7 +71,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
             ->orderBy('name')
             ->get();
 
-        $suppliers = \App\Models\Supplier::where('status', 'active')->orderBy('name')->get();
+        $suppliers = Supplier::where('status', 'active')->orderBy('name')->get();
 
         return view('inventory.receiving.index', compact('goodsReceipts', 'openPurchaseOrders', 'storageLocations', 'suppliers'));
     }
@@ -127,7 +128,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
             'lines.*.actual_purchase_unit' => ['required', 'string', 'max:50'],
             'lines.*.received_quantity' => ['required', 'integer', 'min:1'],
             'lines.*.destination_location_id' => ['nullable', 'exists:storage_locations,id'],
-            'lines.*.item_condition' => ['nullable', 'string', 'in:good,damaged,compromised,wrong_item,expired'],
+            'lines.*.item_condition' => ['required', 'string', 'in:good,damaged,compromised,wrong_item,expired'],
             'lines.*.discrepancy_type' => ['nullable', 'string', 'in:shortage,overage,damage,wrong_item,expired,near_expiry,missing_lot,other'],
             'lines.*.discrepancy_action' => ['nullable', 'string', 'in:quarantine,accept,reject,return_to_supplier,hold'],
             'lines.*.discrepancy_notes' => ['nullable', 'string', 'max:500'],

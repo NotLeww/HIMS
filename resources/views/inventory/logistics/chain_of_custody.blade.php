@@ -142,11 +142,11 @@
                                 <td class="px-5 py-3.5 align-top text-xs">
                                     <div class="flex items-center gap-1.5 flex-wrap">
                                         <span class="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-800 ring-1 ring-inset ring-neutral-200 dark:bg-neutral-800 dark:text-neutral-200 dark:ring-neutral-700">
-                                            {{ $log->releasing_party_name ?? ($log->releasingUser->name ?? 'Issuer') }}
+                                            {{ $log->releasing_party_name ?? ($log->releasingUser->name ?? 'Not recorded') }}
                                         </span>
                                         <span class="text-neutral-400 dark:text-neutral-500 font-bold">&mdash;</span>
                                         <span class="inline-flex items-center rounded-md bg-primary-50 px-2 py-0.5 text-[11px] font-bold text-primary-800 ring-1 ring-inset ring-primary-200 dark:bg-primary-950/60 dark:text-primary-300 dark:ring-primary-800/60">
-                                            {{ $log->receiving_party_name ?? ($log->receivingUser->name ?? 'Recipient') }}
+                                            {{ $log->receiving_party_name ?? ($log->receivingUser->name ?? 'Not recorded') }}
                                         </span>
                                     </div>
                                     @if($log->notes)

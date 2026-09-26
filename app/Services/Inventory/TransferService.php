@@ -36,29 +36,33 @@ class TransferService
 
             if ($sourceLocation->id === $destLocation->id) {
                 throw ValidationException::withMessages([
-                    'destination_location_id' => ['Source and destination locations cannot be identical.']
+                    'destination_location_id' => ['Source and destination locations cannot be identical.'],
                 ]);
             }
 
             if ($destLocation->status !== 'active') {
                 throw ValidationException::withMessages([
-                    'destination_location_id' => ["Destination location {$destLocation->name} ({$destLocation->code}) is inactive and cannot receive transferred stock. Select an active location."]
+                    'destination_location_id' => ["Destination location {$destLocation->name} ({$destLocation->code}) is inactive and cannot receive transferred stock. Select an active location."],
                 ]);
             }
 
-            // Virtual In-Transit location
-            $inTransitLocation = StorageLocation::firstOrCreate(
-                ['code' => 'LOC-IN-TRANSIT'],
-                [
-                    'name' => 'Internal In-Transit Virtual Buffer',
-                    'type' => 'zone',
-                    'zone' => 'In-Transit',
-                    'status' => 'active',
-                    'description' => 'Virtual buffer for items departed from source warehouse pending destination receipt.'
-                ]
-            );
+            $inTransitLocations = StorageLocation::query()
+                ->active()
+                ->where('is_in_transit', true)
+                ->limit(2)
+                ->get();
 
-            $transferNumber = 'TR-' . now()->format('Ymd') . '-' . str_pad((string) (StockTransfer::count() + 1), 4, '0', STR_PAD_LEFT);
+            if ($inTransitLocations->count() !== 1) {
+                throw new DomainException(
+                    $inTransitLocations->isEmpty()
+                        ? 'Configure one active storage location as the in-transit buffer before dispatching transfers.'
+                        : 'Multiple active in-transit buffers are configured. Keep exactly one active buffer before dispatching transfers.'
+                );
+            }
+
+            $inTransitLocation = $inTransitLocations->first();
+
+            $transferNumber = 'TR-'.now()->format('Ymd').'-'.str_pad((string) (StockTransfer::count() + 1), 4, '0', STR_PAD_LEFT);
 
             $transfer = StockTransfer::create([
                 'transfer_number' => $transferNumber,
@@ -74,7 +78,7 @@ class TransferService
             $lines = $data['lines'] ?? [];
             if (empty($lines)) {
                 throw ValidationException::withMessages([
-                    'lines' => ['Transfer must contain at least one line item.']
+                    'lines' => ['Transfer must contain at least one line item.'],
                 ]);
             }
 
@@ -86,7 +90,7 @@ class TransferService
                 $available = $this->automationService->availableAt($item->id, $sourceLocation->id, $batchId);
                 if ($available < $qty) {
                     throw ValidationException::withMessages([
-                        'lines' => ["Insufficient stock for {$item->name} at {$sourceLocation->name}. Available: {$available}, Dispatched: {$qty}."]
+                        'lines' => ["Insufficient stock for {$item->name} at {$sourceLocation->name}. Available: {$available}, Dispatched: {$qty}."],
                     ]);
                 }
 
@@ -289,7 +293,7 @@ class TransferService
                 AuditAction::ReceivedStockTransfer,
                 actor: $receiver,
                 target: $tr,
-                description: "Received Stock Transfer {$tr->transfer_number} at {$tr->destinationLocation->name} (" . ($hasDiscrepancy ? 'Discrepancies noted' : 'Complete') . ")",
+                description: "Received Stock Transfer {$tr->transfer_number} at {$tr->destinationLocation->name} (".($hasDiscrepancy ? 'Discrepancies noted' : 'Complete').')',
                 newValues: [
                     'transfer_number' => $tr->transfer_number,
                     'status' => $tr->status,

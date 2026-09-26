@@ -25,8 +25,8 @@ class StockTransferController extends Controller implements HasMiddleware
     {
         return [
             'auth:web,admin,super_admin',
-            new Middleware('can:' . Permission::TransferStock->value, only: ['store', 'receive']),
-            new Middleware('can:' . Permission::ViewInventory->value, only: ['index', 'show']),
+            new Middleware('can:'.Permission::TransferStock->value, only: ['store', 'receive']),
+            new Middleware('can:'.Permission::ViewInventory->value, only: ['index', 'show']),
         ];
     }
 
@@ -43,21 +43,15 @@ class StockTransferController extends Controller implements HasMiddleware
             ->withQueryString();
 
         $sourceLocations = StorageLocation::where(function ($query) {
-                $query->where('status', 'active')
-                    ->orWhereHas('stockLevels', fn ($q) => $q->where('quantity', '>', 0));
-            })
-            ->where(function ($query) {
-                $query->whereNull('zone')
-                    ->orWhere('zone', '!=', 'In-Transit');
-            })
+            $query->where('status', 'active')
+                ->orWhereHas('stockLevels', fn ($q) => $q->where('quantity', '>', 0));
+        })
+            ->where('is_in_transit', false)
             ->orderBy('name')
             ->get();
 
         $destinationLocations = StorageLocation::where('status', 'active')
-            ->where(function ($query) {
-                $query->whereNull('zone')
-                    ->orWhere('zone', '!=', 'In-Transit');
-            })
+            ->where('is_in_transit', false)
             ->orderBy('name')
             ->get();
 
@@ -179,7 +173,7 @@ class StockTransferController extends Controller implements HasMiddleware
             }
         }
 
-        if (!empty($insufficientErrors)) {
+        if (! empty($insufficientErrors)) {
             return redirect()->back()
                 ->withErrors($insufficientErrors)
                 ->withInput();

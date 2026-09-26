@@ -38,10 +38,10 @@ class ChainOfCustodyService
                 'transferred_at' => $data['transferred_at'] ?? now(),
                 'origin_location' => $data['origin_location'] ?? null,
                 'destination_location' => $data['destination_location'] ?? null,
-                'package_condition' => $data['package_condition'] ?? 'good_order',
+                'package_condition' => $data['package_condition'] ?? null,
                 'verification_method' => $data['verification_method'] ?? 'credential_auth',
                 'notes' => $data['notes'] ?? null,
-                'user_agent' => request()->userAgent() ?? 'System / Console',
+                'user_agent' => request()->userAgent(),
             ]);
 
             $this->auditLogger->record(

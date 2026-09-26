@@ -326,11 +326,12 @@ class LogisticsController extends Controller implements HasMiddleware
             'driver_contact' => ['nullable', 'string', 'max:50'],
             'sscc' => ['nullable', 'string', 'size:18'],
             'origin_address' => ['nullable', 'string', 'max:255'],
-            'destination_facility' => ['nullable', 'string', 'max:255'],
+            'destination_facility' => ['required', 'string', 'max:255'],
             'dispatch_date' => ['nullable', 'date'],
             'estimated_delivery_date' => ['nullable', 'date'],
             'is_cold_chain' => ['nullable', 'boolean'],
             'temp_logger_serial' => ['nullable', 'string', 'max:100'],
+            'package_condition' => ['required', 'in:good_order,damaged_packaging,tampered_seal,seal_intact'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 

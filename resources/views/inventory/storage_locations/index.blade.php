@@ -142,6 +142,7 @@
                             'is_pick_face'         => 'Pick face',
                             'is_reserve'           => 'Reserve storage',
                             'is_dispatch_staging'  => 'Dispatch staging',
+                            'is_in_transit'         => 'In-transit buffer',
                             'is_returns_area'      => 'Returns area',
                             'is_damaged_stock'     => 'Damaged stock',
                         ];
@@ -204,7 +205,7 @@
                     <x-ui.table.td><p class="font-mono text-xs font-semibold text-primary-700">{{ $location->code }}</p><p class="font-medium">{{ $location->fullPath() }}</p></x-ui.table.td>
                     <x-ui.table.td>{{ str($location->type)->replace('_',' ')->title() }}</x-ui.table.td>
                     <x-ui.table.td><p>{{ $location->storage_classification ? str($location->storage_classification)->replace('_',' ')->title() : 'Any' }}</p><p class="text-xs text-neutral-500">{{ $location->temperature_classification ? str($location->temperature_classification)->replace('_',' ')->title() : 'Not fixed' }}</p></x-ui.table.td>
-                    <x-ui.table.td><div class="flex max-w-xs flex-wrap gap-1">@foreach(['is_receiving_staging'=>'Receiving','is_quarantine'=>'Quarantine','is_pick_face'=>'Pick face','is_reserve'=>'Reserve','is_dispatch_staging'=>'Dispatch','is_returns_area'=>'Returns','is_damaged_stock'=>'Damaged'] as $flag=>$label)@if($location->{$flag})<span class="rounded bg-neutral-100 px-2 py-0.5 text-xs">{{ $label }}</span>@endif @endforeach</div></x-ui.table.td>
+                    <x-ui.table.td><div class="flex max-w-xs flex-wrap gap-1">@foreach(['is_receiving_staging'=>'Receiving','is_quarantine'=>'Quarantine','is_pick_face'=>'Pick face','is_reserve'=>'Reserve','is_dispatch_staging'=>'Dispatch','is_in_transit'=>'In transit','is_returns_area'=>'Returns','is_damaged_stock'=>'Damaged'] as $flag=>$label)@if($location->{$flag})<span class="rounded bg-neutral-100 px-2 py-0.5 text-xs">{{ $label }}</span>@endif @endforeach</div></x-ui.table.td>
                     <x-ui.table.td>{{ number_format($location->totalQuantity()) }}@if($location->capacity) / {{ number_format($location->capacity) }} {{ $location->capacity_unit }}<p class="text-xs text-neutral-500">{{ $location->utilisation() }}%</p>@endif</x-ui.table.td>
                     <x-ui.table.td><x-ui.badge :status="$location->status">{{ str($location->status)->title() }}</x-ui.badge></x-ui.table.td>
                     <x-ui.table.td><div class="flex min-w-52 flex-wrap gap-2">

@@ -9,7 +9,6 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Services\AuditLogger;
 use Illuminate\Support\Facades\DB;
-use Throwable;
 
 class DataImportExecutor
 {
@@ -49,6 +48,9 @@ class DataImportExecutor
 
             if ($mode === 'update' && $existingId) {
                 $item = InventoryItem::findOrFail($existingId);
+                if (($data['unit'] ?? null) === null) {
+                    unset($data['unit']);
+                }
                 $oldValues = $item->only(array_keys($data));
                 $item->update($data);
                 $updated++;

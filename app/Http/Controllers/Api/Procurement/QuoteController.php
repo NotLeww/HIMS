@@ -12,7 +12,6 @@ use App\Models\Supplier;
 use App\Models\SupplierQuote;
 use App\Services\Procurement\EvaluationEngine;
 use App\Services\Procurement\ProcurementAuditService;
-use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -49,11 +48,11 @@ class QuoteController extends Controller implements HasMiddleware
         $validated = $request->validate([
             'supplier_id' => ['required', 'exists:suppliers,id'],
             'portal_token' => ['nullable', 'string'],
-            'currency' => ['nullable', 'string', 'size:3'],
+            'currency' => ['required', 'string', 'size:3'],
             'exchange_rate' => ['nullable', 'numeric', 'min:0.0001'],
-            'incoterms' => ['nullable', 'string', 'max:30'],
-            'payment_terms' => ['nullable', 'string', 'max:100'],
-            'validity_end_date' => ['nullable', 'date', 'after:today'],
+            'incoterms' => ['required', 'string', 'max:30'],
+            'payment_terms' => ['required', 'string', 'max:100'],
+            'validity_end_date' => ['required', 'date', 'after:today'],
             'notes' => ['nullable', 'string'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.rfq_line_item_id' => ['required', 'exists:rfq_line_items,id'],
@@ -88,11 +87,11 @@ class QuoteController extends Controller implements HasMiddleware
                 'sourcing_rfq_id' => $rfq->id,
                 'supplier_id' => $supplier->id,
                 'quote_number' => $quoteNumber,
-                'currency' => $validated['currency'] ?? 'PHP',
+                'currency' => strtoupper($validated['currency']),
                 'exchange_rate' => $exchangeRate,
-                'incoterms' => $validated['incoterms'] ?? 'DDP',
-                'payment_terms' => $validated['payment_terms'] ?? 'Net 30',
-                'validity_end_date' => $validated['validity_end_date'] ?? now()->addDays(30)->toDateString(),
+                'incoterms' => $validated['incoterms'],
+                'payment_terms' => $validated['payment_terms'],
+                'validity_end_date' => $validated['validity_end_date'],
                 'status' => QuoteStatus::Submitted->value,
                 'is_sealed' => $isSealed,
                 'unsealed_at' => null,

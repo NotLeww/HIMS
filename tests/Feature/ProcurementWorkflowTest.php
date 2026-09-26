@@ -54,6 +54,7 @@ class ProcurementWorkflowTest extends TestCase
         return InventoryItem::create([
             'name' => 'N95 Respirator Mask',
             'sku' => 'PPE-N95',
+            'unit' => 'piece',
             'quantity_on_hand' => 0,
             'reorder_level' => 100,
             'unit_cost' => 45,
@@ -378,6 +379,18 @@ class ProcurementWorkflowTest extends TestCase
             'code' => 'MAIN-01',
             'status' => 'active',
         ]);
+        StorageLocation::create([
+            'name' => 'Receiving Quarantine',
+            'code' => 'LOC-QUARANTINE',
+            'status' => 'active',
+            'is_quarantine' => true,
+        ]);
+        StorageLocation::create([
+            'name' => 'Receiving Staging',
+            'code' => 'LOC-STAGING',
+            'status' => 'active',
+            'is_receiving_staging' => true,
+        ]);
 
         ItemStockLevel::create([
             'item_id' => $item->id,
@@ -416,7 +429,7 @@ class ProcurementWorkflowTest extends TestCase
         $this->assertSame(0, $item->fresh()->quantity_on_hand);
         $grn = app(GoodsReceiptService::class)->receiveOrder($purchaseOrder, [
             'lines' => [['po_line_id' => $line->id, 'received_quantity' => 500,
-                'batch_number' => 'LOT-PROC-500', 'expiry_date' => now()->addYear()->toDateString()]],
+                'item_condition' => 'good', 'batch_number' => 'LOT-PROC-500', 'expiry_date' => now()->addYear()->toDateString()]],
         ], $operator);
         $this->assertSame(500, (int) ItemStockLevel::where('item_id', $item->id)->sum('quarantined_quantity'));
         $inspection = $grn->lines()->firstOrFail()->inspections()->firstOrFail();
@@ -461,6 +474,12 @@ class ProcurementWorkflowTest extends TestCase
             'code' => 'MAIN-01',
             'status' => 'active',
         ]);
+        StorageLocation::create([
+            'name' => 'Receiving Quarantine',
+            'code' => 'LOC-QUARANTINE',
+            'status' => 'active',
+            'is_quarantine' => true,
+        ]);
 
         ItemStockLevel::create([
             'item_id' => $item->id,
@@ -492,7 +511,7 @@ class ProcurementWorkflowTest extends TestCase
         $officer = $this->procurementOfficer();
         $payload = ['receipt_key' => 'same-delivery', 'packing_slip_number' => 'PS-SAME',
             'lines' => [['po_line_id' => $line->id, 'received_quantity' => 500,
-                'batch_number' => 'LOT-PROC-DUP', 'expiry_date' => now()->addYear()->toDateString()]]];
+                'item_condition' => 'good', 'batch_number' => 'LOT-PROC-DUP', 'expiry_date' => now()->addYear()->toDateString()]]];
         $first = app(GoodsReceiptService::class)->receiveOrder($purchaseOrder, $payload, $officer);
         $replayed = app(GoodsReceiptService::class)->receiveOrder($purchaseOrder, $payload, $officer);
         $this->assertSame($first->id, $replayed->id);

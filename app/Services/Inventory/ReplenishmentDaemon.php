@@ -12,7 +12,9 @@ use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestLine;
 use App\Models\User;
 use App\Services\AuditLogger;
+use DomainException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ReplenishmentDaemon
 {
@@ -23,17 +25,22 @@ class ReplenishmentDaemon
      * SS = Z * sqrt( Avg_Lead_Time * Variance_Demand + (Avg_Demand^2) * Variance_Lead_Time )
      * where Z = 1.645 (95% service level factor).
      */
-    public function calculateSafetyStock(InventoryItem $item, float $serviceFactor = 1.645): int
+    public function calculateSafetyStock(InventoryItem $item, ?float $serviceFactor = null): ?int
     {
-        $leadTime = $item->lead_time_days > 0 ? (float) $item->lead_time_days : 7.0;
-        $annualDemand = $item->annual_demand > 0 ? (float) $item->annual_demand : max(120.0, (float) ($item->quantity_on_hand * 2));
+        $leadTime = (float) $item->lead_time_days;
+        $annualDemand = (float) $item->annual_demand;
+        if ($leadTime <= 0 || $annualDemand <= 0) {
+            return null;
+        }
+
+        $serviceFactor ??= (float) config('inventory.replenishment.service_factor');
         $avgDailyDemand = $annualDemand / 365.0;
 
         // Variability parameters (assuming standard deviation ~25% of mean if unrecorded)
-        $stdDevDemand = max(1.0, $avgDailyDemand * 0.25);
+        $stdDevDemand = max(1.0, $avgDailyDemand * (float) config('inventory.replenishment.demand_variability_rate'));
         $varianceDemand = pow($stdDevDemand, 2);
 
-        $stdDevLeadTime = max(1.0, $leadTime * 0.20);
+        $stdDevLeadTime = max(1.0, $leadTime * (float) config('inventory.replenishment.lead_time_variability_rate'));
         $varianceLeadTime = pow($stdDevLeadTime, 2);
 
         $term1 = $leadTime * $varianceDemand;
@@ -48,13 +55,20 @@ class ReplenishmentDaemon
      * Dynamic Reorder Point formula:
      * ROP = (Avg_Daily_Demand * Avg_Lead_Time) + SS
      */
-    public function calculateReorderPoint(InventoryItem $item): int
+    public function calculateReorderPoint(InventoryItem $item): ?int
     {
-        $leadTime = $item->lead_time_days > 0 ? (float) $item->lead_time_days : 7.0;
-        $annualDemand = $item->annual_demand > 0 ? (float) $item->annual_demand : max(120.0, (float) ($item->quantity_on_hand * 2));
+        $leadTime = (float) $item->lead_time_days;
+        $annualDemand = (float) $item->annual_demand;
+        if ($leadTime <= 0 || $annualDemand <= 0) {
+            return null;
+        }
+
         $avgDailyDemand = $annualDemand / 365.0;
 
-        $ss = $item->safety_stock > 0 ? (float) $item->safety_stock : (float) $this->calculateSafetyStock($item);
+        $ss = $item->safety_stock > 0 ? (float) $item->safety_stock : $this->calculateSafetyStock($item);
+        if ($ss === null) {
+            return null;
+        }
 
         $rop = (int) ceil(($avgDailyDemand * $leadTime) + $ss);
 
@@ -65,12 +79,16 @@ class ReplenishmentDaemon
      * Economic Order Quantity formula:
      * EOQ = sqrt( (2 * Annual_Demand * PO_Order_Cost) / Annual_Holding_Cost )
      */
-    public function calculateEconomicOrderQuantity(InventoryItem $item): int
+    public function calculateEconomicOrderQuantity(InventoryItem $item): ?int
     {
-        $annualDemand = $item->annual_demand > 0 ? (float) $item->annual_demand : max(120.0, (float) ($item->quantity_on_hand * 2));
-        $orderCost = 500.00; // Fixed administrative cost per PO issuance (₱500 default)
-        $unitCost = max(1.00, (float) ($item->unit_cost ?? 10.00));
-        $holdingCostRate = 0.20; // 20% annual carrying/holding cost
+        $annualDemand = (float) $item->annual_demand;
+        $unitCost = (float) $item->unit_cost;
+        if ($annualDemand <= 0 || $unitCost <= 0) {
+            return null;
+        }
+
+        $orderCost = (float) config('inventory.replenishment.order_cost');
+        $holdingCostRate = (float) config('inventory.replenishment.holding_cost_rate');
         $annualHoldingCost = max(1.00, $unitCost * $holdingCostRate);
 
         $eoq = (int) ceil(sqrt((2.0 * $annualDemand * $orderCost) / $annualHoldingCost));
@@ -93,6 +111,10 @@ class ReplenishmentDaemon
 
             $rop = $lockedItem->reorder_point > 0 ? $lockedItem->reorder_point : $this->calculateReorderPoint($lockedItem);
             $eoq = $lockedItem->economic_order_quantity > 0 ? $lockedItem->economic_order_quantity : $this->calculateEconomicOrderQuantity($lockedItem);
+
+            if ($rop === null || $eoq === null) {
+                throw new DomainException('Complete the item reorder point, EOQ, or their required demand, lead-time, and cost inputs before evaluating replenishment.');
+            }
 
             $atp = $lockedItem->availableToPromise();
 
@@ -118,27 +140,39 @@ class ReplenishmentDaemon
                 return null;
             }
 
-            $user = $actor ?? User::first() ?? User::factory()->inventoryManager()->create();
-            $category = ProcurementCategory::first() ?? ProcurementCategory::create([
-                'name' => 'General Medical Supplies',
-                'code' => 'GEN-MED',
-                'is_active' => true,
-            ]);
-            $costCenter = CostCenter::first() ?? CostCenter::create([
-                'code' => 'CC-DEFAULT',
-                'name' => 'Default Operations',
-                'department' => 'Operations',
-                'is_active' => true,
-            ]);
+            if (! $actor) {
+                throw new DomainException('An authenticated requester is required to create a replenishment request.');
+            }
+            if (blank($lockedItem->unit) || (float) $lockedItem->unit_cost <= 0 || (int) $lockedItem->lead_time_days <= 0) {
+                throw new DomainException('Complete the item unit, unit cost, and lead time before creating a replenishment request.');
+            }
 
-            $prNumber = 'PR-AUTO-'.now()->format('Ymd').'-'.str_pad((string) (PurchaseRequest::count() + 1), 4, '0', STR_PAD_LEFT);
-            $totalEst = round($eoq * (float) ($lockedItem->unit_cost ?? 10.00), 2);
+            $costCenter = CostCenter::resolveForDepartment($actor->department);
+            if (! $costCenter) {
+                throw new DomainException("No active cost center is mapped to the requester's department.");
+            }
+
+            $itemCategory = $lockedItem->category;
+            $category = $itemCategory
+                ? ProcurementCategory::query()
+                    ->where('is_active', true)
+                    ->where(fn ($query) => $query
+                        ->where('code', $itemCategory->code)
+                        ->orWhere('name', $itemCategory->name))
+                    ->first()
+                : null;
+            if (! $category) {
+                throw new DomainException('No active procurement category is mapped to the item category.');
+            }
+
+            $prNumber = 'PR-AUTO-'.now()->format('Ymd').'-'.Str::upper(Str::ulid());
+            $totalEst = round($eoq * (float) $lockedItem->unit_cost, 2);
 
             $pr = PurchaseRequest::create([
                 'pr_number' => $prNumber,
                 'title' => "Automated Replenishment: {$lockedItem->name} (ROP Breached)",
                 'description' => "Triggered automatically when ATP ({$atp}) + On-Order ({$onOrder}) <= ROP ({$rop}). Recommended EOQ: {$eoq} units.",
-                'requester_id' => $user->id,
+                'requester_id' => $actor->id,
                 'cost_center_id' => $costCenter->id,
                 'procurement_category_id' => $category->id,
                 'procurement_method' => 'shopping',
@@ -155,16 +189,16 @@ class ReplenishmentDaemon
                 'line_number' => 1,
                 'item_description' => $lockedItem->name.' ('.$lockedItem->sku.')',
                 'quantity' => $eoq,
-                'uom' => $lockedItem->unit ?? 'pcs',
-                'estimated_unit_price' => $lockedItem->unit_cost ?? 10.00,
+                'uom' => $lockedItem->unit,
+                'estimated_unit_price' => $lockedItem->unit_cost,
                 'estimated_total_price' => $totalEst,
-                'need_by_date' => now()->addDays($lockedItem->lead_time_days > 0 ? $lockedItem->lead_time_days : 7),
+                'need_by_date' => now()->addDays($lockedItem->lead_time_days),
                 'is_contracted_catalog' => false,
             ]);
 
             $this->auditLogger->record(
                 AuditAction::CreatedPurchaseRequest,
-                actor: $user,
+                actor: $actor,
                 target: $pr,
                 description: "Instantiated draft Purchase Request {$pr->pr_number} for {$lockedItem->name} (EOQ: {$eoq})",
                 newValues: [
@@ -175,7 +209,7 @@ class ReplenishmentDaemon
                     'rop' => $rop,
                     'eoq' => $eoq,
                 ],
-                source: $user === null ? 'scheduled_job' : 'user',
+                source: 'user',
             );
 
             return $pr;

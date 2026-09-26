@@ -57,6 +57,14 @@ class StockTransferWorkflowTest extends TestCase
             'status' => 'active',
         ]);
 
+        StorageLocation::create([
+            'name' => 'Transfer Buffer',
+            'code' => 'LOC-IN-TRANSIT',
+            'type' => 'zone',
+            'status' => 'active',
+            'is_in_transit' => true,
+        ]);
+
         $item = InventoryItem::create([
             'sku' => 'MED-PAR-500',
             'name' => 'Paracetamol 500mg Tablets',

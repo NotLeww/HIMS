@@ -182,6 +182,9 @@
                                         @if($loc->is_quarantine)
                                             <span class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-800 dark:bg-amber-950 dark:text-amber-300">Quarantine</span>
                                         @endif
+                                        @if($loc->is_in_transit)
+                                            <span class="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">In Transit</span>
+                                        @endif
                                     </div>
                                 </td>
                                 <td class="px-4 py-2.5 sm:px-5 sm:py-3 text-right whitespace-nowrap">
@@ -1005,6 +1008,10 @@
                 <label class="flex items-center gap-2 text-neutral-700 dark:text-neutral-300">
                     <input type="checkbox" name="is_dispatch_staging" value="1" @checked(old('is_dispatch_staging')) class="rounded border-neutral-300 dark:border-neutral-700 text-neutral-600 focus:ring-neutral-500">
                     <span>Dispatch Staging</span>
+                </label>
+                <label class="flex items-center gap-2 text-neutral-700 dark:text-neutral-300">
+                    <input type="checkbox" name="is_in_transit" value="1" @checked(old('is_in_transit')) class="rounded border-neutral-300 dark:border-neutral-700 text-indigo-600 focus:ring-indigo-500">
+                    <span>In-Transit Buffer</span>
                 </label>
             </div>
 

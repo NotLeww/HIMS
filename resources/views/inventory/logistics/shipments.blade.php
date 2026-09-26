@@ -314,6 +314,19 @@
                             </div>
                         </div>
 
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Origin address</label>
+                                <input type="text" name="origin_address" value="{{ old('origin_address') }}" placeholder="Supplier dispatch address"
+                                       class="mt-1 block w-full rounded-lg border-neutral-300 py-2 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Destination facility *</label>
+                                <input type="text" name="destination_facility" value="{{ old('destination_facility') }}" required placeholder="Receiving facility or dock"
+                                       class="mt-1 block w-full rounded-lg border-neutral-300 py-2 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500">
+                            </div>
+                        </div>
+
                         <div>
                             <div class="flex items-center justify-between">
                                 <label for="shipment_sscc_input" class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">GS1 SSCC Barcode (18 Numeric Digits)</label>
@@ -398,10 +411,22 @@
                         @csrf
                         <p class="text-xs text-neutral-600 dark:text-neutral-400">Arrival intake for <span class="font-bold text-neutral-900 dark:text-neutral-100" x-text="selectedShipmentNumber"></span> at HIMS Receiving Dock.</p>
 
-                        <div>
-                            <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Actual Delivery Date *</label>
-                            <input type="date" name="actual_delivery_date" required value="{{ date('Y-m-d') }}"
-                                   class="mt-1 block w-full rounded-lg border-neutral-300 py-2 text-xs text-neutral-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Actual Delivery Date *</label>
+                                <input type="date" name="actual_delivery_date" required value="{{ date('Y-m-d') }}"
+                                       class="mt-1 block w-full rounded-lg border-neutral-300 py-2 text-xs text-neutral-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Package condition *</label>
+                                <select name="package_condition" required class="mt-1 block w-full rounded-lg border-neutral-300 py-2 text-xs text-neutral-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                    <option value="">Select observed condition</option>
+                                    <option value="good_order">Good order</option>
+                                    <option value="seal_intact">Seal intact</option>
+                                    <option value="damaged_packaging">Damaged packaging</option>
+                                    <option value="tampered_seal">Tampered seal</option>
+                                </select>
+                            </div>
                         </div>
 
                         <template x-if="isColdChain">

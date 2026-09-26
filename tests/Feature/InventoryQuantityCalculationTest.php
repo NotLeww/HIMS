@@ -6,7 +6,6 @@ use App\Enums\MovementType;
 use App\Enums\PurchaseOrderStatus;
 use App\Enums\UserRole;
 use App\Models\GoodsReceiptNote;
-use App\Models\GoodsReceiptNoteLine;
 use App\Models\InventoryItem;
 use App\Models\ItemBatch;
 use App\Models\ItemStockLevel;
@@ -32,8 +31,11 @@ class InventoryQuantityCalculationTest extends TestCase
     use RefreshDatabase;
 
     private User $manager;
+
     private StorageLocation $location;
+
     private StorageLocation $quarantineLocation;
+
     private Supplier $supplier;
 
     protected function setUp(): void
@@ -59,6 +61,14 @@ class InventoryQuantityCalculationTest extends TestCase
             'type' => 'zone',
             'status' => 'active',
             'is_quarantine' => true,
+        ]);
+
+        StorageLocation::create([
+            'code' => 'LOC-STAGING',
+            'name' => 'Receiving Staging Area',
+            'type' => 'zone',
+            'status' => 'active',
+            'is_receiving_staging' => true,
         ]);
 
         $this->supplier = Supplier::create([
@@ -296,7 +306,7 @@ class InventoryQuantityCalculationTest extends TestCase
         $grn1 = $grnService->receiveOrder($po, [
             'carrier_name' => 'Courier 1',
             'lines' => [
-                ['po_line_id' => $poLine->id, 'received_quantity' => 1],
+                ['po_line_id' => $poLine->id, 'received_quantity' => 1, 'item_condition' => 'good'],
             ],
         ], $this->manager);
 
@@ -323,7 +333,7 @@ class InventoryQuantityCalculationTest extends TestCase
         $grn2 = $grnService->receiveOrder($po, [
             'carrier_name' => 'Courier 2',
             'lines' => [
-                ['po_line_id' => $poLine->id, 'received_quantity' => 2],
+                ['po_line_id' => $poLine->id, 'received_quantity' => 2, 'item_condition' => 'good'],
             ],
         ], $this->manager);
 
@@ -343,7 +353,7 @@ class InventoryQuantityCalculationTest extends TestCase
         $grn3 = $grnService->receiveOrder($po, [
             'carrier_name' => 'Courier 3',
             'lines' => [
-                ['po_line_id' => $poLine->id, 'received_quantity' => 1],
+                ['po_line_id' => $poLine->id, 'received_quantity' => 1, 'item_condition' => 'good'],
             ],
         ], $this->manager);
 
@@ -413,7 +423,7 @@ class InventoryQuantityCalculationTest extends TestCase
             ->assertRedirect(route('inventory.receiving.index', ['purchase_order_id' => $po->id]));
         try {
             app(GoodsReceiptService::class)->receiveOrder($po, [
-                'lines' => [['po_line_id' => $po->lines()->firstOrFail()->id, 'received_quantity' => 4]],
+                'lines' => [['po_line_id' => $po->lines()->firstOrFail()->id, 'received_quantity' => 4, 'item_condition' => 'good']],
             ], $this->manager);
             $this->fail('Cancelled purchase order was received.');
         } catch (\DomainException $exception) {
@@ -439,7 +449,7 @@ class InventoryQuantityCalculationTest extends TestCase
 
         $line = $po->lines()->firstOrFail();
         $payload = ['receipt_key' => 'blood-lancet-delivery', 'lines' => [[
-            'po_line_id' => $line->id, 'received_quantity' => 4,
+            'po_line_id' => $line->id, 'received_quantity' => 4, 'item_condition' => 'good',
         ]]];
         $first = app(GoodsReceiptService::class)->receiveOrder($po, $payload, $this->manager);
         $same = app(GoodsReceiptService::class)->receiveOrder($po, $payload, $this->manager);
@@ -541,6 +551,7 @@ class InventoryQuantityCalculationTest extends TestCase
                 [
                     'po_line_id' => $po->lines->first()->id,
                     'received_quantity' => 5, // 5 boxes
+                    'item_condition' => 'good',
                     'batch_number' => 'BATCH-CEFT-2026-X',
                     'expiry_date' => now()->addYear()->toDateString(),
                 ],
@@ -592,6 +603,7 @@ class InventoryQuantityCalculationTest extends TestCase
             'lines' => [[
                 'po_line_id' => $line->id,
                 'received_quantity' => $quantity,
+                'item_condition' => 'good',
                 'batch_number' => $item->is_batch_tracked ? 'LOT-'.$po->id.'-'.uniqid() : null,
                 'expiry_date' => $item->is_expiry_tracked ? now()->addYear()->toDateString() : null,
             ]],

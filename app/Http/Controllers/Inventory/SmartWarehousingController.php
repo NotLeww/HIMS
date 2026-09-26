@@ -8,22 +8,20 @@ use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use App\Models\ItemBatch;
 use App\Models\ItemStockLevel;
-use App\Models\PdeaDangerousDrugsRegister;
 use App\Models\StorageLocation;
 use App\Models\SurgicalConsignmentBillOnly;
-use App\Models\User;
 use App\Models\WarehouseException;
 use App\Models\WarehouseScanEvent;
 use App\Models\WarehouseTask;
 use App\Services\AuditLogger;
 use App\Services\Warehouse\BarcodeService;
 use App\Services\Warehouse\WarehouseTaskService;
-use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class SmartWarehousingController extends Controller implements HasMiddleware
@@ -153,11 +151,11 @@ class SmartWarehousingController extends Controller implements HasMiddleware
                 'name' => $item?->name ?? 'Unknown Item',
                 'sku' => $item?->sku ?? '—',
                 'barcode' => $item?->barcode_value,
-                'category' => $item?->category?->name ?? 'General',
+                'category' => $item?->category?->name ?? 'Not recorded',
                 'quantity' => (int) $stockLevel->quantity,
                 'reserved_quantity' => (int) $stockLevel->reserved_quantity,
                 'available_quantity' => (int) $stockLevel->availableQuantity(),
-                'unit' => $item?->unit ?? 'units',
+                'unit' => $item?->unit ?? 'Not recorded',
                 'batch_number' => $batch?->batch_number,
                 'lot_number' => $batch?->lot_number,
                 'expiry_date' => $batch?->expiry_date?->toDateString(),
@@ -218,12 +216,19 @@ class SmartWarehousingController extends Controller implements HasMiddleware
             'is_pick_face' => ['boolean'],
             'is_reserve' => ['boolean'],
             'is_dispatch_staging' => ['boolean'],
+            'is_in_transit' => ['boolean'],
             'is_narcotics_vault' => ['boolean'],
             'is_hazardous_containment' => ['boolean'],
         ]);
 
         $validated['barcode_value'] = $validated['barcode_value'] ?? $validated['code'];
         $validated['status'] = 'active';
+
+        if (($validated['is_in_transit'] ?? false) && StorageLocation::query()->where('is_in_transit', true)->exists()) {
+            throw ValidationException::withMessages([
+                'is_in_transit' => ['An in-transit buffer is already configured. Update the existing location before assigning another.'],
+            ]);
+        }
 
         $location = StorageLocation::create($validated);
 
@@ -343,7 +348,7 @@ class SmartWarehousingController extends Controller implements HasMiddleware
                 'is_active' => ! $isInactive,
                 'warning' => $isInactive ? 'This storage location is INACTIVE. Inbound receiving and new stock assignments are prohibited. Existing inventory may be transferred or released.' : null,
                 'redirect_url' => route('inventory.warehousing.locations.items', $location),
-                'message' => "Storage location [{$location->code}] ({$location->name}) identified." . ($isInactive ? ' NOTE: Location is inactive.' : ''),
+                'message' => "Storage location [{$location->code}] ({$location->name}) identified.".($isInactive ? ' NOTE: Location is inactive.' : ''),
             ]);
         }
 
@@ -382,7 +387,7 @@ class SmartWarehousingController extends Controller implements HasMiddleware
                 ],
                 'warning' => $isArchived ? 'This item is ARCHIVED. It is retained for historical records but cannot receive new transactions.' : null,
                 'redirect_url' => route('inventory.items', ['search' => $item->sku]),
-                'message' => "Item [{$item->sku}] ({$item->name}) identified." . ($isArchived ? ' NOTE: Item is archived.' : ''),
+                'message' => "Item [{$item->sku}] ({$item->name}) identified.".($isArchived ? ' NOTE: Item is archived.' : ''),
             ]);
         }
 

@@ -2,26 +2,19 @@
 
 namespace Tests\Feature;
 
-use App\Enums\AuditAction;
 use App\Enums\MovementType;
-use App\Enums\Permission;
 use App\Enums\PurchaseOrderStatus;
 use App\Enums\RequisitionStatus;
 use App\Models\CostCenter;
-use App\Models\CycleCountDoc;
-use App\Models\GoodsReceiptNote;
-use App\Models\InventoryAdjustment;
 use App\Models\InventoryItem;
 use App\Models\ItemBatch;
+use App\Models\ItemCategory;
 use App\Models\ItemStockLevel;
-use App\Models\MaterialRequisition;
 use App\Models\ProcurementCategory;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
-use App\Models\PurchaseRequest;
 use App\Models\QualityInspection;
 use App\Models\StockMovement;
-use App\Models\StockTransfer;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Models\User;
@@ -100,6 +93,7 @@ class EnterpriseInventorySystemTest extends TestCase
 
         $item = $this->createItem();
         $location = $this->createLocation('LOC-MAIN-01', 'Central Pharmacy Shelves');
+        $this->createLocation('LOC-QUARANTINE-TEST', 'Receiving Quarantine')->update(['is_quarantine' => true]);
 
         $po = PurchaseOrder::create([
             'po_number' => 'PO-2026-TEST-001',
@@ -131,6 +125,7 @@ class EnterpriseInventorySystemTest extends TestCase
                     [
                         'po_line_id' => $poLine->id,
                         'received_quantity' => 106,
+                        'item_condition' => 'good',
                     ],
                 ],
             ], $staff);
@@ -149,6 +144,7 @@ class EnterpriseInventorySystemTest extends TestCase
                 [
                     'po_line_id' => $poLine->id,
                     'received_quantity' => 100,
+                    'item_condition' => 'good',
                     'batch_number' => 'BATCH-PROP-2026A',
                     'lot_number' => 'LOT-ZUE-998',
                     'expiry_date' => now()->addMonths(18)->format('Y-m-d'),
@@ -186,6 +182,8 @@ class EnterpriseInventorySystemTest extends TestCase
         $manager = $this->createInventoryManager();
         $item = $this->createItem();
         $targetLocation = $this->createLocation('LOC-CENTRAL-A', 'Main Pharmacy Dispensary');
+        $this->createLocation('LOC-QUARANTINE-QC', 'QC Quarantine')->update(['is_quarantine' => true]);
+        $this->createLocation('LOC-STAGING-QC', 'Receiving Staging')->update(['is_receiving_staging' => true]);
         $supplier = Supplier::create([
             'name' => 'Zuellig Pharma Corp',
             'contact_email' => 'deliveries@zuellig.com.ph',
@@ -218,6 +216,7 @@ class EnterpriseInventorySystemTest extends TestCase
                 [
                     'po_line_id' => $poLine->id,
                     'received_quantity' => 100,
+                    'item_condition' => 'good',
                     'batch_number' => 'LOT-QC-001',
                     'expiry_date' => now()->addYear()->format('Y-m-d'),
                 ],
@@ -430,6 +429,8 @@ class EnterpriseInventorySystemTest extends TestCase
 
         $origin = $this->createLocation('LOC-ORIGIN', 'Central Warehouse Bay 1');
         $destination = $this->createLocation('LOC-DEST', 'Satellite Clinic Pharmacy');
+        $inTransitLoc = $this->createLocation('LOC-TRANSIT-TEST', 'Transfer In Transit');
+        $inTransitLoc->update(['is_in_transit' => true]);
 
         ItemStockLevel::create([
             'item_id' => $item->id,
@@ -461,7 +462,7 @@ class EnterpriseInventorySystemTest extends TestCase
         $this->assertEquals(50, $originStock);
 
         // In-Transit buffer incremented by 50
-        $inTransitLoc = StorageLocation::where('code', 'LOC-IN-TRANSIT')->firstOrFail();
+        $inTransitLoc = StorageLocation::where('is_in_transit', true)->firstOrFail();
         $inTransitStock = ItemStockLevel::where('item_id', $item->id)
             ->where('storage_location_id', $inTransitLoc->id)
             ->value('in_transit_quantity');
@@ -653,6 +654,14 @@ class EnterpriseInventorySystemTest extends TestCase
             'is_active' => true,
         ]);
 
+        $itemCategory = ItemCategory::create([
+            'name' => 'Pharmaceutical Supplies',
+            'code' => 'PHARM',
+            'is_active' => true,
+        ]);
+
+        $requester = User::factory()->inventoryManager()->create(['department' => 'Pharmacy']);
+
         $item = $this->createItem([
             'quantity_on_hand' => 15, // Below ROP
             'reorder_point' => 50,
@@ -661,6 +670,8 @@ class EnterpriseInventorySystemTest extends TestCase
             'annual_demand' => 1000,
             'lead_time_days' => 7,
             'unit_cost' => 150.00,
+            'unit' => 'vial',
+            'category_id' => $itemCategory->id,
         ]);
 
         $daemon = app(ReplenishmentDaemon::class);
@@ -676,7 +687,7 @@ class EnterpriseInventorySystemTest extends TestCase
         $this->assertGreaterThan(0, $eoq);
 
         // 2. Trigger automated replenishment
-        $pr = $daemon->evaluateAndTriggerReplenishment($item);
+        $pr = $daemon->evaluateAndTriggerReplenishment($item, $requester);
 
         $this->assertNotNull($pr);
         $this->assertEquals(RequisitionStatus::Draft, $pr->status);

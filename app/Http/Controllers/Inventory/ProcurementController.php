@@ -34,6 +34,7 @@ use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ProcurementController extends Controller implements HasMiddleware
@@ -399,26 +400,30 @@ class ProcurementController extends Controller implements HasMiddleware
 
         DB::transaction(function () use ($validated, $eligibleSuppliers) {
             $rfq = SourcingRfq::create([
-                'rfq_number' => 'RFQ-'.now()->format('Ymd').'-'.str_pad((string) mt_rand(1, 9999), 4, '0', STR_PAD_LEFT),
+                'rfq_number' => 'RFQ-'.now()->format('Ymd').'-'.Str::upper(Str::ulid()),
                 'title' => $validated['title'],
                 'created_by_user_id' => auth()->id(),
                 'procurement_method' => ProcurementMethod::RequestForQuotation->value,
                 'bidding_type' => $validated['bidding_type'],
                 'submission_deadline' => $validated['submission_deadline'],
                 'status' => RfqStatus::Published->value,
-                'terms_conditions' => $validated['terms_conditions'] ?? 'Standard hospital commercial terms and warranty apply.',
+                'terms_conditions' => $validated['terms_conditions'] ?? null,
                 'published_at' => now(),
             ]);
 
             $item = InventoryItem::find($validated['item_id']);
 
+            if (blank($item->unit)) {
+                throw ValidationException::withMessages(['item_id' => ['Add the item unit of measure before publishing an RFQ.']]);
+            }
+
             $rfq->lines()->create([
                 'item_id' => $item->id,
                 'line_number' => 1,
                 'target_quantity' => $validated['target_quantity'],
-                'uom' => $item->unit ?: 'unit',
+                'uom' => $item->unit,
                 'item_description' => $item->name,
-                'technical_specifications' => "Standard specifications for {$item->name}.",
+                'technical_specifications' => null,
                 'max_budget_unit_price' => $item->unit_cost,
             ]);
 

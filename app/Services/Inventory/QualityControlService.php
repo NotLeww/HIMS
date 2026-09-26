@@ -59,6 +59,7 @@ class QualityControlService
                     || $previous->movement_type !== MovementType::ReturnToSupplier || $previous->quantity !== $baseQuantity) {
                     throw ValidationException::withMessages(['return_key' => ['This return key belongs to a different transaction.']]);
                 }
+
                 return $line;
             }
             $remaining = (int) round($line->rejected_quantity * $line->conversionFactor()) - $line->returned_quantity;
@@ -66,7 +67,7 @@ class QualityControlService
                 throw ValidationException::withMessages(['quantity' => ["Only {$remaining} rejected base units remain available for return."]]);
             }
             $grn = $line->goodsReceiptNote;
-            $quarantineId = $grn->quarantine_location_id ?? StorageLocation::where('code', 'LOC-QUARANTINE')->value('id');
+            $quarantineId = $grn->quarantine_location_id;
             if (! $quarantineId) {
                 throw new DomainException('The rejected stock has no identifiable quarantine location.');
             }
@@ -115,6 +116,7 @@ class QualityControlService
                     || (int) $previous->purchase_quantity !== $quantity) {
                     throw ValidationException::withMessages(['decision_key' => ['This QC decision key belongs to a different disposition.']]);
                 }
+
                 return $qi;
             }
             if (! in_array($qi->inspection_status, ['pending_sample', 'partially_disposed'], true)) {
@@ -124,7 +126,7 @@ class QualityControlService
             $item = InventoryItem::lockForUpdate()->findOrFail($line->item_id);
             $grn = $line->goodsReceiptNote;
             $po = $grn->purchaseOrder;
-            $quarantineId = $grn->quarantine_location_id ?? StorageLocation::where('code', 'LOC-QUARANTINE')->value('id');
+            $quarantineId = $grn->quarantine_location_id;
             if (! $quarantineId) {
                 throw new DomainException('The receipt has no identifiable quarantine location.');
             }
@@ -146,21 +148,23 @@ class QualityControlService
                     throw ValidationException::withMessages(['accepted_quantity' => ['Resolve the safety discrepancy before releasing this stock.']]);
                 }
                 $target = StorageLocation::findOrFail($targetId);
-                if ($target->is_receiving_staging || $target->code === 'LOC-STAGING') {
+                if ($target->is_receiving_staging) {
                     throw ValidationException::withMessages(['target_location_id' => ['Select a final storage location.']]);
                 }
                 $this->compatibility->assertCompatible($target, $item, $baseQuantity);
-                $staging = StorageLocation::firstOrCreate(
-                    ['code' => 'LOC-STAGING'],
-                    ['name' => 'Central Receiving Staging Area', 'type' => 'staging', 'status' => 'active', 'is_receiving_staging' => true],
-                );
-                if ($staging->status !== 'active') {
-                    throw new DomainException('Receiving staging is inactive.');
+                $stagingLocations = StorageLocation::query()
+                    ->active()
+                    ->where('is_receiving_staging', true)
+                    ->limit(2)
+                    ->get();
+                if ($stagingLocations->count() !== 1) {
+                    throw new DomainException(
+                        $stagingLocations->isEmpty()
+                            ? 'Configure one active receiving staging location before releasing accepted stock.'
+                            : 'Multiple active receiving staging locations are configured. Keep exactly one active staging location.'
+                    );
                 }
-                if (! $staging->is_receiving_staging) {
-                    $staging->is_receiving_staging = true;
-                    $staging->save();
-                }
+                $staging = $stagingLocations->first();
                 $this->compatibility->assertCompatible($staging, $item, $baseQuantity);
             }
 
@@ -294,6 +298,7 @@ class QualityControlService
                     NotificationPriority::Critical, NotificationDestination::GoodsReceipt, ['grn' => $grn->id],
                 );
             }
+
             return $qi;
         });
     }

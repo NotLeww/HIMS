@@ -86,7 +86,7 @@ class ProcurementSavingsService
                 'inventory_item_id' => $item->id,
                 'pndf_code' => $dpri->pndf_code,
                 'item_name' => $item->name,
-                'uom' => $dpri->unit_of_measure ?? $item->unit ?? 'unit',
+                'uom' => $dpri->unit_of_measure ?? $item->unit ?? 'Not recorded',
                 'quantity_procured' => $quantity,
                 'actual_unit_price' => $actualPrice,
                 'dpri_ceiling_price' => $ceilingPrice,

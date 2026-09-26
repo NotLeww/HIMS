@@ -6,6 +6,7 @@ use App\Enums\AuditAction;
 use App\Enums\DocumentType;
 use App\Enums\MovementType;
 use App\Enums\PurchaseOrderStatus;
+use App\Enums\SupplierStatus;
 use App\Enums\UserRole;
 use App\Models\AuditLog;
 use App\Models\ChainOfCustodyLog;
@@ -1048,6 +1049,7 @@ class DocumentTrackingAndLogisticsTest extends TestCase
             'purchase_order_id' => $po->id,
             'supplier_id' => $supplier->id,
             'carrier_name' => 'FastFreight Logistics Inc.',
+            'destination_facility' => 'Main Receiving Dock',
             'tracking_number' => 'TRK-FF-9901',
             'waybill_number' => 'WB-8812',
             'vehicle_plate_number' => 'XYZ-1234',
@@ -1067,6 +1069,7 @@ class DocumentTrackingAndLogisticsTest extends TestCase
             'purchase_order_id' => $po->id,
             'supplier_id' => $supplier->id,
             'carrier_name' => 'Polar Pharma Cargo',
+            'destination_facility' => 'Cold Chain Receiving Dock',
             'tracking_number' => 'TRK-PP-7723',
             'waybill_number' => 'WB-9933',
             'vehicle_plate_number' => 'ABC-9876',
@@ -1143,6 +1146,7 @@ class DocumentTrackingAndLogisticsTest extends TestCase
             'purchase_order_id' => $po->id,
             'supplier_id' => $supplier->id,
             'carrier_name' => 'ColdFleet Express',
+            'destination_facility' => 'Main Receiving Dock',
             'tracking_number' => 'TRK-CF-1122',
             'status' => 'arrived_at_dock',
         ]);
@@ -1272,7 +1276,7 @@ class DocumentTrackingAndLogisticsTest extends TestCase
         // Document 2: linked to supplier without logo
         $supplierNoLogo = Supplier::create([
             'name' => 'Metro Drug Inc',
-            'status' => \App\Enums\SupplierStatus::Active,
+            'status' => SupplierStatus::Active,
         ]);
 
         $docNoLogo = LogisticsDocument::create([

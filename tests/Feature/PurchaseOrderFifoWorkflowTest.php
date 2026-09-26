@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\ApprovalChainType;
 use App\Enums\MovementType;
 use App\Enums\PurchaseOrderStatus;
+use App\Enums\SupplierAccreditationStatus;
 use App\Enums\UserRole;
 use App\Models\ApprovalChain;
 use App\Models\ApprovalStep;
@@ -14,20 +15,17 @@ use App\Models\ItemStockLevel;
 use App\Models\ItemUnitConversion;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
-use App\Models\StockMovement;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Models\WarehouseTask;
 use App\Services\Inventory\GoodsReceiptService;
-use App\Services\Inventory\QualityControlService;
 use App\Services\Inventory\IssuanceEngine;
+use App\Services\Inventory\QualityControlService;
 use App\Services\InventoryAutomationService;
 use App\Services\Warehouse\WarehouseTaskService;
 use Carbon\Carbon;
-use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class PurchaseOrderFifoWorkflowTest extends TestCase
@@ -35,11 +33,17 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
     use RefreshDatabase;
 
     private User $manager;
+
     private User $warehouseStaff;
+
     private StorageLocation $mainLocation;
+
     private StorageLocation $secondaryLocation;
+
     private Supplier $supplier;
+
     private InventoryAutomationService $automationService;
+
     private IssuanceEngine $issuanceEngine;
 
     protected function setUp(): void
@@ -70,6 +74,22 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
             'type' => 'zone',
             'status' => 'active',
             'is_quarantine' => false,
+        ]);
+
+        StorageLocation::create([
+            'code' => 'LOC-QUARANTINE',
+            'name' => 'Receiving Quarantine',
+            'type' => 'zone',
+            'status' => 'active',
+            'is_quarantine' => true,
+        ]);
+
+        StorageLocation::create([
+            'code' => 'LOC-STAGING',
+            'name' => 'Receiving Staging',
+            'type' => 'zone',
+            'status' => 'active',
+            'is_receiving_staging' => true,
         ]);
 
         $this->supplier = Supplier::create([
@@ -876,6 +896,7 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
             'lines' => [[
                 'po_line_id' => $poLine->id,
                 'received_quantity' => 4,
+                'item_condition' => 'good',
                 'batch_number' => 'BATCH-B-SEPT-20',
             ]],
         ], $this->warehouseStaff);
@@ -1025,6 +1046,7 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
             'lines' => [[
                 'po_line_id' => $poLine->id,
                 'received_quantity' => 10,
+                'item_condition' => 'good',
                 'batch_number' => 'BATCH-DATE-TEST',
             ]],
         ], $this->warehouseStaff);
@@ -1077,6 +1099,7 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
             'receipt_key' => 'dup-date-test',
             'waybill_number' => 'WB-DUP-TEST',
             'lines' => [['po_line_id' => $poLine->id, 'received_quantity' => 10,
+                'item_condition' => 'good',
                 'batch_number' => 'LOT-TAPE-DUP', 'expiry_date' => now()->addYear()->toDateString()]],
         ];
         $first = app(GoodsReceiptService::class)->receiveOrder($po, $payload, $this->warehouseStaff);
@@ -1129,7 +1152,7 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
     {
         $this->expectException(\InvalidArgumentException::class);
 
-        $line = new PurchaseOrderLine();
+        $line = new PurchaseOrderLine;
         $line->ordered_quantity = 5;
         $line->unit_price = -10.00;
 
@@ -1560,6 +1583,7 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
                 [
                     'po_line_id' => $poLine->id,
                     'received_quantity' => 4,
+                    'item_condition' => 'good',
                 ],
             ],
         ], $this->warehouseStaff);
@@ -1572,8 +1596,8 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
         $response->assertSee('4 packs');
         $response->assertSee('₱500.00/pack');
         $response->assertSee('₱2,000.00');
-        $response->assertSee('Total Received Goods Value:');
-        $response->assertSee('Original Purchase Order Total:');
+        $response->assertSee('Total received goods value');
+        $response->assertSee('Original purchase order total');
     }
 
     /**
@@ -1584,7 +1608,7 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
         $supplier = Supplier::create([
             'name' => 'Metro Pagination Med Supply',
             'status' => 'active',
-            'accreditation_status' => \App\Enums\SupplierAccreditationStatus::Approved,
+            'accreditation_status' => SupplierAccreditationStatus::Approved,
         ]);
 
         $item = InventoryItem::create([

@@ -167,13 +167,11 @@
             })
             .catch(err => {
                 console.warn('AI recommendation fetch error:', err);
-                const item = this.itemsList.find(i => i.id == itemId);
-                const fallback = Math.max(1, item ? (item.economic_order_quantity || item.reorder_point || item.reorder_level || 1) : 1);
                 this.applyRecommendationToDrawer({
-                    available: true,
-                    suggested_quantity: fallback,
+                    available: false,
+                    suggested_quantity: null,
                     unit: this.getItemUnit(itemId),
-                    explanation: 'Standard replenishment quantity'
+                    explanation: 'Recommendation unavailable. Enter the requested quantity manually.'
                 });
             })
             .finally(() => {
@@ -188,16 +186,8 @@
                 this.drawerForm.ai_recommendation = rec;
                 this.drawerForm.requested_quantity = rec.suggested_quantity;
             } else {
-                const item = this.itemsList.find(i => i.id == this.drawerForm.item_id);
-                const fallback = Math.max(1, item ? (item.economic_order_quantity || item.reorder_point || item.reorder_level || 1) : 1);
-                this.drawerForm.ai_suggested_quantity = fallback;
-                this.drawerForm.ai_recommendation = {
-                    available: true,
-                    suggested_quantity: fallback,
-                    unit: this.getItemUnit(this.drawerForm.item_id),
-                    explanation: 'Standard replenishment quantity'
-                };
-                this.drawerForm.requested_quantity = fallback;
+                this.drawerForm.ai_suggested_quantity = null;
+                this.drawerForm.ai_recommendation = rec || null;
             }
         },
         saveDrawerItem() {

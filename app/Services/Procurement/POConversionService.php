@@ -50,7 +50,10 @@ class POConversionService
 
             $unitCost = $terms['unit_cost'];
             $totalAmount = round($quantity * $unitCost, 2);
-            $purchaseUnit = $data['purchase_unit'] ?? $terms['unit'] ?? $item->unit ?? 'unit';
+            $purchaseUnit = $data['purchase_unit'] ?? $terms['unit'] ?? $item->unit;
+            if (blank($purchaseUnit)) {
+                throw new DomainException("No purchase unit is recorded for {$item->name}.");
+            }
             $conversionFactor = (float) ($data['conversion_factor'] ?? $item->conversionFactorFor($purchaseUnit));
             if ($conversionFactor <= 0) {
                 $conversionFactor = 1.0;
@@ -69,14 +72,16 @@ class POConversionService
                 'currency' => $terms['currency'],
                 'exchange_rate' => 1.0,
                 'total_encumbered_amount' => $totalAmount,
-                'payment_terms' => $data['payment_terms'] ?? $supplier->payment_terms ?? 'Net 30',
-                'incoterms' => $data['incoterms'] ?? 'DDP',
+                'payment_terms' => $data['payment_terms'] ?? $supplier->payment_terms,
+                'incoterms' => $data['incoterms'] ?? null,
                 'version' => 'PO-REV1',
                 'revision_number' => 1,
                 'status' => PurchaseOrderStatus::PendingApproval->value,
                 'notes' => $data['notes'] ?? null,
                 'delivery_date' => $data['delivery_date']
-                    ?? now()->addDays($terms['lead_time_days'])->toDateString(),
+                    ?? ($terms['lead_time_days'] !== null
+                        ? now()->addDays($terms['lead_time_days'])->toDateString()
+                        : null),
                 'created_by_user_id' => $buyer->id,
                 'requested_at' => now(),
             ]);
@@ -125,7 +130,7 @@ class POConversionService
      * Resolve supplier-specific terms where available, otherwise use the item
      * catalog cost maintained by HIMS. Browser-submitted pricing is never used.
      *
-     * @return array{unit_cost: float, currency: string, minimum_order_quantity: int, lead_time_days: int, price_source: string}
+     * @return array{unit_cost: float, unit: ?string, currency: string, minimum_order_quantity: int, lead_time_days: ?int, price_source: string}
      */
     public function catalogTerms(
         Supplier $supplier,
@@ -155,19 +160,20 @@ class POConversionService
 
         return [
             'unit_cost' => $unitCost,
-            'unit' => (string) ($supplierProduct?->unit ?? $item->unit ?? 'unit'),
-            'currency' => (string) ($currentPrice?->currency ?? 'PHP'),
+            'unit' => $supplierProduct?->unit ?? $item->unit,
+            'currency' => (string) ($currentPrice?->currency ?? config('inventory.default_currency')),
             'minimum_order_quantity' => max(
                 1,
                 (int) ($supplierProduct?->minimum_order_quantity ?? 1),
                 (int) ($currentPrice?->minimum_order_quantity ?? 1),
             ),
-            'lead_time_days' => max(0, (int) (
-                $supplierProduct?->lead_time_days
+            'lead_time_days' => ($supplierProduct?->lead_time_days
                 ?? $supplier->standard_lead_time_days
-                ?? $item->lead_time_days
-                ?? 7
-            )),
+                ?? $item->lead_time_days) !== null
+                    ? max(0, (int) ($supplierProduct?->lead_time_days
+                        ?? $supplier->standard_lead_time_days
+                        ?? $item->lead_time_days))
+                    : null,
             'price_source' => $currentPrice ? 'supplier_catalog' : 'item_catalog',
         ];
     }
@@ -188,9 +194,17 @@ class POConversionService
             throw new DomainException("Compliance Block: Supplier '{$awardedQuote->supplier->name}' is currently not eligible for procurement awards.");
         }
 
-        return DB::transaction(function () use ($rfq, $awardedQuote) {
+        return DB::transaction(function () use ($rfq, $awardedQuote, $buyer) {
             $totalAmount = $awardedQuote->totalLandedCost();
-            $poNumber = 'PO-'.now()->format('Ymd').'-'.str_pad((string) mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+            $rfqLines = $rfq->lines()->with('item')->get();
+            $firstRfqLine = $rfqLines->first();
+            $firstQuoteLine = $awardedQuote->lines()->first();
+
+            if (! $firstRfqLine?->item_id || $rfqLines->sum('target_quantity') <= 0 || ! $firstQuoteLine) {
+                throw new DomainException('The awarded RFQ must contain recorded item, quantity, and quote-line data before PO conversion.');
+            }
+
+            $poNumber = $this->nextPurchaseOrderNumber();
 
             $po = PurchaseOrder::create([
                 'po_number' => $poNumber,
@@ -198,20 +212,21 @@ class POConversionService
                 'purchase_request_id' => $rfq->purchase_request_id,
                 'sourcing_rfq_id' => $rfq->id,
                 'cost_center_id' => $rfq->purchaseRequest?->cost_center_id,
-                'item_id' => $rfq->lines()->first()?->item_id ?? 1,
-                'quantity' => (int) ($rfq->lines()->sum('target_quantity') ?: 1),
-                'unit_cost' => (float) ($awardedQuote->lines()->first()?->offered_unit_price ?? $totalAmount),
+                'item_id' => $firstRfqLine->item_id,
+                'quantity' => (int) $rfqLines->sum('target_quantity'),
+                'unit_cost' => (float) $firstQuoteLine->offered_unit_price,
                 'total_amount' => $totalAmount,
-                'currency' => $awardedQuote->currency ?? 'PHP',
+                'currency' => $awardedQuote->currency ?? config('inventory.default_currency'),
                 'exchange_rate' => $awardedQuote->exchange_rate ?? 1.0,
                 'total_encumbered_amount' => $totalAmount,
-                'payment_terms' => $awardedQuote->payment_terms ?? 'Net 30',
-                'incoterms' => $awardedQuote->incoterms ?? 'DDP',
+                'payment_terms' => $awardedQuote->payment_terms,
+                'incoterms' => $awardedQuote->incoterms,
                 'version' => 'PO-REV1',
                 'revision_number' => 1,
                 'status' => PurchaseOrderStatus::Approved->value,
                 'requested_at' => now(),
                 'dispatched_at' => now(),
+                'created_by_user_id' => $buyer->id,
             ]);
 
             // Create PO Line Items from quote lines or RFQ lines
@@ -219,7 +234,10 @@ class POConversionService
             if ($awardedQuote->lines()->exists()) {
                 foreach ($awardedQuote->lines as $qLine) {
                     $itemObj = $qLine->rfqLineItem?->item ?? $po->item;
-                    $pUnit = $qLine->rfqLineItem?->uom ?: $itemObj?->unit ?: 'unit';
+                    $pUnit = $qLine->rfqLineItem?->uom ?: $itemObj?->unit;
+                    if (blank($pUnit) || ! $itemObj) {
+                        throw new DomainException('Each awarded quote line must reference an item with a recorded unit of measure.');
+                    }
                     $cFactor = $itemObj?->conversionFactorFor($pUnit) ?? 1.0;
 
                     $po->lines()->create([
@@ -237,20 +255,6 @@ class POConversionService
                         'line_status' => 'open',
                     ]);
                 }
-            } else {
-                // Fallback single line
-                $po->lines()->create([
-                    'item_id' => $po->item_id,
-                    'line_number' => 1,
-                    'purchase_unit' => $po->purchase_unit ?? $po->item?->unit ?? 'unit',
-                    'conversion_factor' => $po->conversion_factor ?? 1.0,
-                    'ordered_quantity' => $po->quantity,
-                    'received_quantity' => 0,
-                    'invoiced_quantity' => 0,
-                    'unit_price' => $po->unit_cost,
-                    'total_line_amount' => $po->total_amount,
-                    'line_status' => 'open',
-                ]);
             }
 
             // Generate cXML OrderRequest dispatch payload
@@ -282,38 +286,45 @@ class POConversionService
      */
     public function convertCatalogPRToPO(PurchaseRequest $pr, User $buyer): PurchaseOrder
     {
-        return DB::transaction(function () use ($pr) {
+        return DB::transaction(function () use ($pr, $buyer) {
             $firstLine = $pr->lines()->first();
-            $supplier = $firstLine?->contract?->supplier
-                ?? Supplier::procurementEligible()->first();
+            $supplier = $firstLine?->contract?->supplier;
 
             if (! $supplier) {
-                throw new DomainException('No eligible supplier found for catalog purchase order conversion.');
+                throw new DomainException('The catalog requisition line must reference an eligible contracted supplier.');
             }
 
-            $poNumber = 'PO-'.now()->format('Ymd').'-'.str_pad((string) mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+            if (! $firstLine?->item_id || $pr->lines()->sum('quantity') <= 0 || $firstLine->estimated_unit_price === null) {
+                throw new DomainException('The requisition must contain recorded item, quantity, and pricing data before PO conversion.');
+            }
+
+            $poNumber = $this->nextPurchaseOrderNumber();
 
             $po = PurchaseOrder::create([
                 'po_number' => $poNumber,
                 'supplier_id' => $supplier->id,
                 'purchase_request_id' => $pr->id,
                 'cost_center_id' => $pr->cost_center_id,
-                'item_id' => $firstLine?->item_id ?? 1,
-                'quantity' => (int) ($pr->lines()->sum('quantity') ?: 1),
-                'unit_cost' => (float) ($firstLine?->estimated_unit_price ?: 1),
+                'item_id' => $firstLine->item_id,
+                'quantity' => (int) $pr->lines()->sum('quantity'),
+                'unit_cost' => (float) $firstLine->estimated_unit_price,
                 'total_amount' => (float) $pr->total_estimated_amount,
-                'currency' => $pr->currency ?? 'PHP',
+                'currency' => $pr->currency ?? config('inventory.default_currency'),
                 'total_encumbered_amount' => (float) $pr->total_estimated_amount,
                 'version' => 'PO-REV1',
                 'revision_number' => 1,
                 'status' => PurchaseOrderStatus::Approved->value,
                 'requested_at' => now(),
                 'dispatched_at' => now(),
+                'created_by_user_id' => $buyer->id,
             ]);
 
             $lineNumber = 1;
             foreach ($pr->lines as $prLine) {
-                $pUnit = $prLine->uom ?: $prLine->item?->unit ?: 'unit';
+                $pUnit = $prLine->uom ?: $prLine->item?->unit;
+                if (blank($pUnit)) {
+                    throw new DomainException('Each requisition line must have a recorded unit of measure before PO conversion.');
+                }
                 $cFactor = $prLine->item?->conversionFactorFor($pUnit) ?? 1.0;
 
                 $po->lines()->create([
@@ -455,6 +466,12 @@ class POConversionService
     {
         $timestamp = now()->toIso8601String();
         $payloadId = "HIMS-PO-{$po->id}-{$po->version}@hospital.local";
+        $shipToName = htmlspecialchars((string) ($po->entity_name ?: config('privacy.hospital_name')), ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        $shipToAddress = htmlspecialchars((string) config('privacy.hospital_address'), ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        preg_match('/\d+/', (string) $po->payment_terms, $paymentTermMatch);
+        $paymentTermXml = isset($paymentTermMatch[0])
+            ? '<PaymentTerm payInNumberOfDays="'.(int) $paymentTermMatch[0].'"/>'
+            : '';
 
         $linesXml = '';
         foreach ($po->lines as $line) {
@@ -504,16 +521,13 @@ XML;
                 </Total>
                 <ShipTo>
                     <Address>
-                        <Name xml:lang="en">Hospital Central Receiving Dock</Name>
+                        <Name xml:lang="en">{$shipToName}</Name>
                         <PostalAddress>
-                            <DeliverTo>Central Medical Warehouse</DeliverTo>
-                            <Street>Hospital Boulevard, Medical District</Street>
-                            <City>Manila</City>
-                            <Country isoCountryCode="PH">Philippines</Country>
+                            <Street>{$shipToAddress}</Street>
                         </PostalAddress>
                     </Address>
                 </ShipTo>
-                <PaymentTerm payInNumberOfDays="30"/>
+                {$paymentTermXml}
             </OrderRequestHeader>
             {$linesXml}
         </OrderRequest>

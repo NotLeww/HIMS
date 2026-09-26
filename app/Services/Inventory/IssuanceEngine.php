@@ -44,7 +44,10 @@ class IssuanceEngine
     {
         $requisition = DB::transaction(function () use ($data, $requester) {
             $reqNumber = self::generateRequisitionNumber();
-            $department = $data['department'] ?? $requester->department ?? 'General Clinic';
+            $department = trim((string) ($data['department'] ?? $requester->department));
+            if ($department === '') {
+                throw new DomainException('A requesting department is required for a material requisition.');
+            }
             $costCenterId = $data['cost_center_id'] ?? CostCenter::resolveForDepartment($department)?->id;
 
             $requisition = MaterialRequisition::create([

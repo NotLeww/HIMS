@@ -25,8 +25,8 @@ class StockAdjustmentController extends Controller implements HasMiddleware
     {
         return [
             'auth:web,admin,super_admin',
-            new Middleware('can:' . Permission::AdjustStock->value, only: ['store']),
-            new Middleware('can:' . Permission::ApproveAdjustment->value, only: ['index', 'approve']),
+            new Middleware('can:'.Permission::AdjustStock->value, only: ['store']),
+            new Middleware('can:'.Permission::ApproveAdjustment->value, only: ['index', 'approve']),
         ];
     }
 
@@ -66,8 +66,8 @@ class StockAdjustmentController extends Controller implements HasMiddleware
             'quantity' => ['required', 'integer', 'min:0'],
             'location_id' => ['required', 'exists:storage_locations,id'],
             'reason_code' => ['nullable', 'string'],
-            'reason' => ['nullable', 'string', 'max:500'],
-            'explanation' => ['nullable', 'string', 'max:500'],
+            'reason' => ['nullable', 'string', 'max:500', 'required_without:explanation'],
+            'explanation' => ['nullable', 'string', 'max:500', 'required_without:reason'],
         ]);
 
         $quantity = (int) $validated['quantity'];
@@ -94,13 +94,13 @@ class StockAdjustmentController extends Controller implements HasMiddleware
             }
         }
 
-        $explanation = $validated['explanation'] ?? $validated['reason'] ?? 'Standard inventory count reconciliation';
-        $reasonCode = $validated['reason_code'] ?? ($validated['adjustment_type'] === 'correction' ? 'count_variance' : 'data_correction');
+        $explanation = $validated['explanation'] ?? $validated['reason'];
+        $reasonCode = $validated['reason_code'] ?? $validated['adjustment_type'];
 
         $item = InventoryItem::findOrFail($validated['item_id']);
         $unitCost = (float) ($item->unit_cost ?? 0);
         $totalVarianceValue = abs($delta * $unitCost);
-        $threshold = 25000.00; // ₱25,000 threshold for dual approval
+        $threshold = (float) config('inventory.adjustment_dual_approval_threshold');
 
         if ($totalVarianceValue > $threshold) {
             // High-value adjustment: Enforce dual-tier authorization workflow
@@ -114,7 +114,7 @@ class StockAdjustmentController extends Controller implements HasMiddleware
             ], $request->user());
 
             return redirect()->route('inventory.adjustments')
-                ->with('success', "Adjustment request {$adj->adjustment_number} (₱" . number_format($totalVarianceValue, 2) . ") exceeds threshold and was submitted for dual authorization.");
+                ->with('success', "Adjustment request {$adj->adjustment_number} (₱".number_format($totalVarianceValue, 2).') exceeds threshold and was submitted for dual authorization.');
         }
 
         // Routine adjustment: executed directly by authorized inventory manager
@@ -128,7 +128,7 @@ class StockAdjustmentController extends Controller implements HasMiddleware
             ], $request->user()->id);
 
             // Record in InventoryAdjustment ledger
-            $adjNumber = 'ADJ-' . now()->format('Ymd') . '-' . str_pad((string) (InventoryAdjustment::count() + 1), 4, '0', STR_PAD_LEFT);
+            $adjNumber = 'ADJ-'.now()->format('Ymd').'-'.str_pad((string) (InventoryAdjustment::count() + 1), 4, '0', STR_PAD_LEFT);
             $currentQty = $this->automationService->availableAt((int) $validated['item_id'], $locationId);
 
             $adj = InventoryAdjustment::create([

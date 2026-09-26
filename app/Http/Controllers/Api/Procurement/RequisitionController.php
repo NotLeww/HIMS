@@ -17,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class RequisitionController extends Controller implements HasMiddleware
 {
@@ -94,7 +95,7 @@ class RequisitionController extends Controller implements HasMiddleware
             ], 422);
         }
 
-        return DB::transaction(function () use ($validated, $user, $totalAmount, $request) {
+        return DB::transaction(function () use ($validated, $user, $totalAmount) {
             $prNumber = 'PR-'.now()->format('Ymd').'-'.str_pad((string) mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
 
             $pr = PurchaseRequest::create([
@@ -105,7 +106,7 @@ class RequisitionController extends Controller implements HasMiddleware
                 'cost_center_id' => $validated['cost_center_id'],
                 'procurement_category_id' => $validated['procurement_category_id'] ?? null,
                 'total_estimated_amount' => $totalAmount,
-                'currency' => $validated['currency'] ?? 'PHP',
+                'currency' => strtoupper((string) ($validated['currency'] ?? config('inventory.default_currency'))),
                 'priority' => $validated['priority'] ?? 'medium',
                 'status' => RequisitionStatus::PendingApproval->value,
                 'is_emergency' => (bool) ($validated['is_emergency'] ?? false),
@@ -116,6 +117,12 @@ class RequisitionController extends Controller implements HasMiddleware
             foreach ($validated['lines'] as $lineData) {
                 $item = InventoryItem::find($lineData['item_id']);
                 $lineTotal = round($lineData['quantity'] * $lineData['estimated_unit_price'], 2);
+                $uom = $lineData['uom'] ?? $item->unit;
+                if (blank($uom)) {
+                    throw ValidationException::withMessages([
+                        'lines' => ["Add a unit of measure for {$item->name} before submitting the requisition."],
+                    ]);
+                }
 
                 $contractId = $lineData['contract_id'] ?? null;
                 $isContracted = false;
@@ -127,13 +134,13 @@ class RequisitionController extends Controller implements HasMiddleware
                 $pr->lines()->create([
                     'item_id' => $item->id,
                     'line_number' => $lineNumber++,
-                    'gl_account_code' => $lineData['gl_account_code'] ?? 'GL-MED-'.str_pad((string) $item->id, 4, '0', STR_PAD_LEFT),
+                    'gl_account_code' => $lineData['gl_account_code'] ?? null,
                     'item_description' => $item->name,
                     'quantity' => $lineData['quantity'],
-                    'uom' => $lineData['uom'] ?? ($item->unit ?: 'unit'),
+                    'uom' => $uom,
                     'estimated_unit_price' => $lineData['estimated_unit_price'],
                     'estimated_total_price' => $lineTotal,
-                    'need_by_date' => $lineData['need_by_date'] ?? now()->addDays(14)->toDateString(),
+                    'need_by_date' => $lineData['need_by_date'] ?? null,
                     'is_contracted_catalog' => $isContracted,
                     'contract_id' => $contractId,
                 ]);

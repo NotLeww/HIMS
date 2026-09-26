@@ -102,10 +102,10 @@
                     <div>
                         <p class="text-xs font-medium uppercase tracking-wider text-neutral-500">Logistical Route</p>
                         <p class="mt-1 text-sm font-semibold text-neutral-900">
-                            {{ $stockTransfer->sourceLocation->name ?? 'Origin' }} &rarr; {{ $stockTransfer->destinationLocation->name ?? 'Destination' }}
+                            {{ $stockTransfer->sourceLocation->name ?? 'Not recorded' }} &rarr; {{ $stockTransfer->destinationLocation->name ?? 'Not recorded' }}
                         </p>
                         <p class="text-xs text-neutral-500">
-                            Virtual Buffer: {{ $stockTransfer->inTransitLocation->name ?? 'LOC-IN-TRANSIT' }}
+                            Virtual Buffer: {{ $stockTransfer->inTransitLocation?->name ?? 'Not recorded' }}
                         </p>
                     </div>
                     <div>

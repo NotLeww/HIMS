@@ -21,7 +21,6 @@ use App\Models\SystemRecoveryRecord;
 use App\Models\User;
 use App\Services\AiDemandForecastService;
 use App\Services\DemandForecastService;
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -96,8 +95,8 @@ class HimsAiToolRegistry
                     'id' => $item->id,
                     'name' => $item->name,
                     'sku' => $item->sku,
-                    'category' => $item->category?->name ?? 'General',
-                    'unit' => $item->unit ?? 'units',
+                    'category' => $item->category?->name ?? 'Not recorded',
+                    'unit' => $item->unit ?? 'Not recorded',
                     'quantity_on_hand' => $onHand,
                     'reserved_quantity' => $reserved,
                     'available_stock' => $available,
@@ -159,8 +158,8 @@ class HimsAiToolRegistry
                 'id' => $item->id,
                 'name' => $item->name,
                 'sku' => $item->sku,
-                'category' => $item->category?->name ?? 'General',
-                'unit' => $item->unit ?? 'units',
+                'category' => $item->category?->name ?? 'Not recorded',
+                'unit' => $item->unit ?? 'Not recorded',
                 'quantity_on_hand' => $onHand,
                 'reserved_quantity' => $reserved,
                 'available_stock' => $available,
@@ -245,7 +244,7 @@ class HimsAiToolRegistry
             ->get()
             ->map(function ($lvl) {
                 return [
-                    'location_name' => $lvl->storageLocation?->name ?? 'Unknown Location',
+                    'location_name' => $lvl->storageLocation?->name ?? 'Not recorded',
                     'location_code' => $lvl->storageLocation?->code ?? 'N/A',
                     'quantity' => (int) $lvl->quantity,
                     'reserved' => (int) ($lvl->reserved_quantity ?? 0),
@@ -264,8 +263,8 @@ class HimsAiToolRegistry
                 return [
                     'type' => $type,
                     'quantity' => (int) $m->quantity,
-                    'actor' => $m->user?->name ?? 'System',
-                    'date' => $m->moved_at?->toDateString() ?? 'Recently',
+                    'actor' => $m->user?->name ?? 'Not recorded',
+                    'date' => $m->moved_at?->toDateString() ?? 'Not recorded',
                     'notes' => $m->remarks,
                 ];
             })->all();
@@ -276,8 +275,8 @@ class HimsAiToolRegistry
             'sku' => $item->sku,
             'barcode' => $item->barcode_value,
             'generic_name' => $item->generic_name,
-            'category' => $item->category?->name ?? 'General',
-            'unit' => $item->unit ?? 'units',
+            'category' => $item->category?->name ?? 'Not recorded',
+            'unit' => $item->unit ?? 'Not recorded',
             'quantity_on_hand' => $onHand,
             'reserved_quantity' => $reserved,
             'available_stock' => $available,
@@ -375,7 +374,7 @@ class HimsAiToolRegistry
                 'name' => $i->name,
                 'sku' => $i->sku,
                 'current_stock' => (int) $i->quantity_on_hand,
-                'unit' => $i->unit ?? 'units',
+                'unit' => $i->unit ?? 'Not recorded',
                 'reorder_level' => (int) $i->reorder_level,
                 'is_low_stock' => (int) $i->quantity_on_hand <= (int) $i->reorder_level,
             ])->all(),
@@ -417,10 +416,10 @@ class HimsAiToolRegistry
                     'sku' => $m->item?->sku ?? 'N/A',
                     'type' => $typeLabel,
                     'quantity' => (int) $m->quantity,
-                    'unit' => $m->item?->unit ?? 'units',
-                    'actor' => $m->user?->name ?? 'System',
-                    'date' => $m->moved_at?->toFormattedDateString() ?? 'Recently',
-                    'time_ago' => $m->moved_at?->diffForHumans() ?? 'recently',
+                    'unit' => $m->item?->unit ?? 'Not recorded',
+                    'actor' => $m->user?->name ?? 'Not recorded',
+                    'date' => $m->moved_at?->toFormattedDateString() ?? 'Not recorded',
+                    'time_ago' => $m->moved_at?->diffForHumans() ?? 'Not recorded',
                     'notes' => $m->remarks,
                 ];
             })->all(),
@@ -465,7 +464,7 @@ class HimsAiToolRegistry
                     'batch_number' => $b->batch_number,
                     'lot_number' => $b->lot_number ?? 'N/A',
                     'remaining_quantity' => $remainingQty,
-                    'unit' => $b->item?->unit ?? 'units',
+                    'unit' => $b->item?->unit ?? 'Not recorded',
                     'expiry_date' => $b->expiry_date?->toDateString(),
                     'days_remaining' => $days,
                     'status' => strtoupper($b->expiryClassification() ?? 'normal'),
@@ -546,8 +545,8 @@ class HimsAiToolRegistry
                 'id' => $item->id,
                 'name' => $item->name,
                 'sku' => $item->sku,
-                'category' => $item->category?->name ?? 'General',
-                'unit' => $item->unit ?? 'units',
+                'category' => $item->category?->name ?? 'Not recorded',
+                'unit' => $item->unit ?? 'Not recorded',
                 'total_stock_without_expiry' => array_sum(array_column($batchList, 'remaining_quantity')),
                 'batch_count' => count($batchList),
                 'batches' => $batchList,
@@ -570,8 +569,8 @@ class HimsAiToolRegistry
                 'id' => $item->id,
                 'name' => $item->name,
                 'sku' => $item->sku,
-                'category' => $item->category?->name ?? 'General',
-                'unit' => $item->unit ?? 'units',
+                'category' => $item->category?->name ?? 'Not recorded',
+                'unit' => $item->unit ?? 'Not recorded',
                 'total_stock_without_expiry' => (int) $item->quantity_on_hand,
                 'batch_count' => 0,
                 'batches' => [],
@@ -636,7 +635,7 @@ class HimsAiToolRegistry
                     'batch_number' => $b->batch_number,
                     'lot_number' => $b->lot_number ?? 'N/A',
                     'remaining_quantity' => $remainingQty,
-                    'unit' => $b->item?->unit ?? 'units',
+                    'unit' => $b->item?->unit ?? 'Not recorded',
                     'expiry_date' => $b->expiry_date->toDateString(),
                     'days_since_expiry' => $daysSinceExpiry,
                     'recommendation' => $daysSinceExpiry > 90
@@ -712,11 +711,11 @@ class HimsAiToolRegistry
                 return [
                     'id' => $mr->id,
                     'requisition_number' => $mr->requisition_number,
-                    'department' => $mr->department ?? $mr->requestingUser?->department ?? 'General Department',
+                    'department' => $mr->department ?? $mr->requestingUser?->department ?? 'Not recorded',
                     'status' => (string) $mr->status,
-                    'urgency' => $mr->urgency ?? 'Normal',
-                    'requested_by' => $mr->requestingUser?->name ?? 'Staff',
-                    'required_date' => $mr->required_date?->toDateString() ?? 'Immediate',
+                    'urgency' => $mr->urgency ?? 'Not recorded',
+                    'requested_by' => $mr->requestingUser?->name ?? 'Not recorded',
+                    'required_date' => $mr->required_date?->toDateString() ?? 'Not recorded',
                     'justification' => $mr->justification,
                 ];
             })->all(),
@@ -755,7 +754,7 @@ class HimsAiToolRegistry
                     'shipment_number' => $s->shipment_number,
                     'po_number' => $s->purchaseOrder?->po_number ?? 'N/A',
                     'supplier_name' => $s->supplier?->name ?? 'Unknown Supplier',
-                    'carrier' => $s->carrier_name ?? 'In-House Logistics',
+                    'carrier' => $s->carrier_name ?? 'Not recorded',
                     'tracking_number' => $s->tracking_number ?? 'N/A',
                     'status' => (string) $s->status,
                     'dispatch_date' => $s->dispatch_date?->toDateString(),
@@ -844,7 +843,7 @@ class HimsAiToolRegistry
             'item_id' => $item->id,
             'item_name' => $item->name,
             'sku' => $item->sku,
-            'unit' => $item->unit ?? 'units',
+            'unit' => $item->unit ?? 'Not recorded',
             'current_stock' => $onHand,
             'reserved_stock' => $reserved,
             'available_stock' => $available,
@@ -893,7 +892,7 @@ class HimsAiToolRegistry
             'count' => $logs->count(),
             'logs' => $logs->map(fn (AuditLog $l) => [
                 'event_id' => $l->event_id,
-                'actor' => $l->actor_name ?? 'System',
+                'actor' => $l->actor_name ?? 'Not recorded',
                 'action' => is_object($l->action) ? $l->action->value : (string) $l->action,
                 'module' => $l->module,
                 'description' => $l->description,
@@ -1026,7 +1025,7 @@ class HimsAiToolRegistry
     /**
      * Search multiple matching inventory items for ambiguous inquiries.
      *
-     * @return \Illuminate\Support\Collection<int, InventoryItem>
+     * @return Collection<int, InventoryItem>
      */
     public function searchMatchingItems(string $query, int $limit = 6): Collection
     {
@@ -1284,7 +1283,7 @@ class HimsAiToolRegistry
                 'email' => $u->email,
                 'role' => is_object($u->role) ? $u->role->label() : (string) $u->role,
                 'status' => is_object($u->status) ? $u->status->label() : (string) $u->status,
-                'department' => $u->department ?? 'General',
+                'department' => $u->department ?? 'Not recorded',
                 'employee_id' => $u->employee_id ?? 'N/A',
             ])->all(),
         ];

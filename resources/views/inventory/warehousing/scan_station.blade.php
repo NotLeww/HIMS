@@ -90,17 +90,12 @@
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
                 <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Terminal Status</span>
-                    <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        ONLINE
-                    </span>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Open Exceptions</span>
                 </div>
                 <div class="mt-2.5 flex items-baseline justify-between">
-                    <span class="text-xl font-bold font-mono text-neutral-900 dark:text-neutral-100">WS-SCAN-01</span>
-                    <span class="text-xs text-neutral-500 dark:text-neutral-400">1D / 2D Vision</span>
+                    <span class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{{ $workstationMetrics['open_exceptions'] }}</span>
                 </div>
-                <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400 truncate">Aimer &amp; GS1 parser operational</p>
+                <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Persisted scan exceptions awaiting resolution</p>
             </div>
 
             <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
@@ -607,11 +602,11 @@
                                 </div>
                                 <div class="rounded-lg bg-white p-2.5 border border-neutral-200/60 dark:border-neutral-700/60 dark:bg-neutral-800/80">
                                     <span class="text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">2. Storage Bins</span>
-                                    <p class="text-xs font-mono font-semibold text-neutral-800 dark:text-neutral-200 mt-0.5 truncate">LOC-BAY-01 / WARD-03</p>
+                                    <p class="text-xs font-semibold text-neutral-800 dark:text-neutral-200 mt-0.5">Configured location barcode or code</p>
                                 </div>
                                 <div class="rounded-lg bg-white p-2.5 border border-neutral-200/60 dark:border-neutral-700/60 dark:bg-neutral-800/80">
                                     <span class="text-[10px] font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">3. Product SKU / UPC</span>
-                                    <p class="text-xs font-mono font-semibold text-neutral-800 dark:text-neutral-200 mt-0.5 truncate">PHARMA-PARA-500</p>
+                                    <p class="text-xs font-semibold text-neutral-800 dark:text-neutral-200 mt-0.5">Item barcode, GTIN, or SKU</p>
                                 </div>
                             </div>
                         </div>
@@ -666,9 +661,9 @@
                                             <div class="text-[11px] text-neutral-500 dark:text-neutral-400">{{ $task->requested_quantity }} {{ $task->item?->unit ?? 'units' }}</div>
                                         </td>
                                         <td class="px-3.5 py-2.5 whitespace-nowrap text-[11px] font-mono text-neutral-600 dark:text-neutral-400">
-                                            <span class="text-neutral-700 dark:text-neutral-300">{{ $task->sourceLocation?->code ?? 'Dock' }}</span>
+                                            <span class="text-neutral-700 dark:text-neutral-300">{{ $task->sourceLocation?->code ?? 'Not recorded' }}</span>
                                             <span class="text-neutral-400 mx-1">&rarr;</span>
-                                            <span class="text-neutral-700 dark:text-neutral-300">{{ $task->destinationLocation?->code ?? 'Staging' }}</span>
+                                            <span class="text-neutral-700 dark:text-neutral-300">{{ $task->destinationLocation?->code ?? 'Not recorded' }}</span>
                                         </td>
                                         <td class="px-3.5 py-2.5 whitespace-nowrap">
                                             <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold

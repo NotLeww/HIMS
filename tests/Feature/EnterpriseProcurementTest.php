@@ -33,10 +33,10 @@ use App\Models\User;
 use App\Models\WarehouseTask;
 use App\Services\Inventory\GoodsReceiptService;
 use App\Services\Inventory\QualityControlService;
-use App\Services\Warehouse\WarehouseTaskService;
 use App\Services\Procurement\ApprovalRoutingEngine;
 use App\Services\Procurement\EvaluationEngine;
 use App\Services\Procurement\POConversionService;
+use App\Services\Warehouse\WarehouseTaskService;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -328,6 +328,10 @@ class EnterpriseProcurementTest extends TestCase
 
         $quotePayload = [
             'supplier_id' => $supplier->id,
+            'currency' => 'PHP',
+            'incoterms' => 'DDP',
+            'payment_terms' => 'Net 30',
+            'validity_end_date' => now()->addDays(30)->toDateString(),
             'lines' => [
                 [
                     'rfq_line_item_id' => $rfqLine->id,
@@ -372,6 +376,10 @@ class EnterpriseProcurementTest extends TestCase
 
         $quotePayload = [
             'supplier_id' => $supplier->id,
+            'currency' => 'PHP',
+            'incoterms' => 'DDP',
+            'payment_terms' => 'Net 30',
+            'validity_end_date' => now()->addDays(30)->toDateString(),
             'lines' => [
                 [
                     'rfq_line_item_id' => $rfqLine->id,
@@ -381,6 +389,18 @@ class EnterpriseProcurementTest extends TestCase
                 ],
             ],
         ];
+
+        $missingCommercialTerms = $quotePayload;
+        unset(
+            $missingCommercialTerms['currency'],
+            $missingCommercialTerms['incoterms'],
+            $missingCommercialTerms['payment_terms'],
+            $missingCommercialTerms['validity_end_date'],
+        );
+        $this->postJson("/api/v1/procurement/rfqs/{$rfq->id}/quotes", $missingCommercialTerms)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['currency', 'incoterms', 'payment_terms', 'validity_end_date']);
+        $this->assertDatabaseCount('supplier_quotes', 0);
 
         $response = $this->postJson("/api/v1/procurement/rfqs/{$rfq->id}/quotes", $quotePayload);
         $response->assertStatus(201);
@@ -738,6 +758,22 @@ class EnterpriseProcurementTest extends TestCase
     {
         $manager = $this->createManager();
         $location = $this->createStorageLocation();
+        StorageLocation::create([
+            'code' => 'LOC-QUARANTINE-REC01',
+            'name' => 'Receiving Quarantine',
+            'type' => 'room',
+            'zone' => 'Receiving',
+            'status' => 'active',
+            'is_quarantine' => true,
+        ]);
+        $stagingLocation = StorageLocation::create([
+            'code' => 'LOC-STAGING-REC01',
+            'name' => 'Receiving Staging',
+            'type' => 'room',
+            'zone' => 'Receiving',
+            'status' => 'active',
+            'is_receiving_staging' => true,
+        ]);
         $supplier = $this->createEligibleSupplier();
 
         $itemA = $this->createItem('Item Alpha', 'SKU-ALPHA-01', 0);
@@ -793,9 +829,9 @@ class EnterpriseProcurementTest extends TestCase
         $grn = app(GoodsReceiptService::class)->receiveOrder($po, [
             'lines' => [
                 ['po_line_id' => $lineA->id, 'received_quantity' => 50,
-                    'batch_number' => 'LOT-ALPHA-50', 'expiry_date' => now()->addYear()->toDateString()],
+                    'item_condition' => 'good', 'batch_number' => 'LOT-ALPHA-50', 'expiry_date' => now()->addYear()->toDateString()],
                 ['po_line_id' => $lineB->id, 'received_quantity' => 100,
-                    'batch_number' => 'LOT-BETA-100', 'expiry_date' => now()->addYear()->toDateString()],
+                    'item_condition' => 'good', 'batch_number' => 'LOT-BETA-100', 'expiry_date' => now()->addYear()->toDateString()],
             ],
         ], $manager);
         $this->assertSame(PurchaseOrderStatus::UnderInspection->value, $po->fresh()->status);
@@ -808,7 +844,7 @@ class EnterpriseProcurementTest extends TestCase
             $task = WarehouseTask::where('reference_type', $inspection->getMorphClass())
                 ->where('reference_id', $inspection->id)->firstOrFail();
             $tasks->start($task, $manager);
-            $tasks->scan($task, 'LOC-STAGING', $manager);
+            $tasks->scan($task, $stagingLocation->code, $manager);
             $tasks->scan($task, $receivedLine->item->sku, $manager);
             $tasks->scan($task, $location->code, $manager);
             $tasks->complete($task, $receivedLine->calculatedReceivedBaseQuantity(), $manager);

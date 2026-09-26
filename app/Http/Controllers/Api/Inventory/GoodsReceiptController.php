@@ -19,8 +19,8 @@ class GoodsReceiptController extends Controller implements HasMiddleware
     {
         return [
             'auth:sanctum',
-            new Middleware('can:' . Permission::ReceivePurchaseOrder->value, only: ['store']),
-            new Middleware('can:' . Permission::ViewInventory->value, only: ['index', 'show']),
+            new Middleware('can:'.Permission::ReceivePurchaseOrder->value, only: ['store']),
+            new Middleware('can:'.Permission::ViewInventory->value, only: ['index', 'show']),
         ];
     }
 
@@ -61,7 +61,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
             'lines.*.actual_sku' => ['required', 'string', 'max:100'],
             'lines.*.actual_purchase_unit' => ['required', 'string', 'max:50'],
             'lines.*.destination_location_id' => ['nullable', 'exists:storage_locations,id'],
-            'lines.*.item_condition' => ['nullable', 'in:good,damaged,compromised,wrong_item,expired'],
+            'lines.*.item_condition' => ['required', 'in:good,damaged,compromised,wrong_item,expired'],
             'lines.*.discrepancy_type' => ['nullable', 'in:shortage,overage,damage,wrong_item,expired,near_expiry,missing_lot,other'],
             'lines.*.discrepancy_action' => ['nullable', 'in:quarantine,accept,reject,return_to_supplier,hold'],
             'lines.*.discrepancy_notes' => ['nullable', 'string', 'max:500'],

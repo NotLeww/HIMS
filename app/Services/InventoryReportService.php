@@ -4,13 +4,13 @@ namespace App\Services;
 
 use App\Enums\MovementType;
 use App\Enums\Permission;
-use App\Models\InventoryItem;
 use App\Models\GoodsReceiptNoteLine;
-use App\Models\QualityInspection;
+use App\Models\InventoryItem;
 use App\Models\ItemBatch;
 use App\Models\ItemCategory;
 use App\Models\ItemStockLevel;
 use App\Models\PurchaseOrder;
+use App\Models\QualityInspection;
 use App\Models\StockMovement;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
@@ -814,7 +814,7 @@ class InventoryReportService
                 'quantity_on_hand' => $units,
                 'reserved_quantity' => (int) $item->reserved_quantity,
                 'reorder_level' => (int) $item->reorder_level,
-                'unit' => $item->unit ?? 'unit',
+                'unit' => $item->unit ?? 'Not recorded',
                 'unit_cost' => $unitCost,
                 'total_value' => $val,
                 'status_key' => $statusKey,
@@ -1487,7 +1487,7 @@ class InventoryReportService
         $rows = $rawRows->map(fn ($r) => [
             'item' => $r->item,
             'sku' => $r->sku,
-            'unit' => $r->unit ?? 'unit',
+            'unit' => $r->unit ?? 'Not recorded',
             'on_hand' => (int) $r->on_hand,
             'movements' => (int) $r->movements,
             'units' => (int) $r->units,

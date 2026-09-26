@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use App\Models\PurchaseOrderLine;
 use App\Services\Inventory\ReplenishmentDaemon;
+use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -18,8 +19,8 @@ class ReplenishmentController extends Controller implements HasMiddleware
     {
         return [
             'auth:sanctum',
-            new Middleware('can:' . Permission::ViewInventory->value, only: ['status']),
-            new Middleware('can:' . Permission::CreateRequisition->value, only: ['evaluate']),
+            new Middleware('can:'.Permission::ViewInventory->value, only: ['status']),
+            new Middleware('can:'.Permission::CreateRequisition->value, only: ['evaluate']),
         ];
     }
 
@@ -45,7 +46,7 @@ class ReplenishmentController extends Controller implements HasMiddleware
             ->value('open_qty');
 
         $effectiveStock = $atp + $onOrder;
-        $isBreached = $effectiveStock <= $rop;
+        $isBreached = $rop !== null ? $effectiveStock <= $rop : null;
 
         return response()->json([
             'item_id' => $item->id,
@@ -64,9 +65,11 @@ class ReplenishmentController extends Controller implements HasMiddleware
             'reorder_point' => $rop,
             'economic_order_quantity' => $eoq,
             'reorder_breached' => $isBreached,
-            'recommendation' => $isBreached
-                ? "Reorder condition triggered. Target order quantity: {$eoq} units."
-                : 'Stock level optimal. Above reorder threshold.',
+            'recommendation' => match ($isBreached) {
+                true => "Reorder condition triggered. Target order quantity: {$eoq} units.",
+                false => 'Stock level optimal. Above reorder threshold.',
+                null => 'Replenishment recommendation unavailable until the item demand, lead-time, and cost inputs are complete.',
+            },
         ]);
     }
 
@@ -74,7 +77,11 @@ class ReplenishmentController extends Controller implements HasMiddleware
     {
         $item = InventoryItem::findOrFail($itemId);
 
-        $pr = $this->replenishmentDaemon->evaluateAndReplenish($item, $request->user());
+        try {
+            $pr = $this->replenishmentDaemon->evaluateAndReplenish($item, $request->user());
+        } catch (DomainException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
 
         if ($pr) {
             return response()->json([

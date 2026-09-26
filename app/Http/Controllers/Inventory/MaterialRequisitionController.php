@@ -14,8 +14,8 @@ use App\Models\WarehouseTask;
 use App\Services\AiDemandForecastService;
 use App\Services\Inventory\IssuanceEngine;
 use DomainException;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -86,12 +86,7 @@ class MaterialRequisitionController extends Controller implements HasMiddleware
             if (! $preselectedItem && $request->filled('item_id')) {
                 session()->flash('warning', 'The requested inventory item could not be preselected because it does not exist or is inactive.');
             } elseif ($preselectedItem) {
-                $aiRecommendation = $this->aiForecastService->reorderRecommendationForItem($preselectedItem, $request->user());
-                if ($aiRecommendation && ($aiRecommendation['available'] ?? false) && ($aiRecommendation['suggested_quantity'] ?? 0) <= 0) {
-                    $predictedDemand = (int) ($aiRecommendation['predicted_demand'] ?? 0);
-                    $fallback = max(1, (int) ($preselectedItem->economic_order_quantity ?: $preselectedItem->reorder_point ?: $preselectedItem->reorder_level ?: 1));
-                    $aiRecommendation['suggested_quantity'] = $predictedDemand > 0 ? $predictedDemand : $fallback;
-                }
+                $aiRecommendation = $this->resolveRequisitionRecommendation($preselectedItem, $request->user());
             }
         }
 
@@ -115,8 +110,10 @@ class MaterialRequisitionController extends Controller implements HasMiddleware
 
         return response()->json([
             'available' => (bool) ($recommendation['available'] ?? false),
-            'suggested_quantity' => (int) ($recommendation['suggested_quantity'] ?? 1),
-            'unit' => $recommendation['unit'] ?? ($item->unit ?: 'units'),
+            'suggested_quantity' => isset($recommendation['suggested_quantity'])
+                ? (int) $recommendation['suggested_quantity']
+                : null,
+            'unit' => $recommendation['unit'] ?? $item->unit,
             'confidence' => $recommendation['confidence'] ?? 'low',
             'explanation' => $recommendation['explanation'] ?? '',
             'reorder_point' => (int) ($item->reorder_point ?: $item->reorder_level ?: 0),
@@ -128,7 +125,7 @@ class MaterialRequisitionController extends Controller implements HasMiddleware
      * Resolve AI recommendation tailored for internal department store requisition.
      * Unlike external procurement POs (where surplus warehouse stock drives suggested reorder to 0),
      * a store requisition represents departmental replenishment needs, so suggested quantity
-     * must never be 0; it defaults to projected demand, EOQ, or standard reorder deficit.
+     * uses projected demand or a configured item planning quantity when available.
      *
      * @return array<string, mixed>
      */
@@ -138,19 +135,40 @@ class MaterialRequisitionController extends Controller implements HasMiddleware
 
         $rawSuggested = (int) ($recommendation['suggested_quantity'] ?? 0);
         $predictedDemand = (int) ($recommendation['predicted_demand'] ?? 0);
-        $unitLabel = $recommendation['unit'] ?? ($item->unitAbbreviation() ?: ($item->unit ?: 'units'));
+        $unitLabel = $recommendation['unit'] ?? ($item->unitAbbreviation() ?: $item->unit);
 
-        // Fallback to economic order quantity, reorder point, reorder level, or at least 1
-        $fallback = max(1, (int) ($item->economic_order_quantity ?: $item->reorder_point ?: $item->reorder_level ?: 1));
+        if (blank($unitLabel)) {
+            return [
+                ...$recommendation,
+                'available' => false,
+                'suggested_quantity' => null,
+                'unit' => null,
+                'explanation' => 'Add the item unit of measure before generating a replenishment recommendation.',
+            ];
+        }
+
+        $configuredQuantity = collect([
+            $item->economic_order_quantity,
+            $item->reorder_point,
+            $item->reorder_level,
+        ])->map(fn ($value) => (int) $value)->first(fn ($value) => $value > 0);
 
         if ($rawSuggested > 0) {
             $suggestedQuantity = $rawSuggested;
         } elseif ($predictedDemand > 0) {
             $suggestedQuantity = $predictedDemand;
             $recommendation['explanation'] = "Based on projected demand of {$predictedDemand} {$unitLabel} over the forecast period.";
+        } elseif ($configuredQuantity !== null) {
+            $suggestedQuantity = $configuredQuantity;
+            $recommendation['explanation'] = "Based on the configured item planning quantity of {$configuredQuantity} {$unitLabel}.";
         } else {
-            $suggestedQuantity = $fallback;
-            $recommendation['explanation'] = "Based on standard replenishment level of {$fallback} {$unitLabel}.";
+            return [
+                ...$recommendation,
+                'available' => false,
+                'suggested_quantity' => null,
+                'unit' => $unitLabel,
+                'explanation' => 'No forecast or configured planning quantity is available. Enter the requested quantity manually.',
+            ];
         }
 
         $recommendation['available'] = true;
@@ -158,16 +176,6 @@ class MaterialRequisitionController extends Controller implements HasMiddleware
         $recommendation['unit'] = $unitLabel;
         if (! isset($recommendation['confidence']) || $recommendation['confidence'] === 'low') {
             $recommendation['confidence'] = $predictedDemand > 0 ? 'medium' : 'low';
-        }
-
-        if (empty($recommendation['breakdown'])) {
-            $recommendation['breakdown'] = [
-                'forecast_demand' => "{$predictedDemand} {$unitLabel}",
-                'current_stock' => ((int) $item->quantity_on_hand) . " {$unitLabel}",
-                'incoming_stock' => '0 ' . $unitLabel,
-                'safety_stock' => ((int) $item->safety_stock) . " {$unitLabel}",
-                'forecast_period' => '30 days',
-            ];
         }
 
         return $recommendation;

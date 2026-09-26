@@ -4,6 +4,7 @@ namespace App\Services\Warehouse;
 
 use App\Enums\AuditAction;
 use App\Enums\MovementType;
+use App\Enums\RequisitionStatus;
 use App\Models\CostCenter;
 use App\Models\InventoryItem;
 use App\Models\InventorySerial;
@@ -50,6 +51,14 @@ class ConsignmentService
             if ($qty <= 0) {
                 throw new DomainException('Implanted quantity must be at least 1.');
             }
+            if ((float) $item->unit_cost <= 0 || blank($item->unit)) {
+                throw new DomainException('Complete the consignment item unit and unit cost before recording implant usage.');
+            }
+
+            $costCenter = CostCenter::resolveForDepartment($actor->department);
+            if (! $costCenter) {
+                throw new DomainException("No active cost center is mapped to the recorder's department.");
+            }
 
             $serialModel = null;
             if (! empty($data['serial_number'])) {
@@ -80,15 +89,6 @@ class ConsignmentService
             $unitCost = (float) ($item->unit_cost ?? 0);
             $totalCost = $unitCost * $qty;
 
-            $costCenter = CostCenter::firstOrCreate(
-                ['code' => 'CC-OT-01'],
-                [
-                    'name' => 'Operating Theater',
-                    'department' => 'Surgical Services',
-                    'is_active' => true,
-                ]
-            );
-
             $pr = PurchaseRequest::create([
                 'pr_number' => $prNumber,
                 'title' => "Bill-Only Consignment Replenishment: {$item->name}",
@@ -99,7 +99,7 @@ class ConsignmentService
                 'total_estimated_amount' => $totalCost,
                 'currency' => 'PHP',
                 'priority' => 'routine',
-                'status' => \App\Enums\RequisitionStatus::PendingApproval,
+                'status' => RequisitionStatus::PendingApproval,
             ]);
 
             PurchaseRequestLine::create([
@@ -108,7 +108,7 @@ class ConsignmentService
                 'line_number' => 1,
                 'item_description' => "Consignment consumption in {$data['operating_suite']} by Dr. {$data['surgeon_name']}",
                 'quantity' => $qty,
-                'uom' => $item->unit ?? 'unit',
+                'uom' => $item->unit,
                 'estimated_unit_price' => $unitCost,
                 'estimated_total_price' => $totalCost,
             ]);

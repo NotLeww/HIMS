@@ -4,13 +4,11 @@ namespace Tests\Feature;
 
 use App\Enums\MovementType;
 use App\Enums\NotificationDestination;
-use App\Enums\Permission;
 use App\Enums\PurchaseOrderStatus;
 use App\Enums\UserRole;
 use App\Enums\WarehouseTaskStatus;
 use App\Enums\WarehouseTaskType;
 use App\Models\GoodsReceiptNote;
-use App\Models\GoodsReceiptNoteLine;
 use App\Models\InspectionAcceptanceReport;
 use App\Models\InventoryItem;
 use App\Models\InventorySerial;
@@ -18,7 +16,6 @@ use App\Models\ItemBatch;
 use App\Models\ItemStockLevel;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
-use App\Models\QualityInspection;
 use App\Models\StockMovement;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
@@ -32,9 +29,9 @@ use App\Services\Logistics\InspectionAcceptanceService;
 use App\Services\Warehouse\WarehouseTaskService;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class PostDeliveryReceivingWorkflowTest extends TestCase
@@ -42,16 +39,27 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
     use RefreshDatabase;
 
     private User $receivingClerk;
+
     private User $qcInspector;
+
     private User $warehouseStaff;
+
     private User $procurementOfficer;
+
     private Supplier $supplier;
+
     private StorageLocation $quarantineLocation;
+
     private StorageLocation $stagingLocation;
+
     private StorageLocation $mainWarehouseLocation;
+
     private GoodsReceiptService $receiptService;
+
     private QualityControlService $qcService;
+
     private WarehouseTaskService $taskService;
+
     private InventoryAutomationService $automationService;
 
     protected function setUp(): void
@@ -183,8 +191,8 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
                     'received_quantity' => 20,
                     'batch_number' => 'LOT-001',
                     'expiry_date' => now()->addYear()->toDateString(),
-                ]
-            ]
+                ],
+            ],
         ], $this->receivingClerk);
     }
 
@@ -238,8 +246,8 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
                     'batch_number' => 'LOT-GLV-2026-A',
                     'expiry_date' => now()->addYears(2)->toDateString(),
                     'item_condition' => 'good',
-                ]
-            ]
+                ],
+            ],
         ], $this->receivingClerk);
 
         $this->assertNotNull($grn);
@@ -346,8 +354,8 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
                     'discrepancy_type' => 'shortage',
                     'discrepancy_action' => 'quarantine',
                     'discrepancy_notes' => 'Partial shipment delivered; 7 boxes backordered by supplier.',
-                ]
-            ]
+                ],
+            ],
         ], $this->receivingClerk);
 
         $poLine->refresh();
@@ -364,8 +372,8 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
                     'batch_number' => 'LOT-CEF-P2',
                     'expiry_date' => now()->addMonths(18)->toDateString(),
                     'item_condition' => 'good',
-                ]
-            ]
+                ],
+            ],
         ], $this->receivingClerk);
 
         $poLine->refresh();
@@ -423,8 +431,8 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
                     'po_line_id' => $poLine->id,
                     'received_quantity' => 106,
                     'item_condition' => 'good',
-                ]
-            ]
+                ],
+            ],
         ], $this->receivingClerk);
     }
 
@@ -474,8 +482,8 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
                     'discrepancy_type' => 'damage',
                     'discrepancy_action' => 'quarantine',
                     'discrepancy_notes' => 'Outer carton crushed in transit; inner seals require sterility testing.',
-                ]
-            ]
+                ],
+            ],
         ], $this->receivingClerk);
 
         $line = $grn->lines()->first();
@@ -541,8 +549,8 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
                     'po_line_id' => $poLine->id,
                     'received_quantity' => 1,
                     'serial_number' => 'SN-DEFIB-8888',
-                ]
-            ]
+                ],
+            ],
         ], $this->receivingClerk);
     }
 
@@ -594,8 +602,8 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
                     'batch_number' => 'LOT-AMOX-2026-B1',
                     'expiry_date' => now()->addMonths(24)->toDateString(),
                     'item_condition' => 'good',
-                ]
-            ]
+                ],
+            ],
         ], $this->receivingClerk);
 
         $line = $grn->lines()->first();
@@ -690,8 +698,8 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
                     'batch_number' => 'LOT-INS-TEMP-FAIL',
                     'expiry_date' => now()->addMonths(12)->toDateString(),
                     'item_condition' => 'compromised',
-                ]
-            ]
+                ],
+            ],
         ], $this->receivingClerk);
 
         $line = $grn->lines()->first();
@@ -781,8 +789,8 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
                     'item_condition' => 'good',
                     'batch_number' => 'LOT-SAL-01',
                     'expiry_date' => now()->addYear()->toDateString(),
-                ]
-            ]
+                ],
+            ],
         ]);
 
         $response->assertRedirect(route('inventory.receiving.index'));
@@ -1189,6 +1197,7 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
                 'actual_sku' => $line->item->sku,
                 'actual_purchase_unit' => $line->purchase_unit,
                 'destination_location_id' => $this->mainWarehouseLocation->id,
+                'item_condition' => 'good',
             ], $override)],
         ];
     }

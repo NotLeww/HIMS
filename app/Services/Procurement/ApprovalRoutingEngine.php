@@ -43,7 +43,10 @@ class ApprovalRoutingEngine
      */
     public function routePurchaseOrder(PurchaseOrder $po, ?User $initiator = null): ApprovalChain
     {
-        $initiator = $initiator ?? ($po->purchaseRequest?->requester ?? User::first());
+        $initiator ??= $po->purchaseRequest?->requester ?? $po->createdBy;
+        if (! $initiator) {
+            throw new DomainException('A purchase order initiator is required before routing approval.');
+        }
 
         return $this->instantiateChain(
             ApprovalChainType::PurchaseOrder,
