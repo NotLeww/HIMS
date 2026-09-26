@@ -224,34 +224,34 @@
         <!-- Rejected State -->
         <template x-if="status === 'rejected'">
             <div class="space-y-6 text-center py-2">
-                <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-danger-50 text-danger-600 ring-8 ring-danger-50/50">
+                <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-danger-50 text-danger-700 ring-8 ring-danger-50/50 dark:bg-rose-950/70 dark:text-rose-300 dark:ring-rose-950/40">
                     <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </div>
 
                 <div>
-                    <div class="inline-flex items-center gap-1.5 rounded-full border border-danger-200 bg-danger-50 px-3 py-1 text-xs font-semibold text-danger-700">
+                    <div class="inline-flex items-center gap-1.5 rounded-full border border-danger-200 bg-danger-50 px-3 py-1 text-xs font-semibold text-danger-800 dark:border-rose-800 dark:bg-rose-950/70 dark:text-rose-200">
                         Sign-In Denied
                     </div>
-                    <h2 class="mt-3 text-2xl font-bold tracking-tight text-neutral-900">
+                    <h2 class="mt-3 text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
                         Request Rejected
                     </h2>
-                    <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
+                    <p class="mt-2 text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">
                         This sign-in request was rejected by the account owner on their active device.
                     </p>
                 </div>
 
-                <div class="rounded-xl border border-danger-100 bg-danger-50/50 p-4 text-xs text-danger-700 text-left">
-                    <p class="font-medium">Temporary Security Cooldown Active</p>
-                    <p class="mt-1 text-danger-600 leading-relaxed">
+                <div class="rounded-xl border border-danger-200 bg-danger-50 p-4 text-left text-xs text-danger-900 dark:border-rose-800/80 dark:bg-rose-950/60 dark:text-rose-100">
+                    <p class="font-semibold">Temporary Security Cooldown Active</p>
+                    <p class="mt-1 leading-relaxed text-danger-800 dark:text-rose-200">
                         To protect the account, further sign-in attempts from this unrecognized device are temporarily suspended for 15 minutes.
                     </p>
                 </div>
 
                 <a
                     href="{{ $loginUrl }}"
-                    class="block w-full rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-neutral-800 transition"
+                    class="block w-full rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white dark:focus-visible:ring-offset-neutral-900"
                 >
                     Return to Sign-In
                 </a>
