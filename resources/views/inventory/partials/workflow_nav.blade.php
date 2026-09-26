@@ -1,5 +1,5 @@
 @php
-    $openAlertCount = $openAlertCount ?? \App\Models\StockAlert::active()->count();
+    $openAlertCount = $openAlertCount ?? \App\Models\InventoryItem::active()->needsAttention()->count();
 
     $isStockActive = request()->routeIs('inventory.items*', 'inventory.stock-movements*', 'inventory.adjustments*', 'inventory.cycle-counts*', 'inventory.alerts*');
     $isRequisitionActive = request()->routeIs('inventory.requisitions*', 'inventory.transfers*');

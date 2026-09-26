@@ -197,4 +197,19 @@ class StockAlertReactivityTest extends TestCase
             ->assertSee('Surgical Gloves (Large)')
             ->assertDontSeeText('999');
     }
+
+    public function test_inventory_workflow_navigation_renders_live_alert_count_without_stale_alert_rows(): void
+    {
+        [$user, $item] = $this->stockedItem(quantity: 20, reorderLevel: 50);
+
+        // Delete any persisted alert row to verify the navigation derives the live count
+        StockAlert::query()->delete();
+        $this->assertSame(0, StockAlert::count());
+
+        $this->actingAs($user)->get(route('inventory.alerts'))
+            ->assertOk()
+            ->assertSee('Stock Alerts')
+            ->assertSee('>1</span>', false);
+    }
 }
+
