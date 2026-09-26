@@ -1,11 +1,9 @@
 import './bootstrap';
 
 import Alpine from 'alpinejs';
-import { himsCameraScanner, playScanAudio } from './scanner';
 import { himsTheme, registerThemeWithAlpine } from './theme';
 
 window.Alpine = Alpine;
-window.playScanAudio = playScanAudio;
 window.himsTheme = himsTheme;
 
 himsTheme.init();
@@ -1497,11 +1495,7 @@ const startLoadingIndicators = () => {
     let activeApiRequests = 0;
     let pageTransitionPending = false;
 
-    const continueAfterPaint = (callback) => {
-        window.requestAnimationFrame(() => {
-            window.requestAnimationFrame(callback);
-        });
-    };
+    const continueAfterPaint = (callback) => window.requestAnimationFrame(callback);
 
     const rememberPageTransition = ({ coverCurrentPage = true } = {}) => {
         pageTransitionPending = true;
@@ -1686,18 +1680,16 @@ const startLoadingIndicators = () => {
 
         rememberPageTransition({ coverCurrentPage: false });
 
-        continueAfterPaint(() => {
-            if (!form.isConnected) {
-                reset();
-                return;
-            }
+        if (!form.isConnected) {
+            reset();
+            return;
+        }
 
-            try {
-                HTMLFormElement.prototype.submit.call(form);
-            } catch {
-                reset();
-            }
-        });
+        try {
+            HTMLFormElement.prototype.submit.call(form);
+        } catch {
+            reset();
+        }
     });
 
     document.addEventListener('click', (event) => {
@@ -1802,13 +1794,11 @@ const startLoadingIndicators = () => {
         link.setAttribute('data-hims-navigation-active', '');
         showOverlay('Loading page...');
 
-        continueAfterPaint(() => {
-            try {
-                window.location.assign(url.href);
-            } catch {
-                reset();
-            }
-        });
+        try {
+            window.location.assign(url.href);
+        } catch {
+            reset();
+        }
     });
 
     window.addEventListener('pageshow', (event) => {
@@ -1831,17 +1821,15 @@ const startLoadingIndicators = () => {
             pageTransitionPending = true;
         }
 
-        continueAfterPaint(() => {
-            try {
-                if (replace) {
-                    window.location.replace(url);
-                } else {
-                    window.location.assign(url);
-                }
-            } catch {
-                reset();
+        try {
+            if (replace) {
+                window.location.replace(url);
+            } else {
+                window.location.assign(url);
             }
-        });
+        } catch {
+            reset();
+        }
     };
 };
 
@@ -4708,6 +4696,11 @@ Alpine.data('himsToastNotifications', (initialToasts = []) => ({
     },
 }));
 
-Alpine.data('himsCameraScanner', himsCameraScanner);
+if (document.querySelector('[data-hims-camera-scanner]')) {
+    const { himsCameraScanner, playScanAudio } = await import('./scanner');
+
+    window.playScanAudio = playScanAudio;
+    Alpine.data('himsCameraScanner', himsCameraScanner);
+}
 
 Alpine.start();

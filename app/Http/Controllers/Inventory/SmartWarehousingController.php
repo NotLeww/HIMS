@@ -44,14 +44,23 @@ class SmartWarehousingController extends Controller implements HasMiddleware
 
     public function dashboard(): View
     {
+        $taskMetrics = WarehouseTask::query()
+            ->selectRaw("SUM(CASE WHEN status NOT IN ('completed', 'cancelled') THEN 1 ELSE 0 END) AS open_tasks")
+            ->selectRaw("SUM(CASE WHEN status NOT IN ('completed', 'cancelled') AND due_at < ? THEN 1 ELSE 0 END) AS overdue_tasks", [now()])
+            ->first();
+        $locationMetrics = StorageLocation::query()
+            ->selectRaw('COUNT(*) AS total_locations')
+            ->selectRaw("SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_locations")
+            ->first();
+
         $metrics = [
-            'open_tasks' => WarehouseTask::whereNotIn('status', ['completed', 'cancelled'])->count(),
-            'overdue_tasks' => WarehouseTask::whereNotIn('status', ['completed', 'cancelled'])->where('due_at', '<', now())->count(),
+            'open_tasks' => (int) $taskMetrics->open_tasks,
+            'overdue_tasks' => (int) $taskMetrics->overdue_tasks,
             'open_exceptions' => WarehouseException::where('status', 'open')->count(),
             'narcotics_items' => InventoryItem::where('regulatory_category', 'DANGEROUS_DRUG')->count(),
             'pending_bill_onlys' => SurgicalConsignmentBillOnly::where('status', 'pending_po')->count(),
-            'total_locations' => StorageLocation::count(),
-            'active_locations' => StorageLocation::where('status', 'active')->count(),
+            'total_locations' => (int) $locationMetrics->total_locations,
+            'active_locations' => (int) $locationMetrics->active_locations,
         ];
 
         $recentTasks = WarehouseTask::with(['item', 'sourceLocation', 'destinationLocation', 'assignedTo'])
@@ -69,8 +78,12 @@ class SmartWarehousingController extends Controller implements HasMiddleware
 
     public function locations(Request $request): View
     {
-        $query = StorageLocation::with(['parent', 'children'])
+        $query = StorageLocation::with(['parent.parent.parent.parent.parent', 'children'])
             ->withCount(['stockLevels as active_items_count' => fn ($q) => $q->where('quantity', '>', 0)])
+            ->withCount([
+                'inboundTransfers as pending_transfer_count' => fn ($q) => $q->whereIn('status', ['pending', 'approved', 'in_transit', 'dispatched']),
+                'inboundTasks as pending_task_count' => fn ($q) => $q->whereNotIn('status', ['completed', 'cancelled']),
+            ])
             ->withSum(['stockLevels as total_stock_quantity' => fn ($q) => $q->where('quantity', '>', 0)], 'quantity')
             ->orderBy('code');
 
@@ -94,7 +107,7 @@ class SmartWarehousingController extends Controller implements HasMiddleware
 
         $locations = $query->paginate(25)->withQueryString();
         $locations->getCollection()->transform(function ($loc) {
-            $loc->pending_inbound_count = $loc->pendingInboundCount();
+            $loc->setAttribute('pending_inbound_count', $loc->pendingInboundCount());
 
             return $loc;
         });

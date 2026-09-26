@@ -269,4 +269,29 @@ class StockMovementValidationUxTest extends TestCase
         $response->assertSee('sticky top-0', false);
         $response->assertSee('Initial delivery intake');
     }
+
+    public function test_movement_history_rows_remain_visible_until_a_filter_is_active(): void
+    {
+        [$item, $location] = $this->createStockedItem(15, 'vial');
+        $user = User::factory()->warehouseStaff()->create();
+
+        StockMovement::create([
+            'item_id' => $item->id,
+            'movement_type' => MovementType::StockIn,
+            'quantity' => 15,
+            'to_location_id' => $location->id,
+            'user_id' => $user->id,
+            'moved_at' => now(),
+            'remarks' => "Nurse's intake\nverified",
+        ]);
+
+        $response = $this->actingAs($user)->get(route('inventory.stock-movements'));
+
+        $response->assertOk();
+        $response->assertSee('this.$nextTick(() => this.applyHistoryFilters())', false);
+        $response->assertSee('data-history-row', false);
+        $response->assertSee('data-history-type="stock_in"', false);
+        $response->assertSee('data-history-remarks="Nurse&#039;s intake', false);
+        $response->assertDontSee('x-show="!isFiltered || movementMatches($el.dataset)"', false);
+    }
 }

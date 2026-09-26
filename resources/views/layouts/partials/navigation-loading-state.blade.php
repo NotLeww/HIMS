@@ -32,15 +32,11 @@
                 }
             }
 
-            window.requestAnimationFrame(function () {
-                window.requestAnimationFrame(function () {
-                    if (settings.replace) {
-                        window.location.replace(url);
-                    } else {
-                        window.location.assign(url);
-                    }
-                });
-            });
+            if (settings.replace) {
+                window.location.replace(url);
+            } else {
+                window.location.assign(url);
+            }
         };
     })();
 </script>

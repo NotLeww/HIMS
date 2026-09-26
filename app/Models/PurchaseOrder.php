@@ -191,8 +191,11 @@ class PurchaseOrder extends Model
 
     public function remainingBaseQuantity(): int
     {
-        if ($this->lines()->exists()) {
-            return (int) $this->lines()->with('item')->get()->sum(fn ($line) => $line->remainingBaseQuantity());
+        $hasLines = $this->relationLoaded('lines') ? $this->lines->isNotEmpty() : $this->lines()->exists();
+        if ($hasLines) {
+            $lines = $this->relationLoaded('lines') ? $this->lines : $this->lines()->with('item')->get();
+
+            return (int) $lines->sum(fn ($line) => $line->remainingBaseQuantity());
         }
 
         return max(0, $this->orderedBaseQuantity() - $this->receivedBaseQuantity());

@@ -15,6 +15,7 @@
 ])
 
 <div
+    data-hims-camera-scanner
     x-data="himsCameraScanner({
         containerId: '{{ $id }}-viewport',
         targetInputId: '{{ $targetInputId }}',

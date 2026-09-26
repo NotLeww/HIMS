@@ -62,15 +62,25 @@ class UserController extends Controller implements HasMiddleware
             ->paginate(15)
             ->withQueryString();
 
+        $countRow = User::query()
+            ->selectRaw("SUM(CASE WHEN status != ? THEN 1 ELSE 0 END) AS total_count", [UserStatus::Archived->value])
+            ->selectRaw("SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS active_count", [UserStatus::Active->value])
+            ->selectRaw("SUM(CASE WHEN status = ? AND role IN (?, ?) THEN 1 ELSE 0 END) AS administrator_count", [
+                UserStatus::Active->value,
+                UserRole::Administrator->value,
+                UserRole::SuperAdministrator->value,
+            ])
+            ->first();
+
         return view('admin.users.index', [
             'users' => $users,
             'roles' => UserRole::options(),
             'statuses' => UserStatus::options(),
             'filters' => $request->only(['search', 'role', 'status']),
             'counts' => [
-                'total' => User::where('status', '!=', UserStatus::Archived->value)->count(),
-                'active' => User::active()->count(),
-                'administrators' => User::administrators()->active()->count(),
+                'total' => (int) $countRow->total_count,
+                'active' => (int) $countRow->active_count,
+                'administrators' => (int) $countRow->administrator_count,
             ],
             'manageableAccountIds' => $users->getCollection()
                 ->filter(fn (User $user) => $this->accounts->canManage($request->user(), $user))

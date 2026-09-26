@@ -77,6 +77,16 @@ class StorageLocation extends Model
         return $this->hasMany(ItemStockLevel::class, 'storage_location_id');
     }
 
+    public function inboundTransfers(): HasMany
+    {
+        return $this->hasMany(StockTransfer::class, 'destination_location_id');
+    }
+
+    public function inboundTasks(): HasMany
+    {
+        return $this->hasMany(WarehouseTask::class, 'destination_location_id');
+    }
+
     public function categoryRules(): HasMany
     {
         return $this->hasMany(StorageLocationCategoryRule::class);
@@ -113,6 +123,12 @@ class StorageLocation extends Model
      */
     public function pendingInboundCount(): int
     {
+        if (array_key_exists('pending_transfer_count', $this->attributes)
+            && array_key_exists('pending_task_count', $this->attributes)) {
+            return (int) $this->attributes['pending_transfer_count']
+                + (int) $this->attributes['pending_task_count'];
+        }
+
         $pendingTransfers = StockTransfer::query()
             ->where('destination_location_id', $this->id)
             ->whereIn('status', ['pending', 'approved', 'in_transit', 'dispatched'])

@@ -826,23 +826,27 @@
                        historyType: '',
                        historyLocation: '',
                        totalRows: {{ $movements->count() }},
-                       get isFiltered() {
-                           return !!(this.historySearch.trim() || this.historyType || this.historyLocation);
+                       init() {
+                           this.$nextTick(() => this.applyHistoryFilters());
                        },
-                       matches(type, fromLoc, toLoc, itemText, remarks, userText) {
-                           if (this.historyType && type !== this.historyType) return false;
-                           if (this.historyLocation && fromLoc !== this.historyLocation && toLoc !== this.historyLocation) return false;
-                           if (this.historySearch.trim()) {
-                               const q = this.historySearch.toLowerCase().trim();
-                               const haystack = `${itemText} ${remarks} ${fromLoc} ${toLoc} ${userText}`.toLowerCase();
-                               if (!haystack.includes(q)) return false;
+                       movementMatches(entry, search, type, location) {
+                           if (type && entry.historyType !== type) return false;
+                           if (location && entry.historyFrom !== location && entry.historyTo !== location) return false;
+                           if (search) {
+                               const haystack = `${entry.historyItem} ${entry.historyRemarks} ${entry.historyFrom} ${entry.historyTo} ${entry.historyUser}`.toLowerCase();
+                               if (!haystack.includes(search)) return false;
                            }
                            return true;
                        },
-                       clearFilters() {
-                           this.historySearch = '';
-                           this.historyType = '';
-                           this.historyLocation = '';
+                       applyHistoryFilters() {
+                           const search = (this.$refs.historySearch?.value || '').toLowerCase().trim();
+                           const type = this.$refs.historyType?.value || '';
+                           const location = this.$refs.historyLocation?.value || '';
+                           const hasActiveFilter = !!(search || type || location);
+
+                           this.$root.querySelectorAll('[data-history-row]').forEach((row) => {
+                               row.hidden = hasActiveFilter && !this.movementMatches(row.dataset, search, type, location);
+                           });
                        }
                    }">
             <x-slot:header>
@@ -860,14 +864,16 @@
                     {{-- Search Filter --}}
                     <div class="relative flex-1 sm:w-48 min-w-[150px]">
                         <input type="text"
+                               x-ref="historySearch"
                                x-model="historySearch"
+                               @input="$nextTick(() => applyHistoryFilters())"
                                placeholder="Search movements..."
                                class="w-full rounded-lg border border-neutral-300 py-1.5 pl-8 pr-7 text-xs text-neutral-800 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 shadow-2xs" />
                         <svg class="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-neutral-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                         <button x-show="historySearch"
-                                @click="historySearch = ''"
+                                @click="historySearch = ''; $nextTick(() => applyHistoryFilters())"
                                 type="button"
                                 class="absolute right-2 top-2 text-neutral-400 hover:text-neutral-600">
                             <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -877,6 +883,8 @@
                     {{-- Movement Type Filter --}}
                     <div class="w-full sm:w-40">
                         <select x-model="historyType"
+                                x-ref="historyType"
+                                @change="$nextTick(() => applyHistoryFilters())"
                                 class="w-full rounded-lg border border-neutral-300 py-1.5 px-2 text-xs text-neutral-700 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 shadow-2xs">
                             <option value="">All Movement Types</option>
                             @foreach (\App\Enums\MovementType::cases() as $type)
@@ -888,6 +896,8 @@
                     {{-- Location Filter --}}
                     <div class="w-full sm:w-36">
                         <select x-model="historyLocation"
+                                x-ref="historyLocation"
+                                @change="$nextTick(() => applyHistoryFilters())"
                                 class="w-full rounded-lg border border-neutral-300 py-1.5 px-2 text-xs text-neutral-700 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 shadow-2xs">
                             <option value="">All Locations</option>
                             @foreach ($locations as $loc)
@@ -928,7 +938,13 @@
                                         $destinationName = $movement->reference->name ?? class_basename($movement->reference);
                                     }
                                 @endphp
-                                <tr x-show="matches('{{ $movement->movement_type->value }}', '{{ addslashes($movement->fromLocation?->name ?? '') }}', '{{ addslashes($destinationName ?? '') }}', '{{ addslashes(($movement->item?->name ?? '').' '.($movement->item?->sku ?? '')) }}', '{{ addslashes($movement->remarks ?? '') }}', '{{ addslashes($movement->user?->name ?? '') }}')"
+                                <tr data-history-row
+                                    data-history-type="{{ $movement->movement_type->value }}"
+                                    data-history-from="{{ $movement->fromLocation?->name ?? '' }}"
+                                    data-history-to="{{ $destinationName ?? '' }}"
+                                    data-history-item="{{ ($movement->item?->name ?? '').' '.($movement->item?->sku ?? '') }}"
+                                    data-history-remarks="{{ $movement->remarks ?? '' }}"
+                                    data-history-user="{{ $movement->user?->name ?? '' }}"
                                     class="hover:bg-neutral-50/70 transition-colors">
                                     {{-- Item & Movement Type --}}
                                     <td class="px-4 py-2.5 align-top">
@@ -1022,7 +1038,13 @@
                                 $destinationName = $movement->reference->name ?? class_basename($movement->reference);
                             }
                         @endphp
-                        <div x-show="matches('{{ $movement->movement_type->value }}', '{{ addslashes($movement->fromLocation?->name ?? '') }}', '{{ addslashes($destinationName ?? '') }}', '{{ addslashes(($movement->item?->name ?? '').' '.($movement->item?->sku ?? '')) }}', '{{ addslashes($movement->remarks ?? '') }}', '{{ addslashes($movement->user?->name ?? '') }}')"
+                        <div data-history-row
+                             data-history-type="{{ $movement->movement_type->value }}"
+                             data-history-from="{{ $movement->fromLocation?->name ?? '' }}"
+                             data-history-to="{{ $destinationName ?? '' }}"
+                             data-history-item="{{ ($movement->item?->name ?? '').' '.($movement->item?->sku ?? '') }}"
+                             data-history-remarks="{{ $movement->remarks ?? '' }}"
+                             data-history-user="{{ $movement->user?->name ?? '' }}"
                              class="p-4 space-y-2 hover:bg-neutral-50/70 transition-colors">
                             <div class="flex items-start justify-between gap-2">
                                 <div class="min-w-0">

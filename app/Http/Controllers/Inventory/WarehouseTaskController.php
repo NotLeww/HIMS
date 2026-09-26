@@ -57,11 +57,16 @@ class WarehouseTaskController extends Controller implements HasMiddleware
         $locations = StorageLocation::active()->orderBy('code')->get();
         $items = InventoryItem::query()->active()->orderBy('name')->get();
         $operators = User::active()->get()->filter(fn (User $user) => $user->hasPermission(Permission::ExecuteWarehouseTasks))->sortBy('name')->values();
+        $taskMetrics = WarehouseTask::query()
+            ->selectRaw("SUM(CASE WHEN status NOT IN ('completed', 'cancelled') THEN 1 ELSE 0 END) AS open_count")
+            ->selectRaw("SUM(CASE WHEN status NOT IN ('completed', 'cancelled') AND due_at < ? THEN 1 ELSE 0 END) AS overdue_count", [now()])
+            ->selectRaw("SUM(CASE WHEN status = 'completed' AND DATE(completed_at) = ? THEN 1 ELSE 0 END) AS completed_today_count", [today()->toDateString()])
+            ->first();
         $metrics = [
-            'open' => WarehouseTask::whereNotIn('status', ['completed', 'cancelled'])->count(),
-            'overdue' => WarehouseTask::whereNotIn('status', ['completed', 'cancelled'])->where('due_at', '<', now())->count(),
+            'open' => (int) $taskMetrics->open_count,
+            'overdue' => (int) $taskMetrics->overdue_count,
             'exceptions' => WarehouseException::where('status', 'open')->count(),
-            'completed_today' => WarehouseTask::where('status', 'completed')->whereDate('completed_at', today())->count(),
+            'completed_today' => (int) $taskMetrics->completed_today_count,
         ];
 
         return view('inventory.warehouse_tasks.index', compact('tasks', 'locations', 'items', 'operators', 'metrics'));

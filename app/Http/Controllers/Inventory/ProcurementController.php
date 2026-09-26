@@ -114,7 +114,7 @@ class ProcurementController extends Controller implements HasMiddleware
             ->get();
 
         // Sourcing RFQs
-        $rfqs = SourcingRfq::with(['lines.item', 'quotes.supplier', 'quotes.lines', 'invitations.supplier', 'evaluations'])
+        $rfqs = SourcingRfq::with(['lines.item', 'quotes.supplier', 'quotes.lines', 'invitations.supplier', 'evaluations.quote.supplier'])
             ->latest('id')
             ->get();
 
@@ -128,14 +128,17 @@ class ProcurementController extends Controller implements HasMiddleware
         $approvalChains = ApprovalChain::with(['steps.approver', 'purchaseOrder.lines.item', 'purchaseOrder.supplier'])->latest('id')->get();
 
         $closedStatuses = ['received', 'fulfilled', 'cancelled', 'rejected', 'amended'];
+        $poMetricRow = PurchaseOrder::query()
+            ->selectRaw('SUM(CASE WHEN status NOT IN (?, ?, ?, ?, ?) THEN 1 ELSE 0 END) AS open_count', $closedStatuses)
+            ->selectRaw("SUM(CASE WHEN status IN ('submitted', 'pending', 'pending_approval') THEN 1 ELSE 0 END) AS pending_approval_count")
+            ->selectRaw("SUM(CASE WHEN status IN ('dispatched', 'acknowledged', 'partially_fulfilled') THEN 1 ELSE 0 END) AS in_transit_count")
+            ->selectRaw('SUM(CASE WHEN status NOT IN (?, ?, ?, ?, ?) AND delivery_date IS NOT NULL AND DATE(delivery_date) < ? THEN 1 ELSE 0 END) AS overdue_count', [...$closedStatuses, today()->toDateString()])
+            ->first();
         $poMetrics = [
-            'open' => PurchaseOrder::whereNotIn('status', $closedStatuses)->count(),
-            'pending_approval' => PurchaseOrder::whereIn('status', ['submitted', 'pending', 'pending_approval'])->count(),
-            'in_transit' => PurchaseOrder::whereIn('status', ['dispatched', 'acknowledged', 'partially_fulfilled'])->count(),
-            'overdue' => PurchaseOrder::whereNotIn('status', $closedStatuses)
-                ->whereNotNull('delivery_date')
-                ->whereDate('delivery_date', '<', today())
-                ->count(),
+            'open' => (int) $poMetricRow->open_count,
+            'pending_approval' => (int) $poMetricRow->pending_approval_count,
+            'in_transit' => (int) $poMetricRow->in_transit_count,
+            'overdue' => (int) $poMetricRow->overdue_count,
         ];
 
         $purchaseOrderQuery = PurchaseOrder::with([

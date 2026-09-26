@@ -47,6 +47,12 @@ class CostCenter extends Model
     {
         $year = $year ?? (int) date('Y');
 
+        if ($this->relationLoaded('budgets')) {
+            return $this->budgets->first(
+                fn (CostCenterBudget $budget) => (int) $budget->fiscal_year === $year
+            );
+        }
+
         return $this->budgets()->where('fiscal_year', $year)->first();
     }
 

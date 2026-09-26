@@ -121,14 +121,15 @@ class InventoryItemController extends Controller implements HasMiddleware
             ->orderBy('name')
             ->get()
             ->mapWithKeys(fn (ItemCategory $category) => [$category->id => $category->fullPath()]);
-        $filterLocations = StorageLocation::active()
-            ->with('parent')
+        $allLocations = StorageLocation::query()
+            ->with('parent.parent.parent.parent.parent')
             ->orderBy('name')
             ->get();
+        $filterLocations = $allLocations
+            ->where('status', 'active')
+            ->values();
         $locationOptions = $canManageItems
-            ? StorageLocation::with('parent')
-                ->orderBy('name')
-                ->get()
+            ? $allLocations
                 ->map(fn (StorageLocation $location) => [
                     'id' => $location->id,
                     'name' => $location->name,
@@ -142,9 +143,7 @@ class InventoryItemController extends Controller implements HasMiddleware
                 ])
             : collect();
         $locations = $canManageItems
-            ? StorageLocation::with('parent')
-                ->orderBy('name')
-                ->get()
+            ? $allLocations
                 ->mapWithKeys(fn (StorageLocation $location) => [$location->id => $location->displayOptionLabel()])
             : collect();
         $unitOptions = $canManageItems

@@ -79,21 +79,30 @@ class LogisticsController extends Controller implements HasMiddleware
      */
     public function dashboard(): View
     {
+        $documentMetrics = LogisticsDocument::query()
+            ->selectRaw("SUM(CASE WHEN status != 'archived' THEN 1 ELSE 0 END) AS total_documents")
+            ->selectRaw("SUM(CASE WHEN status IN ('submitted', 'pending_verification') THEN 1 ELSE 0 END) AS pending_verification")
+            ->first();
+        $iarMetrics = InspectionAcceptanceReport::query()
+            ->selectRaw("SUM(CASE WHEN status = 'pending_inspection' THEN 1 ELSE 0 END) AS pending_inspection")
+            ->selectRaw("SUM(CASE WHEN status = 'inspected_passed' THEN 1 ELSE 0 END) AS pending_acceptance")
+            ->selectRaw("SUM(CASE WHEN status = 'accepted' AND coa_transmitted_at IS NULL AND acceptance_date <= ? THEN 1 ELSE 0 END) AS coa_due", [now()->subDays(3)->toDateString()])
+            ->first();
+        $shipmentMetrics = Shipment::query()
+            ->selectRaw("SUM(CASE WHEN status IN ('dispatched', 'in_transit', 'customs_hold') THEN 1 ELSE 0 END) AS active_shipments")
+            ->selectRaw('SUM(CASE WHEN temp_excursion = ? THEN 1 ELSE 0 END) AS dock_excursions', [true])
+            ->selectRaw("SUM(CASE WHEN status NOT IN ('arrived_at_dock', 'received') AND estimated_delivery_date IS NOT NULL AND estimated_delivery_date < ? THEN 1 ELSE 0 END) AS overdue_shipments", [now()->toDateString()])
+            ->first();
+
         $metrics = [
-            'total_documents' => LogisticsDocument::where('status', '!=', 'archived')->count(),
-            'pending_verification' => LogisticsDocument::whereIn('status', ['submitted', 'pending_verification'])->count(),
-            'iar_pending_inspection' => InspectionAcceptanceReport::where('status', 'pending_inspection')->count(),
-            'iar_pending_acceptance' => InspectionAcceptanceReport::where('status', 'inspected_passed')->count(),
-            'iar_coa_due' => InspectionAcceptanceReport::where('status', 'accepted')
-                ->whereNull('coa_transmitted_at')
-                ->where('acceptance_date', '<=', now()->subDays(3)->toDateString())
-                ->count(),
-            'active_shipments' => Shipment::whereIn('status', ['dispatched', 'in_transit', 'customs_hold'])->count(),
-            'dock_excursions' => Shipment::where('temp_excursion', true)->count(),
-            'overdue_shipments' => Shipment::whereNotIn('status', ['arrived_at_dock', 'received'])
-                ->whereNotNull('estimated_delivery_date')
-                ->where('estimated_delivery_date', '<', now()->toDateString())
-                ->count(),
+            'total_documents' => (int) $documentMetrics->total_documents,
+            'pending_verification' => (int) $documentMetrics->pending_verification,
+            'iar_pending_inspection' => (int) $iarMetrics->pending_inspection,
+            'iar_pending_acceptance' => (int) $iarMetrics->pending_acceptance,
+            'iar_coa_due' => (int) $iarMetrics->coa_due,
+            'active_shipments' => (int) $shipmentMetrics->active_shipments,
+            'dock_excursions' => (int) $shipmentMetrics->dock_excursions,
+            'overdue_shipments' => (int) $shipmentMetrics->overdue_shipments,
         ];
 
         $recentShipments = Shipment::with(['purchaseOrder', 'supplier'])
