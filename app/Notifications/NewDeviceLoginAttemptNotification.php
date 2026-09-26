@@ -2,20 +2,18 @@
 
 namespace App\Notifications;
 
+use App\Models\LoginApprovalRequest;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\URL;
 
 class NewDeviceLoginAttemptNotification extends Notification
 {
     use Queueable;
 
     public function __construct(
-        public readonly string $deviceSummary,
-        public readonly ?string $ipAddress,
-        public readonly string $requestedAt,
-        #[\SensitiveParameter] public readonly ?string $otp = null,
-        public readonly int $expiresInMinutes = 5,
+        public readonly LoginApprovalRequest $approvalRequest,
     ) {}
 
     /**
@@ -28,12 +26,21 @@ class NewDeviceLoginAttemptNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
+        $approval = $this->approvalRequest;
+        $url = fn (string $decision): string => URL::temporarySignedRoute(
+            'auth.device-approval.email.review',
+            $approval->expires_at,
+            ['approvalRequest' => $approval->id, 'decision' => $decision],
+        );
+
         $data = [
-            'deviceSummary' => $this->deviceSummary,
-            'ipAddress' => $this->ipAddress,
-            'requestedAt' => $this->requestedAt,
-            'otp' => $this->otp,
-            'expiresInMinutes' => $this->expiresInMinutes,
+            'deviceSummary' => $approval->device_name ?: 'Unknown device',
+            'ipAddress' => $approval->ip_address,
+            'requestedAt' => $approval->requested_at->timezone(config('app.timezone', 'UTC'))->format('M d, Y h:i A'),
+            'expiresInMinutes' => max(1, now()->diffInMinutes($approval->expires_at)),
+            'approveOnceUrl' => $url('approve-once'),
+            'approveTrustUrl' => $url('approve-trust'),
+            'denyUrl' => $url('deny'),
         ];
 
         return (new MailMessage)

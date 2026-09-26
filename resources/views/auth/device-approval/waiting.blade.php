@@ -11,7 +11,6 @@
             claimUrl: '{{ $claimUrl }}',
             cancelUrl: '{{ $cancelUrl }}',
             loginUrl: '{{ $loginUrl }}',
-            trustDevice: true,
             isSubmittingClaim: false,
             isPollingStatus: false,
             pollTimer: null,
@@ -43,7 +42,7 @@
                 this.pollTimer = setInterval(() => {
                     if (document.hidden) return;
                     this.checkStatus();
-                }, 2500);
+                }, {{ (int) $pollIntervalMilliseconds }});
             },
 
             stopPolling() {
@@ -106,9 +105,7 @@
                             'X-CSRF-TOKEN': '{{ csrf_token() }}',
                             'X-Requested-With': 'XMLHttpRequest'
                         },
-                        body: JSON.stringify({
-                            trust_device: this.trustDevice
-                        })
+                        body: JSON.stringify({})
                     });
 
                     const data = await response.json();
@@ -147,10 +144,10 @@
                     </div>
 
                     <h1 class="mt-3 text-2xl font-bold tracking-tight text-neutral-900">
-                        Approve on Active Device
+                        Check Your Email
                     </h1>
                     <p class="mt-2 text-sm leading-relaxed text-neutral-600">
-                        A sign-in request was sent to your currently active HIMS session. Please review and confirm the prompt on your other device.
+                        We sent a sign-in approval request to your registered email. If another trusted session is active, you can also approve it there.
                     </p>
                 </header>
 
@@ -165,20 +162,12 @@
                     </div>
                 </div>
 
-                <div class="rounded-lg border border-neutral-200 bg-white p-3 text-xs text-neutral-600">
-                    <label class="flex items-start gap-2.5 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            x-model="trustDevice"
-                            class="mt-0.5 rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
-                        />
-                        <span>
-                            <strong class="font-medium text-neutral-800">Trust this device for 30 days</strong>
-                            <br>
-                            <span class="text-neutral-500">Future sign-ins from this device will take over without needing another approval.</span>
-                        </span>
-                    </label>
-                </div>
+                <form method="POST" action="{{ $resendUrl }}">
+                    @csrf
+                    <button type="submit" data-loading-text="Resending..." class="w-full rounded-lg border border-primary-300 bg-primary-50 px-4 py-2.5 text-sm font-semibold text-primary-700 transition hover:bg-primary-100 dark:border-primary-800 dark:bg-primary-950/50 dark:text-primary-300">
+                        Resend Approval Email
+                    </button>
+                </form>
 
                 <form method="POST" action="{{ $cancelUrl }}">
                     @csrf
@@ -238,7 +227,7 @@
                         Request Rejected
                     </h2>
                     <p class="mt-2 text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">
-                        This sign-in request was rejected by the account owner on their active device.
+                        This sign-in request was rejected by the account owner.
                     </p>
                 </div>
 

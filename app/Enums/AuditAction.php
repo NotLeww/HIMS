@@ -125,6 +125,10 @@ enum AuditAction: string
     case ExecutedDataRetention = 'executed_data_retention';
     case ExportedSystemReport = 'exported_system_report';
     case LoginApprovalRequested = 'login_approval_requested';
+    case LoginApprovalEmailSent = 'login_approval_email_sent';
+    case LoginApprovalEmailResent = 'login_approval_email_resent';
+    case LoginApprovalApprovedOnce = 'login_approval_approved_once';
+    case LoginApprovalApprovedAndTrusted = 'login_approval_approved_and_trusted';
     case LoginApprovalApproved = 'login_approval_approved';
     case LoginApprovalRejected = 'login_approval_rejected';
     case LoginApprovalExpired = 'login_approval_expired';
@@ -257,6 +261,10 @@ enum AuditAction: string
             self::ExecutedDataRetention => 'Executed Data Retention',
             self::ExportedSystemReport => 'Exported System Report',
             self::LoginApprovalRequested => 'Login Approval Requested',
+            self::LoginApprovalEmailSent => 'Login Approval Email Sent',
+            self::LoginApprovalEmailResent => 'Login Approval Email Resent',
+            self::LoginApprovalApprovedOnce => 'Login Approved Once',
+            self::LoginApprovalApprovedAndTrusted => 'Login Approved and Device Trusted',
             self::LoginApprovalApproved => 'Login Approval Approved',
             self::LoginApprovalRejected => 'Login Approval Rejected',
             self::LoginApprovalExpired => 'Login Approval Expired',
@@ -280,6 +288,10 @@ enum AuditAction: string
                 self::TemporarilyLockedUser,
                 self::UnlockedUser,
                 self::LoginApprovalRequested,
+                self::LoginApprovalEmailSent,
+                self::LoginApprovalEmailResent,
+                self::LoginApprovalApprovedOnce,
+                self::LoginApprovalApprovedAndTrusted,
                 self::LoginApprovalApproved,
                 self::LoginApprovalRejected,
                 self::LoginApprovalExpired,

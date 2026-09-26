@@ -142,6 +142,8 @@ return [
         'device_rejection_cooldown_minutes' => (int) env('AUTH_DEVICE_COOLDOWN_MINUTES', 15),
         'approval_creation_max_attempts' => (int) env('AUTH_DEVICE_APPROVAL_MAX_ATTEMPTS', 3),
         'approval_creation_decay_seconds' => (int) env('AUTH_DEVICE_APPROVAL_DECAY_SECONDS', 60),
+        'approval_resend_cooldown_seconds' => (int) env('AUTH_DEVICE_APPROVAL_RESEND_COOLDOWN_SECONDS', 60),
+        'approval_poll_interval_seconds' => (int) env('AUTH_DEVICE_APPROVAL_POLL_INTERVAL_SECONDS', 3),
         'cookie_name' => env('AUTH_TRUSTED_DEVICE_COOKIE', 'hims_trusted_device'),
         'cookie_secure' => env('SESSION_SECURE_COOKIE', false),
     ],

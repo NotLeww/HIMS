@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
@@ -48,6 +49,8 @@ class DeviceApprovalController extends Controller
             'statusUrl' => route('auth.device-approval.status', $approvalRequest),
             'claimUrl' => route('auth.device-approval.claim', $approvalRequest),
             'cancelUrl' => route('auth.device-approval.cancel', $approvalRequest),
+            'resendUrl' => route('auth.device-approval.resend-email', $approvalRequest),
+            'pollIntervalMilliseconds' => max(1000, (int) config('auth.device_security.approval_poll_interval_seconds', 3) * 1000),
         ]);
     }
 
@@ -88,8 +91,6 @@ class DeviceApprovalController extends Controller
     public function claim(Request $request, LoginApprovalRequest $approvalRequest): JsonResponse|RedirectResponse
     {
         $challengeHash = $this->deviceSecurity->approvalChallengeHash($request, $approvalRequest);
-        $trustDevice = $request->boolean('trust_device', true);
-
         if ($challengeHash === null) {
             return response()->json([
                 'success' => false,
@@ -102,7 +103,6 @@ class DeviceApprovalController extends Controller
                 $approvalRequest,
                 $challengeHash,
                 $request,
-                $trustDevice,
             );
             $this->deviceSecurity->forgetApprovalChallenge($request, $approvalRequest);
 
@@ -149,6 +149,29 @@ class DeviceApprovalController extends Controller
                 'email' => 'The approved session could not be established. Please sign in again.',
             ]);
         }
+    }
+
+    /**
+     * Safely handle old or cached cancellation links without mutating state on GET.
+     */
+    public function confirmCancellation(Request $request, LoginApprovalRequest $approvalRequest): View|RedirectResponse
+    {
+        $challengeHash = $this->deviceSecurity->approvalChallengeHash($request, $approvalRequest);
+        $panel = AuthenticationPanel::forGuard($approvalRequest->guard);
+
+        if ($challengeHash === null
+            || ! hash_equals($approvalRequest->challenge_token_hash, $challengeHash)
+            || $approvalRequest->status !== LoginApprovalRequest::STATUS_PENDING
+            || $approvalRequest->isExpired()) {
+            return redirect()->route($panel->loginRoute());
+        }
+
+        return view('auth.device-approval.cancel-confirmation', [
+            'approvalRequest' => $approvalRequest,
+            'panel' => $panel,
+            'cancelUrl' => route('auth.device-approval.cancel', $approvalRequest),
+            'waitingUrl' => route('auth.device-approval.waiting', $approvalRequest),
+        ]);
     }
 
     /**
@@ -277,19 +300,19 @@ class DeviceApprovalController extends Controller
                 ->withErrors(['email' => 'This verification session is no longer valid. Please sign in again.']);
         }
 
-        $throttleKey = 'resend-device-otp:'.$approvalRequest->id;
-        if (RateLimiter::tooManyAttempts($throttleKey, 3)) {
+        $throttleKey = 'resend-device-approval:'.$approvalRequest->id;
+        if (RateLimiter::tooManyAttempts($throttleKey, 1)) {
             $seconds = RateLimiter::availableIn($throttleKey);
 
             return back()->withErrors([
-                'otp' => "Please wait {$seconds} seconds before requesting another code.",
+                'email' => "Please wait {$seconds} seconds before resending the approval email.",
             ]);
         }
 
-        $this->deviceSecurity->resendEmailOtp($approvalRequest, $challengeHash);
-        RateLimiter::hit($throttleKey, 60);
+        $this->deviceSecurity->resendApprovalEmail($approvalRequest, $challengeHash);
+        RateLimiter::hit($throttleKey, (int) config('auth.device_security.approval_resend_cooldown_seconds', 60));
 
-        return back()->with('status', 'A new verification code has been sent to your email.');
+        return back()->with('status', 'The sign-in approval email was resent.');
     }
 
     /**
@@ -342,7 +365,11 @@ class DeviceApprovalController extends Controller
         abort_unless($user instanceof User, 401);
 
         try {
-            $this->deviceSecurity->approveRequest($approvalRequest, $user);
+            $this->deviceSecurity->approveRequest(
+                $approvalRequest,
+                $user,
+                $request->boolean('trust_device'),
+            );
 
             return response()->json([
                 'success' => true,
@@ -361,6 +388,53 @@ class DeviceApprovalController extends Controller
                 'success' => false,
                 'message' => 'The sign-in request could not be approved. Please try again.',
             ], 500);
+        }
+    }
+
+    public function reviewEmailDecision(LoginApprovalRequest $approvalRequest, string $decision): View
+    {
+        $available = $approvalRequest->status === LoginApprovalRequest::STATUS_PENDING
+            && ! $approvalRequest->isExpired();
+
+        $confirmUrl = URL::temporarySignedRoute(
+            'auth.device-approval.email.confirm',
+            $approvalRequest->expires_at,
+            ['approvalRequest' => $approvalRequest->id, 'decision' => $decision],
+        );
+
+        return view('auth.device-approval.email-decision', compact(
+            'approvalRequest',
+            'decision',
+            'available',
+            'confirmUrl',
+        ) + [
+            'panel' => AuthenticationPanel::forGuard($approvalRequest->guard),
+        ]);
+    }
+
+    public function confirmEmailDecision(LoginApprovalRequest $approvalRequest, string $decision): View
+    {
+        try {
+            if ($decision === 'deny') {
+                $this->deviceSecurity->rejectRequest($approvalRequest, $approvalRequest->user);
+                $message = 'The sign-in request was denied.';
+            } else {
+                $trustDevice = $decision === 'approve-trust';
+                $this->deviceSecurity->approveRequest($approvalRequest, $approvalRequest->user, $trustDevice);
+                $message = $trustDevice
+                    ? 'The sign-in was approved and the requesting browser may become trusted.'
+                    : 'The sign-in was approved for this attempt only.';
+            }
+
+            return view('auth.device-approval.email-result', [
+                'success' => true,
+                'message' => $message,
+            ]);
+        } catch (ConflictHttpException $e) {
+            return view('auth.device-approval.email-result', [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 

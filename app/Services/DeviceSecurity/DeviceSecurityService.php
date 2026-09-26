@@ -147,11 +147,7 @@ class DeviceSecurityService
             return DeviceLoginResult::trusted();
         }
 
-        // 3. Device is UNKNOWN. Check if the account has an active session right now.
-        $activeSession = UserActiveSession::query()
-            ->where('user_id', $user->id)
-            ->first();
-
+        // 3. Every untrusted device requires an explicit owner decision.
         $deviceContext = $this->resolveDeviceContext($request);
         $fingerprint = $this->resolveDeviceFingerprint($request);
         $lifetimeMinutes = (int) config('auth.device_security.approval_request_lifetime_minutes', 5);
@@ -170,81 +166,7 @@ class DeviceSecurityService
 
         RateLimiter::hit($requestLimitKey, $decaySeconds);
 
-        if ($activeSession !== null) {
-            // Scenario 1: Active session exists on another device!
-            // Create pending login approval request. Device B does NOT get a session yet.
-            $challengeToken = Str::random(64);
-            $challengeHash = hash('sha256', $challengeToken);
-
-            $approvalRequest = $this->createPendingApprovalRequest($user, [
-                'user_id' => $user->id,
-                'guard' => $guard,
-                'remember' => $remember,
-                'challenge_token_hash' => $challengeHash,
-                'status' => LoginApprovalRequest::STATUS_PENDING,
-                'ip_address' => $request->ip(),
-                'device_fingerprint' => $fingerprint,
-                'device_name' => $deviceContext['device_name'],
-                'platform' => $deviceContext['operating_system'],
-                'browser' => $deviceContext['browser'],
-                'requested_at' => now(),
-                'expires_at' => now()->addMinutes($lifetimeMinutes),
-            ]);
-
-            $this->auditLogger->log(
-                AuditAction::LoginApprovalRequested,
-                null,
-                "Sign-in approval requested for an unrecognized device: {$deviceContext['device_name']}.",
-                $user,
-                'Account',
-                source: 'system',
-            );
-
-            try {
-                $user->notify(new NewDeviceLoginAttemptNotification(
-                    $deviceContext['device_name'],
-                    $request->ip(),
-                    now()->timezone(config('app.timezone', 'UTC'))->format('M d, Y h:i A'),
-                    otp: null,
-                    expiresInMinutes: $lifetimeMinutes,
-                ));
-            } catch (Throwable $e) {
-                Log::warning('Login approval email could not be sent.', [
-                    'user_id' => $user->getKey(),
-                    'exception' => $e::class,
-                ]);
-            }
-
-            return DeviceLoginResult::waitingApproval($approvalRequest, $challengeToken);
-        }
-
-        // Scenario 2: User is NOT currently logged in anywhere and an unknown device signs in.
-        // Fallback: require secondary verification (MFA or Email OTP).
-        if ($user->authenticatorMfaEnabled() || $user->sms_mfa_enabled) {
-            // Account already enforces Authenticator or SMS MFA.
-            // Send the security email alert and proceed with MFA challenge.
-            try {
-                $user->notify(new NewDeviceLoginAttemptNotification(
-                    $deviceContext['device_name'],
-                    $request->ip(),
-                    now()->timezone(config('app.timezone', 'UTC'))->format('M d, Y h:i A'),
-                    otp: null,
-                    expiresInMinutes: $lifetimeMinutes,
-                ));
-            } catch (Throwable $e) {
-                Log::warning('Security sign-in email could not be sent.', [
-                    'user_id' => $user->getKey(),
-                    'exception' => $e::class,
-                ]);
-            }
-
-            return DeviceLoginResult::proceedWithMfa();
-        }
-
-        // User has no Authenticator or SMS MFA. Issue email confirmation OTP for the new device.
-        $otp = sprintf('%06d', random_int(100000, 999999));
         $challengeToken = Str::random(64);
-
         $approvalRequest = $this->createPendingApprovalRequest($user, [
             'user_id' => $user->id,
             'guard' => $guard,
@@ -258,14 +180,12 @@ class DeviceSecurityService
             'browser' => $deviceContext['browser'],
             'requested_at' => now(),
             'expires_at' => now()->addMinutes($lifetimeMinutes),
-            'email_otp_hash' => hash('sha256', $otp),
-            'email_otp_expires_at' => now()->addMinutes($lifetimeMinutes),
         ]);
 
         $this->auditLogger->log(
             AuditAction::LoginApprovalRequested,
             null,
-            "New device verification requested for {$deviceContext['device_name']}.",
+            "Sign-in approval requested for an unrecognized device: {$deviceContext['device_name']}.",
             $user,
             'Account',
             source: 'system',
@@ -273,14 +193,19 @@ class DeviceSecurityService
 
         try {
             $user->notify(new NewDeviceLoginAttemptNotification(
-                $deviceContext['device_name'],
-                $request->ip(),
-                now()->timezone(config('app.timezone', 'UTC'))->format('M d, Y h:i A'),
-                otp: $otp,
-                expiresInMinutes: $lifetimeMinutes,
+                $approvalRequest,
             ));
+
+            $this->auditLogger->log(
+                AuditAction::LoginApprovalEmailSent,
+                null,
+                'Sent sign-in approval email.',
+                $user,
+                'Account',
+                source: 'system',
+            );
         } catch (Throwable $e) {
-            Log::warning('Device verification email could not be sent.', [
+            Log::warning('Login approval email could not be sent.', [
                 'user_id' => $user->getKey(),
                 'exception' => $e::class,
             ]);
@@ -288,11 +213,11 @@ class DeviceSecurityService
             $approvalRequest->update(['status' => LoginApprovalRequest::STATUS_CANCELLED]);
 
             throw ValidationException::withMessages([
-                'email' => 'We could not send a device verification code. Please try again.',
+                'email' => 'We could not send the sign-in approval email. Please try again.',
             ]);
         }
 
-        return DeviceLoginResult::makeEmailConfirmationRequired($approvalRequest, $challengeToken);
+        return DeviceLoginResult::waitingApproval($approvalRequest, $challengeToken);
     }
 
     /**
@@ -300,13 +225,13 @@ class DeviceSecurityService
      *
      * @throws ConflictHttpException
      */
-    public function approveRequest(LoginApprovalRequest $request, User $actor): void
+    public function approveRequest(LoginApprovalRequest $request, User $actor, bool $trustDevice = false): void
     {
         if ($this->expireApprovalRequestIfNeeded($request)) {
             throw new ConflictHttpException('This sign-in request has expired.');
         }
 
-        DB::transaction(function () use ($request, $actor) {
+        DB::transaction(function () use ($request, $actor, $trustDevice) {
             User::query()->whereKey($actor->getKey())->lockForUpdate()->firstOrFail();
 
             /** @var LoginApprovalRequest|null $locked */
@@ -331,6 +256,7 @@ class DeviceSecurityService
                 'status' => LoginApprovalRequest::STATUS_APPROVED,
                 'approved_at' => now(),
                 'responded_by_user_id' => $actor->id,
+                'trust_device_on_approval' => $trustDevice,
             ]);
 
             LoginApprovalRequest::query()
@@ -345,9 +271,9 @@ class DeviceSecurityService
                 ->update(['session_id' => 'superseded_'.Str::random(24)]);
 
             $this->auditLogger->log(
-                AuditAction::LoginApprovalApproved,
+                $trustDevice ? AuditAction::LoginApprovalApprovedAndTrusted : AuditAction::LoginApprovalApprovedOnce,
                 $actor,
-                "Approved sign-in for {$locked->device_name}. Previous active session revoked.",
+                ($trustDevice ? 'Approved and trusted' : 'Approved once')." sign-in for {$locked->device_name}. Previous active session revoked.",
                 $locked->user,
                 'Account',
             );
@@ -466,13 +392,12 @@ class DeviceSecurityService
         LoginApprovalRequest $request,
         string $challengeHash,
         Request $httpRequest,
-        bool $trustDevice = false,
     ): User {
         if ($this->expireApprovalRequestIfNeeded($request)) {
             throw new ConflictHttpException('This approval request has expired.');
         }
 
-        $user = DB::transaction(function () use ($request, $challengeHash, $httpRequest, $trustDevice) {
+        $user = DB::transaction(function () use ($request, $challengeHash, $httpRequest) {
             /** @var LoginApprovalRequest|null $locked */
             $locked = LoginApprovalRequest::query()
                 ->where('id', $request->id)
@@ -499,7 +424,7 @@ class DeviceSecurityService
             $httpRequest->session()->regenerate();
 
             $trusted = null;
-            if ($trustDevice) {
+            if ($locked->trust_device_on_approval) {
                 $trusted = $this->registerTrustedDevice($user, $httpRequest);
             }
 
@@ -601,54 +526,44 @@ class DeviceSecurityService
         });
     }
 
-    /**
-     * Resend Scenario 2 email OTP.
-     *
-     * @throws ValidationException
-     */
-    public function resendEmailOtp(LoginApprovalRequest $request, string $challengeHash): void
+    /** @throws ValidationException */
+    public function resendApprovalEmail(LoginApprovalRequest $request, string $challengeHash): void
     {
         if ($this->expireApprovalRequestIfNeeded($request)) {
-            throw ValidationException::withMessages(['otp' => 'This verification request is no longer pending.']);
+            throw ValidationException::withMessages(['email' => 'This approval request is no longer pending.']);
         }
 
         $locked = LoginApprovalRequest::query()->where('id', $request->id)->firstOrFail();
 
         if (! hash_equals($locked->challenge_token_hash, $challengeHash)) {
-            throw ValidationException::withMessages(['otp' => 'Invalid verification token.']);
+            throw ValidationException::withMessages(['email' => 'Invalid approval request.']);
         }
 
         if ($locked->status !== LoginApprovalRequest::STATUS_PENDING || $locked->isExpired()) {
-            throw ValidationException::withMessages(['otp' => 'This verification request is no longer pending.']);
+            throw ValidationException::withMessages(['email' => 'This approval request is no longer pending.']);
         }
 
-        $newOtp = sprintf('%06d', random_int(100000, 999999));
-        $lifetimeMinutes = (int) config('auth.device_security.approval_request_lifetime_minutes', 5);
-
         try {
-            $locked->user->notify(new NewDeviceLoginAttemptNotification(
-                $locked->device_name ?: 'New Device',
-                $locked->ip_address,
-                now()->timezone(config('app.timezone', 'UTC'))->format('M d, Y h:i A'),
-                otp: $newOtp,
-                expiresInMinutes: $lifetimeMinutes,
-            ));
+            $locked->user->notify(new NewDeviceLoginAttemptNotification($locked));
         } catch (Throwable $e) {
-            Log::warning('Resent verification email failed.', [
+            Log::warning('Resent login approval email failed.', [
                 'user_id' => $locked->user_id,
                 'exception' => $e::class,
             ]);
 
             throw ValidationException::withMessages([
-                'otp' => 'We could not send a new verification code. Please try again.',
+                'email' => 'We could not resend the approval email. Please try again.',
             ]);
         }
 
-        $locked->update([
-            'email_otp_hash' => hash('sha256', $newOtp),
-            'email_otp_expires_at' => now()->addMinutes($lifetimeMinutes),
-            'expires_at' => now()->addMinutes($lifetimeMinutes),
-        ]);
+        $this->auditLogger->log(
+            AuditAction::LoginApprovalEmailResent,
+            null,
+            'Resent sign-in approval email.',
+            $locked->user,
+            'Account',
+            source: 'system',
+        );
     }
 
     /**

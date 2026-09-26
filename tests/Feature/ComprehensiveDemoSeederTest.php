@@ -19,7 +19,6 @@ use App\Models\SystemRecoveryRecord;
 use App\Models\User;
 use App\Models\WarehouseTask;
 use Database\Seeders\ComprehensiveDemoSeeder;
-use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\ConfiguresAccountProvisioning;
 use Tests\TestCase;
@@ -36,9 +35,9 @@ class ComprehensiveDemoSeederTest extends TestCase
         $this->configureAccountProvisioning();
     }
 
-    public function test_default_seeder_provides_database_records_for_every_demo_module(): void
+    public function test_opt_in_seeder_provides_database_records_for_every_demo_module(): void
     {
-        $this->seed(DatabaseSeeder::class);
+        $this->seed(ComprehensiveDemoSeeder::class);
 
         foreach (UserRole::cases() as $role) {
             $this->assertTrue(User::active()->role($role)->exists(), "Missing active {$role->label()} demo account.");

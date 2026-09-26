@@ -4,13 +4,19 @@ This dataset is intended for local demonstrations, development, and guided testi
 
 ## Seed command
 
-After the schema has been migrated on a local or disposable database, run the standard seeder:
+The standard seeder never creates demonstration or synthetic operational data. It provisions only owner accounts that were explicitly configured through `HIMS_SUPER_ADMIN_*` or `HIMS_OWNER_ADMIN_*`:
 
 ```powershell
 php artisan db:seed
 ```
 
-In non-production environments, `DatabaseSeeder` delegates to `ComprehensiveDemoSeeder`, which is the canonical entry point for every HIMS demo module. You can also run it directly with `php artisan db:seed --class=ComprehensiveDemoSeeder`.
+To deliberately create demonstration data on an isolated, disposable non-production database, invoke the opt-in seeder directly:
+
+```powershell
+php artisan db:seed --class=ComprehensiveDemoSeeder
+```
+
+Never run the comprehensive demo seeder against a database intended to contain real operational records.
 
 The seeders persist their records in the database, preserve existing demo accounts and records when run again, and do not wipe the database. Application screens read these stored records through their normal models and queries; seed definitions are not rendered directly by the UI.
 

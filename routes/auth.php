@@ -23,6 +23,17 @@ Route::get('session/expired', [AuthenticatedSessionController::class, 'expired']
     ->middleware('signed:relative')
     ->name('session.expired');
 
+// Email links are read-only GET previews. Only the signed POST confirmation
+// can approve, trust, or deny a pending sign-in request.
+Route::get('device-approval/{approvalRequest}/email/{decision}', [DeviceApprovalController::class, 'reviewEmailDecision'])
+    ->where('decision', 'approve-once|approve-trust|deny')
+    ->middleware(['signed', 'throttle:20,1'])
+    ->name('auth.device-approval.email.review');
+Route::post('device-approval/{approvalRequest}/email/{decision}', [DeviceApprovalController::class, 'confirmEmailDecision'])
+    ->where('decision', 'approve-once|approve-trust|deny')
+    ->middleware(['signed', 'throttle:10,1'])
+    ->name('auth.device-approval.email.confirm');
+
 Route::middleware(['guest:web', 'guest:admin', 'guest:super_admin'])->group(function () {
     Route::get('register', [RegisteredUserController::class, 'create'])
         ->name('register');
@@ -102,14 +113,12 @@ Route::middleware(['guest:web', 'guest:admin', 'guest:super_admin'])->group(func
     Route::post('device-approval/{approvalRequest}/claim', [DeviceApprovalController::class, 'claim'])
         ->middleware('throttle:10,1')
         ->name('auth.device-approval.claim');
+    Route::get('device-approval/{approvalRequest}/cancel', [DeviceApprovalController::class, 'confirmCancellation'])
+        ->middleware('throttle:10,1')
+        ->name('auth.device-approval.cancel-confirmation');
     Route::post('device-approval/{approvalRequest}/cancel', [DeviceApprovalController::class, 'cancel'])
         ->middleware('throttle:10,1')
         ->name('auth.device-approval.cancel');
-    Route::get('device-approval/{approvalRequest}/verify-email', [DeviceApprovalController::class, 'verifyEmail'])
-        ->name('auth.device-approval.verify-email');
-    Route::post('device-approval/{approvalRequest}/verify-email', [DeviceApprovalController::class, 'submitEmailOtp'])
-        ->middleware('throttle:6,1')
-        ->name('auth.device-approval.verify-email.post');
     Route::post('device-approval/{approvalRequest}/resend-email', [DeviceApprovalController::class, 'resendEmailOtp'])
         ->middleware('throttle:3,1')
         ->name('auth.device-approval.resend-email');

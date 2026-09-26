@@ -14,12 +14,16 @@ use App\Notifications\NewDeviceLoginAttemptNotification;
 use App\Notifications\SessionTakeoverNotification;
 use App\Notifications\SuspiciousLoginBlockedNotification;
 use App\Services\DeviceSecurity\DeviceSecurityService;
+use Illuminate\Contracts\Notifications\Dispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
@@ -131,6 +135,39 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
         ]);
     }
 
+    public function test_cached_get_cancel_link_requires_post_confirmation_without_method_error(): void
+    {
+        $user = User::factory()->create();
+        $challengeToken = Str::random(64);
+        $approval = LoginApprovalRequest::create([
+            'user_id' => $user->id,
+            'guard' => 'web',
+            'challenge_token_hash' => hash('sha256', $challengeToken),
+            'status' => LoginApprovalRequest::STATUS_PENDING,
+            'device_name' => 'Microsoft Edge on Windows',
+            'requested_at' => now(),
+            'expires_at' => now()->addMinutes(5),
+        ]);
+        $session = [
+            DeviceSecurityService::approvalChallengeSessionKey($approval) => hash('sha256', $challengeToken),
+        ];
+
+        $this->withSession($session)
+            ->get(route('auth.device-approval.cancel-confirmation', $approval))
+            ->assertOk()
+            ->assertSee('Cancel this sign-in request?')
+            ->assertSee('method="POST"', false)
+            ->assertSee(route('auth.device-approval.cancel', $approval), false);
+
+        $this->assertSame(LoginApprovalRequest::STATUS_PENDING, $approval->fresh()->status);
+
+        $this->withSession($session)
+            ->post(route('auth.device-approval.cancel', $approval))
+            ->assertRedirect(route('login'));
+
+        $this->assertSame(LoginApprovalRequest::STATUS_CANCELLED, $approval->fresh()->status);
+    }
+
     /**
      * 3 & 4 & 5 & 6. Device A approves Device B -> Device B becomes authenticated -> Device A immediately loses access across tabs.
      */
@@ -163,7 +200,7 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
         ]);
 
         // Device A approves Device B
-        $this->deviceSecurity->approveRequest($approval, $user);
+        $this->deviceSecurity->approveRequest($approval, $user, true);
         Notification::assertNotSentTo($user, NewDeviceApprovedNotification::class);
 
         $approval->refresh();
@@ -171,7 +208,7 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
 
         // Device B claims session
         $deviceBRequest = $this->createDeviceRequest('192.168.1.20', 'Mozilla/5.0 DeviceB Firefox/121');
-        $claimedUser = $this->deviceSecurity->claimApprovedRequest($approval, hash('sha256', $challengeToken), $deviceBRequest, trustDevice: true);
+        $claimedUser = $this->deviceSecurity->claimApprovedRequest($approval, hash('sha256', $challengeToken), $deviceBRequest);
 
         $this->assertEquals($user->id, $claimedUser->id);
 
@@ -360,9 +397,9 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
     }
 
     /**
-     * 14. Unknown device login with no active session requires additional confirmation (Scenario 2).
+     * 14. Unknown device login with no active session still requires owner approval.
      */
-    public function test_unknown_device_with_no_active_session_requires_email_confirmation(): void
+    public function test_unknown_device_with_no_active_session_waits_for_owner_approval(): void
     {
         Notification::fake();
 
@@ -380,12 +417,12 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
         // Must NOT authenticate immediately
         $this->assertGuest('web');
 
-        // Redirects to email OTP confirmation
+        // A pending approval exists; no OTP can authenticate the requester.
         $approval = LoginApprovalRequest::query()->where('user_id', $user->id)->first();
         $this->assertNotNull($approval);
-        $this->assertNotNull($approval->email_otp_hash);
+        $this->assertNull($approval->email_otp_hash);
 
-        $response->assertRedirect(route('auth.device-approval.verify-email', $approval));
+        $response->assertRedirect(route('auth.device-approval.waiting', $approval));
         $this->assertStringNotContainsString('token=', $response->headers->get('Location') ?? '');
         $response->assertSessionHas(DeviceSecurityService::approvalChallengeSessionKey($approval));
 
@@ -587,10 +624,7 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
         $this->assertStringContainsString('device-approval', $response->headers->get('Location') ?? '');
     }
 
-    /**
-     * 23. Rate limiting works on device OTP submission.
-     */
-    public function test_rate_limiting_protects_otp_verification(): void
+    public function test_email_scanner_get_requires_explicit_confirmation_and_approve_once_is_single_use(): void
     {
         $user = User::factory()->create();
         $challengeToken = Str::random(64);
@@ -600,30 +634,131 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
             'guard' => 'web',
             'challenge_token_hash' => hash('sha256', $challengeToken),
             'status' => LoginApprovalRequest::STATUS_PENDING,
-            'email_otp_hash' => hash('sha256', '123456'),
-            'email_otp_expires_at' => now()->addMinutes(5),
             'requested_at' => now(),
             'expires_at' => now()->addMinutes(5),
         ]);
 
-        // 5 bad attempts
-        for ($i = 0; $i < 5; $i++) {
-            $this->withSession([
-                DeviceSecurityService::approvalChallengeSessionKey($approval) => hash('sha256', $challengeToken),
-            ])->postJson(route('auth.device-approval.verify-email.post', $approval), [
-                'otp' => '999999',
-            ])->assertStatus(422);
-        }
+        $reviewUrl = URL::temporarySignedRoute('auth.device-approval.email.review', $approval->expires_at, [
+            'approvalRequest' => $approval->id,
+            'decision' => 'approve-once',
+        ]);
+        $this->get($reviewUrl)->assertOk()->assertSee('Approve Once');
+        $this->assertSame(LoginApprovalRequest::STATUS_PENDING, $approval->fresh()->status);
 
-        // 6th attempt is throttled
-        $response = $this->withSession([
-            DeviceSecurityService::approvalChallengeSessionKey($approval) => hash('sha256', $challengeToken),
-        ])->postJson(route('auth.device-approval.verify-email.post', $approval), [
-            'otp' => '999999',
+        $confirmUrl = URL::temporarySignedRoute('auth.device-approval.email.confirm', $approval->expires_at, [
+            'approvalRequest' => $approval->id,
+            'decision' => 'approve-once',
+        ]);
+        $this->post($confirmUrl)->assertOk()->assertSee('approved for this attempt only');
+        $this->assertSame(LoginApprovalRequest::STATUS_APPROVED, $approval->fresh()->status);
+        $this->assertFalse($approval->fresh()->trust_device_on_approval);
+
+        $this->post($confirmUrl)->assertOk()->assertSee('already been approved');
+
+        $request = $this->createDeviceRequest();
+        $this->deviceSecurity->claimApprovedRequest($approval->fresh(), hash('sha256', $challengeToken), $request);
+        $this->assertDatabaseMissing('trusted_devices', ['user_id' => $user->id]);
+
+        Auth::guard('web')->logout();
+        $this->deviceSecurity->clearActiveSession($user);
+        $this->withServerVariables([
+            'REMOTE_ADDR' => '192.168.1.50',
+            'HTTP_USER_AGENT' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0',
+        ])->post('/login', ['email' => $user->email, 'password' => 'password']);
+        $this->assertGuest('web');
+        $this->assertDatabaseHas('login_approval_requests', [
+            'user_id' => $user->id,
+            'status' => LoginApprovalRequest::STATUS_PENDING,
+        ]);
+    }
+
+    public function test_expired_email_approval_link_is_rejected_without_changing_request(): void
+    {
+        $user = User::factory()->create();
+        $approval = LoginApprovalRequest::create([
+            'user_id' => $user->id,
+            'guard' => 'web',
+            'challenge_token_hash' => hash('sha256', Str::random(64)),
+            'status' => LoginApprovalRequest::STATUS_PENDING,
+            'requested_at' => now()->subMinutes(10),
+            'expires_at' => now()->subMinute(),
         ]);
 
-        $response->assertStatus(422);
-        $this->assertStringContainsString('Too many incorrect attempts', $response->json('errors.otp.0') ?? '');
+        $reviewUrl = URL::temporarySignedRoute('auth.device-approval.email.review', $approval->expires_at, [
+            'approvalRequest' => $approval->id,
+            'decision' => 'approve-once',
+        ]);
+
+        $this->get($reviewUrl)->assertForbidden();
+        $this->assertSame(LoginApprovalRequest::STATUS_PENDING, $approval->fresh()->status);
+    }
+
+    public function test_approval_email_resend_is_throttled_and_keeps_the_same_pending_request(): void
+    {
+        Notification::fake();
+        config()->set('auth.device_security.approval_resend_cooldown_seconds', 60);
+
+        $user = User::factory()->create();
+        $challengeToken = Str::random(64);
+        $approval = LoginApprovalRequest::create([
+            'user_id' => $user->id,
+            'guard' => 'web',
+            'challenge_token_hash' => hash('sha256', $challengeToken),
+            'status' => LoginApprovalRequest::STATUS_PENDING,
+            'requested_at' => now(),
+            'expires_at' => now()->addMinutes(5),
+        ]);
+        $session = [
+            DeviceSecurityService::approvalChallengeSessionKey($approval) => hash('sha256', $challengeToken),
+        ];
+
+        $this->withSession($session)
+            ->post(route('auth.device-approval.resend-email', $approval))
+            ->assertSessionHas('status', 'The sign-in approval email was resent.');
+
+        $this->withSession($session)
+            ->post(route('auth.device-approval.resend-email', $approval))
+            ->assertSessionHasErrors('email');
+
+        Notification::assertSentToTimes($user, NewDeviceLoginAttemptNotification::class, 1);
+        $this->assertSame(LoginApprovalRequest::STATUS_PENDING, $approval->fresh()->status);
+    }
+
+    public function test_email_deny_wins_and_mail_failure_never_authenticates(): void
+    {
+        $user = User::factory()->create(['password' => Hash::make('Password123!')]);
+        $approval = LoginApprovalRequest::create([
+            'user_id' => $user->id,
+            'guard' => 'web',
+            'challenge_token_hash' => hash('sha256', Str::random(64)),
+            'status' => LoginApprovalRequest::STATUS_PENDING,
+            'device_fingerprint' => hash('sha256', 'device'),
+            'requested_at' => now(),
+            'expires_at' => now()->addMinutes(5),
+        ]);
+
+        $denyUrl = URL::temporarySignedRoute('auth.device-approval.email.confirm', $approval->expires_at, [
+            'approvalRequest' => $approval->id,
+            'decision' => 'deny',
+        ]);
+        $this->post($denyUrl)->assertOk()->assertSee('was denied');
+        $this->assertSame(LoginApprovalRequest::STATUS_REJECTED, $approval->fresh()->status);
+
+        $dispatcher = \Mockery::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('send')->andThrow(new RuntimeException('Synthetic delivery failure'));
+        $this->app->instance(Dispatcher::class, $dispatcher);
+
+        $response = $this->withServerVariables([
+            'REMOTE_ADDR' => '203.0.113.40',
+            'HTTP_USER_AGENT' => 'Mail Failure Browser',
+        ])->post('/login', ['email' => $user->email, 'password' => 'Password123!']);
+
+        $response->assertSessionHasErrors('email');
+        $this->assertGuest('web');
+        $this->assertDatabaseMissing('login_approval_requests', [
+            'user_id' => $user->id,
+            'status' => LoginApprovalRequest::STATUS_PENDING,
+        ]);
     }
 
     /**
@@ -659,54 +794,40 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
         ]);
     }
 
-    /**
-     * 25. Scenario 2 OTP submission authenticates user and registers trusted device.
-     */
-    public function test_scenario_2_otp_submission_authenticates_and_trusts_device(): void
+    public function test_email_approve_and_trust_controls_trust_server_side(): void
     {
         Notification::fake();
 
         $user = User::factory()->create();
         $challengeToken = Str::random(64);
-        $otp = '746291';
 
         $approval = LoginApprovalRequest::create([
             'user_id' => $user->id,
             'guard' => 'web',
             'challenge_token_hash' => hash('sha256', $challengeToken),
             'status' => LoginApprovalRequest::STATUS_PENDING,
-            'email_otp_hash' => hash('sha256', $otp),
-            'email_otp_expires_at' => now()->addMinutes(5),
             'requested_at' => now(),
             'expires_at' => now()->addMinutes(5),
             'device_name' => 'Safari on macOS',
         ]);
 
-        $response = $this->withSession([
-            DeviceSecurityService::approvalChallengeSessionKey($approval) => hash('sha256', $challengeToken),
-        ])->post(route('auth.device-approval.verify-email.post', $approval), [
-            'otp' => $otp,
-            'trust_device' => '1',
+        $confirmUrl = URL::temporarySignedRoute('auth.device-approval.email.confirm', $approval->expires_at, [
+            'approvalRequest' => $approval->id,
+            'decision' => 'approve-trust',
         ]);
+        $this->post($confirmUrl)->assertOk();
 
-        $this->assertAuthenticatedAs($user, 'web');
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $request = $this->createDeviceRequest();
+        $this->deviceSecurity->claimApprovedRequest($approval->fresh(), hash('sha256', $challengeToken), $request);
 
-        // Trusted device created
         $this->assertDatabaseHas('trusted_devices', [
             'user_id' => $user->id,
         ]);
-
-        // Active session created
         $this->assertDatabaseHas('user_active_sessions', [
             'user_id' => $user->id,
         ]);
-
-        // Request completed
-        $approval->refresh();
-        $this->assertEquals(LoginApprovalRequest::STATUS_COMPLETED, $approval->status);
-        $this->assertNull($approval->email_otp_hash);
-        $this->assertNull($approval->email_otp_expires_at);
+        $this->assertTrue($approval->fresh()->trust_device_on_approval);
+        $this->assertSame(LoginApprovalRequest::STATUS_COMPLETED, $approval->fresh()->status);
     }
 
     /**
@@ -802,7 +923,8 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
         $response->assertOk();
         $response->assertSeeText($trusted['trustedDevice']->display_name);
         $response->assertSeeText($trusted['trustedDevice']->user_agent_summary);
-        $response->assertSee("processingAction === 'approve'", false);
+        $response->assertSee("processingAction === 'approve-once'", false);
+        $response->assertSee("processingAction === 'approve-trust'", false);
         $response->assertSee("processingAction === 'reject'", false);
     }
 

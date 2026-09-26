@@ -8,9 +8,10 @@ IP Address: {{ $ipAddress }}
 @endif
 Time: {{ $requestedAt }}
 
-@if ($otp)
-Your verification code is: {{ $otp }}
-(Expires in {{ $expiresInMinutes }} minutes)
-@endif
+Review within {{ $expiresInMinutes }} minutes. Opening a link does not make a decision; explicit confirmation is required.
+
+Approve Once: {{ $approveOnceUrl }}
+Approve & Trust This Device: {{ $approveTrustUrl }}
+Deny Sign-In: {{ $denyUrl }}
 
 If you did not initiate this sign-in attempt, someone may have your password. We recommend changing your password immediately.

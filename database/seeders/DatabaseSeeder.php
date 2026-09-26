@@ -14,16 +14,9 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Production receives system-owned account provisioning only.
+        // The default seeder provisions only explicitly configured owner accounts.
+        // Synthetic operational records must never be added to a normal database seed.
         $this->call(SuperAdminSeeder::class);
         $this->call(OwnerAdminSeeder::class);
-
-        if (app()->environment('production')) {
-            return;
-        }
-
-        // Keep one canonical local/demo entry point so a normal db:seed cannot
-        // leave later modules missing while earlier demo modules appear ready.
-        $this->call(ComprehensiveDemoSeeder::class);
     }
 }
