@@ -1,13 +1,14 @@
 <?php
 
+use App\Http\Middleware\EnforceSecurityHeaders;
 use App\Http\Middleware\EnforceSessionInactivity;
+use App\Http\Middleware\EnforceSingleActiveSession;
 use App\Http\Middleware\EnsureAdministrator;
 use App\Http\Middleware\EnsureAuthenticationPanelRole;
 use App\Http\Middleware\EnsureMfaIsComplete;
 use App\Http\Middleware\EnsurePasswordIsCurrent;
 use App\Http\Middleware\EnsureSuperAdministrator;
 use App\Http\Middleware\EnsureUserIsActive;
-use App\Http\Middleware\EnforceSecurityHeaders;
 use App\Http\Middleware\PreventBackHistoryCache;
 use App\Support\AuthenticationContext;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
@@ -54,6 +55,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // account takes effect immediately, not at the end of their session.
         $middleware->web(append: [
             EnforceSessionInactivity::class,
+            EnforceSingleActiveSession::class,
             EnsureUserIsActive::class,
             EnsureAuthenticationPanelRole::class,
             EnsureMfaIsComplete::class,
@@ -72,6 +74,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // because the middleware only acts on the authenticated web guard.
         $middleware->api(append: [
             EnforceSessionInactivity::class,
+            EnforceSingleActiveSession::class,
             EnsureAuthenticationPanelRole::class,
             EnsureMfaIsComplete::class,
             EnsurePasswordIsCurrent::class,

@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Enums\AuthenticatorSecretStatus;
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\TrustedDevice;
 use App\Models\User;
 use App\Services\AuthenticatorSecretService;
 use App\Services\AuthenticatorSetupService;
+use App\Services\DeviceSecurity\DeviceSecurityService;
 use App\Services\Sms\SmsOtpDelivery;
 use App\Support\AuditBrowserLocation;
 use App\Support\AuthenticationContext;
@@ -54,6 +56,14 @@ class ProfileController extends Controller
                 && (! $user->authenticatorMfaEnabled() || $recoveryRequired)
                 ? $setup->details($request, $user)
                 : null,
+            'activeSession' => $user instanceof User ? $user->activeSession : null,
+            'trustedDevices' => $user instanceof User
+                ? $user->trustedDevices()
+                    ->whereNull('revoked_at')
+                    ->where('expires_at', '>', now())
+                    ->orderByDesc('last_used_at')
+                    ->get()
+                : collect(),
         ]);
     }
 
@@ -313,5 +323,22 @@ class ProfileController extends Controller
             'Cache-Control' => 'private, max-age=86400',
             'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    /**
+     * Revoke a recognized trusted device.
+     */
+    public function destroyTrustedDevice(
+        Request $request,
+        TrustedDevice $trustedDevice,
+        DeviceSecurityService $deviceSecurity,
+    ): RedirectResponse {
+        $guard = AuthenticationContext::authenticatedGuard() ?? AuthenticationContext::WEB_GUARD;
+        $user = $request->user($guard);
+        abort_unless($user instanceof User && $trustedDevice->user_id === $user->id, 403);
+
+        $deviceSecurity->revokeTrustedDevice($trustedDevice, $user);
+
+        return Redirect::route('profile.edit')->with('device_success', "Trusted device '{$trustedDevice->display_name}' was revoked.");
     }
 }

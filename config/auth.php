@@ -135,6 +135,17 @@ return [
         'key' => env('AUTH_PASSWORD_HISTORY_KEY') ?: env('APP_KEY'),
     ],
 
+    'device_security' => [
+        'enabled' => (bool) env('AUTH_DEVICE_SECURITY_ENABLED', true),
+        'trusted_device_lifetime_days' => (int) env('AUTH_TRUSTED_DEVICE_LIFETIME_DAYS', 30),
+        'approval_request_lifetime_minutes' => (int) env('AUTH_LOGIN_APPROVAL_LIFETIME_MINUTES', 5),
+        'device_rejection_cooldown_minutes' => (int) env('AUTH_DEVICE_COOLDOWN_MINUTES', 15),
+        'approval_creation_max_attempts' => (int) env('AUTH_DEVICE_APPROVAL_MAX_ATTEMPTS', 3),
+        'approval_creation_decay_seconds' => (int) env('AUTH_DEVICE_APPROVAL_DECAY_SECONDS', 60),
+        'cookie_name' => env('AUTH_TRUSTED_DEVICE_COOKIE', 'hims_trusted_device'),
+        'cookie_secure' => env('SESSION_SECURE_COOKIE', false),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Password Confirmation Timeout

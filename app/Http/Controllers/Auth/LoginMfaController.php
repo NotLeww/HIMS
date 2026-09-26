@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Notifications\LoginMfaOtp;
 use App\Services\AuditLogger;
 use App\Services\AuthenticatorSetupService;
+use App\Services\DeviceSecurity\DeviceSecurityService;
 use App\Services\LoginLockoutService;
 use App\Services\LoginMfaService;
 use App\Services\PasswordExpirationService;
@@ -256,6 +257,13 @@ class LoginMfaController extends Controller
         $lockouts->clearRestriction($request);
         Auth::guard($panel->guard())->login($result['user'], $result['remember']);
         $request->session()->regenerate();
+        $deviceSecurity = app(DeviceSecurityService::class);
+        $deviceSecurity->activateSession(
+            $result['user'],
+            $panel->guard(),
+            $request,
+            $deviceSecurity->getValidTrustedDevice($result['user'], $request),
+        );
         MfaSession::mark($request, $result['user'], $panel->guard());
         $request->session()->put(
             EnforceSessionInactivity::lastActivityKey($panel->guard()),

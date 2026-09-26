@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Rules\PasswordStandard;
+use App\Services\DeviceSecurity\DeviceSecurityService;
 use App\Services\PasswordHistoryService;
 use App\Support\AuthenticationContext;
 use Illuminate\Http\RedirectResponse;
@@ -43,6 +44,12 @@ class PasswordController extends Controller
                 return $user;
             },
             'updatePassword',
+        );
+
+        app(DeviceSecurityService::class)->handlePasswordChanged(
+            $user,
+            true,
+            $request->session()->getId(),
         );
 
         $request->session()->put('password_success', 'Password updated successfully.');

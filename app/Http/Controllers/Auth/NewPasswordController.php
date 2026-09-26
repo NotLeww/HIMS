@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Rules\PasswordStandard;
+use App\Services\DeviceSecurity\DeviceSecurityService;
 use App\Services\PasswordHistoryService;
 use App\Support\AuthenticationPanel;
 use Illuminate\Auth\Events\PasswordReset;
@@ -78,6 +79,8 @@ class NewPasswordController extends Controller
                         return $user;
                     },
                 );
+
+                app(DeviceSecurityService::class)->handlePasswordChanged($user);
 
                 event(new PasswordReset($user));
             }

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
+use App\Http\Controllers\Auth\DeviceApprovalController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\ExpiredPasswordController;
@@ -91,9 +92,41 @@ Route::middleware(['guest:web', 'guest:admin', 'guest:super_admin'])->group(func
         ->defaults('auth_panel', AuthenticationPanel::Staff->value)
         ->middleware('throttle:6,1')
         ->name('password.otp.verify');
+
+    // Device approval flow for unauthenticated/pending device (Device B)
+    Route::get('device-approval/{approvalRequest}/waiting', [DeviceApprovalController::class, 'waiting'])
+        ->name('auth.device-approval.waiting');
+    Route::get('device-approval/{approvalRequest}/status', [DeviceApprovalController::class, 'status'])
+        ->middleware('throttle:30,1')
+        ->name('auth.device-approval.status');
+    Route::post('device-approval/{approvalRequest}/claim', [DeviceApprovalController::class, 'claim'])
+        ->middleware('throttle:10,1')
+        ->name('auth.device-approval.claim');
+    Route::post('device-approval/{approvalRequest}/cancel', [DeviceApprovalController::class, 'cancel'])
+        ->middleware('throttle:10,1')
+        ->name('auth.device-approval.cancel');
+    Route::get('device-approval/{approvalRequest}/verify-email', [DeviceApprovalController::class, 'verifyEmail'])
+        ->name('auth.device-approval.verify-email');
+    Route::post('device-approval/{approvalRequest}/verify-email', [DeviceApprovalController::class, 'submitEmailOtp'])
+        ->middleware('throttle:6,1')
+        ->name('auth.device-approval.verify-email.post');
+    Route::post('device-approval/{approvalRequest}/resend-email', [DeviceApprovalController::class, 'resendEmailOtp'])
+        ->middleware('throttle:3,1')
+        ->name('auth.device-approval.resend-email');
 });
 
 Route::middleware('auth:web,admin,super_admin')->group(function () {
+    // In-app device approval actions by authenticated Device A
+    Route::get('device-approvals/pending', [DeviceApprovalController::class, 'checkPending'])
+        ->middleware('throttle:30,1')
+        ->name('auth.device-approvals.pending');
+    Route::post('device-approvals/{approvalRequest}/approve', [DeviceApprovalController::class, 'approve'])
+        ->middleware('throttle:10,1')
+        ->name('auth.device-approvals.approve');
+    Route::post('device-approvals/{approvalRequest}/reject', [DeviceApprovalController::class, 'reject'])
+        ->middleware('throttle:10,1')
+        ->name('auth.device-approvals.reject');
+
     // Meaningful browser interaction is synchronized here. The global
     // inactivity middleware updates the authoritative timestamp before this
     // no-content response is returned.

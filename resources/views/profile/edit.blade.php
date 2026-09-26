@@ -15,6 +15,7 @@
             'sms_mfa_success',
             'mfa_success',
             'session_reminder_success',
+            'device_success',
         ])->map(fn ($key) => session()->pull($key))->filter();
     @endphp
     @foreach ($settingsNotifications as $message)
@@ -39,6 +40,7 @@
                     @include('profile.partials.update-mfa-form')
                 @endif
                 @include('profile.partials.update-session-timeout-reminder-form')
+                @include('profile.partials.device-management-form')
                 @include('profile.partials.update-password-form')
             </div>
         </x-ui.card>

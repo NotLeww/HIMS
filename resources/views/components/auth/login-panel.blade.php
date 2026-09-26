@@ -94,6 +94,17 @@
         </x-ui.alert>
     @endif
 
+    @if (session('session_replaced'))
+        <x-ui.alert
+            variant="warning"
+            title="Session Ended"
+            dismissible
+            class="animate-fade-up [animation-delay:400ms]"
+        >
+            {{ session('session_replaced') }}
+        </x-ui.alert>
+    @endif
+
     @if ($hasSessionTimeout)
         <x-ui.alert
             variant="warning"

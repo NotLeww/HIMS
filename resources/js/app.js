@@ -116,6 +116,7 @@ const startSessionMonitor = () => {
     const activityKey = 'hims:session:last-activity';
     const manualLogoutKey = 'hims:session:manual-logout';
     const expiredKey = 'hims:session:expired';
+    const sessionReplacedKey = 'hims:session:replaced';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     const nativeFetch = window.fetch.bind(window);
     let lastActivityAt = Date.now();
@@ -133,6 +134,7 @@ const startSessionMonitor = () => {
     try {
         window.localStorage.removeItem(manualLogoutKey);
         window.localStorage.removeItem(expiredKey);
+        window.localStorage.removeItem(sessionReplacedKey);
     } catch {
         // Storage can be unavailable in privacy-restricted contexts.
     }
@@ -454,6 +456,14 @@ const startSessionMonitor = () => {
             return;
         }
 
+        if (event.key === sessionReplacedKey) {
+            stopSessionMonitor();
+            document.documentElement.style.display = 'none';
+            const loginUrl = document.body.dataset.loginUrl || '/login';
+            window.location.replace(loginUrl);
+            return;
+        }
+
         if (event.key === expiredKey) {
             document.documentElement.style.display = 'none';
             expire(false);
@@ -474,7 +484,7 @@ const startSessionMonitor = () => {
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) {
             try {
-                if (window.localStorage.getItem(manualLogoutKey)) {
+                if (window.localStorage.getItem(manualLogoutKey) || window.localStorage.getItem(sessionReplacedKey)) {
                     document.documentElement.style.display = 'none';
                     const loginUrl = document.body.dataset.loginUrl || '/login';
                     window.location.replace(loginUrl);
@@ -514,8 +524,18 @@ const startSessionMonitor = () => {
     window.fetch = async (...args) => {
         const response = await nativeFetch(...args);
         const passwordExpiredLocation = response.headers.get('X-HIMS-Password-Expired');
+        const sessionReplaced = response.headers.get('X-Session-Replaced');
         const redirectedToLogin = response.redirected
             && new URL(response.url, window.location.origin).pathname.endsWith('/login');
+
+        if (sessionReplaced) {
+            try {
+                window.localStorage.setItem(sessionReplacedKey, String(Date.now()));
+            } catch {}
+            const loginUrl = document.body.dataset.loginUrl || '/login';
+            window.location.replace(loginUrl);
+            return response;
+        }
 
         if (passwordExpiredLocation) {
             window.location.assign(passwordExpiredLocation);
@@ -546,6 +566,16 @@ const startSessionMonitor = () => {
         },
         (error) => {
             const passwordExpiredLocation = error.response?.headers?.['x-hims-password-expired'];
+            const sessionReplaced = error.response?.headers?.['x-session-replaced'];
+
+            if (sessionReplaced) {
+                try {
+                    window.localStorage.setItem(sessionReplacedKey, String(Date.now()));
+                } catch {}
+                const loginUrl = document.body.dataset.loginUrl || '/login';
+                window.location.replace(loginUrl);
+                return Promise.reject(error);
+            }
 
             if (passwordExpiredLocation) {
                 window.location.assign(passwordExpiredLocation);

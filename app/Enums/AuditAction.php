@@ -124,6 +124,14 @@ enum AuditAction: string
     case UpdatedSecurityIncident = 'updated_security_incident';
     case ExecutedDataRetention = 'executed_data_retention';
     case ExportedSystemReport = 'exported_system_report';
+    case LoginApprovalRequested = 'login_approval_requested';
+    case LoginApprovalApproved = 'login_approval_approved';
+    case LoginApprovalRejected = 'login_approval_rejected';
+    case LoginApprovalExpired = 'login_approval_expired';
+    case TrustedDeviceAdded = 'trusted_device_added';
+    case TrustedDeviceRevoked = 'trusted_device_revoked';
+    case SessionReplaced = 'session_replaced';
+    case SuspiciousLoginBlocked = 'suspicious_login_blocked';
 
     public function label(): string
     {
@@ -248,6 +256,14 @@ enum AuditAction: string
             self::UpdatedSecurityIncident => 'Updated Security Incident',
             self::ExecutedDataRetention => 'Executed Data Retention',
             self::ExportedSystemReport => 'Exported System Report',
+            self::LoginApprovalRequested => 'Login Approval Requested',
+            self::LoginApprovalApproved => 'Login Approval Approved',
+            self::LoginApprovalRejected => 'Login Approval Rejected',
+            self::LoginApprovalExpired => 'Login Approval Expired',
+            self::TrustedDeviceAdded => 'Trusted Device Added',
+            self::TrustedDeviceRevoked => 'Trusted Device Revoked',
+            self::SessionReplaced => 'Session Replaced by Another Device',
+            self::SuspiciousLoginBlocked => 'Suspicious Sign-in Blocked',
         };
     }
 
@@ -263,6 +279,14 @@ enum AuditAction: string
                 self::SmsVerification,
                 self::TemporarilyLockedUser,
                 self::UnlockedUser,
+                self::LoginApprovalRequested,
+                self::LoginApprovalApproved,
+                self::LoginApprovalRejected,
+                self::LoginApprovalExpired,
+                self::TrustedDeviceAdded,
+                self::TrustedDeviceRevoked,
+                self::SessionReplaced,
+                self::SuspiciousLoginBlocked,
             ], true) => 'Authentication',
             in_array($this, [self::CreatedUser, self::UpdatedUser, self::DeletedUser, self::ArchivedUser, self::UnarchivedUser], true) => 'User Administration',
             str_contains($this->value, 'privacy_request')

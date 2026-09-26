@@ -22,6 +22,13 @@ class AuthController extends Controller
             'device_name' => 'nullable|string',
         ]);
 
+        if ((bool) config('auth.device_security.enabled', true)) {
+            return response()->json([
+                'message' => 'Direct API token sign-in is unavailable while single-device security is enabled. Sign in through HIMS.',
+                'code' => 'DEVICE_SECURITY_REQUIRED',
+            ], 428);
+        }
+
         $email = $request->string('email')->toString();
         $throttleKey = $lockouts->throttleKey('api', $email, $request->ip());
         $allowedRoles = collect(UserRole::cases())

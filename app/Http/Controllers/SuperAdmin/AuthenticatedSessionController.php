@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnforceSessionInactivity;
 use App\Http\Requests\Auth\SuperAdminLoginRequest;
 use App\Notifications\LoginMfaOtp;
+use App\Services\DeviceSecurity\DeviceSecurityService;
 use App\Services\LoginLockoutService;
 use App\Services\LoginMfaService;
 use App\Services\PasswordExpirationService;
@@ -39,8 +40,32 @@ class AuthenticatedSessionController extends Controller
         LoginMfaService $mfa,
         PasswordExpirationService $expiration,
         SmsMfaChallengeService $sms,
+        DeviceSecurityService $deviceSecurity,
     ): RedirectResponse {
         $user = $request->validateCredentials();
+
+        $deviceResult = $deviceSecurity->handleLoginAttempt(
+            $request,
+            $user,
+            AuthenticationContext::SUPER_ADMIN_GUARD,
+            $request->boolean('remember'),
+        );
+
+        if ($deviceResult->isWaitingApproval()) {
+            $deviceSecurity->rememberApprovalChallenge($request, $deviceResult->approvalRequest, $deviceResult->token);
+
+            return redirect()->route('auth.device-approval.waiting', [
+                'approvalRequest' => $deviceResult->approvalRequest->id,
+            ]);
+        }
+
+        if ($deviceResult->requiresEmailConfirmation()) {
+            $deviceSecurity->rememberApprovalChallenge($request, $deviceResult->approvalRequest, $deviceResult->token);
+
+            return redirect()->route('auth.device-approval.verify-email', [
+                'approvalRequest' => $deviceResult->approvalRequest->id,
+            ]);
+        }
 
         if ($user->authenticatorMfaEnabled()) {
             $pendingUser = $mfa->pendingUser($request, AuthenticationContext::SUPER_ADMIN_GUARD);
@@ -129,6 +154,12 @@ class AuthenticatedSessionController extends Controller
 
         $request->login($user);
         $request->session()->regenerate();
+        $deviceSecurity->activateSession(
+            $user,
+            AuthenticationContext::SUPER_ADMIN_GUARD,
+            $request,
+            $deviceSecurity->getValidTrustedDevice($user, $request),
+        );
         $request->session()->put(
             EnforceSessionInactivity::lastActivityKey(AuthenticationContext::SUPER_ADMIN_GUARD),
             now()->getTimestamp(),
@@ -139,6 +170,11 @@ class AuthenticatedSessionController extends Controller
 
     public function destroy(Request $request): RedirectResponse
     {
+        $user = Auth::guard(AuthenticationContext::SUPER_ADMIN_GUARD)->user();
+        if ($user) {
+            app(DeviceSecurityService::class)->clearActiveSession($user);
+        }
+
         Auth::guard(AuthenticationContext::SUPER_ADMIN_GUARD)->logout();
 
         $request->session()->invalidate();
@@ -168,6 +204,11 @@ class AuthenticatedSessionController extends Controller
                     'Pragma' => 'no-cache',
                     'Expires' => 'Fri, 01 Jan 1990 00:00:00 GMT',
                 ]);
+        }
+
+        $user = Auth::guard(AuthenticationContext::SUPER_ADMIN_GUARD)->user();
+        if ($user) {
+            app(DeviceSecurityService::class)->clearActiveSession($user);
         }
 
         Auth::guard(AuthenticationContext::SUPER_ADMIN_GUARD)->logout();

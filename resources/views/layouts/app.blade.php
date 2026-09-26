@@ -172,6 +172,7 @@
     @can(\App\Enums\Permission::ManageArchive->value)
         @include('layouts.partials.archive-record-modal')
     @endcan
+    @include('layouts.partials.device-approval-modal')
 
     <dialog
         data-session-warning

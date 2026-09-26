@@ -12,6 +12,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
@@ -228,6 +229,26 @@ class User extends Authenticatable
     public function archivedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(self::class, 'archived_by');
+    }
+
+    public function activeSession(): HasOne
+    {
+        return $this->hasOne(UserActiveSession::class);
+    }
+
+    public function trustedDevices(): HasMany
+    {
+        return $this->hasMany(TrustedDevice::class);
+    }
+
+    public function loginApprovalRequests(): HasMany
+    {
+        return $this->hasMany(LoginApprovalRequest::class);
+    }
+
+    public function deviceCooldowns(): HasMany
+    {
+        return $this->hasMany(DeviceLoginCooldown::class);
     }
 
     /**

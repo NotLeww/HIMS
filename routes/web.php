@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Analytics\ProcessReviewController;
 use App\Http\Controllers\AuthenticatorController;
 use App\Http\Controllers\DashboardAiAssistantController;
+use App\Http\Controllers\GlobalSearchController;
 use App\Http\Controllers\Inventory\ConsignmentController;
 use App\Http\Controllers\Inventory\CycleCountController;
 use App\Http\Controllers\Inventory\DemandForecastController;
@@ -27,10 +28,9 @@ use App\Http\Controllers\Inventory\StockMovementController;
 use App\Http\Controllers\Inventory\StockTransferController;
 use App\Http\Controllers\Inventory\StorageLocationController;
 use App\Http\Controllers\Inventory\WarehouseTaskController;
-use App\Http\Controllers\GlobalSearchController;
 use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\PrivacyRequestController;
 use App\Http\Controllers\Privacy\DsarDownloadController;
+use App\Http\Controllers\PrivacyRequestController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SupplierController;
 use Illuminate\Support\Facades\Route;
@@ -144,7 +144,6 @@ Route::middleware('auth:web,admin,super_admin')->group(function () {
     Route::post('/inventory/warehousing/locations', [SmartWarehousingController::class, 'storeLocation'])->name('inventory.warehousing.locations.store');
     Route::get('/inventory/warehousing/scan-station', [SmartWarehousingController::class, 'scanStation'])->name('inventory.warehousing.scan-station');
     Route::post('/inventory/warehousing/lookup-barcode', [SmartWarehousingController::class, 'lookupBarcode'])->name('inventory.warehousing.lookup-barcode');
-
 
     // Dangerous Drugs & PDEA Narcotics Vault
     Route::get('/inventory/warehousing/narcotics', [NarcoticsVaultController::class, 'index'])->name('inventory.warehousing.narcotics');
@@ -301,6 +300,8 @@ Route::middleware('auth:web,admin,super_admin')->group(function () {
     Route::delete('/profile/authenticator', [AuthenticatorController::class, 'disable'])
         ->middleware('throttle:6,1')
         ->name('profile.authenticator.disable');
+    Route::post('/profile/trusted-devices/{trustedDevice}/revoke', [ProfileController::class, 'destroyTrustedDevice'])
+        ->name('profile.trusted-devices.destroy');
 
     // Data Subject Requests under RA 10173
     Route::post('/privacy/requests', [PrivacyRequestController::class, 'store'])
