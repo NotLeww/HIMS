@@ -1162,6 +1162,19 @@ class InventoryReportTest extends TestCase
             ]);
         }
 
+        $originalIssuance = $this->reports()->build(30)['movementsByType']
+            ->first(fn (array $row): bool => $row['type'] === MovementType::Issuance);
+        $filteredIssuance = $this->reports()->build(30, filters: [
+            'category_id' => $medicine->id,
+            'storage_location_id' => $main->id,
+            'movement_type' => MovementType::Issuance->value,
+        ])['movementsByType']->sole();
+
+        $this->assertSame(2, $originalIssuance['movements']);
+        $this->assertSame(8, $originalIssuance['units']);
+        $this->assertSame(1, $filteredIssuance['movements']);
+        $this->assertSame(4, $filteredIssuance['units']);
+
         $page = $this->actingAs($reader)->get('/inventory/reports?period=30'
             .'&category_id='.$medicine->id
             .'&storage_location_id='.$main->id
