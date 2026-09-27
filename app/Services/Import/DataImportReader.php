@@ -352,63 +352,57 @@ class DataImportReader
      */
     public function readCsv(string $path): array
     {
-        $content = file_get_contents($path);
-        if ($content === false || trim($content) === '') {
+        $sample = file_get_contents($path, false, null, 0, 65_536);
+        if ($sample === false || trim($sample) === '') {
             return [];
         }
 
         // Check for binary / corrupted file (null bytes, except in UTF-16)
-        $isUtf16 = str_starts_with($content, "\xFF\xFE") || str_starts_with($content, "\xFE\xFF");
+        $isUtf16Le = str_starts_with($sample, "\xFF\xFE");
+        $isUtf16Be = str_starts_with($sample, "\xFE\xFF");
+        $isUtf16 = $isUtf16Le || $isUtf16Be;
+        $hasUtf8Bom = str_starts_with($sample, "\xEF\xBB\xBF");
         if (! $isUtf16) {
-            if (str_contains($content, "\0")) {
+            if (str_contains($sample, "\0")) {
                 throw new InvalidArgumentException('Uploaded file appears to be a binary file or malformed CSV.');
             }
 
             // Check for non-printable binary control characters (excluding tab \t, newline \n, carriage return \r)
-            if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', substr($content, 0, 8192))) {
+            if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', substr($sample, 0, 8192))) {
                 throw new InvalidArgumentException('Uploaded file appears to be a binary file or corrupted CSV containing control characters.');
             }
         }
 
-        // Convert UTF-16LE BOM (\xFF\xFE) or UTF-16BE BOM (\xFE\xFF)
-        if (str_starts_with($content, "\xFF\xFE")) {
-            $content = mb_convert_encoding(substr($content, 2), 'UTF-8', 'UTF-16LE');
-        } elseif (str_starts_with($content, "\xFE\xFF")) {
-            $content = mb_convert_encoding(substr($content, 2), 'UTF-8', 'UTF-16BE');
-        } elseif (str_starts_with($content, "\xEF\xBB\xBF")) {
-            // Strip UTF-8 BOM
-            $content = substr($content, 3);
+        if ($isUtf16) {
+            $sample = mb_convert_encoding(substr($sample, 2), 'UTF-8', $isUtf16Le ? 'UTF-16LE' : 'UTF-16BE');
+        } elseif ($hasUtf8Bom) {
+            $sample = substr($sample, 3);
         }
 
-        // If converted from UTF-16, ensure no null bytes remain in converted UTF-8
-        if ($isUtf16 && str_contains($content, "\0")) {
+        if ($isUtf16 && str_contains($sample, "\0")) {
             throw new InvalidArgumentException('Uploaded UTF-16 file appears to be corrupted or binary.');
         }
 
-        // Verify encoding is valid UTF-8, with fallback conversion from Windows-1252/ANSI
-        if (! mb_check_encoding($content, 'UTF-8')) {
-            $converted = @mb_convert_encoding($content, 'UTF-8', 'Windows-1252');
-            if ($converted !== false && mb_check_encoding($converted, 'UTF-8') && ! str_contains($converted, "\0")) {
-                $content = $converted;
-            } else {
-                throw new InvalidArgumentException('Uploaded CSV file has invalid character encoding. Please ensure the file is encoded in UTF-8 or standard Excel CSV format.');
-            }
+        $sourceEncoding = $isUtf16Le ? 'UTF-16LE' : ($isUtf16Be ? 'UTF-16BE' : 'UTF-8');
+        if (! $isUtf16 && ! mb_check_encoding($sample, 'UTF-8')) {
+            $sourceEncoding = 'Windows-1252';
         }
 
-        // Check quotation parity for unclosed / unbalanced quotation marks
-        if (substr_count($content, '"') % 2 !== 0) {
-            throw new InvalidArgumentException('Uploaded CSV file is malformed: contains an unclosed quote or unbalanced quotation marks.');
+        $handle = fopen($path, 'rb');
+        if ($handle === false) {
+            throw new InvalidArgumentException('Import file could not be read or does not exist.');
         }
 
-        // Standardize line endings to LF
-        $content = str_replace(["\r\n", "\r"], "\n", $content);
+        if ($isUtf16) {
+            fseek($handle, 2);
+            stream_filter_append($handle, "convert.iconv.{$sourceEncoding}/UTF-8");
+        } elseif ($hasUtf8Bom) {
+            fseek($handle, 3);
+        } elseif ($sourceEncoding !== 'UTF-8') {
+            stream_filter_append($handle, 'convert.iconv.Windows-1252/UTF-8');
+        }
 
-        // Auto-detect delimiter from non-empty lines
-        $delimiter = $this->detectCsvDelimiter($content);
-
-        $handle = fopen('php://temp', 'r+');
-        fwrite($handle, $content);
-        rewind($handle);
+        $delimiter = $this->detectCsvDelimiter($sample);
 
         $rows = [];
         $lineNum = 0;
@@ -430,6 +424,18 @@ class DataImportReader
             }
         }
         fclose($handle);
+
+        $quoteCount = 0;
+        $quoteHandle = fopen($path, 'rb');
+        while ($quoteHandle !== false && ! feof($quoteHandle)) {
+            $quoteCount += substr_count((string) fread($quoteHandle, 65_536), '"');
+        }
+        if (is_resource($quoteHandle)) {
+            fclose($quoteHandle);
+        }
+        if ($quoteCount % 2 !== 0) {
+            throw new InvalidArgumentException('Uploaded CSV file is malformed: contains an unclosed quote or unbalanced quotation marks.');
+        }
 
         return $rows;
     }

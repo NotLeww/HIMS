@@ -86,6 +86,19 @@
                 </div>
             </div>
 
+            <div x-show="importStatus" x-cloak class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 shadow-sm dark:border-sky-800 dark:bg-sky-950/50 dark:text-sky-100" role="status" :aria-busy="importStatus?.status === 'processing'">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <p class="font-semibold" x-text="importStatus?.status === 'completed' ? 'Bulk import complete' : (importStatus?.status === 'failed' ? 'Bulk import failed' : 'Bulk import processing')"></p>
+                        <p class="mt-1 text-xs text-sky-800 dark:text-sky-200" x-text="importStatus?.message"></p>
+                    </div>
+                    <p class="shrink-0 font-semibold" x-text="`${importStatus?.processed || 0} / ${importStatus?.total || 0}`"></p>
+                </div>
+                <div class="mt-3 h-2 overflow-hidden rounded-full bg-sky-100 dark:bg-sky-900" x-show="(importStatus?.total || 0) > 0" role="progressbar" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="Math.min(100, ((importStatus?.processed || 0) / importStatus.total) * 100)">
+                    <div class="h-full rounded-full bg-sky-600 transition-all" :style="`width: ${Math.min(100, ((importStatus?.processed || 0) / importStatus.total) * 100)}%`"></div>
+                </div>
+            </div>
+
             {{-- Step 1: Configuration & Upload Box --}}
             <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-5">
@@ -703,7 +716,23 @@
                 errorMessage: '',
                 successMessage: '',
                 lastCommittedTarget: '',
+                importStatus: null,
+                statusPoll: null,
                 templateUrl: config.templateUrl,
+
+                init() {
+                    let statusUrl = null;
+                    try { statusUrl = window.localStorage.getItem('hims:active-import-status'); } catch {}
+                    if (statusUrl) this.pollImportStatus(statusUrl);
+                },
+
+                rememberStatus(statusUrl) {
+                    try { window.localStorage.setItem('hims:active-import-status', statusUrl); } catch {}
+                },
+
+                forgetStatus() {
+                    try { window.localStorage.removeItem('hims:active-import-status'); } catch {}
+                },
 
                 selectTarget(newTarget) {
                     if (this.target !== newTarget) {
@@ -854,6 +883,17 @@
                             throw new Error(data.message || 'Import transaction failed.');
                         }
 
+                        if (data.async) {
+                            this.lastCommittedTarget = this.target;
+                            this.importStatus = data.status;
+                            this.successMessage = data.message;
+                            this.showValidationModal = false;
+                            this.rememberStatus(data.status_url);
+                            this.clearFile();
+                            this.pollImportStatus(data.status_url);
+                            return;
+                        }
+
                         this.lastCommittedTarget = this.target;
                         this.successMessage = data.message;
                         this.validationResult = null;
@@ -863,6 +903,32 @@
                         this.errorMessage = err.message || 'Failed to complete database transaction.';
                     } finally {
                         this.isCommitting = false;
+                    }
+                },
+
+                async pollImportStatus(statusUrl) {
+                    window.clearTimeout(this.statusPoll);
+
+                    try {
+                        const response = await fetch(statusUrl, { headers: { 'Accept': 'application/json' } });
+                        if (!response.ok) throw new Error('Import status is no longer available.');
+
+                        this.importStatus = await response.json();
+                        if (this.importStatus.status === 'completed') {
+                            this.successMessage = this.importStatus.message;
+                            this.forgetStatus();
+                            return;
+                        }
+                        if (this.importStatus.status === 'failed') {
+                            this.errorMessage = this.importStatus.message;
+                            this.forgetStatus();
+                            return;
+                        }
+
+                        this.statusPoll = window.setTimeout(() => this.pollImportStatus(statusUrl), 1500);
+                    } catch (error) {
+                        this.errorMessage = error.message;
+                        this.forgetStatus();
                     }
                 }
             };

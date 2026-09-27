@@ -243,6 +243,7 @@ Route::middleware('auth:web,admin,super_admin')->group(function () {
     Route::get('/inventory/import/template', [ImportController::class, 'downloadTemplate'])->name('inventory.import.template');
     Route::post('/inventory/import/preview', [ImportController::class, 'preview'])->name('inventory.import.preview');
     Route::post('/inventory/import/commit', [ImportController::class, 'commit'])->name('inventory.import.commit');
+    Route::get('/inventory/import/status/{token}', [ImportController::class, 'status'])->name('inventory.import.status');
 
     // Demand Forecasting. Reading the forecast needs view_reports; saving a
     // plan needs generate_forecasts. Both are declared on the controller.

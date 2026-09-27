@@ -2,15 +2,18 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Enums\AuditAction;
 use App\Enums\NotificationDestination;
 use App\Enums\NotificationPriority;
 use App\Enums\Permission;
 use App\Enums\RecoveryFailureType;
 use App\Enums\RecoveryRetryHandler;
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessDataImport;
 use App\Models\InventoryItem;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
+use App\Services\AuditLogger;
 use App\Services\FileContentValidator;
 use App\Services\HimsNotificationService;
 use App\Services\Import\DataImportExecutor;
@@ -23,6 +26,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Arr;
 use Illuminate\View\View;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -39,6 +43,7 @@ class ImportController extends Controller implements HasMiddleware
         private readonly HimsNotificationService $notifications,
         private readonly SafeExecutionService $recovery,
         private readonly FileContentValidator $fileContentValidator,
+        private readonly AuditLogger $auditLogger,
     ) {}
 
     /**
@@ -198,7 +203,12 @@ class ImportController extends Controller implements HasMiddleware
                 $target,
                 $mode,
                 $validationResult['validated_payload'],
-                $user->id
+                $user->id,
+                [
+                    'file_name' => $file->getClientOriginalName(),
+                    'format' => $clientExt,
+                    'file_size' => $file->getSize(),
+                ],
             );
         }
 
@@ -239,8 +249,59 @@ class ImportController extends Controller implements HasMiddleware
             ], 422);
         }
 
+        if (! $this->staging->claim($token, $user->id)) {
+            $status = $this->staging->status($token, $user->id);
+
+            return response()->json([
+                'success' => true,
+                'async' => true,
+                'message' => $status['message'] ?? 'This import is already processing.',
+                'status' => Arr::except($status ?? [], ['user_id']),
+                'status_url' => route('inventory.import.status', ['token' => $token]),
+            ], 202);
+        }
+
+        $recordCount = count($staged['records']);
+        $this->auditLogger->log(
+            action: AuditAction::BulkImportStarted,
+            actor: $user,
+            description: "Started {$target} bulk import: {$recordCount} records validated",
+            newValues: ['target' => $target, 'total' => $recordCount],
+            module: 'Imports',
+            correlationId: $token,
+        );
+
+        if ($recordCount >= (int) config('imports.background_threshold', 1_000)) {
+            try {
+                ProcessDataImport::dispatch($token, $user->id, $target);
+            } catch (Throwable $e) {
+                report($e);
+                $this->staging->fail($token, $user->id);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The bulk import could not be started. No records were committed. You may retry it.',
+                ], 500);
+            }
+
+            return response()->json([
+                'success' => true,
+                'async' => true,
+                'message' => 'Bulk import started. You may leave this page and return to check its status.',
+                'status' => Arr::except($this->staging->status($token, $user->id) ?? [], ['user_id']),
+                'status_url' => route('inventory.import.status', ['token' => $token]),
+            ], 202);
+        }
+
         try {
-            $result = $this->executor->execute($target, $staged['records'], $user);
+            $result = $this->executor->execute(
+                $target,
+                $staged['records'],
+                $user,
+                fn (int $processed) => $this->staging->progress($token, $user->id, $processed),
+                $token,
+            );
+            $this->staging->complete($token, $user->id, $result);
             $this->staging->forget($token);
 
             $targetName = match ($target) {
@@ -260,6 +321,20 @@ class ImportController extends Controller implements HasMiddleware
             ]);
         } catch (Throwable $e) {
             report($e);
+            $this->staging->fail($token, $user->id);
+            try {
+                $this->auditLogger->log(
+                    action: AuditAction::BulkImportFailed,
+                    actor: $user,
+                    description: "Failed {$target} import; no records were committed",
+                    newValues: ['target' => $target, 'total' => count($staged['records'])],
+                    module: 'Imports',
+                    outcome: 'failure',
+                    correlationId: $token,
+                );
+            } catch (Throwable $auditException) {
+                report($auditException);
+            }
 
             $targetName = match ($target) {
                 'items' => 'inventory items',
@@ -309,6 +384,18 @@ class ImportController extends Controller implements HasMiddleware
                 'message' => 'The import could not be completed. No records were committed. Review the file and try again.',
             ], 500);
         }
+    }
+
+    public function status(Request $request, string $token): JsonResponse
+    {
+        $status = $this->staging->status($token, $request->user()->id);
+        if ($status === null) {
+            return response()->json(['message' => 'Import status was not found.'], 404);
+        }
+
+        $this->authorizeTarget($request->user(), (string) $status['target']);
+
+        return response()->json(Arr::except($status, ['user_id']));
     }
 
     /**

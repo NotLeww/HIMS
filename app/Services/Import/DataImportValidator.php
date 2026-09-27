@@ -10,9 +10,6 @@ use InvalidArgumentException;
 
 class DataImportValidator
 {
-    // ponytail: synchronous imports stop here; add queued chunking if larger batches become necessary.
-    public const MAX_ROWS = 5000;
-
     /**
      * Required canonical headers per module.
      *
@@ -66,16 +63,25 @@ class DataImportValidator
         }
 
         $rowCount = count($tableData['rows'] ?? []);
-        if ($rowCount > self::MAX_ROWS) {
+        if ($rowCount > (int) config('imports.max_rows', 10_000)) {
             return $this->buildRowLimitError($rowCount);
         }
 
-        return match ($target) {
+        $result = match ($target) {
             'items' => $this->validateItems($tableData, $mode),
             'locations' => $this->validateLocations($tableData, $mode),
             'suppliers' => $this->validateSuppliers($tableData, $mode),
             default => throw new InvalidArgumentException("Unsupported import target [{$target}]."),
         };
+
+        $errorLimit = max(1, (int) config('imports.error_limit', 200));
+        if (count($result['errors']) > $errorLimit) {
+            $omitted = count($result['errors']) - $errorLimit;
+            $result['errors'] = array_slice($result['errors'], 0, $errorLimit);
+            $result['warnings'][] = number_format($omitted).' additional validation errors were omitted from this preview.';
+        }
+
+        return $result;
     }
 
     /**
@@ -913,7 +919,7 @@ class DataImportValidator
                 'field' => 'file',
                 'value' => number_format($rowCount).' rows',
                 'type' => 'record_limit',
-                'message' => 'The file contains '.number_format($rowCount).' records. The maximum per import is '.number_format(self::MAX_ROWS).'.',
+                'message' => 'The file contains '.number_format($rowCount).' records. The maximum per import is '.number_format((int) config('imports.max_rows', 10_000)).'.',
             ]],
             'warnings' => [],
             'preview_rows' => [],

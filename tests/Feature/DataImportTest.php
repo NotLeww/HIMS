@@ -2,13 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ProcessDataImport;
 use App\Models\InventoryItem;
 use App\Models\ItemCategory;
 use App\Models\StorageLocation;
 use App\Models\User;
+use App\Services\Import\DataImportExecutor;
 use App\Services\Import\DataImportReader;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -70,7 +74,10 @@ class DataImportTest extends TestCase
             ->assertSee(':disabled="!selectedFile || isValidating"', false)
             ->assertSee(':disabled="!validationResult || !validationResult.is_valid || isCommitting"', false)
             ->assertSee('this.isValidating = false', false)
-            ->assertSee('this.isCommitting = false', false);
+            ->assertSee('this.isCommitting = false', false)
+            ->assertSee('Bulk import processing')
+            ->assertSee('hims:active-import-status', false)
+            ->assertSee('pollImportStatus', false);
     }
 
     public function test_download_template_supports_csv_json_and_xlsx(): void
@@ -1460,10 +1467,10 @@ class DataImportTest extends TestCase
         $this->assertStringContainsString('The file size cannot exceed 10 MB', $res->json('errors.file.0'));
     }
 
-    public function test_preview_rejects_more_than_five_thousand_records(): void
+    public function test_preview_rejects_more_than_configured_bulk_limit(): void
     {
         $rows = ['sku,name'];
-        for ($i = 1; $i <= 5001; $i++) {
+        for ($i = 1; $i <= 10001; $i++) {
             $rows[] = "LIMIT-{$i},Limit Item {$i}";
         }
 
@@ -1475,9 +1482,149 @@ class DataImportTest extends TestCase
 
         $res->assertOk()
             ->assertJsonPath('is_valid', false)
-            ->assertJsonPath('total_rows', 5001)
+            ->assertJsonPath('total_rows', 10001)
             ->assertJsonPath('errors.0.type', 'record_limit')
             ->assertJsonPath('import_token', null);
+    }
+
+    public function test_bulk_commit_is_queued_once_and_reports_real_status(): void
+    {
+        Queue::fake();
+        $user = $this->inventoryManager();
+        $rows = ['sku,name'];
+        for ($i = 1; $i <= 1000; $i++) {
+            $rows[] = sprintf('BULK-%05d,Bulk Item %d', $i, $i);
+        }
+
+        $preview = $this->actingAs($user)->postJson('/inventory/import/preview', [
+            'file' => UploadedFile::fake()->createWithContent('bulk.csv', implode("\n", $rows)),
+            'target' => 'items',
+            'mode' => 'create_only',
+        ])->assertOk()->assertJsonPath('is_valid', true);
+
+        $payload = ['import_token' => $preview->json('import_token'), 'target' => 'items'];
+        $first = $this->actingAs($user)->postJson('/inventory/import/commit', $payload)
+            ->assertAccepted()
+            ->assertJsonPath('async', true)
+            ->assertJsonPath('status.status', 'processing')
+            ->assertJsonPath('status.total', 1000);
+
+        $this->actingAs($user)->postJson('/inventory/import/commit', $payload)
+            ->assertAccepted()
+            ->assertJsonPath('status.status', 'processing');
+
+        Queue::assertPushed(ProcessDataImport::class, 1);
+        $this->actingAs($user)->getJson($first->json('status_url'))
+            ->assertOk()
+            ->assertJsonPath('processed', 0)
+            ->assertJsonPath('total', 1000);
+        $this->assertDatabaseCount('inventory_items', 0);
+    }
+
+    public function test_concurrent_imports_keep_users_and_statuses_isolated(): void
+    {
+        config(['imports.background_threshold' => 2]);
+        Queue::fake();
+        $firstUser = $this->inventoryManager();
+        $secondUser = $this->inventoryManager();
+
+        $preview = function (User $user, string $prefix) {
+            return $this->actingAs($user)->postJson('/inventory/import/preview', [
+                'file' => UploadedFile::fake()->createWithContent("{$prefix}.csv", "sku,name\n{$prefix}-1,First\n{$prefix}-2,Second\n"),
+                'target' => 'items',
+                'mode' => 'create_only',
+            ]);
+        };
+
+        $firstPreview = $preview($firstUser, 'FIRST')->assertOk();
+        $secondPreview = $preview($secondUser, 'SECOND')->assertOk();
+        $firstCommit = $this->actingAs($firstUser)->postJson('/inventory/import/commit', [
+            'import_token' => $firstPreview->json('import_token'),
+            'target' => 'items',
+        ])->assertAccepted();
+        $secondCommit = $this->actingAs($secondUser)->postJson('/inventory/import/commit', [
+            'import_token' => $secondPreview->json('import_token'),
+            'target' => 'items',
+        ])->assertAccepted();
+
+        $this->assertNotSame($firstCommit->json('status.token'), $secondCommit->json('status.token'));
+        $this->actingAs($firstUser)->getJson($secondCommit->json('status_url'))->assertNotFound();
+        $this->actingAs($secondUser)->getJson($firstCommit->json('status_url'))->assertNotFound();
+        Queue::assertPushed(ProcessDataImport::class, 2);
+    }
+
+    public function test_one_thousand_row_bulk_csv_completes_with_correct_database_state(): void
+    {
+        $user = $this->inventoryManager();
+        $rows = ['sku,name'];
+        for ($i = 1; $i <= 1000; $i++) {
+            $rows[] = sprintf('CSV-%05d,Measured CSV Item %d', $i, $i);
+        }
+
+        $preview = $this->actingAs($user)->postJson('/inventory/import/preview', [
+            'file' => UploadedFile::fake()->createWithContent('measured.csv', implode("\n", $rows)),
+            'target' => 'items',
+            'mode' => 'create_only',
+        ])->assertOk()->assertJsonPath('valid_count', 1000);
+
+        $commit = $this->actingAs($user)->postJson('/inventory/import/commit', [
+            'import_token' => $preview->json('import_token'),
+            'target' => 'items',
+        ])->assertAccepted()->assertJsonPath('async', true);
+
+        $this->actingAs($user)->getJson($commit->json('status_url'))
+            ->assertOk()
+            ->assertJsonPath('status', 'completed')
+            ->assertJsonPath('processed', 1000)
+            ->assertJsonPath('created', 1000);
+
+        $this->assertDatabaseCount('inventory_items', 1000);
+        $this->assertDatabaseHas('inventory_items', ['sku' => 'CSV-00001', 'name' => 'Measured CSV Item 1']);
+        $this->assertDatabaseHas('inventory_items', ['sku' => 'CSV-01000', 'name' => 'Measured CSV Item 1000']);
+    }
+
+    public function test_large_invalid_preview_caps_errors_without_losing_invalid_count(): void
+    {
+        $rows = ['sku,name'];
+        for ($i = 1; $i <= 500; $i++) {
+            $rows[] = "INVALID-{$i},";
+        }
+
+        $response = $this->actingAs($this->inventoryManager())->postJson('/inventory/import/preview', [
+            'file' => UploadedFile::fake()->createWithContent('invalid-bulk.csv', implode("\n", $rows)),
+            'target' => 'items',
+            'mode' => 'create_only',
+        ])->assertOk()
+            ->assertJsonPath('is_valid', false)
+            ->assertJsonPath('invalid_count', 500)
+            ->assertJsonPath('import_token', null);
+
+        $this->assertCount(200, $response->json('errors'));
+        $this->assertStringContainsString('300 additional validation errors', $response->json('warnings.0'));
+    }
+
+    public function test_bulk_executor_rolls_back_all_chunks_on_database_failure(): void
+    {
+        $user = $this->inventoryManager();
+        $records = [];
+        for ($i = 1; $i <= 1000; $i++) {
+            $records[] = [
+                'sku' => $i === 501 ? 'ROLLBACK-00001' : sprintf('ROLLBACK-%05d', $i),
+                'name' => "Rollback Item {$i}",
+                '_mode' => 'create',
+                '_existing_id' => null,
+            ];
+        }
+
+        $failed = false;
+        try {
+            app(DataImportExecutor::class)->execute('items', $records, $user);
+        } catch (QueryException) {
+            $failed = true;
+        }
+
+        $this->assertTrue($failed);
+        $this->assertDatabaseCount('inventory_items', 0);
     }
 
     public function test_unexpected_parser_failures_do_not_expose_internal_details(): void
