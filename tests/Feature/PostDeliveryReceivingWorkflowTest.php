@@ -16,6 +16,7 @@ use App\Models\ItemBatch;
 use App\Models\ItemStockLevel;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
+use App\Models\Shipment;
 use App\Models\StockMovement;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
@@ -109,6 +110,7 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
             'email' => 'deliveries@metrodrug.com.ph',
             'phone' => '+63289001122',
             'address' => 'Makati City, Philippines',
+            'delivery_address' => 'HIMS Central Receiving Dock',
             'status' => 'active',
             'accreditation_status' => 'approved',
         ]);
@@ -770,6 +772,22 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
             'conversion_factor' => 1,
         ]);
 
+        Shipment::create([
+            'shipment_number' => 'SHP-SAL-008',
+            'purchase_order_id' => $po->id,
+            'supplier_id' => $this->supplier->id,
+            'pickup_location_type' => 'supplier_address',
+            'pickup_location_name' => $this->supplier->name.' - Registered Address',
+            'origin_address' => $this->supplier->address,
+            'pickup_contact_name' => $this->supplier->contact_person,
+            'pickup_contact_number' => $this->supplier->phone,
+            'destination_facility' => $this->stagingLocation->fullPath(),
+            'destination_storage_location_id' => $this->stagingLocation->id,
+            'carrier_name' => 'FastCargo',
+            'waybill_number' => 'FC-887711',
+            'status' => 'arrived_at_dock',
+        ]);
+
         // 1. Unauthenticated cannot access receiving
         $this->get(route('inventory.receiving.index'))
             ->assertRedirect(route('login'));
@@ -807,7 +825,37 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('Receiving Workflow')
             ->assertSee('Quality inspection')
+            ->assertSee('Makati City, Philippines')
+            ->assertSee('Eduardo Santos')
+            ->assertSee('+63289001122')
+            ->assertSee('Pickup Location')
+            ->assertSee('Metro Drug Distribution PH - Registered Address')
+            ->assertSee('Receiving Staging Bay')
+            ->assertSee('Current Receiving Hold')
+            ->assertSee('Receiving Quarantine Holding')
             ->assertSee('PO-SAL-008');
+
+        $legacyReceipt = GoodsReceiptNote::create([
+            'grn_number' => 'GRN-LEGACY-LOCATION-008',
+            'supplier_id' => $this->supplier->id,
+            'received_by_id' => $this->receivingClerk->id,
+            'received_at' => now(),
+            'receipt_status' => 'posted',
+        ]);
+
+        $this->actingAs($this->receivingClerk)
+            ->get(route('inventory.receiving.show', $legacyReceipt))
+            ->assertOk()
+            ->assertSee('Makati City, Philippines')
+            ->assertSee('HIMS Central Receiving Dock');
+
+        $viewer = User::factory()->create(['role' => UserRole::Viewer, 'status' => 'active']);
+        $this->actingAs($viewer)
+            ->get(route('inventory.receiving.show', $legacyReceipt))
+            ->assertOk()
+            ->assertDontSee('Makati City, Philippines')
+            ->assertDontSee('Eduardo Santos')
+            ->assertDontSee('+63289001122');
     }
 
     public function test_partial_qc_stays_actionable_and_only_put_away_makes_accepted_stock_available(): void

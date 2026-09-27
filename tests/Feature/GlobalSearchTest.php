@@ -173,6 +173,9 @@ class GlobalSearchTest extends TestCase
             'shipment_number' => 'SHP-2026-GLM-901',
             'tracking_number' => 'TRACK-99887766',
             'carrier_name' => 'DHL Express Philippines',
+            'pickup_location_type' => 'manual',
+            'pickup_location_name' => 'Poro Point Medical Cross-Dock',
+            'origin_address' => 'San Fernando, La Union',
             'destination_facility' => 'Main Receiving Dock',
             'supplier_id' => $supplier->id,
             'purchase_order_id' => $po->id,
@@ -192,6 +195,11 @@ class GlobalSearchTest extends TestCase
         $res = $this->actingAs($superAdmin)->getJson(route('global-search', ['query' => '99887766']));
         $res->assertOk()
             ->assertJsonFragment(['title' => 'Shipment #SHP-2026-GLM-901']);
+
+        $pickupRes = $this->actingAs($superAdmin)->getJson(route('global-search', ['query' => 'Poro Point']));
+        $pickupRes->assertOk()
+            ->assertJsonFragment(['title' => 'Shipment #SHP-2026-GLM-901'])
+            ->assertJsonFragment(['subtitle' => 'DHL Express Philippines · Track: TRACK-99887766 · Global Logistics Medical Inc. · Pickup: Poro Point Medical Cross-Dock']);
 
         $docRes = $this->actingAs($superAdmin)->getJson(route('global-search', ['query' => 'WAYBILL-55']));
         $docRes->assertOk()

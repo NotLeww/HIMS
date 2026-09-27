@@ -43,6 +43,14 @@
         $allTasksCompleted = $allTasks->isNotEmpty() && $allTasks->every(fn ($task) => $task->status === \App\Enums\WarehouseTaskStatus::Completed);
         $discrepancyLines = $goodsReceiptNote->lines->filter(fn ($line) => $line->item_condition !== 'good' || filled($line->discrepancy_type));
         $destinations = $goodsReceiptNote->lines->pluck('destinationLocation')->filter()->unique('id');
+        $canViewSupplierLocation = auth()->user()?->canAny([
+            \App\Enums\Permission::ViewSupplierSensitiveData->value,
+            \App\Enums\Permission::ViewLogisticsSensitiveData->value,
+        ]) ?? false;
+        $receivingDestination = $linkedShipment?->destinationStorageLocation?->fullPath()
+            ?? $linkedShipment?->destination_facility
+            ?? ($destinations->isNotEmpty() ? $destinations->map(fn ($location) => $location->fullPath())->join(', ') : null)
+            ?? $goodsReceiptNote->supplier?->delivery_address;
         $linkedDocuments = $goodsReceiptNote->documents
             ->merge($goodsReceiptNote->inspectionAcceptanceReport?->documents ?? collect())
             ->unique('id');
@@ -87,6 +95,17 @@
                 <div class="min-w-0 rounded-xl border border-neutral-200 bg-white px-4 py-3.5 dark:border-neutral-800 dark:bg-neutral-900">
                     <p class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Supplier</p>
                     <p class="mt-1.5 break-words text-sm font-semibold leading-5 text-neutral-900 dark:text-neutral-100">{{ $goodsReceiptNote->supplier?->name ?? 'Not recorded' }}</p>
+                    @if($canViewSupplierLocation && $goodsReceiptNote->supplier?->address)
+                        <p class="mt-1 flex items-start gap-1.5 break-words text-xs leading-5 text-neutral-500 dark:text-neutral-400">
+                            <x-ui.icon name="map-pin" class="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary-600 dark:text-primary-400" />
+                            <span>{{ $goodsReceiptNote->supplier->address }}</span>
+                        </p>
+                    @endif
+                    @if($canViewSupplierLocation && ($goodsReceiptNote->supplier?->contact_person || $goodsReceiptNote->supplier?->phone))
+                        <p class="mt-1 break-words text-xs leading-5 text-neutral-500 dark:text-neutral-400">
+                            Contact: {{ collect([$goodsReceiptNote->supplier->contact_person, $goodsReceiptNote->supplier->phone])->filter()->join(' · ') }}
+                        </p>
+                    @endif
                 </div>
                 <div class="min-w-0 rounded-xl border border-neutral-200 bg-white px-4 py-3.5 dark:border-neutral-800 dark:bg-neutral-900">
                     <p class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Purchase Order</p>
@@ -105,11 +124,29 @@
                 </div>
                 <div class="min-w-0 rounded-xl border border-neutral-200 bg-white px-4 py-3.5 sm:col-span-2 lg:col-span-1 dark:border-neutral-800 dark:bg-neutral-900">
                     <p class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Receiving Destination</p>
-                    <p class="mt-1.5 break-words text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ $destinations->isNotEmpty() ? $destinations->pluck('name')->join(', ') : 'Not assigned' }}</p>
+                    <p class="mt-1.5 break-words text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ $receivingDestination ?: 'Not assigned' }}</p>
                 </div>
                 </div>
-                @if($goodsReceiptNote->carrier_name || $goodsReceiptNote->waybill_number || $goodsReceiptNote->sales_invoice_number)
+                @if($goodsReceiptNote->carrier_name || $goodsReceiptNote->waybill_number || $goodsReceiptNote->sales_invoice_number || $linkedShipment || $goodsReceiptNote->quarantineLocation)
                     <dl class="mt-3 flex flex-wrap gap-x-8 gap-y-3 rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm dark:border-neutral-800 dark:bg-neutral-900">
+                @if($linkedShipment)
+                    <div class="min-w-0 flex-1 basis-64">
+                        <dt class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Pickup Location</dt>
+                        <dd class="mt-1 font-semibold text-neutral-900 dark:text-neutral-100">{{ $linkedShipment->pickup_location_name ?: 'Not recorded' }}</dd>
+                        @if($linkedShipment->origin_address)
+                            <dd class="mt-0.5 break-words text-xs text-neutral-500 dark:text-neutral-400">{{ $linkedShipment->origin_address }}</dd>
+                        @endif
+                        @if($linkedShipment->pickup_contact_name || $linkedShipment->pickup_contact_number)
+                            <dd class="mt-0.5 break-words text-xs text-neutral-500 dark:text-neutral-400">Contact: {{ collect([$linkedShipment->pickup_contact_name, $linkedShipment->pickup_contact_number])->filter()->join(' · ') }}</dd>
+                        @endif
+                    </div>
+                @endif
+                @if($goodsReceiptNote->quarantineLocation)
+                    <div class="min-w-0 flex-1 basis-48">
+                        <dt class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Current Receiving Hold</dt>
+                        <dd class="mt-1 font-semibold text-neutral-900 dark:text-neutral-100">{{ $goodsReceiptNote->quarantineLocation->fullPath() }}</dd>
+                    </div>
+                @endif
                 @if($goodsReceiptNote->carrier_name)
                     <div class="min-w-0">
                         <dt class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Carrier</dt>
@@ -206,13 +243,14 @@
                                         @endif
                                     </td>
                                     <td class="px-4 py-4 text-xs leading-5 text-neutral-700 dark:text-neutral-300">
-                                        @if($line->destinationLocation)
+                                        @if($line->destinationLocation && $line->destination_location_id !== $goodsReceiptNote->quarantine_location_id)
                                             <p class="break-words font-medium text-neutral-900 dark:text-neutral-100">{{ $line->destinationLocation->name }}</p>
                                             @if($line->destinationLocation->code)
                                                 <p class="mt-0.5 font-mono text-neutral-500">{{ $line->destinationLocation->code }}</p>
                                             @endif
                                         @else
-                                            <span class="text-neutral-400">Not recorded</span>
+                                            <p class="font-medium text-neutral-700 dark:text-neutral-300">{{ $line->stagingLocation?->name ?? $goodsReceiptNote->quarantineLocation?->name ?? 'Pending assignment' }}</p>
+                                            <p class="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">Current receiving location</p>
                                         @endif
                                     </td>
                                     <td class="px-4 py-4 text-right">
@@ -289,7 +327,12 @@
                                 </div>
                                 <div class="col-span-2">
                                     <dt class="font-medium text-neutral-500 dark:text-neutral-400">Destination</dt>
-                                    <dd class="mt-1 font-semibold text-neutral-900 dark:text-neutral-100">{{ $line->destinationLocation?->name ?? 'Not assigned' }}</dd>
+                                    @if($line->destinationLocation && $line->destination_location_id !== $goodsReceiptNote->quarantine_location_id)
+                                        <dd class="mt-1 font-semibold text-neutral-900 dark:text-neutral-100">{{ $line->destinationLocation->name }}</dd>
+                                    @else
+                                        <dd class="mt-1 font-semibold text-neutral-900 dark:text-neutral-100">{{ $line->stagingLocation?->name ?? $goodsReceiptNote->quarantineLocation?->name ?? 'Pending assignment' }}</dd>
+                                        <dd class="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">Current receiving location</dd>
+                                    @endif
                                 </div>
                             </dl>
                             @if($line->discrepancy_type || $line->discrepancy_notes || $line->notes)

@@ -1096,9 +1096,10 @@ class DocumentTrackingAndLogisticsTest extends TestCase
         // Check header title & action
         $response->assertSee('Shipments &amp; Carrier Logistics', false);
         $response->assertSee('Register Inbound Shipment', false);
+        $response->assertDontSee('New Shipment', false);
 
         // Check table headers
-        $response->assertSee('Shipment &amp; Origin', false);
+        $response->assertSee('Shipment &amp; Route', false);
         $response->assertSee('Carrier / 3PL Info', false);
         $response->assertSee('GS1 SSCC Barcode', false);
         $response->assertSee('Delivery Schedule', false);

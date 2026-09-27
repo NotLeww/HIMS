@@ -45,6 +45,8 @@ class PurchaseOrderWorkspaceTest extends TestCase
             'accreditation_status' => SupplierAccreditationStatus::Approved,
             'standard_lead_time_days' => 5,
             'payment_terms' => 'Net 30',
+            'address' => '10 Registered Avenue, Quezon City',
+            'delivery_address' => '25 Dispatch Road, Pasig City',
         ]);
     }
 
@@ -103,6 +105,10 @@ class PurchaseOrderWorkspaceTest extends TestCase
             ->assertSee('Suggested reorder quantity')
             ->assertSee($item->name)
             ->assertSee($supplier->name)
+            ->assertSee('Supplier pickup location')
+            ->assertSee('10 Registered Avenue, Quezon City')
+            ->assertSee('selectedPo.supplier_location', false)
+            ->assertDontSee('25 Dispatch Road, Pasig City')
             ->assertSee('Review Purchase Order')
             ->assertSee('Confirm &amp; create PO', false)
             ->assertSee('id="po-search"', false)
@@ -278,6 +284,7 @@ class PurchaseOrderWorkspaceTest extends TestCase
         $this->actingAs($viewer)->get('/inventory/purchases')
             ->assertOk()
             ->assertDontSee('id="direct-po-form"', false)
+            ->assertDontSee('10 Registered Avenue, Quezon City')
             ->assertDontSee('98765.43');
 
         $this->actingAs($viewer)->post('/inventory/purchases/orders', [
@@ -482,6 +489,8 @@ class PurchaseOrderWorkspaceTest extends TestCase
         $this->actingAs($warehouseStaff)
             ->get('/inventory/purchases')
             ->assertOk()
+            ->assertSee('Supplier pickup location')
+            ->assertSee('10 Registered Avenue, Quezon City')
             ->assertDontSee('Approve Order');
 
         $this->actingAs($warehouseStaff)

@@ -74,27 +74,13 @@
             </select>
         </div>
 
-        @canany([\App\Enums\Permission::ManageLogisticsRecords->value, \App\Enums\Permission::ViewLogisticsSensitiveData->value])
+        @can(\App\Enums\Permission::ViewLogisticsSensitiveData->value)
             <div class="flex flex-wrap items-center gap-2 pt-1 border-t border-neutral-100 dark:border-neutral-800">
-                @can(\App\Enums\Permission::ManageLogisticsRecords->value)
-                    <x-ui.button
-                        variant="secondary"
-                        size="sm"
-                        :href="route('inventory.logistics.shipments')"
-                        @click="if (window.location.pathname.includes('/inventory/logistics/shipments')) { $event.preventDefault(); $dispatch('open-shipment-modal'); }"
-                        icon="plus"
-                        class="flex-1"
-                    >
-                        New Shipment
-                    </x-ui.button>
-                @endcan
-                @can(\App\Enums\Permission::ViewLogisticsSensitiveData->value)
-                    <x-ui.button variant="secondary" size="sm" :href="route('inventory.logistics.iar.index')" icon="clipboard-document-check" class="flex-1">
-                        IAR Processing
-                    </x-ui.button>
-                @endcan
+                <x-ui.button variant="secondary" size="sm" :href="route('inventory.logistics.iar.index')" icon="clipboard-document-check" class="flex-1">
+                    IAR Processing
+                </x-ui.button>
             </div>
-        @endcanany
+        @endcan
     </div>
 
     {{-- Desktop & Tablet Major Dropdowns + Action Buttons (>= sm) --}}
@@ -270,25 +256,12 @@
         </div>
 
         {{-- Action Buttons --}}
-        @canany([\App\Enums\Permission::ManageLogisticsRecords->value, \App\Enums\Permission::ViewLogisticsSensitiveData->value])
+        @can(\App\Enums\Permission::ViewLogisticsSensitiveData->value)
             <div class="flex items-center gap-2 flex-wrap">
-                @can(\App\Enums\Permission::ManageLogisticsRecords->value)
-                    <x-ui.button
-                        variant="secondary"
-                        size="sm"
-                        :href="route('inventory.logistics.shipments')"
-                        @click="if (window.location.pathname.includes('/inventory/logistics/shipments')) { $event.preventDefault(); $dispatch('open-shipment-modal'); }"
-                        icon="plus"
-                    >
-                        New Shipment
-                    </x-ui.button>
-                @endcan
-                @can(\App\Enums\Permission::ViewLogisticsSensitiveData->value)
-                    <x-ui.button variant="secondary" size="sm" :href="route('inventory.logistics.iar.index')" icon="clipboard-document-check">
-                        IAR Processing
-                    </x-ui.button>
-                @endcan
+                <x-ui.button variant="secondary" size="sm" :href="route('inventory.logistics.iar.index')" icon="clipboard-document-check">
+                    IAR Processing
+                </x-ui.button>
             </div>
-        @endcanany
+        @endcan
     </div>
 </div>

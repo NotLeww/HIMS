@@ -164,6 +164,9 @@
                                             <div class="text-xs text-neutral-500 dark:text-neutral-400 font-mono truncate max-w-[160px]" title="{{ $shipment->tracking_number ?? $shipment->waybill_number }}">
                                                 {{ $shipment->tracking_number ?? 'Waybill: '.($shipment->waybill_number ?? 'N/A') }}
                                             </div>
+                                            <div class="mt-1 max-w-[160px] truncate text-[10px] text-neutral-500 dark:text-neutral-400" title="{{ $shipment->pickup_location_name ?? $shipment->origin_address ?? 'Not recorded' }}">
+                                                Pickup: {{ $shipment->pickup_location_name ?? $shipment->origin_address ?? 'Not recorded' }}
+                                            </div>
                                         </td>
                                         <td class="px-3.5 py-3.5 sm:px-4 whitespace-nowrap">
                                             <div class="text-neutral-900 dark:text-neutral-200 font-medium">{{ $shipment->estimated_delivery_date?->format('M d, Y') ?? 'Not specified' }}</div>

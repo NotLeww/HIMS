@@ -756,6 +756,8 @@ class HimsAiToolRegistry
                     'supplier_name' => $s->supplier?->name ?? 'Unknown Supplier',
                     'carrier' => $s->carrier_name ?? 'Not recorded',
                     'tracking_number' => $s->tracking_number ?? 'N/A',
+                    'pickup_location' => $s->pickup_location_name ?? $s->origin_address ?? 'Not recorded',
+                    'destination' => $s->destination_facility,
                     'status' => (string) $s->status,
                     'dispatch_date' => $s->dispatch_date?->toDateString(),
                     'estimated_delivery' => $s->estimated_delivery_date?->toDateString(),

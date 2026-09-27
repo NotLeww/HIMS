@@ -40,6 +40,14 @@ Before editing, trace the requested behavior through the files that actually par
 - Extend an existing request when it owns the same input contract. Add a request class when validation or authorization is reusable or substantial; do not create one solely for uniformity.
 - Preserve the endpoint's response style: Blade redirect/flash behavior for web flows and API Resources or established JSON shapes for API flows.
 
+#### Date and time accuracy
+
+- Treat chronological relationships as domain invariants, not presentation hints. Encode the exact inclusive or exclusive rule (`after`, `after_or_equal`, `before`, or `before_or_equal`) and reject impossible ordering such as an estimated delivery on or before its dispatch date when the workflow requires a later date.
+- Enforce date formats, past/future boundaries, and cross-field relationships on the server even when the UI has `min` or `max`. Repeat the invariant in the owning service when commands, jobs, tests, or other callers can bypass the HTTP request.
+- Compare calendar dates and timestamps in the application's intended timezone and normalize values to the stored precision before comparison. Do not compare localized display strings or rely on browser locale ordering.
+- Treat database-backed defaults and prefills as untrusted workflow input: validate stale PO dates and other inherited values before persistence instead of assuming existing data still satisfies the current action.
+- Cover the meaningful boundaries proportionally: past value, same-day equality, reversed order, earliest valid value, and a timezone boundary when timestamps rather than date-only fields are involved.
+
 ### Domain services and data invariants
 
 - Keep domain decisions in the existing service that owns them. Controllers should orchestrate HTTP concerns rather than duplicate service logic.

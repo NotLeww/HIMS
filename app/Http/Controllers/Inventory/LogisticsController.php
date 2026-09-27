@@ -13,6 +13,7 @@ use App\Models\LogisticsDocument;
 use App\Models\MaterialRequisition;
 use App\Models\PurchaseOrder;
 use App\Models\Shipment;
+use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Services\AuditLogger;
 use App\Services\Logistics\ChainOfCustodyService;
@@ -288,14 +289,17 @@ class LogisticsController extends Controller implements HasMiddleware
      */
     public function shipments(Request $request): View
     {
-        $query = Shipment::with(['purchaseOrder', 'supplier', 'custodyLogs']);
+        $query = Shipment::with(['purchaseOrder', 'supplier', 'pickupStorageLocation', 'destinationStorageLocation', 'custodyLogs']);
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('shipment_number', 'like', "%{$search}%")
                     ->orWhere('carrier_name', 'like', "%{$search}%")
                     ->orWhere('tracking_number', 'like', "%{$search}%")
-                    ->orWhere('sscc', 'like', "%{$search}%");
+                    ->orWhere('sscc', 'like', "%{$search}%")
+                    ->orWhere('pickup_location_name', 'like', "%{$search}%")
+                    ->orWhere('origin_address', 'like', "%{$search}%")
+                    ->orWhere('destination_facility', 'like', "%{$search}%");
             });
         }
 
@@ -309,14 +313,21 @@ class LogisticsController extends Controller implements HasMiddleware
 
         $shipments = $query->latest()->paginate(15)->withQueryString();
 
-        $openPurchaseOrders = PurchaseOrder::whereNotIn('status', ['received', 'cancelled', 'rejected'])
+        $openPurchaseOrders = PurchaseOrder::with('supplier:id,name,address,contact_person,phone')
+            ->whereNotIn('status', ['received', 'cancelled', 'rejected'])
             ->latest()
             ->take(50)
             ->get(['id', 'po_number', 'supplier_id', 'delivery_date']);
 
-        $suppliers = Supplier::where('status', 'active')->orderBy('name')->get(['id', 'name']);
+        $suppliers = Supplier::where('status', 'active')->orderBy('name')
+            ->get(['id', 'name', 'address', 'contact_person', 'phone']);
+        $storageLocations = StorageLocation::active()
+            ->with('parent:id,name,parent_id')
+            ->orderBy('sort_sequence')
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'parent_id', 'type']);
 
-        return view('inventory.logistics.shipments', compact('shipments', 'openPurchaseOrders', 'suppliers'));
+        return view('inventory.logistics.shipments', compact('shipments', 'openPurchaseOrders', 'suppliers', 'storageLocations'));
     }
 
     /**
@@ -327,6 +338,11 @@ class LogisticsController extends Controller implements HasMiddleware
         $validated = $request->validate([
             'purchase_order_id' => ['nullable', 'exists:purchase_orders,id'],
             'supplier_id' => ['nullable', 'exists:suppliers,id'],
+            'pickup_source' => ['required', 'in:supplier_address,internal,manual'],
+            'pickup_storage_location_id' => ['nullable', 'required_if:pickup_source,internal', 'integer', 'exists:storage_locations,id'],
+            'pickup_location_name' => ['nullable', 'required_if:pickup_source,manual', 'string', 'max:150'],
+            'pickup_contact_name' => ['nullable', 'string', 'max:150'],
+            'pickup_contact_number' => ['nullable', 'string', 'max:50'],
             'carrier_name' => ['required', 'string', 'max:255'],
             'tracking_number' => ['nullable', 'string', 'max:100'],
             'waybill_number' => ['nullable', 'string', 'max:100'],
@@ -334,13 +350,12 @@ class LogisticsController extends Controller implements HasMiddleware
             'driver_name' => ['nullable', 'string', 'max:150'],
             'driver_contact' => ['nullable', 'string', 'max:50'],
             'sscc' => ['nullable', 'string', 'size:18'],
-            'origin_address' => ['nullable', 'string', 'max:255'],
-            'destination_facility' => ['required', 'string', 'max:255'],
-            'dispatch_date' => ['nullable', 'date'],
-            'estimated_delivery_date' => ['nullable', 'date'],
+            'origin_address' => ['nullable', 'required_if:pickup_source,manual', 'string', 'max:255'],
+            'destination_storage_location_id' => ['required', 'integer', 'exists:storage_locations,id'],
+            'dispatch_date' => ['nullable', 'date_format:Y-m-d'],
+            'estimated_delivery_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:today', 'after:dispatch_date'],
             'is_cold_chain' => ['nullable', 'boolean'],
             'temp_logger_serial' => ['nullable', 'string', 'max:100'],
-            'package_condition' => ['required', 'in:good_order,damaged_packaging,tampered_seal,seal_intact'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -364,6 +379,7 @@ class LogisticsController extends Controller implements HasMiddleware
             'temp_min' => ['nullable', 'numeric'],
             'temp_max' => ['nullable', 'numeric'],
             'temp_logger_serial' => ['nullable', 'string', 'max:100'],
+            'package_condition' => ['required', 'in:good_order,damaged_packaging,tampered_seal,seal_intact'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 

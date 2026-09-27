@@ -82,11 +82,15 @@ class GoodsReceiptController extends Controller implements HasMiddleware
             || auth()->user()->hasPermission(Permission::ReceivePurchaseOrder), 403);
         $goodsReceiptNote->load([
             'purchaseOrder.lines.item',
+            'purchaseOrder.shipments' => fn ($query) => $query->latest('actual_delivery_date')->latest('id'),
+            'purchaseOrder.shipments.destinationStorageLocation',
             'supplier',
             'receivedBy',
+            'quarantineLocation',
             'lines.item',
             'lines.batch',
             'lines.destinationLocation',
+            'lines.stagingLocation',
             'lines.purchaseOrderLine',
             'lines.inspections.warehouseTasks.destinationLocation',
             'lines.inspections.warehouseTasks.sourceLocation',
@@ -97,6 +101,11 @@ class GoodsReceiptController extends Controller implements HasMiddleware
             'documents.uploadedBy',
         ]);
 
+        $shipments = $goodsReceiptNote->purchaseOrder?->shipments ?? collect();
+        $linkedShipment = filled($goodsReceiptNote->waybill_number)
+            ? $shipments->first(fn ($shipment) => strcasecmp((string) $shipment->waybill_number, (string) $goodsReceiptNote->waybill_number) === 0)
+            : ($shipments->count() === 1 ? $shipments->first() : null);
+
         $storageLocations = StorageLocation::where('status', 'active')
             ->where('is_quarantine', false)
             ->where('is_damaged_stock', false)
@@ -106,7 +115,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
             ->orderBy('name')
             ->get();
 
-        return view('inventory.receiving.show', compact('goodsReceiptNote', 'storageLocations'));
+        return view('inventory.receiving.show', compact('goodsReceiptNote', 'storageLocations', 'linkedShipment'));
     }
 
     public function storeReceipt(Request $request): RedirectResponse

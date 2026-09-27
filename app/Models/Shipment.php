@@ -19,6 +19,9 @@ class Shipment extends Model
         'shipment_number',
         'purchase_order_id',
         'supplier_id',
+        'pickup_location_type',
+        'pickup_location_name',
+        'pickup_storage_location_id',
         'carrier_name',
         'tracking_number',
         'waybill_number',
@@ -27,7 +30,10 @@ class Shipment extends Model
         'driver_contact',
         'sscc',
         'origin_address',
+        'pickup_contact_name',
+        'pickup_contact_number',
         'destination_facility',
+        'destination_storage_location_id',
         'dispatch_date',
         'estimated_delivery_date',
         'actual_delivery_date',
@@ -58,6 +64,16 @@ class Shipment extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    public function pickupStorageLocation(): BelongsTo
+    {
+        return $this->belongsTo(StorageLocation::class, 'pickup_storage_location_id');
+    }
+
+    public function destinationStorageLocation(): BelongsTo
+    {
+        return $this->belongsTo(StorageLocation::class, 'destination_storage_location_id');
     }
 
     public function goodsReceiptNotes(): HasMany

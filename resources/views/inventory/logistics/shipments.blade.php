@@ -21,30 +21,33 @@
 
     @include('inventory.logistics.partials.nav')
 
-    <div class="space-y-6" x-data="{ shipmentModalOpen: false, dockModalOpen: false, selectedShipment: null, selectedShipmentNumber: '', isColdChain: false }"
+    <div class="space-y-6" x-data="shipmentRegistration({
+            purchaseOrders: @js($openPurchaseOrders->map(fn ($po) => [
+                'id' => $po->id,
+                'supplier_id' => $po->supplier_id,
+                'delivery_date' => $po->delivery_date?->toDateString(),
+            ])->values()),
+            suppliers: @js($suppliers->values()),
+            locations: @js($storageLocations->map(fn ($location) => [
+                'id' => $location->id,
+                'name' => $location->fullPath(),
+                'code' => $location->code,
+            ])->values()),
+            initial: @js([
+                'open' => $errors->any(),
+                'purchaseOrderId' => old('purchase_order_id'),
+                'supplierId' => old('supplier_id'),
+                'pickupOption' => old('pickup_source') === 'internal' ? 'internal:'.old('pickup_storage_location_id') : old('pickup_source'),
+                'pickupLocationName' => old('pickup_location_name'),
+                'pickupAddress' => old('origin_address'),
+                'pickupContactName' => old('pickup_contact_name'),
+                'pickupContactNumber' => old('pickup_contact_number'),
+                'destinationStorageLocationId' => old('destination_storage_location_id'),
+                'dispatchDate' => old('dispatch_date', now()->toDateString()),
+                'estimatedDeliveryDate' => old('estimated_delivery_date', now()->addDay()->toDateString()),
+            ]),
+        })"
          @open-shipment-modal.window="shipmentModalOpen = true">
-
-        {{-- Flash Notifications --}}
-        @if(session('success'))
-            <div class="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/90 p-3.5 text-sm text-emerald-800 shadow-2xs dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-                <x-ui.icon name="check-circle" class="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                <div class="font-medium">{{ session('success') }}</div>
-            </div>
-        @endif
-
-        @if(session('warning'))
-            <div class="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/90 p-3.5 text-sm text-amber-800 shadow-2xs dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                <x-ui.icon name="exclamation-triangle" class="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-                <div class="font-medium">{{ session('warning') }}</div>
-            </div>
-        @endif
-
-        @if(session('error'))
-            <div class="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50/90 p-3.5 text-sm text-red-800 shadow-2xs dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
-                <x-ui.icon name="x-circle" class="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
-                <div class="font-medium">{{ session('error') }}</div>
-            </div>
-        @endif
 
         {{-- Search & Filter Toolbar --}}
         <div class="rounded-xl border border-neutral-200/90 bg-white p-3 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900">
@@ -55,7 +58,7 @@
                         <x-ui.icon name="magnifying-glass" class="h-4 w-4" />
                     </div>
                     <input type="text" name="search" id="search" value="{{ request('search') }}"
-                           placeholder="Search shipment #, carrier, tracking #, or GS1 SSCC..."
+                           placeholder="Search shipment, pickup, destination, carrier, tracking, or SSCC..."
                            class="block w-full rounded-lg border-neutral-300 pl-9 pr-3 py-1.5 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500">
                 </div>
 
@@ -101,7 +104,7 @@
                 <table class="min-w-full divide-y divide-neutral-200 text-left text-xs dark:divide-neutral-800">
                     <thead class="bg-neutral-50/90 text-[11px] font-semibold uppercase tracking-wider text-neutral-600 dark:bg-neutral-800/80 dark:text-neutral-400">
                         <tr>
-                            <th class="px-5 py-3">Shipment &amp; Origin</th>
+                            <th class="px-5 py-3">Shipment &amp; Route</th>
                             <th class="px-5 py-3">Carrier / 3PL Info</th>
                             <th class="px-5 py-3">GS1 SSCC Barcode</th>
                             <th class="px-5 py-3">Delivery Schedule</th>
@@ -124,6 +127,17 @@
                                     </div>
                                     <div class="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
                                         Supplier: <span class="font-medium text-neutral-700 dark:text-neutral-300">{{ $shipment->supplier->name ?? 'N/A' }}</span>
+                                    </div>
+                                    <div class="mt-2 border-t border-neutral-100 pt-1.5 text-[11px] leading-relaxed dark:border-neutral-800">
+                                        <div class="font-medium text-neutral-700 dark:text-neutral-300" title="{{ $shipment->pickup_location_name ?? $shipment->origin_address ?? 'Not recorded' }}">
+                                            Pickup: {{ $shipment->pickup_location_name ?? $shipment->origin_address ?? 'Not recorded' }}
+                                        </div>
+                                        @if($shipment->pickup_location_name && $shipment->origin_address)
+                                            <div class="max-w-64 break-words text-neutral-500 dark:text-neutral-400">{{ $shipment->origin_address }}</div>
+                                        @endif
+                                        <div class="text-neutral-500 dark:text-neutral-400" title="{{ $shipment->destination_facility }}">
+                                            Destination: {{ $shipment->destination_facility }}
+                                        </div>
                                     </div>
                                 </td>
 
@@ -211,7 +225,13 @@
                                         @if(!$shipment->isDelivered())
                                             <button
                                                 type="button"
-                                                @click="selectedShipment = {{ $shipment->id }}; selectedShipmentNumber = '{{ $shipment->shipment_number }}'; isColdChain = {{ $shipment->is_cold_chain ? 'true' : 'false' }}; dockModalOpen = true"
+                                                @click="openDockArrival(@js([
+                                                    'id' => $shipment->id,
+                                                    'number' => $shipment->shipment_number,
+                                                    'cold_chain' => $shipment->is_cold_chain,
+                                                    'pickup' => $shipment->pickup_location_name ?? $shipment->origin_address ?? 'Not recorded',
+                                                    'destination' => $shipment->destination_facility,
+                                                ]))"
                                                 class="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-emerald-700 dark:hover:bg-emerald-500 transition active:scale-[0.98]"
                                             >
                                                 <x-ui.icon name="check" class="h-3.5 w-3.5" />
@@ -265,7 +285,7 @@
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div>
                                 <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Linked Purchase Order</label>
-                                <select name="purchase_order_id" class="mt-1 block w-full rounded-lg border-neutral-300 py-2 text-xs text-neutral-800 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                <select name="purchase_order_id" x-model="purchaseOrderId" @change="onPurchaseOrderChange()" class="mt-1 block w-full rounded-lg border-neutral-300 py-2 pl-3 pr-10 text-xs text-neutral-800 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
                                     <option value="">None / Direct Transfer</option>
                                     @foreach($openPurchaseOrders as $po)
                                         <option value="{{ $po->id }}">PO: {{ $po->po_number }} (Due: {{ $po->delivery_date?->format('M d, Y') ?? 'N/A' }})</option>
@@ -274,12 +294,70 @@
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Supplier</label>
-                                <select name="supplier_id" class="mt-1 block w-full rounded-lg border-neutral-300 py-2 text-xs text-neutral-800 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                <input type="hidden" name="supplier_id" :value="supplierId">
+                                <select x-model="supplierId" @change="onSupplierChange()" :disabled="purchaseOrderId !== ''" class="mt-1 block w-full rounded-lg border-neutral-300 py-2 pl-3 pr-10 text-xs text-neutral-800 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 disabled:bg-neutral-100 disabled:text-neutral-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:disabled:bg-neutral-800/60">
                                     <option value="">Select Supplier</option>
                                     @foreach($suppliers as $supplier)
                                         <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
                                     @endforeach
                                 </select>
+                                <p x-show="purchaseOrderId !== ''" class="mt-1 text-[10px] text-neutral-500 dark:text-neutral-400">Resolved from the linked purchase order.</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div class="min-w-0">
+                                <label for="pickup_location" class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Pickup Location *</label>
+                                <select id="pickup_location" x-model="pickupOption" @change="pickupTouched = true; applyPickupOption()" required class="mt-1 block w-full rounded-lg border-neutral-300 py-2 pl-3 pr-10 text-xs text-neutral-800 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                    <option value="">Select physical pickup point</option>
+                                    <template x-for="option in supplierPickupOptions()" :key="option.value">
+                                        <option :value="option.value" x-text="option.label"></option>
+                                    </template>
+                                    <template x-for="location in locations" :key="`internal:${location.id}`">
+                                        <option :value="`internal:${location.id}`" x-text="`Internal - ${location.name}`"></option>
+                                    </template>
+                                    <option value="manual">Other / Manual Pickup Location</option>
+                                </select>
+                                <input type="hidden" name="pickup_source" :value="pickupSource">
+                                <input type="hidden" name="pickup_storage_location_id" :value="pickupStorageLocationId">
+                                <input type="hidden" name="pickup_location_name" :value="pickupLocationName">
+                                <input type="hidden" name="origin_address" :value="pickupAddress">
+                                <input type="hidden" name="pickup_contact_name" :value="pickupContactName">
+                                <input type="hidden" name="pickup_contact_number" :value="pickupContactNumber">
+                                <p x-show="pickupOption && pickupOption !== 'manual'" class="mt-1 break-words text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400" x-text="pickupAddress || 'Internal HIMS location'"></p>
+                            </div>
+                            <div class="min-w-0">
+                                <label for="destination_storage_location_id" class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Destination Facility *</label>
+                                <select id="destination_storage_location_id" name="destination_storage_location_id" x-model="destinationStorageLocationId" required class="mt-1 block w-full rounded-lg border-neutral-300 py-2 pl-3 pr-10 text-xs text-neutral-800 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                    <option value="">Select receiving facility</option>
+                                    <template x-for="location in locations" :key="location.id">
+                                        <option :value="String(location.id)" x-text="location.name"></option>
+                                    </template>
+                                </select>
+                                <p class="mt-1 text-[10px] text-neutral-500 dark:text-neutral-400">Pickup and destination must be different physical locations.</p>
+                            </div>
+                        </div>
+
+                        <div x-show="pickupOption === 'manual'" x-cloak class="grid grid-cols-1 gap-3 rounded-xl border border-neutral-200 bg-neutral-50/80 p-3 sm:grid-cols-2 dark:border-neutral-800 dark:bg-neutral-800/50">
+                            <div>
+                                <label class="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Location Name *</label>
+                                <input type="text" x-model="pickupLocationName" :required="pickupOption === 'manual'" maxlength="150" placeholder="Warehouse, branch, dock, or depot"
+                                       class="mt-1 block w-full rounded-lg border-neutral-300 py-2 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Address *</label>
+                                <input type="text" x-model="pickupAddress" :required="pickupOption === 'manual'" maxlength="255" placeholder="Physical collection address"
+                                       class="mt-1 block w-full rounded-lg border-neutral-300 py-2 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Contact Person</label>
+                                <input type="text" x-model="pickupContactName" maxlength="150" placeholder="On-site contact"
+                                       class="mt-1 block w-full rounded-lg border-neutral-300 py-2 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Contact Number</label>
+                                <input type="text" x-model="pickupContactNumber" maxlength="50" placeholder="Pickup contact number"
+                                       class="mt-1 block w-full rounded-lg border-neutral-300 py-2 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
                             </div>
                         </div>
 
@@ -314,19 +392,6 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                                <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Origin address</label>
-                                <input type="text" name="origin_address" value="{{ old('origin_address') }}" placeholder="Supplier dispatch address"
-                                       class="mt-1 block w-full rounded-lg border-neutral-300 py-2 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Destination facility *</label>
-                                <input type="text" name="destination_facility" value="{{ old('destination_facility') }}" required placeholder="Receiving facility or dock"
-                                       class="mt-1 block w-full rounded-lg border-neutral-300 py-2 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500">
-                            </div>
-                        </div>
-
                         <div>
                             <div class="flex items-center justify-between">
                                 <label for="shipment_sscc_input" class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">GS1 SSCC Barcode (18 Numeric Digits)</label>
@@ -349,13 +414,17 @@
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div>
                                 <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Dispatch Date</label>
-                                <input type="date" name="dispatch_date" value="{{ date('Y-m-d') }}"
+                                <input type="date" name="dispatch_date" x-model="dispatchDate"
+                                       @change="normalizeEstimatedDeliveryDate()"
                                        class="mt-1 block w-full rounded-lg border-neutral-300 py-2 text-xs text-neutral-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                <p class="mt-1 text-[10px] text-neutral-500 dark:text-neutral-400">Departure date from the selected pickup location.</p>
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Estimated Delivery Date</label>
-                                <input type="date" name="estimated_delivery_date" value="{{ date('Y-m-d') }}"
+                                <input type="date" name="estimated_delivery_date" x-model="estimatedDeliveryDate"
+                                       :min="minimumEstimatedDeliveryDate()"
                                        class="mt-1 block w-full rounded-lg border-neutral-300 py-2 text-xs text-neutral-900 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                <p class="mt-1 text-[10px] text-neutral-500 dark:text-neutral-400">Must be today or later and after the dispatch date.</p>
                             </div>
                         </div>
 
@@ -383,7 +452,7 @@
 
                         <div class="mt-6 flex justify-end gap-2.5 border-t border-neutral-200 pt-4 dark:border-neutral-800">
                             <button type="button" @click="shipmentModalOpen = false" class="rounded-lg border border-neutral-300 px-4 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-750 transition">Cancel</button>
-                            <button type="submit" class="rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white hover:bg-primary-700 dark:hover:bg-primary-500 shadow-2xs transition">Register Shipment</button>
+                            <button type="submit" data-loading-text="Registering shipment..." class="rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white hover:bg-primary-700 dark:hover:bg-primary-500 shadow-2xs transition">Register Shipment</button>
                         </div>
                     </form>
                 </div>
@@ -409,7 +478,11 @@
                           data-confirm-message="Are you sure you want to record the physical dock arrival for this shipment?"
                           data-confirm-label="Confirm Dock Arrival">
                         @csrf
-                        <p class="text-xs text-neutral-600 dark:text-neutral-400">Arrival intake for <span class="font-bold text-neutral-900 dark:text-neutral-100" x-text="selectedShipmentNumber"></span> at HIMS Receiving Dock.</p>
+                        <div class="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs dark:border-neutral-800 dark:bg-neutral-800/50">
+                            <p class="font-bold text-neutral-900 dark:text-neutral-100" x-text="selectedShipmentNumber"></p>
+                            <p class="mt-1 text-neutral-600 dark:text-neutral-300"><span class="font-semibold">Pickup:</span> <span x-text="selectedPickup"></span></p>
+                            <p class="mt-0.5 text-neutral-600 dark:text-neutral-300"><span class="font-semibold">Destination:</span> <span x-text="selectedDestination"></span></p>
+                        </div>
 
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div>

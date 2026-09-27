@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\Permission;
 use App\Enums\SupplierStatus;
 use App\Enums\UserStatus;
-use App\Models\BarcodeAlias;
 use App\Models\CycleCountDoc;
 use App\Models\GoodsReceiptNote;
 use App\Models\InspectionAcceptanceReport;
@@ -21,7 +20,6 @@ use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Models\WarehouseTask;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class GlobalSearchService
@@ -567,7 +565,7 @@ class GlobalSearchService
     }
 
     /**
-     * Search Shipments by Shipment Number, Tracking Number, Waybill Number, Carrier, or SSCC.
+     * Search shipments by identifiers, carrier, route, or SSCC.
      */
     protected function searchShipments(string $term, int $limit): array
     {
@@ -578,7 +576,10 @@ class GlobalSearchService
                     ->orWhere('tracking_number', 'like', "%{$term}%")
                     ->orWhere('waybill_number', 'like', "%{$term}%")
                     ->orWhere('carrier_name', 'like', "%{$term}%")
-                    ->orWhere('sscc', 'like', "%{$term}%");
+                    ->orWhere('sscc', 'like', "%{$term}%")
+                    ->orWhere('pickup_location_name', 'like', "%{$term}%")
+                    ->orWhere('origin_address', 'like', "%{$term}%")
+                    ->orWhere('destination_facility', 'like', "%{$term}%");
             });
 
         $total = (clone $query)->count();
@@ -594,6 +595,9 @@ class GlobalSearchService
             }
             if ($shipment->supplier?->name) {
                 $subtitleParts[] = $shipment->supplier->name;
+            }
+            if ($shipment->pickup_location_name) {
+                $subtitleParts[] = "Pickup: {$shipment->pickup_location_name}";
             }
 
             $statusText = ucfirst(str_replace('_', ' ', $shipment->status ?? 'in_transit'));
@@ -1010,12 +1014,12 @@ class GlobalSearchService
         }
 
         $records = $query
-            ->orderByRaw("CASE
+            ->orderByRaw('CASE
                 WHEN name LIKE ? THEN 1
                 WHEN first_name LIKE ? THEN 2
                 WHEN surname LIKE ? THEN 3
                 WHEN employee_id LIKE ? THEN 4
-                ELSE 5 END",
+                ELSE 5 END',
                 ["{$term}%", "{$term}%", "{$term}%", "{$term}%"]
             )
             ->take($limit)

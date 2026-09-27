@@ -9,6 +9,10 @@
     @php
         $defaultTab = 'orders_revisions';
         $canIssuePurchaseOrder = auth()->user()?->can(\App\Enums\Permission::IssuePurchaseOrder->value) ?? false;
+        $canViewSupplierLocation = auth()->user()?->canAny([
+            \App\Enums\Permission::ViewSupplierSensitiveData->value,
+            \App\Enums\Permission::ViewLogisticsSensitiveData->value,
+        ]) ?? false;
         $procurementWorkspaceConfig = [
             'activeTab' => $defaultTab,
             'items' => $canIssuePurchaseOrder ? $items->map(function ($item) use ($itemProcurementContext) {
@@ -34,6 +38,8 @@
                 'id' => $supplier->id,
                 'name' => $supplier->name,
                 'status' => $supplier->status->value,
+                'location' => $canViewSupplierLocation ? $supplier->address : null,
+                'location_label' => 'Supplier pickup location',
                 'lead_time_days' => (int) ($supplier->standard_lead_time_days ?: 7),
                 'score' => $supplier->latestApprovedScorecard?->total_score !== null
                     ? (float) $supplier->latestApprovedScorecard->total_score
@@ -1270,6 +1276,13 @@
                                             · <span x-text="`min ${formatNumber(selectedTerms()?.minimum_order_quantity)}`"></span>
                                             · <span x-text="selectedTerms()?.price_source === 'supplier_catalog' ? 'supplier contract price' : 'item catalog price'"></span>
                                         </p>
+                                        <div class="mt-2 flex items-start gap-1.5 border-t border-primary-100 pt-2 text-[11px] text-primary-900">
+                                            <x-ui.icon name="map-pin" class="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary-600" />
+                                            <p class="min-w-0 break-words">
+                                                <span class="font-semibold" x-text="`${selectedSupplier()?.location_label}:`"></span>
+                                                <span x-text="selectedSupplier()?.location || 'No supplier location recorded'"></span>
+                                            </p>
+                                        </div>
                                     </div>
 
 
@@ -1490,6 +1503,7 @@
                                         'version' => $po->version,
                                         'status' => $statusLabel,
                                         'supplier' => $po->supplier?->name ?? 'Supplier unavailable',
+                                        'supplier_location' => $canViewSupplierLocation ? $po->supplier?->address : null,
                                         'item' => $primaryItem?->name ?? 'Multiple items',
                                         'quantity' => $orderedQuantity,
                                         'received_quantity' => $receivedQuantity,
@@ -1765,6 +1779,7 @@
                                 <div class="flex justify-between gap-4 px-3 py-2.5"><dt class="text-xs text-neutral-500 dark:text-neutral-400">Quantity</dt><dd class="text-right text-sm font-medium tabular-nums text-neutral-900 dark:text-neutral-100"><span x-text="formatNumber(quantity)"></span> <span x-text="selectedItem()?.unit"></span></dd></div>
                                 <div class="flex justify-between gap-4 px-3 py-2.5"><dt class="text-xs text-neutral-500 dark:text-neutral-400">Price per unit</dt><dd class="text-right text-sm font-medium tabular-nums text-neutral-900 dark:text-neutral-100" x-text="formatCurrency(trustedUnitCost(), selectedTerms()?.currency)"></dd></div>
                                 <div class="flex justify-between gap-4 px-3 py-2.5"><dt class="text-xs text-neutral-500 dark:text-neutral-400">Supplier</dt><dd class="text-right text-sm font-medium text-neutral-900 dark:text-neutral-100" x-text="selectedSupplier()?.name"></dd></div>
+                                <div x-show="selectedSupplier()?.location" class="flex justify-between gap-4 px-3 py-2.5"><dt class="text-xs text-neutral-500 dark:text-neutral-400">Supplier pickup location</dt><dd class="min-w-0 break-words text-right text-sm font-medium text-neutral-900 dark:text-neutral-100" x-text="selectedSupplier()?.location"></dd></div>
                                 <div class="flex justify-between gap-4 px-3 py-2.5"><dt class="text-xs text-neutral-500 dark:text-neutral-400">Expected delivery</dt><dd class="text-right text-sm font-medium tabular-nums text-neutral-900 dark:text-neutral-100" x-text="expectedDeliveryLabel()"></dd></div>
                                 <div class="flex justify-between gap-4 bg-neutral-50 dark:bg-neutral-800/60 px-3 py-3"><dt class="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Estimated total</dt><dd class="text-right text-base font-semibold tabular-nums text-neutral-900 dark:text-neutral-100" x-text="formatCurrency(orderTotal(), selectedTerms()?.currency)"></dd></div>
                             </dl>
@@ -1895,6 +1910,13 @@
                                 <dl class="mt-2 grid gap-3 text-sm sm:grid-cols-2">
                                     <div><dt class="text-xs text-neutral-500 dark:text-neutral-400">Raised</dt><dd class="mt-0.5 font-medium text-neutral-900 dark:text-neutral-100" x-text="formatDate(selectedPo.created_at)"></dd></div>
                                     <div><dt class="text-xs text-neutral-500 dark:text-neutral-400">Stock posted</dt><dd class="mt-0.5 font-medium text-neutral-900 dark:text-neutral-100" x-text="selectedPo.received_at ? formatDate(selectedPo.received_at) : 'Not yet received'"></dd></div>
+                                    <div x-show="selectedPo.supplier_location" class="sm:col-span-2">
+                                        <dt class="text-xs text-neutral-500 dark:text-neutral-400">Supplier pickup location</dt>
+                                        <dd class="mt-0.5 flex items-start gap-1.5 font-medium text-neutral-900 dark:text-neutral-100">
+                                            <x-ui.icon name="map-pin" class="mt-0.5 h-4 w-4 shrink-0 text-primary-600 dark:text-primary-400" />
+                                            <span class="min-w-0 break-words" x-text="selectedPo.supplier_location"></span>
+                                        </dd>
+                                    </div>
                                 </dl>
                                 <template x-if="selectedPo.shipments.length > 0">
                                     <ul class="mt-2 divide-y divide-neutral-100 dark:divide-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-800">

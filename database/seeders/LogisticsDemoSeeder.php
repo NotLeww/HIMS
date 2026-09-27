@@ -41,15 +41,15 @@ class LogisticsDemoSeeder extends Seeder
                 'Zuellig Pharma Philippines, Inc.',
             ])->first()
             ?? Supplier::firstOrCreate(
-            ['name' => 'Pan-Island Pharmaceuticals Distribution Corp.'],
-            [
-                'contact_person' => 'Roberto Cruz',
-                'email' => 'orders@zuelligpharma.com.ph',
-                'phone' => '+63 2 8988 8888',
-                'address' => 'KM 14 West Service Road, South Superhighway, Parañaque City, Metro Manila',
-                'status' => 'active',
-            ]
-        );
+                ['name' => 'Pan-Island Pharmaceuticals Distribution Corp.'],
+                [
+                    'contact_person' => 'Roberto Cruz',
+                    'email' => 'orders@zuelligpharma.com.ph',
+                    'phone' => '+63 2 8988 8888',
+                    'address' => 'KM 14 West Service Road, South Superhighway, Parañaque City, Metro Manila',
+                    'status' => 'active',
+                ]
+            );
 
         $metroDrug = InventoryItem::query()->with('supplier')->where('sku', 'ANT-MER-1G00')->first()?->supplier
             ?? Supplier::query()->whereIn('name', [
@@ -57,15 +57,15 @@ class LogisticsDemoSeeder extends Seeder
                 'Metro Drug, Inc.',
             ])->first()
             ?? Supplier::firstOrCreate(
-            ['name' => 'Archipelago Health Drug Distribution Inc.'],
-            [
-                'contact_person' => 'Corazon Ramos',
-                'email' => 'hospital_sales@metrodrug.com.ph',
-                'phone' => '+63 2 8837 0000',
-                'address' => 'Sta. Rosa Commercial Complex, Santa Rosa, Laguna',
-                'status' => 'active',
-            ]
-        );
+                ['name' => 'Archipelago Health Drug Distribution Inc.'],
+                [
+                    'contact_person' => 'Corazon Ramos',
+                    'email' => 'hospital_sales@metrodrug.com.ph',
+                    'phone' => '+63 2 8837 0000',
+                    'address' => 'Sta. Rosa Commercial Complex, Santa Rosa, Laguna',
+                    'status' => 'active',
+                ]
+            );
 
         // 3. Ensure Storage Location
         $coldStorage = StorageLocation::firstOrCreate(
@@ -179,8 +179,13 @@ class LogisticsDemoSeeder extends Seeder
                 'driver_name' => 'Danilo Bautista',
                 'driver_contact' => '+63 917 555 1234',
                 'sscc' => '000123456700000015',
+                'pickup_location_type' => 'supplier_address',
+                'pickup_location_name' => $zuellig->name.' - Registered Address',
                 'origin_address' => $zuellig->address,
-                'destination_facility' => 'HIMS Central Receiving Dock',
+                'pickup_contact_name' => $zuellig->contact_person,
+                'pickup_contact_number' => $zuellig->phone,
+                'destination_facility' => $coldStorage->fullPath(),
+                'destination_storage_location_id' => $coldStorage->id,
                 'dispatch_date' => now()->subDay()->toDateString(),
                 'estimated_delivery_date' => now()->toDateString(),
                 'actual_delivery_date' => now()->toDateString(),
@@ -314,8 +319,13 @@ class LogisticsDemoSeeder extends Seeder
                 'driver_name' => 'Arnel Pineda',
                 'driver_contact' => '+63 918 888 4321',
                 'sscc' => '376123450000100082',
+                'pickup_location_type' => 'supplier_address',
+                'pickup_location_name' => $metroDrug->name.' - Registered Address',
                 'origin_address' => $metroDrug->address,
-                'destination_facility' => 'HIMS Central Receiving Dock',
+                'pickup_contact_name' => $metroDrug->contact_person,
+                'pickup_contact_number' => $metroDrug->phone,
+                'destination_facility' => $centralStorage->fullPath(),
+                'destination_storage_location_id' => $centralStorage->id,
                 'dispatch_date' => now()->subDays(5)->toDateString(),
                 'estimated_delivery_date' => now()->subDays(14)->toDateString(),
                 'actual_delivery_date' => now()->subDays(4)->toDateString(),

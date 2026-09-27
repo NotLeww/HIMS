@@ -426,6 +426,17 @@ Zero letters, words, or character fragments may ever be clipped, cut off at the 
   - Always pair font sizes with adequate line-height (`leading-normal` or `leading-relaxed`) and vertical padding (`py-1.5` to `py-2.5`).
   - Never choke container heights with tight pixel constraints that clip letter descenders (e.g. `g`, `y`, `p`, `q`, `j`) or uppercase accents.
 
+### Accurate Date Entry and Temporal Relationships
+
+Date controls must prevent invalid chronology before submission without becoming the authority for persisted data.
+
+- Use native `date`, `datetime-local`, `min`, and `max` constraints when they match the domain. Bind dependent limits dynamically: for example, an estimated delivery that must be strictly after dispatch uses the day after dispatch as its minimum, while an inclusive rule uses the dispatch date itself.
+- State the exact rule in nearby helper or validation text. Do not blur `after` into `after_or_equal`, or "not in the past" into "after today"; same-day acceptance must match the actual workflow.
+- Recalculate dependent limits when the controlling date changes. If a selected or prefilled value becomes invalid, clear it or move it to the earliest valid value only when that behavior is expected and visible to the user.
+- Validate PO, supplier, master-data, query-string, and restored `old()` prefills through the same rules as manually entered dates. Never trust an auto-filled date merely because it came from the database.
+- Generate local calendar dates without UTC conversion drift. Avoid deriving a local `YYYY-MM-DD` with `toISOString()` when timezone conversion could move it to the previous or next day.
+- Client constraints are immediate UX only. Mirror every required date format, boundary, and cross-field relationship in Laravel validation and in the owning domain service when non-HTTP callers can reach it.
+
 ### Unified Pagination Standards & 20-Button Hard Ceiling
 
 Every paginated table, list, log, and workspace in HIMS must follow the exact same visual design system, and pagination bars must never render an excessive number of page buttons.
