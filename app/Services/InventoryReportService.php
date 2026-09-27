@@ -168,6 +168,7 @@ class InventoryReportService
     {
         $query = InventoryItem::query()
             ->leftJoin('item_categories', 'item_categories.id', '=', 'inventory_items.category_id')
+            ->where('inventory_items.status', '!=', 'archived')
             ->when($categoryId, fn ($builder) => $builder->where('inventory_items.category_id', $categoryId));
 
         if ($locationId) {
@@ -239,6 +240,7 @@ class InventoryReportService
         ];
 
         $query = DB::table('inventory_items as items')
+            ->where('items.status', '!=', 'archived')
             ->when($categoryId, fn ($builder) => $builder->where('items.category_id', $categoryId));
 
         if ($locationId) {
@@ -302,6 +304,7 @@ class InventoryReportService
         $batches = ItemBatch::query()
             ->active()
             ->whereNotNull('expiry_date')
+            ->whereHas('item', fn ($query) => $query->where('status', '!=', 'archived'))
             ->with('item')
             ->withSum(['stockLevels as units_on_hand' => $stockLevelScope], 'quantity')
             ->when($categoryId, fn ($query) => $query->whereHas('item', fn ($itemQuery) => $itemQuery->where('category_id', $categoryId)))

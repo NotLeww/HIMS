@@ -4,6 +4,7 @@ namespace App\Services\Ai;
 
 use App\Enums\MovementType;
 use App\Enums\Permission;
+use App\Enums\PurchaseOrderStatus;
 use App\Models\AuditLog;
 use App\Models\ChainOfCustodyLog;
 use App\Models\GoodsReceiptNote;
@@ -956,7 +957,7 @@ class HimsAiToolRegistry
         $unitsReceivedToday = (int) StockMovement::where('moved_at', '>=', $today)->where('movement_type', MovementType::StockIn)->sum('quantity');
 
         $pendingRequisitions = MaterialRequisition::whereIn('status', ['pending', 'draft', 'pending_approval'])->count();
-        $pendingPOs = PurchaseOrder::whereIn('status', ['pending', 'draft', 'ordered'])->count();
+        $pendingPOs = PurchaseOrder::whereIn('status', PurchaseOrderStatus::openValues())->count();
         $expiringBatches = ItemBatch::query()
             ->expiringSoon()
             ->where(function ($q) {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Enums\Permission;
+use App\Enums\PurchaseOrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use App\Models\ItemBatch;
@@ -62,7 +63,7 @@ class InventoryController extends Controller implements HasMiddleware
             ? ItemCategory::query()->active()->orderBy('name')->get(['id', 'name'])
             : collect();
 
-        $totalSuppliers = $canViewSuppliers ? Supplier::count() : null;
+        $totalSuppliers = $canViewSuppliers ? Supplier::where('status', '!=', 'archived')->count() : null;
         $activeSuppliers = $canViewSuppliers ? Supplier::where('status', 'active')->count() : null;
         $inactiveSuppliers = $canViewSuppliers ? Supplier::where('status', 'inactive')->count() : null;
         $storageLocations = StorageLocation::count();
@@ -74,14 +75,15 @@ class InventoryController extends Controller implements HasMiddleware
 
         $pendingPurchaseOrders = $canViewProcurementFinancials
             ? PurchaseOrder::with(['supplier', 'item'])
-                ->whereIn('status', ['draft', 'pending', 'submitted', 'approved'])
+                ->whereIn('status', PurchaseOrderStatus::openValues())
                 ->latest('requested_at')
+                ->latest('id')
                 ->take(5)
                 ->get()
             : collect();
 
         $pendingPoCount = $canViewProcurementFinancials
-            ? PurchaseOrder::whereIn('status', ['draft', 'pending', 'submitted', 'approved'])->count()
+            ? PurchaseOrder::whereIn('status', PurchaseOrderStatus::openValues())->count()
             : null;
 
         return view('dashboard', array_merge($this->liveSnapshot($request), compact(
@@ -158,6 +160,7 @@ class InventoryController extends Controller implements HasMiddleware
         $summary = $this->reports->summary($stockStatus);
         $stockedExpiryBatches = fn ($query) => $query
             ->active()
+            ->whereHas('item', fn ($item) => $item->where('status', '!=', 'archived'))
             ->whereHas('stockLevels', fn ($stock) => $stock->where('quantity', '>', 0));
         $expiringSoonCount = $stockedExpiryBatches(ItemBatch::query())
             ->expiringSoon()
@@ -170,6 +173,7 @@ class InventoryController extends Controller implements HasMiddleware
         // inventory alerts page. Persisted alert rows can lag behind imports
         // or older data that predates real-time alert synchronization.
         $attentionItems = InventoryItem::query()
+            ->where('status', '!=', 'archived')
             ->where(function ($query): void {
                 $query->where('quantity_on_hand', '<=', 0)
                     ->orWhere(function ($lowStock): void {

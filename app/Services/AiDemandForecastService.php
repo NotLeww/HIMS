@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\AlertType;
 use App\Enums\AuditAction;
 use App\Enums\DemandTrend;
+use App\Enums\PurchaseOrderStatus;
 use App\Jobs\WarmAiDemandForecast;
 use App\Models\InventoryItem;
 use App\Models\PurchaseOrder;
@@ -124,7 +125,7 @@ class AiDemandForecastService
         }
 
         // 2. Tally incoming procurement from pending purchase orders
-        $pendingStatuses = ['draft', 'submitted', 'pending', 'pending_approval', 'approved', 'dispatched', 'acknowledged', 'partially_fulfilled'];
+        $pendingStatuses = PurchaseOrderStatus::openValues();
         $pendingPoLines = (int) PurchaseOrderLine::query()
             ->where('item_id', $item->id)
             ->whereHas('purchaseOrder', fn ($q) => $q->whereIn('status', $pendingStatuses))
@@ -412,7 +413,7 @@ class AiDemandForecastService
             ->get(['item_id'])
             ->countBy('item_id');
 
-        $pendingStatuses = ['draft', 'submitted', 'pending', 'pending_approval', 'approved', 'dispatched', 'acknowledged', 'partially_fulfilled'];
+        $pendingStatuses = PurchaseOrderStatus::openValues();
         $lineQuantities = PurchaseOrderLine::query()
             ->whereIn('item_id', $itemIds)
             ->whereHas('purchaseOrder', fn ($query) => $query->whereIn('status', $pendingStatuses))

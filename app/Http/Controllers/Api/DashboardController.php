@@ -27,10 +27,10 @@ class DashboardController extends Controller implements HasMiddleware
         $canViewFinancials = $request->user()->can(Permission::ViewProcurementSensitiveData->value);
         $canViewSuppliers = $request->user()->can(Permission::ViewSuppliers->value);
         $totalInventoryValue = $canViewFinancials ? $summary['stock_value'] : null;
-        $totalSuppliers = $canViewSuppliers ? Supplier::count() : null;
+        $totalSuppliers = $canViewSuppliers ? Supplier::where('status', '!=', 'archived')->count() : null;
         $activeSuppliers = $canViewSuppliers ? Supplier::where('status', 'active')->count() : null;
         $storageLocations = StorageLocation::count();
-        $recentMovements = StockMovement::with(['item'])->latest('moved_at')->take(6)->get()->map(function ($movement) {
+        $recentMovements = StockMovement::with(['item'])->latest('moved_at')->latest('id')->take(6)->get()->map(function ($movement) {
             return [
                 'id' => $movement->id,
                 'item' => $movement->item?->name,
