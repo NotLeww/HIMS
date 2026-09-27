@@ -644,6 +644,69 @@ class InventoryReportTest extends TestCase
             ->assertSessionHasErrors(['from']);
     }
 
+    public function test_historical_movement_report_matches_custom_period_filters_and_csv_export(): void
+    {
+        $reader = $this->reader();
+        $location = $this->location('Historical Store', 'HIST-01');
+        $medicine = ItemCategory::create(['name' => 'Historical Medicines', 'code' => 'HIST-MED']);
+        $supply = ItemCategory::create(['name' => 'Historical Supplies', 'code' => 'HIST-SUP']);
+        $historicalItem = $this->stockedItem('Archived Historical Medicine', 'HIST-MED-01', 20, 3.00, location: $location, category: $medicine);
+        $otherItem = $this->stockedItem('Other Historical Supply', 'HIST-SUP-01', 20, 2.00, location: $location, category: $supply);
+        $from = today()->subDays(60);
+        $to = today()->subDays(30);
+
+        foreach ([
+            [$historicalItem, MovementType::Issuance, 7, today()->subDays(45)],
+            [$historicalItem, MovementType::StockIn, 5, today()->subDays(45)],
+            [$otherItem, MovementType::Issuance, 13, today()->subDays(45)],
+            [$historicalItem, MovementType::Issuance, 11, today()->subDays(75)],
+        ] as [$item, $type, $quantity, $movedAt]) {
+            StockMovement::create([
+                'item_id' => $item->id,
+                'from_location_id' => $location->id,
+                'movement_type' => $type,
+                'quantity' => $quantity,
+                'unit_cost' => $item->unit_cost,
+                'moved_at' => $movedAt,
+            ]);
+        }
+
+        $historicalItem->update(['status' => 'archived', 'archived_at' => now()]);
+
+        $expected = StockMovement::query()
+            ->whereBetween('moved_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])
+            ->where('movement_type', MovementType::Issuance)
+            ->whereHas('item', fn ($query) => $query->where('category_id', $medicine->id))
+            ->get();
+        $query = http_build_query([
+            'report_type' => 'movement_history',
+            'period' => 'custom',
+            'from' => $from->format('Y-m-d'),
+            'to' => $to->format('Y-m-d'),
+            'category_id' => $medicine->id,
+            'storage_location_id' => $location->id,
+            'movement_type' => MovementType::Issuance->value,
+        ]);
+
+        $json = $this->actingAs($reader)->getJson('/inventory/reports/generate?format=json&'.$query)->assertOk();
+
+        $this->assertCount($expected->count(), $json->json('data'));
+        $this->assertSame((int) $expected->sum('quantity'), $json->json('summary')['Total Units Moved']);
+        $this->assertSame('Archived Historical Medicine', $json->json('data.0.item'));
+        $this->assertSame('₱21.00', $json->json('summary')['Total Movements Value']);
+        $this->assertSame(
+            $from->format('M d, Y').' — '.$to->format('M d, Y').' (Custom Range)',
+            $json->json('meta.period.description'),
+        );
+
+        $csv = $this->actingAs($reader)->get('/inventory/reports/generate?format=csv&'.$query)->assertOk()->streamedContent();
+
+        $this->assertStringContainsString('Archived Historical Medicine', $csv);
+        $this->assertStringContainsString('"Total Movements",1', $csv);
+        $this->assertStringContainsString('"Total Units Moved",7', $csv);
+        $this->assertStringNotContainsString('Other Historical Supply', $csv);
+    }
+
     public function test_generate_report_exports_json_format_with_metadata(): void
     {
         $location = $this->location();
