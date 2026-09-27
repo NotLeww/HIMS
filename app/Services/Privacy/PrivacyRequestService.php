@@ -6,7 +6,11 @@ use App\Enums\AuditAction;
 use App\Models\PrivacyRequest;
 use App\Models\User;
 use App\Services\AuditLogger;
+use App\Services\UserAccountService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use Throwable;
 
@@ -15,6 +19,7 @@ class PrivacyRequestService
     public function __construct(
         private readonly AuditLogger $auditLogger,
         private readonly DsarPackageService $packageService,
+        private readonly UserAccountService $userAccounts,
     ) {}
 
     /**
@@ -25,6 +30,27 @@ class PrivacyRequestService
     public function submit(?User $requestor, array $data): PrivacyRequest
     {
         return DB::transaction(function () use ($requestor, $data) {
+            if ($requestor !== null && $data['request_type'] === PrivacyRequest::TYPE_ERASURE_REVIEW) {
+                User::query()->lockForUpdate()->findOrFail($requestor->id);
+
+                $alreadyPending = PrivacyRequest::query()
+                    ->where('user_id', $requestor->id)
+                    ->where('request_type', PrivacyRequest::TYPE_ERASURE_REVIEW)
+                    ->whereIn('status', [
+                        PrivacyRequest::STATUS_PENDING,
+                        PrivacyRequest::STATUS_UNDER_REVIEW,
+                        PrivacyRequest::STATUS_APPROVED,
+                        PrivacyRequest::STATUS_PROCESSING,
+                    ])
+                    ->exists();
+
+                if ($alreadyPending) {
+                    throw ValidationException::withMessages([
+                        'request_type' => ['You already have an active data deletion request.'],
+                    ]);
+                }
+            }
+
             $ticketNumber = PrivacyRequest::generateTicketNumber();
 
             $request = PrivacyRequest::create([
@@ -69,6 +95,12 @@ class PrivacyRequestService
     public function markUnderReview(PrivacyRequest $request, User $actor): PrivacyRequest
     {
         return DB::transaction(function () use ($request, $actor) {
+            $request = PrivacyRequest::query()->lockForUpdate()->findOrFail($request->id);
+
+            if ($request->status !== PrivacyRequest::STATUS_PENDING) {
+                throw ValidationException::withMessages(['status' => ['Only pending requests can be placed under review.']]);
+            }
+
             $oldStatus = $request->status;
             $request->status = PrivacyRequest::STATUS_UNDER_REVIEW;
             $request->handled_by_user_id = $actor->id;
@@ -94,6 +126,10 @@ class PrivacyRequestService
      */
     public function approveAndFulfill(PrivacyRequest $request, User $actor, ?string $notes = null): PrivacyRequest
     {
+        if ($request->request_type === PrivacyRequest::TYPE_ERASURE_REVIEW) {
+            return $this->processDeletion($request, $actor, $notes);
+        }
+
         // 1. Mark Approved & Processing
         DB::transaction(function () use ($request, $actor, $notes) {
             $oldStatus = $request->status;
@@ -162,7 +198,7 @@ class PrivacyRequestService
             });
         } catch (Throwable $e) {
             // Record failure in resolution notes and keep request in approved state for safe retry
-            $request->resolution_notes = "Package generation failed: " . $e->getMessage();
+            $request->resolution_notes = 'Package generation failed: '.$e->getMessage();
             $request->save();
 
             throw $e;
@@ -186,6 +222,191 @@ class PrivacyRequestService
             'status' => PrivacyRequest::STATUS_REJECTED,
             'resolution_notes' => $reason,
         ]);
+    }
+
+    public function cancelRequest(PrivacyRequest $request, User $user): PrivacyRequest
+    {
+        return DB::transaction(function () use ($request, $user): PrivacyRequest {
+            $request = PrivacyRequest::query()->lockForUpdate()->findOrFail($request->id);
+
+            if ($request->user_id !== $user->id || $request->request_type !== PrivacyRequest::TYPE_ERASURE_REVIEW) {
+                throw new InvalidArgumentException('Only the owner may cancel their data deletion request.');
+            }
+
+            if ($request->status !== PrivacyRequest::STATUS_PENDING) {
+                throw ValidationException::withMessages([
+                    'status' => ['This request can no longer be cancelled because review or processing has started.'],
+                ]);
+            }
+
+            $request->update(['status' => PrivacyRequest::STATUS_CANCELLED]);
+
+            $this->auditLogger->record(
+                action: AuditAction::CancelledPrivacyRequest,
+                actor: $user,
+                target: $request,
+                targetName: "Data Deletion Request {$request->ticket_number}",
+                description: "Cancelled Data Deletion Request {$request->ticket_number}.",
+                oldValues: ['status' => PrivacyRequest::STATUS_PENDING],
+                newValues: ['status' => PrivacyRequest::STATUS_CANCELLED],
+            );
+
+            return $request;
+        });
+    }
+
+    public function processDeletion(PrivacyRequest $request, User $actor, ?string $notes = null): PrivacyRequest
+    {
+        return DB::transaction(function () use ($request, $actor, $notes): PrivacyRequest {
+            $request = PrivacyRequest::query()->lockForUpdate()->findOrFail($request->id);
+
+            if ($request->status === PrivacyRequest::STATUS_COMPLETED) {
+                return $request;
+            }
+
+            if ($request->request_type !== PrivacyRequest::TYPE_ERASURE_REVIEW
+                || ! in_array($request->status, [PrivacyRequest::STATUS_PENDING, PrivacyRequest::STATUS_UNDER_REVIEW, PrivacyRequest::STATUS_APPROVED], true)) {
+                throw ValidationException::withMessages(['status' => ['This deletion request is not eligible for processing.']]);
+            }
+
+            $user = User::query()->lockForUpdate()->find($request->user_id);
+            if ($user === null) {
+                throw ValidationException::withMessages(['user' => ['The account linked to this request no longer exists.']]);
+            }
+
+            $this->userAccounts->deactivate($user, $actor);
+
+            $oldStatus = $request->status;
+            $request->forceFill([
+                'status' => PrivacyRequest::STATUS_PROCESSING,
+                'approved_at' => $request->approved_at ?? now(),
+                'approved_by_user_id' => $request->approved_by_user_id ?? $actor->id,
+                'handled_by_user_id' => $actor->id,
+                'handled_at' => now(),
+                'processing_started_at' => $request->processing_started_at ?? now(),
+                'resolution_notes' => $notes ?: 'Eligible personal information was removed or anonymized; required operational, security, consent, and audit history was preserved.',
+            ])->save();
+
+            $this->auditLogger->record(
+                action: AuditAction::ApprovedPrivacyRequest,
+                actor: $actor,
+                target: $request,
+                targetName: "Data Deletion Request {$request->ticket_number}",
+                description: "Approved Data Deletion Request {$request->ticket_number} for processing.",
+                oldValues: ['status' => $oldStatus],
+                newValues: ['status' => PrivacyRequest::STATUS_PROCESSING],
+            );
+
+            $avatarPath = $user->avatar_path;
+            $packagePaths = $user->privacyRequests()
+                ->whereNotNull('package_path')
+                ->pluck('package_path')
+                ->filter(fn ($path) => is_string($path) && $path !== '' && ! str_contains($path, '..'))
+                ->unique()
+                ->values()
+                ->all();
+            $attachmentPaths = $user->aiChatConversations()
+                ->with('messages:id,conversation_id,attachment_path')
+                ->get()
+                ->flatMap->messages
+                ->pluck('attachment_path')
+                ->filter(fn ($path) => is_string($path) && $path !== '' && ! str_contains($path, '..'))
+                ->unique()
+                ->values()
+                ->all();
+
+            DB::table('password_reset_tokens')->where('email', $user->email)->delete();
+            DB::table('sessions')->where('user_id', $user->id)->delete();
+            $user->activeSession()->delete();
+            $user->trustedDevices()->delete();
+            $user->deviceCooldowns()->delete();
+            $user->loginApprovalRequests()
+                ->where('status', 'pending')
+                ->update([
+                    'status' => 'cancelled',
+                    'claim_token_hash' => null,
+                    'email_otp_hash' => null,
+                    'email_otp_expires_at' => null,
+                    'updated_at' => now(),
+                ]);
+            $user->tokens()->delete();
+            $user->notifications()->delete();
+            $user->aiChatConversations()->delete();
+
+            $pseudonymousEmail = "deleted-user-{$user->id}@invalid.local";
+            $user->forceFill([
+                'name' => 'Deleted User',
+                'first_name' => 'Deleted',
+                'middle_name' => null,
+                'surname' => 'User',
+                'email' => $pseudonymousEmail,
+                'email_verified_at' => null,
+                'employee_id' => null,
+                'department' => null,
+                'phone' => null,
+                'phone_blind_index' => null,
+                'avatar_path' => null,
+                'password' => Str::random(64),
+                'remember_token' => null,
+                'mfa_enabled' => false,
+                'sms_mfa_enabled' => false,
+                'sms_mfa_phone' => null,
+                'authenticator_secret' => null,
+                'authenticator_enabled_at' => null,
+                'session_timeout_reminder_enabled' => false,
+                'archive_reason' => null,
+            ])->saveQuietly();
+
+            $user->privacyRequests()->get()->each(function (PrivacyRequest $privacyRequest) use ($pseudonymousEmail, $request): void {
+                $privacyRequest->forceFill([
+                    'requestor_name' => 'Deleted User',
+                    'requestor_email' => $pseudonymousEmail,
+                    'details' => $privacyRequest->is($request)
+                        ? 'Data deletion request processed.'
+                        : 'Personal request details removed after account anonymization.',
+                    'export_payload' => null,
+                    'package_filename' => null,
+                    'package_path' => null,
+                    'package_hash' => null,
+                    'package_size_bytes' => null,
+                    'package_manifest' => null,
+                    'package_expires_at' => null,
+                    'exclusions_summary' => null,
+                ])->saveQuietly();
+            });
+
+            if (is_string($avatarPath) && $avatarPath !== '' && ! str_contains($avatarPath, '..')
+                && Storage::disk('public')->exists($avatarPath) && ! Storage::disk('public')->delete($avatarPath)) {
+                throw new \RuntimeException('Unable to remove the profile photo.');
+            }
+
+            foreach ([...$packagePaths, ...$attachmentPaths] as $path) {
+                if (Storage::disk('local')->exists($path) && ! Storage::disk('local')->delete($path)) {
+                    throw new \RuntimeException('Unable to remove a private personal-data file.');
+                }
+            }
+
+            $request->forceFill([
+                'status' => PrivacyRequest::STATUS_COMPLETED,
+                'fulfilled_at' => now(),
+            ])->save();
+
+            $this->auditLogger->record(
+                action: AuditAction::CompletedDataDeletion,
+                actor: $actor,
+                target: $request,
+                targetName: "Data Deletion Request {$request->ticket_number}",
+                description: "Completed Data Deletion Request {$request->ticket_number}; eligible account data was anonymized and retained historical records were preserved.",
+                oldValues: ['status' => PrivacyRequest::STATUS_PROCESSING],
+                newValues: [
+                    'status' => PrivacyRequest::STATUS_COMPLETED,
+                    'account_access' => 'revoked',
+                    'historical_records' => 'preserved',
+                ],
+            );
+
+            return $request->refresh();
+        });
     }
 
     public function exportPersonalData(User $user): array
@@ -214,7 +435,7 @@ class PrivacyRequestService
         }
 
         if ($decision['status'] === PrivacyRequest::STATUS_REJECTED && empty(trim($decision['resolution_notes'] ?? ''))) {
-            throw new InvalidArgumentException("A formal legal justification is required when denying a Data Subject Request under RA 10173 Section 16.");
+            throw new InvalidArgumentException('A formal legal justification is required when denying a Data Subject Request under RA 10173 Section 16.');
         }
 
         if (in_array($decision['status'], [PrivacyRequest::STATUS_APPROVED, PrivacyRequest::STATUS_FULFILLED, PrivacyRequest::STATUS_RELEASED], true)) {

@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PrivacyRequest;
 use App\Services\Privacy\PrivacyRequestService;
+use App\Support\AuthenticationContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,21 +30,33 @@ class PrivacyRequestController extends Controller implements HasMiddleware
      */
     public function store(Request $request): RedirectResponse|JsonResponse
     {
+        $guard = AuthenticationContext::authenticatedGuard() ?? AuthenticationContext::WEB_GUARD;
         $validated = $request->validate([
             'request_type' => ['required', 'string', Rule::in(['access', 'correction', 'erasure', 'objection'])],
-            'details' => ['required', 'string', 'min:10', 'max:2000'],
+            'details' => [$request->input('request_type') === 'erasure' ? 'nullable' : 'required', 'string', 'min:10', 'max:2000'],
+            'current_password' => [$request->input('request_type') === 'erasure' ? 'required' : 'nullable', 'current_password:'.$guard],
+            'confirm_deletion' => [$request->input('request_type') === 'erasure' ? 'accepted' : 'nullable'],
         ], [
             'request_type.required' => 'Please select the type of data subject request.',
             'request_type.in' => 'The selected request type is not valid under RA 10173 provisions.',
             'details.required' => 'Please provide specific details regarding your request.',
             'details.min' => 'Please provide at least 10 characters describing your request.',
             'details.max' => 'The request description cannot exceed 2,000 characters.',
+            'current_password.required' => 'Current password is required to request data deletion.',
+            'current_password.current_password' => 'Current password is incorrect.',
+            'confirm_deletion.accepted' => 'You must confirm that you understand the deletion request consequences.',
         ]);
+
+        $type = match ($validated['request_type']) {
+            'correction' => PrivacyRequest::TYPE_RECTIFICATION,
+            'erasure' => PrivacyRequest::TYPE_ERASURE_REVIEW,
+            default => $validated['request_type'],
+        };
 
         $privacyRequest = $this->privacyRequestService->submitRequest(
             user: $request->user(),
-            type: $validated['request_type'],
-            details: $validated['details']
+            type: $type,
+            details: trim((string) ($validated['details'] ?? '')) ?: 'Request deletion of eligible personal information.'
         );
 
         $message = sprintf(
@@ -59,5 +73,14 @@ class PrivacyRequestController extends Controller implements HasMiddleware
         }
 
         return back()->with('status', $message);
+    }
+
+    public function cancel(Request $request, PrivacyRequest $privacyRequest): RedirectResponse
+    {
+        abort_unless($privacyRequest->user_id === $request->user()?->id, 403);
+
+        $this->privacyRequestService->cancelRequest($privacyRequest, $request->user());
+
+        return back()->with('status', "Data deletion request #{$privacyRequest->ticket_number} was cancelled.");
     }
 }

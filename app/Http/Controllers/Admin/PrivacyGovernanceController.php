@@ -111,13 +111,17 @@ class PrivacyGovernanceController extends Controller implements HasMiddleware
             'resolution_notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $this->privacyRequestService->approveAndFulfill(
+        $processed = $this->privacyRequestService->approveAndFulfill(
             request: $privacyRequest,
             actor: $request->user(),
             notes: $validated['resolution_notes'] ?? null
         );
 
-        return back()->with('status', "Data Subject Request #{$privacyRequest->ticket_number} approved and fulfillment package generated successfully.");
+        $message = $processed->request_type === PrivacyRequest::TYPE_ERASURE_REVIEW
+            ? "Data deletion request #{$processed->ticket_number} completed. Eligible personal data was anonymized and account access was revoked."
+            : "Data Subject Request #{$processed->ticket_number} approved and fulfillment package generated successfully.";
+
+        return back()->with('status', $message);
     }
 
     /**

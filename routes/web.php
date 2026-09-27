@@ -307,6 +307,8 @@ Route::middleware('auth:web,admin,super_admin')->group(function () {
     // Data Subject Requests under RA 10173
     Route::post('/privacy/requests', [PrivacyRequestController::class, 'store'])
         ->name('privacy.requests.store');
+    Route::post('/privacy/requests/{privacyRequest}/cancel', [PrivacyRequestController::class, 'cancel'])
+        ->name('privacy.requests.cancel');
     Route::get('/privacy/requests/{privacyRequest}/download', [DsarDownloadController::class, 'download'])
         ->name('privacy.requests.download');
 

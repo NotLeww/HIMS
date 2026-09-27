@@ -516,7 +516,7 @@
                                     <th class="px-4 py-3">Type</th>
                                     <th class="px-4 py-3">Status</th>
                                     <th class="px-4 py-3">SLA / Deadline</th>
-                                    <th class="px-4 py-3">Fulfillment Package</th>
+                                    <th class="px-4 py-3">Processing Result</th>
                                     <th class="px-4 py-3 text-right">Actions</th>
                                 </tr>
                             </thead>
@@ -553,8 +553,8 @@
                                         <td class="px-4 py-3.5 whitespace-nowrap text-[11px]">
                                             @if ($requestItem->target_completion_date)
                                                 @php $daysRemaining = $requestItem->daysRemaining(); @endphp
-                                                @if (in_array($requestItem->status, ['fulfilled', 'released']))
-                                                    <span class="text-emerald-600 dark:text-emerald-400 font-medium">Fulfilled</span>
+                                                @if (in_array($requestItem->status, ['fulfilled', 'released', 'completed']))
+                                                    <span class="text-emerald-600 dark:text-emerald-400 font-medium">{{ $requestItem->status === 'completed' ? 'Completed' : 'Fulfilled' }}</span>
                                                 @elseif ($requestItem->isOverdue())
                                                     <span class="text-rose-600 dark:text-rose-400 font-semibold">Overdue ({{ abs($daysRemaining) }}d ago)</span>
                                                 @else
@@ -566,7 +566,17 @@
                                             @endif
                                         </td>
                                         <td class="px-4 py-3.5 whitespace-nowrap text-[11px]">
-                                            @if ($requestItem->isDownloadable())
+                                            @if ($requestItem->request_type === \App\Models\PrivacyRequest::TYPE_ERASURE_REVIEW && $requestItem->status === \App\Models\PrivacyRequest::STATUS_COMPLETED)
+                                                <span class="text-emerald-600 dark:text-emerald-400 font-medium">Personal data anonymized; history preserved</span>
+                                            @elseif ($requestItem->request_type === \App\Models\PrivacyRequest::TYPE_ERASURE_REVIEW && $requestItem->status === \App\Models\PrivacyRequest::STATUS_PROCESSING)
+                                                <span class="text-primary-600 dark:text-primary-400 font-medium">Processing deletion...</span>
+                                            @elseif ($requestItem->request_type === \App\Models\PrivacyRequest::TYPE_ERASURE_REVIEW && $requestItem->status === \App\Models\PrivacyRequest::STATUS_REJECTED)
+                                                <span class="text-rose-600 dark:text-rose-400 italic">Deletion refused</span>
+                                            @elseif ($requestItem->request_type === \App\Models\PrivacyRequest::TYPE_ERASURE_REVIEW && $requestItem->status === \App\Models\PrivacyRequest::STATUS_CANCELLED)
+                                                <span class="text-neutral-500 italic">Cancelled by requester</span>
+                                            @elseif ($requestItem->request_type === \App\Models\PrivacyRequest::TYPE_ERASURE_REVIEW)
+                                                <span class="text-neutral-500 italic">Awaiting deletion review</span>
+                                            @elseif ($requestItem->isDownloadable())
                                                 <div class="flex items-center gap-1.5">
                                                     <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-mono text-[10px] font-semibold">
                                                         ZIP · {{ $requestItem->formattedPackageSize() }}
@@ -612,7 +622,8 @@
                                                 <p class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 mb-2">Request Lifecycle Progression</p>
                                                 <div class="flex items-center justify-between text-[11px] font-semibold">
                                                     @php
-                                                        $statusOrder = ['submitted', 'under_review', 'approved', 'processing', 'fulfilled'];
+                                                        $isDeletion = $requestItem->request_type === \App\Models\PrivacyRequest::TYPE_ERASURE_REVIEW;
+                                                        $statusOrder = ['submitted', 'under_review', 'approved', 'processing', $isDeletion ? 'completed' : 'fulfilled'];
                                                         $currKey = match ($requestItem->status) {
                                                             'pending' => 'submitted',
                                                             'released' => 'fulfilled',
@@ -629,7 +640,7 @@
                                                     <span class="text-neutral-300 dark:text-neutral-600">→</span>
                                                     <span class="{{ $currIndex >= 3 ? 'text-primary-600 dark:text-primary-400 font-bold' : 'text-neutral-400' }}">4. Processing</span>
                                                     <span class="text-neutral-300 dark:text-neutral-600">→</span>
-                                                    <span class="{{ $currIndex >= 4 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-neutral-400' }}">5. Released</span>
+                                                    <span class="{{ $currIndex >= 4 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-neutral-400' }}">5. {{ $isDeletion ? 'Completed' : 'Released' }}</span>
                                                 </div>
                                             </div>
 
@@ -665,19 +676,19 @@
 
                                             {{-- Requested Categories Checklist --}}
                                             <div class="rounded-lg border border-neutral-200 dark:border-neutral-700 p-3 text-xs bg-white dark:bg-neutral-900">
-                                                <p class="font-bold text-neutral-800 dark:text-neutral-200 mb-2">Scope of Personal Data Disclosure</p>
+                                                <p class="font-bold text-neutral-800 dark:text-neutral-200 mb-2">{{ $isDeletion ? 'Deletion Scope and Retained History' : 'Scope of Personal Data Disclosure' }}</p>
                                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                                     <div class="flex items-center gap-1.5 text-neutral-700 dark:text-neutral-300">
                                                         <x-ui.icon name="check-circle" class="h-4 w-4 text-emerald-500 shrink-0" />
-                                                        <span>Account Profile</span>
+                                                        <span>{{ $isDeletion ? 'Eligible profile data removed' : 'Account Profile' }}</span>
                                                     </div>
                                                     <div class="flex items-center gap-1.5 text-neutral-700 dark:text-neutral-300">
                                                         <x-ui.icon name="check-circle" class="h-4 w-4 text-emerald-500 shrink-0" />
-                                                        <span>Role &amp; RBAC Access</span>
+                                                        <span>{{ $isDeletion ? 'Account access revoked' : 'Role &amp; RBAC Access' }}</span>
                                                     </div>
                                                     <div class="flex items-center gap-1.5 text-neutral-700 dark:text-neutral-300">
                                                         <x-ui.icon name="check-circle" class="h-4 w-4 text-emerald-500 shrink-0" />
-                                                        <span>Personal Activity Logs</span>
+                                                        <span>{{ $isDeletion ? 'Operational and audit history retained' : 'Personal Activity Logs' }}</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -751,15 +762,15 @@
                                                         </a>
                                                     @endif
 
-                                                    @if (! in_array($requestItem->status, ['fulfilled', 'released', 'rejected', 'closed']))
+                                                    @if (! in_array($requestItem->status, ['fulfilled', 'released', 'completed', 'rejected', 'closed', 'cancelled']))
                                                         <form method="POST" action="{{ route('admin.privacy.requests.approve', $requestItem) }}" class="inline">
                                                             @csrf
                                                             <button
                                                                 type="submit"
                                                                 class="px-3 py-1.5 text-xs rounded bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition"
-                                                                data-loading-text="Generating package..."
+                                                                data-loading-text="{{ $isDeletion ? 'Processing deletion...' : 'Generating package...' }}"
                                                             >
-                                                                Approve &amp; Fulfill
+                                                                {{ $isDeletion ? 'Approve & Process Deletion' : 'Approve & Fulfill' }}
                                                             </button>
                                                         </form>
 

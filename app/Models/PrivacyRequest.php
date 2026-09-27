@@ -41,6 +41,8 @@ class PrivacyRequest extends Model
 
     public const STATUS_CLOSED = 'closed';
 
+    public const STATUS_COMPLETED = 'completed';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     public const STATUS_EXPIRED = 'expired';
@@ -181,6 +183,7 @@ class PrivacyRequest extends Model
             self::STATUS_PROCESSING => ['tone' => 'primary', 'label' => 'Processing'],
             self::STATUS_READY_FOR_RELEASE => ['tone' => 'success', 'label' => 'Ready for Release'],
             self::STATUS_FULFILLED, self::STATUS_RELEASED => ['tone' => 'success', 'label' => 'Released'],
+            self::STATUS_COMPLETED => ['tone' => 'success', 'label' => 'Completed'],
             self::STATUS_REJECTED => ['tone' => 'danger', 'label' => 'Refused (DPA Sec. 16)'],
             self::STATUS_CLOSED => ['tone' => 'neutral', 'label' => 'Closed'],
             self::STATUS_CANCELLED => ['tone' => 'neutral', 'label' => 'Cancelled'],
@@ -226,7 +229,7 @@ class PrivacyRequest extends Model
 
     public function isOverdue(): bool
     {
-        if (in_array($this->status, [self::STATUS_FULFILLED, self::STATUS_RELEASED, self::STATUS_REJECTED, self::STATUS_CLOSED], true)) {
+        if (in_array($this->status, [self::STATUS_FULFILLED, self::STATUS_RELEASED, self::STATUS_COMPLETED, self::STATUS_REJECTED, self::STATUS_CLOSED, self::STATUS_CANCELLED], true)) {
             return false;
         }
 

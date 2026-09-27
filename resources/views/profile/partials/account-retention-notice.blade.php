@@ -14,21 +14,14 @@
 
     <p class="mt-2 text-xs leading-normal text-neutral-600 dark:text-neutral-300">
         <span class="font-semibold text-neutral-800 dark:text-neutral-200">{{ __('Account Retention') }}:</span>
-        {{ __('Your account cannot be permanently deleted.') }}
+        {{ __('Required historical records retain an anonymized account reference; eligible profile data can be removed through a reviewed deletion request.') }}
     </p>
 
     <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p class="min-w-0 text-xs leading-normal text-neutral-600 dark:text-neutral-300">
             {{ __('Under Republic Act No. 10173, you may request an export copy of your data or petition for rectification/restriction.') }}
         </p>
-        <x-ui.button
-            variant="secondary"
-            size="sm"
-            icon="document-text"
-            x-data
-            x-on:click="$dispatch('open-modal', 'submit-privacy-request')"
-            class="w-full shrink-0 sm:w-auto"
-        >
+        <x-ui.button variant="secondary" size="sm" icon="document-text" x-data x-on:click="$dispatch('open-modal', 'submit-privacy-request')" class="w-full sm:w-auto">
             {{ __('Exercise Privacy Rights') }}
         </x-ui.button>
     </div>
@@ -86,10 +79,25 @@
                             <p class="text-[11px] text-rose-600 dark:text-rose-400 italic">
                                 {{ __('Refused pursuant to statutory retention: :reason', ['reason' => $myReq->resolution_notes]) }}
                             </p>
+                        @elseif ($myReq->status === \App\Models\PrivacyRequest::STATUS_COMPLETED)
+                            <p class="text-[11px] text-emerald-700 dark:text-emerald-400">
+                                {{ __('Deletion completed. Eligible personal data was anonymized, account access was revoked, and required historical records were retained.') }}
+                            </p>
+                        @elseif ($myReq->status === \App\Models\PrivacyRequest::STATUS_CANCELLED)
+                            <p class="text-[11px] text-neutral-500 italic">
+                                {{ __('Cancelled on :date.', ['date' => $myReq->updated_at->format('M d, Y')]) }}
+                            </p>
                         @else
                             <p class="text-[11px] text-neutral-500">
                                 {{ __('Submitted on :date. Under review by Data Protection Officer.', ['date' => $myReq->created_at->format('M d, Y')]) }}
                             </p>
+                        @endif
+
+                        @if ($myReq->request_type === \App\Models\PrivacyRequest::TYPE_ERASURE_REVIEW && $myReq->status === \App\Models\PrivacyRequest::STATUS_PENDING)
+                            <form method="POST" action="{{ route('privacy.requests.cancel', $myReq) }}" class="pt-1 text-right">
+                                @csrf
+                                <x-ui.button type="submit" variant="secondary" size="sm" data-loading-text="Cancelling...">Cancel request</x-ui.button>
+                            </form>
                         @endif
                     </div>
                 @endforeach

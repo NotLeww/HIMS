@@ -644,7 +644,7 @@ class ProfileTest extends TestCase
         }
     }
 
-    public function test_profile_explains_account_retention_and_has_no_delete_control(): void
+    public function test_profile_explains_retention_and_offers_a_reviewed_deletion_request(): void
     {
         $user = User::factory()->create();
 
@@ -653,7 +653,8 @@ class ProfileTest extends TestCase
             ->get('/profile')
             ->assertOk()
             ->assertSee('Account Retention')
-            ->assertSee('Your account cannot be permanently deleted.')
+            ->assertSee('Exercise Privacy Rights')
+            ->assertSee('required historical records will remain')
             ->assertDontSee('Delete Account');
     }
 
