@@ -191,7 +191,8 @@ class DashboardAiAssistantController extends Controller implements HasMiddleware
             $conversation->update(['title' => $generatedTitle]);
         }
 
-        // Gather multi-turn context from database if available, otherwise use client history
+        // Server history wins. New-chat client history remains usable for
+        // continuity, but the AI service wraps every turn as untrusted data.
         $persistedHistory = $conversation->messages()
             ->orderBy('id', 'desc')
             ->take(10)

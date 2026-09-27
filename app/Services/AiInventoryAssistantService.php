@@ -7,6 +7,7 @@ use App\Enums\Permission;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Services\Ai\AiPromptProtectionService;
 use App\Services\Ai\ConversationalEntityTracker;
 use App\Services\Ai\ConversationalIntentResolver;
 use App\Services\Ai\ConversationState;
@@ -58,6 +59,7 @@ class AiInventoryAssistantService
         private readonly ConversationalEntityTracker $entityTracker,
         private readonly ConversationalIntentResolver $intentResolver,
         private readonly ConversationStateTracker $stateTracker,
+        private readonly AiPromptProtectionService $promptProtection,
     ) {}
 
     /**
@@ -110,6 +112,18 @@ class AiInventoryAssistantService
 
         // Privacy Sanitization: Redact sensitive identifiers (PIN, TIN, phone, card numbers, passwords)
         $cleanMessage = $this->sanitizer->sanitize($cleanMessage)['sanitized_text'];
+
+        $promptAssessment = $this->promptProtection->assess($cleanMessage);
+        if ($promptAssessment['blocked']) {
+            $this->recordPromptSecurityAttempt($actor, (string) $promptAssessment['category']);
+
+            return [
+                'reply' => (string) $promptAssessment['response'],
+                'source' => 'security_control',
+                'status_hint' => 'Request blocked by HIMS security.',
+                'attachment' => $attachmentData ? $this->sanitizeAttachmentMetadata($attachmentData) : null,
+            ];
+        }
 
         if (! empty($conversationHistory)) {
             $conversationHistory = array_map(function ($item) {
@@ -270,6 +284,16 @@ class AiInventoryAssistantService
         } catch (Throwable) {
             // Audit persistence failure should not disrupt the user's chat response
         }
+    }
+
+    private function recordPromptSecurityAttempt(User $actor, string $category): void
+    {
+        $this->auditLogger->record(
+            action: AuditAction::BlockedAiChatSecurityAttempt,
+            actor: $actor,
+            description: 'Blocked an AI assistant request that attempted to override HIMS security boundaries.',
+            newValues: ['category' => $category],
+        );
     }
 
     /**
@@ -531,53 +555,63 @@ class AiInventoryAssistantService
 
         $actorRole = $actor?->role?->label() ?? 'Not recorded';
         $actorPermissions = $actor?->role?->permissions() ?? [];
-        $systemPrompt = $this->buildSystemPrompt(
-            $this->sanitizer->sanitizeExternalPayload($contextData),
-            $actorRole,
-            $actorPermissions,
-        );
+        $systemPrompt = $this->buildSystemPrompt($contextData, $actorRole, $actorPermissions);
 
         // Format contents array for Gemini
         $contents = [];
         foreach (array_slice($history, -6) as $turn) {
-            $role = ($turn['role'] ?? '') === 'user' ? 'user' : 'model';
             $text = trim((string) ($turn['content'] ?? ''));
             if ($text !== '') {
                 $contents[] = [
-                    'role' => $role,
-                    'parts' => [['text' => $text]],
+                    'role' => 'user',
+                    'parts' => [['text' => $this->promptProtection->untrustedData([
+                        'claimed_role' => (string) ($turn['role'] ?? 'unknown'),
+                        'content' => $text,
+                    ], 'conversation transcript')]],
                 ];
             }
         }
 
-        // Build current user turn parts, including multimodal inlineData or extracted text
-        $userParts = [];
-        $userText = $query;
+        // Keep the authorized request and every retrieved/uploaded value below
+        // the trusted system-instruction boundary.
+        $userText = $this->promptProtection->userRequest($query);
+        $userText .= "\n\n".$this->promptProtection->untrustedData(
+            $this->sanitizer->sanitizeExternalPayload($contextData),
+            'backend-authorized HIMS context',
+        );
         if ($attachmentData !== null && ! empty($attachmentData['text_content'])) {
-            $userText .= "\n\n[ATTACHED FILE: {$attachmentData['name']} ({$attachmentData['formatted_size']})]\n".$attachmentData['text_content'];
+            $userText .= "\n\n".$this->promptProtection->untrustedData([
+                'name' => $attachmentData['name'],
+                'size' => $attachmentData['formatted_size'],
+                'content' => $attachmentData['text_content'],
+            ], 'uploaded attachment');
         }
-
-        $userParts[] = ['text' => $userText];
 
         $contents[] = [
             'role' => 'user',
-            'parts' => $userParts,
+            'parts' => [['text' => $userText]],
         ];
+
+        $functionDeclarations = array_values(array_filter(
+            HimsAiToolRegistry::getGeminiFunctionDeclarations(),
+            fn (array $declaration): bool => $this->canUseTool((string) ($declaration['name'] ?? ''), $actor),
+        ));
 
         $payload = [
             'system_instruction' => [
                 'parts' => [['text' => $systemPrompt]],
             ],
             'contents' => $contents,
-            'tools' => [
-                ['function_declarations' => HimsAiToolRegistry::getGeminiFunctionDeclarations()],
-            ],
             'generationConfig' => [
                 'temperature' => 0.3,
                 'topP' => 0.85,
                 'maxOutputTokens' => 2048,
             ],
         ];
+
+        if ($functionDeclarations !== []) {
+            $payload['tools'] = [['function_declarations' => $functionDeclarations]];
+        }
 
         $lastException = null;
 
@@ -667,6 +701,13 @@ class AiInventoryAssistantService
     private function executeToolCall(string $name, array $args, ?User $actor): ?array
     {
         $actor = $this->requireActor($actor);
+
+        if (! $this->canUseTool($name, $actor)) {
+            return [
+                'authorized' => false,
+                'message' => 'Access restricted by HIMS permissions. The AI assistant cannot override this authorization decision.',
+            ];
+        }
 
         return match ($name) {
             'search_inventory' => $this->tools->searchInventory(
@@ -1303,7 +1344,6 @@ class AiInventoryAssistantService
     private function buildSystemPrompt(array $contextData, string $actorRole = 'Staff', array $permissions = []): string
     {
         $instructions = HimsDomainKnowledge::getSystemInstructions($actorRole, $permissions);
-        $jsonContext = json_encode($contextData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
         $intent = (string) ($contextData['detected_intent'] ?? 'unknown');
         $tool = (string) ($contextData['requested_data']['source_tool'] ?? '');
@@ -1315,14 +1355,40 @@ class AiInventoryAssistantService
                 ."\n- The three expiry readings are not interchangeable: items with NO expiry date, batches ALREADY expired, and batches NEARING expiry are different questions with different answers. Answer only the one classified above.";
         }
 
+        $securityRules = $this->promptProtection->systemRules();
+
         return <<<PROMPT
+{$securityRules}
+
 {$instructions}
 
 {$routing}
-
-VERIFIED HIMS CURRENT INVENTORY CONTEXT (LIVE SNAPSHOT):
-{$jsonContext}
 PROMPT;
+    }
+
+    private function canUseTool(string $name, ?User $actor): bool
+    {
+        if (! $actor instanceof User) {
+            return false;
+        }
+
+        $permission = match ($name) {
+            'search_inventory', 'get_replenishment_recommendations', 'get_stock_details',
+            'get_stock_movements', 'get_expiring_batches', 'get_items_without_expiry',
+            'get_expired_batches', 'get_department_requisitions', 'get_shipments_and_deliveries',
+            'get_demand_forecast', 'get_daily_summary', 'get_storage_locations', 'get_stock_alerts' => Permission::ViewInventory,
+            'search_suppliers', 'get_supplier_items' => Permission::ViewSuppliers,
+            'get_procurement_records' => Permission::ViewProcurement,
+            'get_inventory_valuation' => Permission::ViewProcurementSensitiveData,
+            'get_recent_audit_activity' => Permission::ViewAuditTrail,
+            'get_system_recovery_status' => Permission::ManageSystemRecovery,
+            'get_receiving_records', 'get_chain_of_custody_records' => Permission::ViewLogisticsRecords,
+            'get_user_management_info' => Permission::ManageUsers,
+            'get_reports_catalog' => Permission::ViewReports,
+            default => null,
+        };
+
+        return $permission !== null && $actor->can($permission->value);
     }
 
     /**

@@ -115,6 +115,7 @@ enum AuditAction: string
     case SystemHealthMaintenance = 'system_health_maintenance';
     case AnalyzedAiChatAttachment = 'analyzed_ai_chat_attachment';
     case FailedAiChatAttachment = 'failed_ai_chat_attachment';
+    case BlockedAiChatSecurityAttempt = 'blocked_ai_chat_security_attempt';
     case SubmittedPrivacyRequest = 'submitted_privacy_request';
     case CancelledPrivacyRequest = 'cancelled_privacy_request';
     case ApprovedPrivacyRequest = 'approved_privacy_request';
@@ -255,6 +256,7 @@ enum AuditAction: string
             self::SystemHealthMaintenance => 'System Health Maintenance',
             self::AnalyzedAiChatAttachment => 'Analyzed AI Chat Attachment',
             self::FailedAiChatAttachment => 'Failed AI Chat Attachment',
+            self::BlockedAiChatSecurityAttempt => 'Blocked AI Prompt Security Attempt',
             self::SubmittedPrivacyRequest => 'Submitted Privacy Request',
             self::CancelledPrivacyRequest => 'Cancelled Privacy Request',
             self::ApprovedPrivacyRequest => 'Approved Privacy Request',

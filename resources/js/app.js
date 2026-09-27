@@ -4317,7 +4317,7 @@ Alpine.data('himsAiAssistant', ({
 
         // 9. Links: [Title](url)
         escaped = escaped.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, title, url) => {
-            const safeUrl = url.startsWith('/') || url.startsWith('http') ? url : '#';
+            const safeUrl = url.startsWith('/') || /^https?:\/\//i.test(url) ? url : '#';
             return `<a href="${safeUrl}" class="inline-flex items-center gap-1 font-semibold text-primary-600 underline hover:text-primary-800 transition-colors" target="_self">${title}</a>`;
         });
 
