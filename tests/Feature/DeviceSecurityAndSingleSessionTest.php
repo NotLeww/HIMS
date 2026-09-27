@@ -43,6 +43,7 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
         config()->set('auth.device_security.trusted_device_lifetime_days', 30);
         config()->set('auth.device_security.approval_request_lifetime_minutes', 5);
         config()->set('auth.device_security.device_rejection_cooldown_minutes', 15);
+        config()->set('auth.device_security.approval_emails_enabled', true);
 
         $this->deviceSecurity = app(DeviceSecurityService::class);
     }
@@ -103,6 +104,40 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
         $response->assertSessionHas(DeviceSecurityService::approvalChallengeSessionKey($approvalRequest));
 
         Notification::assertSentTo($user, NewDeviceLoginAttemptNotification::class);
+    }
+
+    public function test_device_approval_emails_can_be_disabled_without_bypassing_approval(): void
+    {
+        Notification::fake();
+        config()->set('auth.device_security.approval_emails_enabled', false);
+
+        $user = User::factory()->create(['password' => bcrypt('Password123!')]);
+
+        $response = $this->withServerVariables([
+            'REMOTE_ADDR' => '192.168.1.20',
+            'HTTP_USER_AGENT' => 'Unrecognized Browser',
+        ])->post('/login', [
+            'email' => $user->email,
+            'password' => 'Password123!',
+        ]);
+
+        $approval = LoginApprovalRequest::query()->where('user_id', $user->id)->firstOrFail();
+
+        $this->assertGuest('web');
+        $this->assertSame(LoginApprovalRequest::STATUS_PENDING, $approval->status);
+        Notification::assertNotSentTo($user, NewDeviceLoginAttemptNotification::class);
+
+        $this->get($response->headers->get('Location'))
+            ->assertOk()
+            ->assertSeeText('Check Your Active Device')
+            ->assertDontSeeText('Resend Approval Email');
+
+        $this->withSession([
+            DeviceSecurityService::approvalChallengeSessionKey($approval) => $approval->challenge_token_hash,
+        ])->post(route('auth.device-approval.resend-email', $approval))
+            ->assertSessionHasErrors('email');
+
+        Notification::assertNothingSent();
     }
 
     /**
@@ -241,6 +276,49 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
         $webResponse->assertSessionHas('session_replaced');
 
         Notification::assertSentTo($user, NewDeviceApprovedNotification::class);
+    }
+
+    public function test_disabled_device_approval_emails_suppress_approval_and_rejection_notices(): void
+    {
+        Notification::fake();
+        config()->set('auth.device_security.approval_emails_enabled', false);
+
+        $user = User::factory()->create();
+        $challengeToken = Str::random(64);
+        $approval = LoginApprovalRequest::create([
+            'user_id' => $user->id,
+            'guard' => 'web',
+            'challenge_token_hash' => hash('sha256', $challengeToken),
+            'status' => LoginApprovalRequest::STATUS_PENDING,
+            'requested_at' => now(),
+            'expires_at' => now()->addMinutes(5),
+        ]);
+
+        $this->deviceSecurity->approveRequest($approval, $user);
+        $this->deviceSecurity->claimApprovedRequest(
+            $approval->fresh(),
+            hash('sha256', $challengeToken),
+            $this->createDeviceRequest(),
+        );
+
+        $rejected = LoginApprovalRequest::create([
+            'user_id' => $user->id,
+            'guard' => 'web',
+            'challenge_token_hash' => hash('sha256', Str::random(64)),
+            'status' => LoginApprovalRequest::STATUS_PENDING,
+            'device_fingerprint' => hash('sha256', 'rejected-device'),
+            'requested_at' => now(),
+            'expires_at' => now()->addMinutes(5),
+        ]);
+
+        $this->deviceSecurity->rejectRequest($rejected, $user);
+
+        Notification::assertNotSentTo($user, NewDeviceApprovedNotification::class);
+        Notification::assertNotSentTo($user, SuspiciousLoginBlockedNotification::class);
+        $this->assertSame(LoginApprovalRequest::STATUS_REJECTED, $rejected->fresh()->status);
+        $this->assertDatabaseHas('device_login_cooldowns', [
+            'login_approval_request_id' => $rejected->id,
+        ]);
     }
 
     /**

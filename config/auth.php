@@ -154,8 +154,9 @@ return [
         'approval_creation_decay_seconds' => (int) env('AUTH_DEVICE_APPROVAL_DECAY_SECONDS', 60),
         'approval_resend_cooldown_seconds' => (int) env('AUTH_DEVICE_APPROVAL_RESEND_COOLDOWN_SECONDS', 60),
         'approval_poll_interval_seconds' => (int) env('AUTH_DEVICE_APPROVAL_POLL_INTERVAL_SECONDS', 3),
+        'approval_emails_enabled' => (bool) env('AUTH_DEVICE_APPROVAL_EMAILS_ENABLED', false),
         'cookie_name' => env('AUTH_TRUSTED_DEVICE_COOKIE', 'hims_trusted_device'),
-        'cookie_secure' => env('SESSION_SECURE_COOKIE', false),
+        'cookie_secure' => env('SESSION_SECURE_COOKIE', env('APP_ENV') === 'production'),
     ],
 
     /*

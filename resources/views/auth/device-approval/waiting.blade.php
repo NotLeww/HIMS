@@ -144,10 +144,14 @@
                     </div>
 
                     <h1 class="mt-3 text-2xl font-bold tracking-tight text-neutral-900">
-                        Check Your Email
+                        {{ $approvalEmailsEnabled ? 'Check Your Email' : 'Check Your Active Device' }}
                     </h1>
                     <p class="mt-2 text-sm leading-relaxed text-neutral-600">
-                        We sent a sign-in approval request to your registered email. If another trusted session is active, you can also approve it there.
+                        @if ($approvalEmailsEnabled)
+                            We sent a sign-in approval request to your registered email. If another trusted session is active, you can also approve it there.
+                        @else
+                            Approve this sign-in request from a device where your account is already active. Without an active session, this request cannot be completed while approval emails are disabled.
+                        @endif
                     </p>
                 </header>
 
@@ -162,12 +166,14 @@
                     </div>
                 </div>
 
-                <form method="POST" action="{{ $resendUrl }}">
-                    @csrf
-                    <button type="submit" data-loading-text="Resending..." class="w-full rounded-lg border border-primary-300 bg-primary-50 px-4 py-2.5 text-sm font-semibold text-primary-700 transition hover:bg-primary-100 dark:border-primary-800 dark:bg-primary-950/50 dark:text-primary-300">
-                        Resend Approval Email
-                    </button>
-                </form>
+                @if ($approvalEmailsEnabled)
+                    <form method="POST" action="{{ $resendUrl }}">
+                        @csrf
+                        <button type="submit" data-loading-text="Resending..." class="w-full rounded-lg border border-primary-300 bg-primary-50 px-4 py-2.5 text-sm font-semibold text-primary-700 transition hover:bg-primary-100 dark:border-primary-800 dark:bg-primary-950/50 dark:text-primary-300">
+                            Resend Approval Email
+                        </button>
+                    </form>
+                @endif
 
                 <form method="POST" action="{{ $cancelUrl }}">
                     @csrf

@@ -191,30 +191,32 @@ class DeviceSecurityService
             source: 'system',
         );
 
-        try {
-            $user->notify(new NewDeviceLoginAttemptNotification(
-                $approvalRequest,
-            ));
+        if ((bool) config('auth.device_security.approval_emails_enabled', false)) {
+            try {
+                $user->notify(new NewDeviceLoginAttemptNotification(
+                    $approvalRequest,
+                ));
 
-            $this->auditLogger->log(
-                AuditAction::LoginApprovalEmailSent,
-                null,
-                'Sent sign-in approval email.',
-                $user,
-                'Account',
-                source: 'system',
-            );
-        } catch (Throwable $e) {
-            Log::warning('Login approval email could not be sent.', [
-                'user_id' => $user->getKey(),
-                'exception' => $e::class,
-            ]);
+                $this->auditLogger->log(
+                    AuditAction::LoginApprovalEmailSent,
+                    null,
+                    'Sent sign-in approval email.',
+                    $user,
+                    'Account',
+                    source: 'system',
+                );
+            } catch (Throwable $e) {
+                Log::warning('Login approval email could not be sent.', [
+                    'user_id' => $user->getKey(),
+                    'exception' => $e::class,
+                ]);
 
-            $approvalRequest->update(['status' => LoginApprovalRequest::STATUS_CANCELLED]);
+                $approvalRequest->update(['status' => LoginApprovalRequest::STATUS_CANCELLED]);
 
-            throw ValidationException::withMessages([
-                'email' => 'We could not send the sign-in approval email. Please try again.',
-            ]);
+                throw ValidationException::withMessages([
+                    'email' => 'We could not send the sign-in approval email. Please try again.',
+                ]);
+            }
         }
 
         return DeviceLoginResult::waitingApproval($approvalRequest, $challengeToken);
@@ -368,17 +370,19 @@ class DeviceSecurityService
                 'Account',
             );
 
-            try {
-                $locked->user->notify(new SuspiciousLoginBlockedNotification(
-                    $locked->device_name ?: 'Unknown Device',
-                    $locked->ip_address,
-                    $cooldownMinutes,
-                ));
-            } catch (Throwable $e) {
-                Log::warning('Rejection alert email could not be sent.', [
-                    'user_id' => $locked->user_id,
-                    'exception' => $e::class,
-                ]);
+            if ((bool) config('auth.device_security.approval_emails_enabled', false)) {
+                try {
+                    $locked->user->notify(new SuspiciousLoginBlockedNotification(
+                        $locked->device_name ?: 'Unknown Device',
+                        $locked->ip_address,
+                        $cooldownMinutes,
+                    ));
+                } catch (Throwable $e) {
+                    Log::warning('Rejection alert email could not be sent.', [
+                        'user_id' => $locked->user_id,
+                        'exception' => $e::class,
+                    ]);
+                }
             }
         });
     }
@@ -443,17 +447,19 @@ class DeviceSecurityService
             return $user;
         });
 
-        try {
-            $user->notify(new NewDeviceApprovedNotification(
-                $request->device_name ?: 'Unknown Device',
-                $request->ip_address,
-                now()->timezone(config('app.timezone', 'UTC'))->format('M d, Y h:i A'),
-            ));
-        } catch (Throwable $e) {
-            Log::warning('Approval notice email could not be sent.', [
-                'user_id' => $user->getKey(),
-                'exception' => $e::class,
-            ]);
+        if ((bool) config('auth.device_security.approval_emails_enabled', false)) {
+            try {
+                $user->notify(new NewDeviceApprovedNotification(
+                    $request->device_name ?: 'Unknown Device',
+                    $request->ip_address,
+                    now()->timezone(config('app.timezone', 'UTC'))->format('M d, Y h:i A'),
+                ));
+            } catch (Throwable $e) {
+                Log::warning('Approval notice email could not be sent.', [
+                    'user_id' => $user->getKey(),
+                    'exception' => $e::class,
+                ]);
+            }
         }
 
         return $user;
@@ -541,6 +547,12 @@ class DeviceSecurityService
     /** @throws ValidationException */
     public function resendApprovalEmail(LoginApprovalRequest $request, string $challengeHash): void
     {
+        if (! (bool) config('auth.device_security.approval_emails_enabled', false)) {
+            throw ValidationException::withMessages([
+                'email' => 'Sign-in approval emails are currently disabled.',
+            ]);
+        }
+
         if ($this->expireApprovalRequestIfNeeded($request)) {
             throw ValidationException::withMessages(['email' => 'This approval request is no longer pending.']);
         }

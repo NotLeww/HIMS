@@ -50,6 +50,7 @@ class DeviceApprovalController extends Controller
             'claimUrl' => route('auth.device-approval.claim', $approvalRequest),
             'cancelUrl' => route('auth.device-approval.cancel', $approvalRequest),
             'resendUrl' => route('auth.device-approval.resend-email', $approvalRequest),
+            'approvalEmailsEnabled' => (bool) config('auth.device_security.approval_emails_enabled', false),
             'pollIntervalMilliseconds' => max(1000, (int) config('auth.device_security.approval_poll_interval_seconds', 3) * 1000),
         ]);
     }
