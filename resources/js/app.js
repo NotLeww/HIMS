@@ -80,6 +80,134 @@ const resetButtonLoading = (button) => {
 };
 
 /**
+ * Keep Alpine-powered modal dialogs usable without a mouse. Native <dialog>
+ * elements already provide modal focus containment, so this only covers the
+ * existing role="dialog" overlays used by Blade/Alpine screens.
+ */
+const startAccessibleDialogs = () => {
+    const selector = '[role="dialog"][aria-modal="true"]:not(dialog)';
+    const states = new WeakMap();
+    let scheduled = false;
+
+    const isVisible = (dialog) => dialog instanceof HTMLElement
+        && !dialog.hidden
+        && dialog.getAttribute('aria-hidden') !== 'true'
+        && window.getComputedStyle(dialog).display !== 'none'
+        && dialog.getClientRects().length > 0;
+
+    const focusableElements = (dialog) => Array.from(dialog.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )).filter((element) => element instanceof HTMLElement
+        && element.getClientRects().length > 0
+        && element.getAttribute('aria-hidden') !== 'true');
+
+    const visibleDialogs = () => Array.from(document.querySelectorAll(selector)).filter(isVisible);
+
+    const ensureName = (dialog) => {
+        if (dialog.hasAttribute('aria-label') || dialog.hasAttribute('aria-labelledby')) return;
+
+        const heading = dialog.querySelector('h1, h2, h3, h4, h5, h6');
+        if (!(heading instanceof HTMLElement)) return;
+
+        if (!heading.id) {
+            heading.id = `hims-dialog-title-${Math.random().toString(36).slice(2, 10)}`;
+        }
+        dialog.setAttribute('aria-labelledby', heading.id);
+    };
+
+    const activate = (dialog) => {
+        const state = states.get(dialog);
+        if (state?.active) return;
+
+        ensureName(dialog);
+        states.set(dialog, {
+            active: true,
+            returnFocus: document.activeElement instanceof HTMLElement && !dialog.contains(document.activeElement)
+                ? document.activeElement
+                : state?.returnFocus ?? null,
+        });
+
+        window.requestAnimationFrame(() => {
+            if (!isVisible(dialog) || dialog.contains(document.activeElement)) return;
+
+            const initial = dialog.querySelector('[data-dialog-initial-focus], [autofocus]')
+                ?? focusableElements(dialog)[0];
+            if (initial instanceof HTMLElement) {
+                initial.focus();
+                return;
+            }
+
+            dialog.setAttribute('tabindex', '-1');
+            dialog.focus();
+        });
+    };
+
+    const deactivate = (dialog) => {
+        const state = states.get(dialog);
+        if (!state?.active) return;
+
+        states.set(dialog, { ...state, active: false });
+        if (state.returnFocus instanceof HTMLElement && document.contains(state.returnFocus)) {
+            state.returnFocus.focus();
+        }
+    };
+
+    const sync = () => {
+        scheduled = false;
+        document.querySelectorAll(selector).forEach((dialog) => {
+            if (isVisible(dialog)) activate(dialog);
+            else deactivate(dialog);
+        });
+    };
+
+    const scheduleSync = () => {
+        if (scheduled) return;
+        scheduled = true;
+        window.requestAnimationFrame(sync);
+    };
+
+    new MutationObserver(scheduleSync).observe(document.body, {
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style', 'class', 'hidden', 'aria-hidden'],
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Tab') return;
+
+        const dialogs = visibleDialogs();
+        const dialog = dialogs[dialogs.length - 1];
+        if (!(dialog instanceof HTMLElement)) return;
+
+        const focusable = focusableElements(dialog);
+        if (focusable.length === 0) {
+            event.preventDefault();
+            dialog.focus();
+            return;
+        }
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+            event.preventDefault();
+            first.focus();
+        }
+    }, true);
+
+    sync();
+};
+
+const focusFirstInvalidField = () => {
+    const invalid = document.querySelector('[aria-invalid="true"]');
+    if (!(invalid instanceof HTMLElement)) return;
+
+    window.requestAnimationFrame(() => invalid.focus());
+};
+
+/**
  * Browser-side companion to the server-enforced inactivity middleware.
  *
  * The server remains authoritative. This monitor only lets an idle page move
@@ -4734,3 +4862,5 @@ if (document.querySelector('[data-hims-camera-scanner]')) {
 }
 
 Alpine.start();
+startAccessibleDialogs();
+focusFirstInvalidField();

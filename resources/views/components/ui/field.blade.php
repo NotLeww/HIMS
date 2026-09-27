@@ -79,7 +79,6 @@
                 x-bind:aria-label="showPassword ? 'Hide password' : 'Show password'"
                 x-bind:aria-pressed="showPassword.toString()"
                 aria-controls="{{ $id }}"
-                tabindex="-1"
                 @disabled($disabled)
             >
                 <x-ui.icon name="eye" class="w-4 h-4" x-show="!showPassword" />

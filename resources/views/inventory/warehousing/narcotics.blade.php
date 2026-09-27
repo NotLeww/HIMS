@@ -3,7 +3,7 @@
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between" x-data="{ recordModal: false }">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-wider text-purple-700">Republic Act No. 9165 & DDB Reg. 1 (2014)</p>
-                <h2 class="text-2xl font-bold text-neutral-900">Dangerous Drugs Vault & Electronic DDRB</h2>
+                <h1 class="text-2xl font-bold text-neutral-900">Dangerous Drugs Vault & Electronic DDRB</h1>
             </div>
             <div class="flex items-center gap-2">
                 @can(\App\Enums\Permission::AccessNarcoticsVault->value)

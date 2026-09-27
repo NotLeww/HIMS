@@ -3,7 +3,7 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-wider text-primary-700 dark:text-primary-400">Smart Warehousing</p>
-                <h2 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Warehouse Task Registry</h2>
+                <h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Warehouse Task Registry</h1>
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 @can(\App\Enums\Permission::ManageWarehouseTasks->value)
@@ -241,8 +241,8 @@
             </div>
         </form>
 
-                <x-ui.table>
-                    <x-ui.table.head><tr><x-ui.table.th>Task</x-ui.table.th><x-ui.table.th>Item / quantity</x-ui.table.th><x-ui.table.th>Route</x-ui.table.th><x-ui.table.th>Assignee</x-ui.table.th><x-ui.table.th>Status</x-ui.table.th><x-ui.table.th></x-ui.table.th></tr></x-ui.table.head>
+                <x-ui.table aria-label="Warehouse task registry">
+                    <x-ui.table.head><tr><x-ui.table.th>Task</x-ui.table.th><x-ui.table.th>Item / quantity</x-ui.table.th><x-ui.table.th>Route</x-ui.table.th><x-ui.table.th>Assignee</x-ui.table.th><x-ui.table.th>Status</x-ui.table.th><x-ui.table.th>Actions</x-ui.table.th></tr></x-ui.table.head>
                     <tbody>
                     @forelse ($tasks as $task)
                         <x-ui.table.row>

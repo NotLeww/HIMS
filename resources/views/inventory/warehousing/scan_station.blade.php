@@ -3,7 +3,7 @@
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-wider text-primary-700 dark:text-primary-400">Scan-Assisted Execution</p>
-                <h2 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Warehouse Scan Workstation</h2>
+                <h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Warehouse Scan Workstation</h1>
             </div>
             <div class="flex items-center gap-2">
                 <a href="{{ route('inventory.warehouse-tasks.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 shadow-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700/60">
@@ -281,9 +281,9 @@
                                                 </div>
 
                                                 {{-- QR Code Modal --}}
-                                                <div x-show="showQr" @click.outside="showQr = false" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+                                                <div x-show="showQr" @click.outside="showQr = false" @keydown.escape.window="showQr = false" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="source-qr-title-{{ $task->id }}">
                                                     <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl text-center dark:bg-neutral-900 dark:border dark:border-neutral-800">
-                                                        <h3 class="text-base font-bold text-neutral-900 dark:text-neutral-100">Step 1: Source Location QR</h3>
+                                                        <h3 id="source-qr-title-{{ $task->id }}" class="text-base font-bold text-neutral-900 dark:text-neutral-100">Step 1: Source Location QR</h3>
                                                         <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Scan this code with your camera or scanner</p>
                                                         <div class="mt-4 flex justify-center">
                                                             <img src="{{ $sourceQr }}" alt="Source Location QR" class="h-56 w-56 rounded-xl border border-neutral-200 p-2 shadow-sm bg-white dark:border-neutral-700">
@@ -327,9 +327,9 @@
                                                 </div>
 
                                                 {{-- QR Code Modal --}}
-                                                <div x-show="showQr" @click.outside="showQr = false" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+                                                <div x-show="showQr" @click.outside="showQr = false" @keydown.escape.window="showQr = false" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="product-qr-title-{{ $task->id }}">
                                                     <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl text-center dark:bg-neutral-900 dark:border dark:border-neutral-800">
-                                                        <h3 class="text-base font-bold text-neutral-900 dark:text-neutral-100">Step 2: Product QR Code</h3>
+                                                        <h3 id="product-qr-title-{{ $task->id }}" class="text-base font-bold text-neutral-900 dark:text-neutral-100">Step 2: Product QR Code</h3>
                                                         <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Scan this code with your camera or scanner</p>
                                                         <div class="mt-4 flex justify-center">
                                                             <img src="{{ $itemQr }}" alt="Product QR Code" class="h-56 w-56 rounded-xl border border-neutral-200 p-2 shadow-sm bg-white dark:border-neutral-700">
@@ -373,9 +373,9 @@
                                                 </div>
 
                                                 {{-- QR Code Modal --}}
-                                                <div x-show="showQr" @click.outside="showQr = false" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+                                                <div x-show="showQr" @click.outside="showQr = false" @keydown.escape.window="showQr = false" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="destination-qr-title-{{ $task->id }}">
                                                     <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl text-center dark:bg-neutral-900 dark:border dark:border-neutral-800">
-                                                        <h3 class="text-base font-bold text-neutral-900 dark:text-neutral-100">Step 3: Destination Location QR</h3>
+                                                        <h3 id="destination-qr-title-{{ $task->id }}" class="text-base font-bold text-neutral-900 dark:text-neutral-100">Step 3: Destination Location QR</h3>
                                                         <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Scan this code with your camera or scanner</p>
                                                         <div class="mt-4 flex justify-center">
                                                             <img src="{{ $destQr }}" alt="Destination Location QR" class="h-56 w-56 rounded-xl border border-neutral-200 p-2 shadow-sm bg-white dark:border-neutral-700">
@@ -442,7 +442,8 @@
                                     </div>
                                     <form method="POST" action="{{ route('inventory.warehouse-tasks.complete', $task) }}" class="flex items-center gap-2">
                                         @csrf
-                                        <input type="number" name="quantity" min="1" max="{{ $task->remainingQuantity() }}" value="{{ $task->remainingQuantity() }}" class="w-24 rounded-lg border-neutral-300 text-sm font-bold dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                        <label for="complete_quantity_{{ $task->id }}" class="sr-only">Quantity to complete</label>
+                                        <input id="complete_quantity_{{ $task->id }}" type="number" name="quantity" min="1" max="{{ $task->remainingQuantity() }}" value="{{ $task->remainingQuantity() }}" class="w-24 rounded-lg border-neutral-300 text-sm font-bold dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
                                         <button type="submit" class="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 shadow-sm">
                                             Complete Task
                                         </button>

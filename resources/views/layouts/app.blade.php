@@ -108,6 +108,11 @@
         data-audit-location-url="{{ $auditLocationCaptureUrl }}"
     @endif
 >
+    <a href="#main-content"
+       class="sr-only fixed left-4 top-4 z-[100] rounded-md bg-white px-4 py-2 text-sm font-semibold text-primary-700 shadow-lg focus:not-sr-only focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:text-primary-300">
+        Skip to main content
+    </a>
+
     @include('layouts.partials.loading-overlay')
 
     <div
@@ -147,7 +152,7 @@
         >
             @include('layouts.partials.topbar')
 
-            <main class="hims-app-content overflow-x-clip px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+            <main id="main-content" tabindex="-1" class="hims-app-content overflow-x-clip px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
                 <div @class([
                     'mx-auto w-full min-w-0 space-y-6',
                     'max-w-none' => $fullWidth,

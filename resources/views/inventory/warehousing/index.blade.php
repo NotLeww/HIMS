@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div>
             <p class="text-xs font-semibold uppercase tracking-wider text-primary-700">Hospital Supply Chain Execution</p>
-            <h2 class="text-2xl font-bold text-neutral-900">Smart Warehousing System (SWS)</h2>
+            <h1 class="text-2xl font-bold text-neutral-900">Smart Warehousing System (SWS)</h1>
         </div>
     </x-slot>
 

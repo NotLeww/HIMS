@@ -142,6 +142,8 @@ export const himsCameraScanner = ({
     permissionState: 'unknown',
     lastScannedCode: null,
     manualCode: '',
+    announcement: '',
+    previouslyFocusedElement: null,
     facingMode: (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || '') ? 'environment' : 'user'),
     runId: 0,
     onPageHideHandler: null,
@@ -198,6 +200,13 @@ export const himsCameraScanner = ({
         this.errorDetail = null;
     },
 
+    announce(message) {
+        this.announcement = '';
+        this.$nextTick(() => {
+            this.announcement = message;
+        });
+    },
+
     applyError({ kind, title, message, detail = null }) {
         this.isScanning = false;
         this.errorKind = kind;
@@ -208,6 +217,9 @@ export const himsCameraScanner = ({
 
     async open() {
         if (this.isOpen) return;
+        this.previouslyFocusedElement = document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
         this.isOpen = true;
         this.clearError();
         this.notice = null;
@@ -241,6 +253,12 @@ export const himsCameraScanner = ({
         this.manualCode = '';
         this.isProcessingFile = false;
         this.isLocked = false;
+
+        const returnFocus = this.previouslyFocusedElement;
+        this.previouslyFocusedElement = null;
+        if (returnFocus instanceof HTMLElement && document.contains(returnFocus)) {
+            returnFocus.focus();
+        }
     },
 
     async startScanner() {
@@ -965,6 +983,7 @@ export const himsCameraScanner = ({
         }
 
         playScanAudio(true);
+        this.announce(`Code accepted: ${finalCode}`);
 
         // Release the camera as soon as the value is captured; everything after
         // this works from the decoded string.
@@ -1046,6 +1065,7 @@ export const himsCameraScanner = ({
         }
 
         playScanAudio(true);
+        this.announce(`Code accepted: ${finalCode}`);
 
         if (targetInputId) {
             const input = document.getElementById(targetInputId);

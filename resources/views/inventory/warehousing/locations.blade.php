@@ -3,7 +3,7 @@
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-wider text-primary-700 dark:text-primary-400">Spatial Topology</p>
-                <h2 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Warehouse Storage Locations</h2>
+                <h1 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Warehouse Storage Locations</h1>
             </div>
             <div class="flex items-center gap-2">
                 @can(\App\Enums\Permission::ManageWarehouseTopology->value)

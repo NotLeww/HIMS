@@ -3,7 +3,7 @@
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between" x-data="{ consumeModal: false }">
             <div>
                 <p class="text-xs font-semibold uppercase tracking-wider text-amber-700">Point-of-Care Material Custody</p>
-                <h2 class="text-2xl font-bold text-neutral-900">Surgical Consignment & Bill-Only Implants</h2>
+                <h1 class="text-2xl font-bold text-neutral-900">Surgical Consignment & Bill-Only Implants</h1>
             </div>
             <div class="flex items-center gap-2">
                 @can(\App\Enums\Permission::RecordConsignments->value)

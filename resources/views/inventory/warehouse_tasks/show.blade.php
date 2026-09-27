@@ -47,7 +47,7 @@
                     Task registry
                 </a>
                 <div class="mt-1 flex min-w-0 flex-wrap items-center gap-2.5">
-                    <h2 class="truncate font-mono text-2xl font-bold tracking-tight text-neutral-950 dark:text-white" title="{{ $warehouseTask->task_number }}">{{ $warehouseTask->task_number }}</h2>
+                    <h1 class="truncate font-mono text-2xl font-bold tracking-tight text-neutral-950 dark:text-white" title="{{ $warehouseTask->task_number }}">{{ $warehouseTask->task_number }}</h1>
                     <x-ui.badge :status="$warehouseTask->status->value">{{ $warehouseTask->status->label() }}</x-ui.badge>
                 </div>
                 <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{{ $warehouseTask->task_type->label() }} warehouse task · {{ $warehouseTask->item?->name ?? 'Item not recorded' }}</p>

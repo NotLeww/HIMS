@@ -34,20 +34,14 @@
     }
 @endphp
 
-{{-- Screen-reader and automated test visibility fallback --}}
-<div class="sr-only" aria-live="polite">
-    @foreach($initialToasts as $initial)
-        <div>{{ $initial['message'] }}</div>
-    @endforeach
-</div>
-
 {{-- Modern Floating Toast Notification HUD --}}
 <div
     x-data="himsToastNotifications({{ Js::from($initialToasts) }})"
     x-on:notify.window="addToast($event.detail)"
     x-on:toast.window="addToast($event.detail)"
     class="pointer-events-none fixed top-16 right-0 z-[80] flex max-h-screen w-full flex-col items-end gap-3 p-4 sm:p-6 sm:max-w-md"
-    aria-live="assertive"
+    aria-live="polite"
+    aria-relevant="additions text"
 >
     <template x-for="toast in toasts" :key="toast.id">
         <div
@@ -61,7 +55,8 @@
             x-on:mouseenter="pauseTimer(toast)"
             x-on:mouseleave="resumeTimer(toast)"
             class="pointer-events-auto relative w-full overflow-hidden rounded-2xl border border-neutral-200/90 bg-white/95 p-4 shadow-xl backdrop-blur-md transition-all dark:border-neutral-700 dark:bg-neutral-900/95"
-            role="status"
+            x-bind:role="['error', 'danger'].includes(toast.type) ? 'alert' : 'status'"
+            aria-atomic="true"
         >
             <div class="flex items-start gap-3.5">
                 {{-- Status Icon Badge --}}

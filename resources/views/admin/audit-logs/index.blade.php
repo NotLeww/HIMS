@@ -208,7 +208,7 @@
         title="Activity"
         :subtitle="$logs->total().' '.\Illuminate\Support\Str::plural('record', $logs->total()).' - '.config('app.timezone').' (PHT)'"
         :padding="false">
-        <x-ui.table class="audit-logs-table">
+        <x-ui.table class="audit-logs-table" aria-label="Audit trail entries">
             <x-ui.table.head>
                 <x-ui.table.th>Performed By</x-ui.table.th>
                 <x-ui.table.th>Action</x-ui.table.th>

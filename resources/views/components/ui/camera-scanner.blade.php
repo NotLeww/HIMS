@@ -28,6 +28,8 @@
     x-init="if ({{ $autostart ? 'true' : 'false' }} || ((new URLSearchParams(window.location.search).has('camera') || new URLSearchParams(window.location.search).has('scan')) && '{{ $id }}' === 'camera-scanner-standby')) { $nextTick(() => open()); }"
     class="inline-block"
 >
+    <span class="sr-only" role="status" aria-live="polite" aria-atomic="true" x-text="announcement"></span>
+
     @if($showTrigger)
         <button
             type="button"
@@ -87,8 +89,11 @@
                     <div
                         x-show="!isScanning && !errorMessage"
                         class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-neutral-950/90 p-4 text-center text-white"
+                        role="status"
+                        aria-live="polite"
+                        aria-atomic="true"
                     >
-                        <div class="mb-3 h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
+                        <div class="mb-3 h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" aria-hidden="true"></div>
                         <p class="text-xs font-medium">Starting camera&hellip;</p>
                         <p class="mt-1 text-[11px] text-neutral-400">Allow camera access if your browser asks</p>
                     </div>

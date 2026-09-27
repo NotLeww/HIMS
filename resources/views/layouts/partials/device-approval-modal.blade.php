@@ -154,6 +154,8 @@
     class="relative z-50"
     role="dialog"
     aria-modal="true"
+    aria-labelledby="device-approval-title"
+    aria-describedby="device-approval-description"
 >
     {{-- Backdrop --}}
     <div
@@ -189,10 +191,10 @@
                     <div class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/50 px-2.5 py-0.5 text-xs font-semibold text-amber-800 dark:text-amber-300">
                         New Sign-In Request
                     </div>
-                    <h3 class="mt-2 text-xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+                    <h3 id="device-approval-title" class="mt-2 text-xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
                         Is this you?
                     </h3>
-                    <p class="mt-1 text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                    <p id="device-approval-description" class="mt-1 text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
                         An unrecognized device entered the correct password for your account and is requesting access.
                     </p>
                 </div>
@@ -246,7 +248,7 @@
                     @click="approve(false)"
                     class="inline-flex justify-center items-center rounded-lg border border-primary-300 bg-white px-4 py-2.5 text-sm font-semibold text-primary-700 hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-primary-500 transition dark:border-primary-800 dark:bg-neutral-900 dark:text-primary-300"
                 >
-                    <span x-show="processingAction !== 'approve-once'">Approve Once</span>
+                    <span x-show="processingAction !== 'approve-once'">Yes, approve sign-in once</span>
                     <span x-show="processingAction === 'approve-once'" class="flex items-center gap-2">
                         <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -262,7 +264,7 @@
                     @click="approve(true)"
                     class="inline-flex justify-center items-center rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
-                    <span x-show="processingAction !== 'approve-trust'">Approve &amp; Trust</span>
+                    <span x-show="processingAction !== 'approve-trust'">Yes, approve and trust device</span>
                     <span x-show="processingAction === 'approve-trust'" class="flex items-center gap-2">
                         <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

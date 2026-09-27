@@ -9,6 +9,7 @@
                dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         :aria-expanded="sidebarOpen ? 'true' : 'false'"
+        aria-controls="primary-navigation"
         title="Toggle navigation"
     >
         <span class="sr-only">Toggle navigation</span>
@@ -68,6 +69,7 @@
                     type="button"
                     x-on:click="clear()"
                     class="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors p-0.5 rounded"
+                    aria-label="Clear search"
                     title="Clear search"
                 >
                     <x-ui.icon name="x-mark" class="w-3.5 h-3.5" />

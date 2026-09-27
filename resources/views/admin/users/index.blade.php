@@ -222,7 +222,7 @@
 
         {{-- Desktop table view (visible on screens lg / 1024px and wider) --}}
         <div class="hidden lg:block">
-            <x-ui.table :sticky-header="false">
+            <x-ui.table :sticky-header="false" aria-label="User accounts">
                 <x-ui.table.head>
                     <x-ui.table.th class="px-2.5 py-3 xl:px-3 w-20 xl:w-24">Employee ID</x-ui.table.th>
                     <x-ui.table.th class="px-2.5 py-3 xl:px-3">Surname</x-ui.table.th>

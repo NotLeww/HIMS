@@ -5,6 +5,7 @@
 ])
 
 @php
+    $titleId = $name.'-title';
     $widths = [
         'sm' => 'sm:max-w-sm',
         'md' => 'sm:max-w-md',
@@ -35,7 +36,7 @@
     class="fixed inset-0 z-50 flex min-h-full items-center justify-center overflow-y-auto p-4 sm:p-6"
     role="dialog"
     aria-modal="true"
-    @if ($title) aria-label="{{ $title }}" @endif
+    @if ($title) aria-labelledby="{{ $titleId }}" @endif
 >
     <div
         x-show="open"
@@ -55,7 +56,7 @@
                 @isset($header)
                     {{ $header }}
                 @else
-                    <h2 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ $title }}</h2>
+                    <h2 id="{{ $titleId }}" class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ $title }}</h2>
                 @endisset
 
                 <button type="button" x-on:click="open = false"

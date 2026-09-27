@@ -19,6 +19,7 @@
         @click="activeDropdown = (activeDropdown === '{{ $dropdownId }}' ? null : '{{ $dropdownId }}')"
         class="w-full group flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors {{ $active ? 'text-primary-800 dark:text-primary-300 bg-primary-50/70 dark:bg-primary-950/60' : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100/70 dark:hover:bg-neutral-800/70' }}"
         :aria-expanded="activeDropdown === '{{ $dropdownId }}' ? 'true' : 'false'"
+        aria-controls="nav-dropdown-{{ $dropdownId }}"
     >
         <span class="flex items-center gap-2.5 truncate">
             @if ($icon)
@@ -40,6 +41,7 @@
                 class="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-transform duration-300 ease-in-out"
                 :class="activeDropdown === '{{ $dropdownId }}' ? 'rotate-180 text-neutral-700 dark:text-neutral-300' : ''"
                 fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                aria-hidden="true"
             >
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
@@ -47,6 +49,7 @@
     </button>
 
     <div
+        id="nav-dropdown-{{ $dropdownId }}"
         class="grid transition-[grid-template-rows,opacity] duration-300 ease-in-out overflow-hidden"
         :class="activeDropdown === '{{ $dropdownId }}' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 pointer-events-none'"
         :aria-hidden="activeDropdown === '{{ $dropdownId }}' ? 'false' : 'true'"
