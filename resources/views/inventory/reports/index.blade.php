@@ -1814,11 +1814,11 @@
                 },
 
                 hasCategoryFilter() {
-                    return ['all', 'stock_status', 'valuation', 'expiry_exposure', 'most_consumed'].includes(this.reportType);
+                    return ['all', 'stock_status', 'valuation', 'stock_by_location', 'expiry_exposure', 'movement_history', 'most_consumed', 'movements_by_type'].includes(this.reportType);
                 },
 
                 hasLocationFilter() {
-                    return ['all', 'stock_status', 'stock_by_location', 'expiry_exposure', 'movement_history'].includes(this.reportType);
+                    return ['all', 'stock_status', 'valuation', 'stock_by_location', 'expiry_exposure', 'movement_history', 'most_consumed', 'movements_by_type'].includes(this.reportType);
                 },
 
                 hasSupplierFilter() {
@@ -1830,7 +1830,7 @@
                 },
 
                 hasStockStatusFilter() {
-                    return ['all', 'stock_status'].includes(this.reportType);
+                    return ['all', 'stock_status', 'valuation', 'stock_by_location'].includes(this.reportType);
                 },
 
                 hasAnyDynamicFilter() {

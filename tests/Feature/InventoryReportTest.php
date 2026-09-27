@@ -623,6 +623,84 @@ class InventoryReportTest extends TestCase
         $this->actingAs($this->reader())
             ->get('/inventory/reports/generate')
             ->assertSessionHasErrors(['report_type', 'format']);
+
+        $this->actingAs($this->reader())
+            ->getJson('/inventory/reports/generate?report_type=stock_status&format=json&sort_by=unsafe&sort_direction=sideways')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['sort_by', 'sort_direction']);
+    }
+
+    public function test_report_sort_controls_apply_ascending_and_descending_with_active_filters(): void
+    {
+        $reader = $this->reader();
+        $category = ItemCategory::create(['name' => 'Sorted Supplies', 'code' => 'SORT-SUP']);
+        $location = $this->location('Sorting Store', 'SORT-01');
+        $item = $this->stockedItem('Sorted Item', 'SORT-ITEM', 30, 2.00, location: $location, category: $category);
+
+        foreach ([5, 20, 10] as $quantity) {
+            StockMovement::create([
+                'item_id' => $item->id,
+                'to_location_id' => $location->id,
+                'movement_type' => MovementType::StockIn,
+                'quantity' => $quantity,
+                'unit_cost' => $item->unit_cost,
+                'moved_at' => now()->subDay(),
+            ]);
+        }
+
+        $query = http_build_query([
+            'report_type' => 'movement_history',
+            'format' => 'json',
+            'period' => '30',
+            'category_id' => $category->id,
+            'storage_location_id' => $location->id,
+            'movement_type' => MovementType::StockIn->value,
+            'sort_by' => 'units',
+        ]);
+
+        $ascending = $this->actingAs($reader)
+            ->getJson('/inventory/reports/generate?'.$query.'&sort_direction=asc')
+            ->assertOk();
+        $descending = $this->actingAs($reader)
+            ->getJson('/inventory/reports/generate?'.$query.'&sort_direction=desc')
+            ->assertOk();
+
+        $this->assertSame([5, 10, 20], array_column($ascending->json('data'), 'quantity'));
+        $this->assertSame([20, 10, 5], array_column($descending->json('data'), 'quantity'));
+        $this->assertSame('Units (ASC)', $ascending->json('meta.filter_labels.Sorted By'));
+
+        $cleared = $this->actingAs($reader)
+            ->getJson('/inventory/reports/generate?report_type=movement_history&format=json&period=30&sort_by=units&sort_direction=asc')
+            ->assertOk();
+
+        $this->assertGreaterThanOrEqual(3, count($cleared->json('data')));
+    }
+
+    public function test_procurement_order_sort_control_sorts_by_po_number(): void
+    {
+        $reader = $this->reader();
+        $supplier = Supplier::create(['name' => 'Sort Supplier', 'status' => 'active']);
+
+        foreach (['PO-SORT-20', 'PO-SORT-03', 'PO-SORT-11'] as $number) {
+            PurchaseOrder::create([
+                'po_number' => $number,
+                'supplier_id' => $supplier->id,
+                'quantity' => 1,
+                'unit_cost' => 10,
+                'total_amount' => 10,
+                'status' => PurchaseOrderStatus::Approved,
+                'requested_at' => now()->subDay(),
+            ]);
+        }
+
+        $base = '/inventory/reports/generate?report_type=procurement_expense&format=json&period=30&supplier_id='.
+            $supplier->id.'&sort_by=orders&sort_direction=';
+
+        $ascending = $this->actingAs($reader)->getJson($base.'asc')->assertOk();
+        $descending = $this->actingAs($reader)->getJson($base.'desc')->assertOk();
+
+        $this->assertSame(['PO-SORT-03', 'PO-SORT-11', 'PO-SORT-20'], array_column($ascending->json('data'), 'po_number'));
+        $this->assertSame(['PO-SORT-20', 'PO-SORT-11', 'PO-SORT-03'], array_column($descending->json('data'), 'po_number'));
     }
 
     public function test_generate_report_validates_custom_date_ranges(): void
@@ -1539,6 +1617,7 @@ class InventoryReportTest extends TestCase
             ->assertSee('From Date', false)
             ->assertSee('To Date', false)
             ->assertSee('2. Dynamic Filters & Sorting', false)
+            ->assertSee("['all', 'stock_status', 'valuation', 'stock_by_location', 'expiry_exposure', 'movement_history', 'most_consumed', 'movements_by_type']", false)
             ->assertSee('3. Export Format', false)
             ->assertSee('Generate & Export Report', false)
             ->assertSee('Cancel', false);

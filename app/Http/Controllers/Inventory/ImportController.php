@@ -82,7 +82,7 @@ class ImportController extends Controller implements HasMiddleware
     }
 
     /**
-     * Download template files in CSV, JSON, or Excel (.xlsx) formats.
+     * Download template files in CSV, JSON, or Excel-compatible (.xls) formats.
      */
     public function downloadTemplate(Request $request): StreamedResponse
     {
@@ -95,7 +95,7 @@ class ImportController extends Controller implements HasMiddleware
 
         return match ($format) {
             'json' => $this->templates->downloadJson($target),
-            'xlsx', 'excel' => $this->templates->downloadXlsx($target),
+            'xls', 'xlsx', 'excel' => $this->templates->downloadXls($target),
             default => $this->templates->downloadCsv($target),
         };
     }

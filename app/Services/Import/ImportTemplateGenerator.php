@@ -3,7 +3,6 @@
 namespace App\Services\Import;
 
 use Symfony\Component\HttpFoundation\StreamedResponse;
-use ZipArchive;
 
 class ImportTemplateGenerator
 {
@@ -146,7 +145,7 @@ class ImportTemplateGenerator
 
         return response()->streamDownload(function () use ($data) {
             $out = fopen('php://output', 'w');
-            fputs($out, "\xEF\xBB\xBF"); // UTF-8 BOM
+            fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM
             fputcsv($out, $data['headers']);
             foreach ($data['sample_rows'] as $row) {
                 fputcsv($out, array_values($row));
@@ -175,129 +174,73 @@ class ImportTemplateGenerator
     }
 
     /**
-     * Download Excel (.xlsx) template generated using native ZipArchive and OpenXML.
+     * Download an Excel-compatible SpreadsheetML template.
      */
-    public function downloadXlsx(string $target): StreamedResponse
+    public function downloadXls(string $target): StreamedResponse
     {
         $data = $this->getTemplateData($target);
-        $filename = "hims-{$target}-template.xlsx";
+        $filename = "hims-{$target}-template.xls";
 
         return response()->streamDownload(function () use ($data) {
-            $tmpFile = tempnam(sys_get_temp_dir(), 'xlsx_tpl_');
-            $zip = new ZipArchive();
-            if ($zip->open($tmpFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true) {
-                // [Content_Types].xml
-                $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-                    <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-                    <Default Extension="xml" ContentType="application/xml"/>
-                    <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
-                    <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
-                    <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
-                </Types>');
+            $numericColumns = [
+                'unit_cost' => 'Decimal',
+                'reorder_level' => 'Integer',
+                'safety_stock' => 'Integer',
+                'critical_level' => 'Integer',
+                'expiry_alert_days' => 'Integer',
+                'capacity' => 'Integer',
+                'standard_lead_time_days' => 'Integer',
+            ];
+            $centeredColumns = ['requires_cold_chain', 'is_dangerous_drug', 'status'];
+            $wrappedColumns = ['name', 'description', 'address', 'storage_classification', 'temperature_classification'];
 
-                // _rels/.rels
-                $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-                    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/package/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
-                </Relationships>');
+            echo '<?xml version="1.0" encoding="UTF-8"?>';
+            echo '<?mso-application progid="Excel.Sheet"?>';
+            echo '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
+            echo '<Styles>';
+            echo '<Style ss:ID="Default" ss:Name="Normal"><Font ss:FontName="Calibri" ss:Size="11"/><Alignment ss:Vertical="Center"/></Style>';
+            echo '<Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#1F4E78" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>';
+            echo '<Style ss:ID="Text"><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/></Borders></Style>';
+            echo '<Style ss:ID="Wrapped"><Alignment ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/></Borders></Style>';
+            echo '<Style ss:ID="Centered"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/></Borders></Style>';
+            echo '<Style ss:ID="Integer"><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><NumberFormat ss:Format="0"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/></Borders></Style>';
+            echo '<Style ss:ID="Decimal"><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><NumberFormat ss:Format="0.00"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/></Borders></Style>';
+            echo '</Styles><Worksheet ss:Name="Template"><Table x:FullColumns="1" x:FullRows="1">';
 
-                // xl/_rels/workbook.xml.rels
-                $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-                    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/spreadsheetml/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
-                    <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/spreadsheetml/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
-                </Relationships>');
-
-                // xl/workbook.xml
-                $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-                <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-                    <sheets>
-                        <sheet name="Template" sheetId="1" r:id="rId1"/>
-                    </sheets>
-                </workbook>');
-
-                // Collect all unique strings for sharedStrings.xml
-                $allStrings = [];
-                $stringMap = [];
-                $getStringIdx = function ($str) use (&$allStrings, &$stringMap) {
-                    $str = (string) $str;
-                    if (! isset($stringMap[$str])) {
-                        $stringMap[$str] = count($allStrings);
-                        $allStrings[] = $str;
-                    }
-
-                    return $stringMap[$str];
-                };
-
-                // Index headers
-                foreach ($data['headers'] as $header) {
-                    $getStringIdx($header);
-                }
-                // Index sample rows
-                foreach ($data['sample_rows'] as $row) {
-                    foreach ($row as $val) {
-                        $getStringIdx($val);
-                    }
-                }
-
-                // Build xl/sharedStrings.xml
-                $sstXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="'.count($allStrings).'" uniqueCount="'.count($allStrings).'">';
-                foreach ($allStrings as $s) {
-                    $sstXml .= '<si><t>'.htmlspecialchars($s, ENT_XML1, 'UTF-8').'</t></si>';
-                }
-                $sstXml .= '</sst>';
-                $zip->addFromString('xl/sharedStrings.xml', $sstXml);
-
-                // Build xl/worksheets/sheet1.xml
-                $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-                <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-                    <sheetData>';
-
-                // Row 1: Headers
-                $sheetXml .= '<row r="1">';
-                foreach ($data['headers'] as $colIdx => $h) {
-                    $colLetter = $this->indexToColumnLetter($colIdx);
-                    $sIdx = $getStringIdx($h);
-                    $sheetXml .= '<c r="'.$colLetter.'1" t="s"><v>'.$sIdx.'</v></c>';
-                }
-                $sheetXml .= '</row>';
-
-                // Sample rows
-                foreach ($data['sample_rows'] as $rIdx => $row) {
-                    $rowNum = $rIdx + 2;
-                    $sheetXml .= '<row r="'.$rowNum.'">';
-                    $cIdx = 0;
-                    foreach ($row as $val) {
-                        $colLetter = $this->indexToColumnLetter($cIdx);
-                        $sIdx = $getStringIdx($val);
-                        $sheetXml .= '<c r="'.$colLetter.$rowNum.'" t="s"><v>'.$sIdx.'</v></c>';
-                        $cIdx++;
-                    }
-                    $sheetXml .= '</row>';
-                }
-
-                $sheetXml .= '</sheetData></worksheet>';
-                $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
-                $zip->close();
-
-                readfile($tmpFile);
-                @unlink($tmpFile);
+            foreach ($data['headers'] as $header) {
+                $values = array_column($data['sample_rows'], $header);
+                $maxLength = max(array_map(fn ($value) => mb_strlen((string) $value), [$header, ...$values]));
+                $width = min(240, max(72, ($maxLength * 6.5) + 18));
+                echo '<Column ss:AutoFitWidth="0" ss:Width="'.number_format($width, 1, '.', '').'"/>';
             }
+
+            echo '<Row ss:StyleID="Header" ss:Height="30">';
+            foreach ($data['headers'] as $header) {
+                echo '<Cell><Data ss:Type="String">'.htmlspecialchars($header, ENT_XML1, 'UTF-8').'</Data></Cell>';
+            }
+            echo '</Row>';
+
+            foreach ($data['sample_rows'] as $row) {
+                echo '<Row ss:AutoFitHeight="1">';
+                foreach ($data['headers'] as $header) {
+                    $value = $row[$header] ?? '';
+                    $style = $numericColumns[$header]
+                        ?? (in_array($header, $centeredColumns, true) ? 'Centered'
+                            : (in_array($header, $wrappedColumns, true) ? 'Wrapped' : 'Text'));
+                    $type = isset($numericColumns[$header]) && is_numeric($value) ? 'Number' : 'String';
+                    echo '<Cell ss:StyleID="'.$style.'"><Data ss:Type="'.$type.'">'.htmlspecialchars((string) $value, ENT_XML1, 'UTF-8').'</Data></Cell>';
+                }
+                echo '</Row>';
+            }
+
+            $lastRow = count($data['sample_rows']) + 1;
+            $lastColumn = count($data['headers']);
+            echo '</Table><AutoFilter x:Range="R1C1:R'.$lastRow.'C'.$lastColumn.'" xmlns="urn:schemas-microsoft-com:office:excel"/>';
+            echo '<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><Selected/><FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane><ActivePane>2</ActivePane></WorksheetOptions>';
+            echo '</Worksheet></Workbook>';
         }, $filename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
-    }
-
-    protected function indexToColumnLetter(int $index): string
-    {
-        $letters = '';
-        while ($index >= 0) {
-            $letters = chr($index % 26 + 65).$letters;
-            $index = intdiv($index, 26) - 1;
-        }
-
-        return $letters;
     }
 }

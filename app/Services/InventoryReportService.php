@@ -1220,7 +1220,7 @@ class InventoryReportService
         // Sorting
         $rows = (match ($sortBy) {
             'item' => $sortDir === 'asc' ? $rows->sortBy('item') : $rows->sortByDesc('item'),
-            'quantity' => $sortDir === 'asc' ? $rows->sortBy('quantity') : $rows->sortByDesc('quantity'),
+            'units' => $sortDir === 'asc' ? $rows->sortBy('quantity') : $rows->sortByDesc('quantity'),
             'value' => $sortDir === 'asc' ? $rows->sortBy('value') : $rows->sortByDesc('value'),
             default => $sortDir === 'asc' ? $rows->sortBy('timestamp') : $rows->sortByDesc('timestamp'),
         })->values();
@@ -1325,6 +1325,7 @@ class InventoryReportService
         $rows = (match ($sortBy) {
             'supplier' => $sortDir === 'asc' ? $rows->sortBy('supplier') : $rows->sortByDesc('supplier'),
             'amount' => $sortDir === 'asc' ? $rows->sortBy('total_amount') : $rows->sortByDesc('total_amount'),
+            'orders' => $sortDir === 'asc' ? $rows->sortBy('po_number') : $rows->sortByDesc('po_number'),
             'status' => $sortDir === 'asc' ? $rows->sortBy('status') : $rows->sortByDesc('status'),
             default => $sortDir === 'asc' ? $rows->sortBy('timestamp') : $rows->sortByDesc('timestamp'),
         })->values();

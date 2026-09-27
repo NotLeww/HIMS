@@ -80,7 +80,7 @@ class DataImportTest extends TestCase
             ->assertSee('pollImportStatus', false);
     }
 
-    public function test_download_template_supports_csv_json_and_xlsx(): void
+    public function test_download_template_supports_csv_json_and_xls(): void
     {
         $user = $this->inventoryManager();
 
@@ -98,11 +98,37 @@ class DataImportTest extends TestCase
             ->assertHeader('Content-Type', 'application/json; charset=UTF-8');
         $this->assertStringContainsString('MED-PARA-500', $jsonRes->streamedContent());
 
-        // 3. Excel Template (.xlsx)
-        $xlsxRes = $this->actingAs($user)
-            ->get('/inventory/import/template?target=items&format=xlsx');
-        $xlsxRes->assertStatus(200)
-            ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        // 3. Excel Template (.xls)
+        $xlsRes = $this->actingAs($user)
+            ->get('/inventory/import/template?target=items&format=xls');
+        $xlsRes->assertStatus(200)
+            ->assertHeader('Content-Type', 'application/vnd.ms-excel; charset=UTF-8')
+            ->assertDownload('hims-items-template.xls');
+
+        $content = $xlsRes->streamedContent();
+        $this->assertNotFalse(simplexml_load_string($content));
+        $this->assertStringContainsString('urn:schemas-microsoft-com:office:spreadsheet', $content);
+        $this->assertStringContainsString('MED-PARA-500', $content);
+        $this->assertStringContainsString('<Style ss:ID="Header">', $content);
+        $this->assertStringContainsString('ss:AutoFitWidth="0" ss:Width=', $content);
+        $this->assertStringContainsString('<FreezePanes/>', $content);
+        $this->assertStringContainsString('<AutoFilter ', $content);
+        $this->assertStringContainsString('<NumberFormat ss:Format="0.00"/>', $content);
+
+        $tmpFile = tempnam(sys_get_temp_dir(), 'hims_xls_template_');
+        file_put_contents($tmpFile, $content);
+        try {
+            $parsed = app(DataImportReader::class)->read($tmpFile, 'xls', 'items');
+            $this->assertSame(2, $parsed['total_rows']);
+            $this->assertSame('MED-PARA-500', $parsed['rows'][0]['sku']);
+        } finally {
+            @unlink($tmpFile);
+        }
+
+        // Keep old bookmarks compatible, but return the supported .xls file.
+        $this->actingAs($user)
+            ->get('/inventory/import/template?target=items&format=xlsx')
+            ->assertDownload('hims-items-template.xls');
     }
 
     public function test_retained_csv_json_and_xlsx_evidence_files_import_successfully(): void
