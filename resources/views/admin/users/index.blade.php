@@ -148,8 +148,8 @@
 
                             @if (in_array($account->getKey(), $unlockableAccountIds, true))
                                 <form method="POST" action="{{ route('admin.users.unlock', $account) }}"
-                                      data-confirm-title="Confirm account unlock"
-                                      data-confirm-message="Are you sure you want to unlock this account?"
+                                      data-confirm-title="Unlock account?"
+                                      data-confirm-message="This will allow the user to attempt signing in again."
                                       data-confirm-label="Unlock Account">
                                     @csrf
                                     @method('PATCH')
@@ -283,7 +283,7 @@
                                 @if ($account->isTemporarilyLocked())
                                     <x-ui.badge variant="warning" class="mt-1">Locked</x-ui.badge>
                                     <span class="mt-0.5 block text-[11px] text-neutral-500">
-                                        Until {{ $account->login_locked_until->timezone(config('app.timezone'))->format('M d, g:i A') }}
+                                        Until {{ $account->loginRestrictionUntil()->timezone(config('app.timezone'))->format('M d, g:i A') }}
                                     </span>
                                 @endif
                             </x-ui.table.td>
@@ -307,8 +307,8 @@
 
                                         @if (in_array($account->getKey(), $unlockableAccountIds, true))
                                             <form method="POST" action="{{ route('admin.users.unlock', $account) }}"
-                                                  data-confirm-title="Confirm account unlock"
-                                                  data-confirm-message="Are you sure you want to unlock this account?"
+                                                  data-confirm-title="Unlock account?"
+                                                  data-confirm-message="This will allow the user to attempt signing in again."
                                                   data-confirm-label="Unlock Account">
                                                 @csrf
                                                 @method('PATCH')

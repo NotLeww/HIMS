@@ -398,6 +398,12 @@ class DeviceSecurityService
         }
 
         $user = DB::transaction(function () use ($request, $challengeHash, $httpRequest) {
+            $user = User::query()->lockForUpdate()->findOrFail($request->user_id);
+
+            if ($user->isTemporarilyLocked()) {
+                throw new ConflictHttpException('This account is currently locked. Please contact the system administrator.');
+            }
+
             /** @var LoginApprovalRequest|null $locked */
             $locked = LoginApprovalRequest::query()
                 ->where('id', $request->id)
@@ -416,7 +422,6 @@ class DeviceSecurityService
                 throw new ConflictHttpException("Cannot claim a request with status '{$locked->status}'.");
             }
 
-            $user = $locked->user;
             $guard = $locked->guard;
 
             // Authenticate Device B
@@ -471,6 +476,14 @@ class DeviceSecurityService
         }
 
         return DB::transaction(function () use ($request, $challengeHash, $otp, $httpRequest, $trustDevice) {
+            $user = User::query()->lockForUpdate()->findOrFail($request->user_id);
+
+            if ($user->isTemporarilyLocked()) {
+                throw ValidationException::withMessages([
+                    'otp' => 'This account is currently locked. Please contact the system administrator.',
+                ]);
+            }
+
             /** @var LoginApprovalRequest|null $locked */
             $locked = LoginApprovalRequest::query()
                 ->where('id', $request->id)
@@ -493,7 +506,6 @@ class DeviceSecurityService
                 throw ValidationException::withMessages(['otp' => 'The verification code is incorrect.']);
             }
 
-            $user = $locked->user;
             $guard = $locked->guard;
 
             // Authenticate the verified device
@@ -784,9 +796,9 @@ class DeviceSecurityService
     /**
      * Invalidate pending login approval requests for an account.
      */
-    public function cancelPendingRequestsForUser(User $user): void
+    public function cancelPendingRequestsForUser(User $user): int
     {
-        LoginApprovalRequest::query()
+        return LoginApprovalRequest::query()
             ->where('user_id', $user->id)
             ->where('status', LoginApprovalRequest::STATUS_PENDING)
             ->update(['status' => LoginApprovalRequest::STATUS_CANCELLED]);

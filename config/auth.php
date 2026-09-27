@@ -120,6 +120,16 @@ return [
         'resend_cooldown' => (int) env('AUTH_LOGIN_MFA_RESEND_COOLDOWN', 60),
     ],
 
+    'login_lockout' => [
+        // Preserve the established policy: five failures, a mandatory wait,
+        // then the next failure starts the progressive account lock.
+        'failure_threshold' => (int) env('AUTH_LOGIN_LOCKOUT_FAILURE_THRESHOLD', 6),
+        'attempt_window_seconds' => (int) env('AUTH_LOGIN_LOCKOUT_ATTEMPT_WINDOW', 900),
+        'pre_lock_wait_minutes' => (int) env('AUTH_LOGIN_LOCKOUT_PRE_LOCK_WAIT', 20),
+        'cycle_window_seconds' => (int) env('AUTH_LOGIN_LOCKOUT_CYCLE_WINDOW', 31536000),
+        'lock_durations_minutes' => [30, 60, 120, 240],
+    ],
+
     'authenticator' => [
         'issuer' => env('AUTH_AUTHENTICATOR_ISSUER', 'HIMS'),
         'window' => (int) env('AUTH_AUTHENTICATOR_WINDOW', 1),

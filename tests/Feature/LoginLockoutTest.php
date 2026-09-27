@@ -4,11 +4,14 @@ namespace Tests\Feature;
 
 use App\Enums\AuditAction;
 use App\Models\AuditLog;
+use App\Models\LoginApprovalRequest;
 use App\Models\User;
 use App\Notifications\LoginMfaOtp;
+use App\Services\DeviceSecurity\DeviceSecurityService;
 use App\Services\LoginLockoutService;
 use App\Support\AuthenticationContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
@@ -19,6 +22,14 @@ class LoginLockoutTest extends TestCase
     public function test_all_five_attempts_remain_available_before_the_cooldown_and_first_lock(): void
     {
         $user = User::factory()->warehouseStaff()->create();
+        $pendingApproval = LoginApprovalRequest::create([
+            'user_id' => $user->id,
+            'guard' => 'web',
+            'challenge_token_hash' => hash('sha256', 'pending-before-lockout'),
+            'status' => LoginApprovalRequest::STATUS_PENDING,
+            'requested_at' => now(),
+            'expires_at' => now()->addMinutes(5),
+        ]);
 
         $this->failedLogin($user)->assertSessionHasErrors([
             'email' => 'Incorrect email or password. You have 4 attempts remaining.',
@@ -87,6 +98,7 @@ class LoginLockoutTest extends TestCase
         $this->assertTrue($user->isTemporarilyLocked());
         $this->assertSame(0, $user->failed_login_attempts);
         $this->assertSame(1, $user->login_lockout_count);
+        $this->assertSame(LoginApprovalRequest::STATUS_CANCELLED, $pendingApproval->fresh()->status);
 
         $lockAudit = AuditLog::query()
             ->where('action', AuditAction::TemporarilyLockedUser->value)
@@ -96,6 +108,9 @@ class LoginLockoutTest extends TestCase
         $this->assertSame($user->getMorphClass(), $lockAudit->target_type);
         $this->assertSame((string) $user->getKey(), $lockAudit->target_id);
         $this->assertSame(30, $lockAudit->new_values['lock_duration_minutes']);
+        $this->assertSame(6, $lockAudit->new_values['failed_attempt_threshold']);
+        $this->assertSame(LoginLockoutService::REPEATED_FAILURES_REASON, $lockAudit->new_values['lock_reason']);
+        $this->assertSame(1, $lockAudit->new_values['cancelled_pending_approvals']);
         $auditPayload = strtolower((string) json_encode([
             $lockAudit->description,
             $lockAudit->old_values,
@@ -123,6 +138,31 @@ class LoginLockoutTest extends TestCase
         $this->assertNull($user->login_retry_at);
         $this->assertNull($user->login_locked_until);
         $this->assertSame(1, $user->login_lockout_count);
+    }
+
+    public function test_failure_threshold_is_read_from_security_configuration(): void
+    {
+        config()->set('auth.login_lockout.failure_threshold', 3);
+        config()->set('auth.login_lockout.pre_lock_wait_minutes', 1);
+        $user = User::factory()->warehouseStaff()->create();
+
+        $this->failedLogin($user)->assertSessionHasErrors([
+            'email' => 'Incorrect email or password. You have 1 attempt remaining.',
+        ]);
+        $this->failedLogin($user)->assertSessionHasErrors([
+            'email' => 'Incorrect email or password. You have 0 attempts remaining. Please try again after 1 minute.',
+        ]);
+
+        $this->travelPast($user->refresh()->login_retry_at);
+        $this->failedLogin($user)->assertSessionHasErrors([
+            'email' => 'Your account is temporarily locked. Please try again in 30 minutes.',
+        ]);
+
+        $this->assertTrue($user->refresh()->isTemporarilyLocked());
+        $this->assertSame(3, AuditLog::query()
+            ->where('action', AuditAction::TemporarilyLockedUser->value)
+            ->sole()
+            ->new_values['failed_attempt_threshold']);
     }
 
     public function test_repeated_lockout_cycles_progress_to_one_two_and_four_hours(): void
@@ -255,7 +295,7 @@ class LoginLockoutTest extends TestCase
             ->get(route('admin.users.index', ['search' => $staff->email]))
             ->assertOk()
             ->assertSee('Temporarily Locked')
-            ->assertSee('Are you sure you want to unlock this account?')
+            ->assertSee('This will allow the user to attempt signing in again.')
             ->assertSee('data-loading-text="Unlocking account..."', false);
 
         $this->patch(route('admin.users.unlock', $staff))
@@ -298,6 +338,53 @@ class LoginLockoutTest extends TestCase
         $this->assertAuthenticatedAs($staff, AuthenticationContext::WEB_GUARD);
     }
 
+    public function test_only_super_admin_can_unlock_an_account_during_the_fifth_attempt_cooldown(): void
+    {
+        $staff = User::factory()->warehouseStaff()->create();
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $this->failedLogin($staff);
+        }
+
+        $staff->refresh();
+        $this->assertSame(5, $staff->failed_login_attempts);
+        $this->assertNotNull($staff->login_retry_at);
+        $this->assertNull($staff->login_locked_until);
+        $this->assertTrue($staff->isTemporarilyLocked());
+
+        $administrator = User::factory()->administrator()->create();
+        $this->actingAs($administrator, AuthenticationContext::ADMIN_GUARD)
+            ->get(route('admin.users.index', ['search' => $staff->email]))
+            ->assertOk()
+            ->assertSee('Temporarily Locked')
+            ->assertDontSee('This will allow the user to attempt signing in again.');
+        $this->patch(route('admin.users.unlock', $staff))->assertForbidden();
+
+        $superAdmin = User::factory()->superAdministrator()->create();
+        $this->app['auth']->forgetGuards();
+        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('admin.users.index', ['search' => $staff->email]))
+            ->assertOk()
+            ->assertSee('Temporarily Locked')
+            ->assertSee('This will allow the user to attempt signing in again.');
+
+        $this->patch(route('admin.users.unlock', $staff))
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $staff->refresh();
+        $this->assertFalse($staff->isTemporarilyLocked());
+        $this->assertSame(0, $staff->failed_login_attempts);
+        $this->assertNull($staff->last_failed_login_at);
+        $this->assertNull($staff->login_retry_at);
+        $this->assertNull($staff->login_locked_until);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $superAdmin->getKey(),
+            'action' => AuditAction::UnlockedUser->value,
+            'target_type' => $staff->getMorphClass(),
+            'target_id' => (string) $staff->getKey(),
+        ]);
+    }
+
     public function test_super_admin_can_unlock_an_admin_but_admin_staff_and_self_unlocks_are_forbidden(): void
     {
         $superAdmin = User::factory()->superAdministrator()->create();
@@ -318,7 +405,7 @@ class LoginLockoutTest extends TestCase
             ->get(route('admin.users.index', ['search' => $staff->email]))
             ->assertOk()
             ->assertSee('Temporarily Locked')
-            ->assertDontSee('Are you sure you want to unlock this account?');
+            ->assertDontSee('This will allow the user to attempt signing in again.');
         $this->patch(route('admin.users.unlock', $staff))->assertForbidden();
 
         $this->app['auth']->forgetGuards();
@@ -348,6 +435,26 @@ class LoginLockoutTest extends TestCase
             ->assertHeader('Retry-After', '1800');
 
         $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_trusted_device_cannot_bypass_lockout_or_create_an_approval_request(): void
+    {
+        $user = $this->lockedUser();
+        $deviceRequest = Request::create('/login', 'POST', [], [], [], [
+            'REMOTE_ADDR' => '192.0.2.10',
+            'HTTP_USER_AGENT' => 'Lockout Test Browser',
+        ]);
+        $session = app('session.store');
+        $session->start();
+        $deviceRequest->setLaravelSession($session);
+        $trusted = app(DeviceSecurityService::class)->issueTrustedDevice($user, $deviceRequest, 'Trusted Test Device');
+
+        $this->withCookie(config('auth.device_security.cookie_name'), $trusted['token'])
+            ->post(route('login'), $this->credentials($user))
+            ->assertSessionHasErrors('email');
+
+        $this->assertGuest(AuthenticationContext::WEB_GUARD);
+        $this->assertDatabaseMissing('login_approval_requests', ['user_id' => $user->id]);
     }
 
     public function test_token_api_requires_mfa_without_resetting_the_password_failure_cycle(): void

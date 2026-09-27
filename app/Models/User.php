@@ -11,6 +11,7 @@ use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -226,7 +227,7 @@ class User extends Authenticatable
         return $this->hasMany(AuditLog::class);
     }
 
-    public function archivedBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function archivedBy(): BelongsTo
     {
         return $this->belongsTo(self::class, 'archived_by');
     }
@@ -324,9 +325,22 @@ class User extends Authenticatable
 
     public function isTemporarilyLocked(): bool
     {
-        return ! $this->isSuperAdministrator()
-            && $this->login_locked_until !== null
-            && $this->login_locked_until->isFuture();
+        return $this->loginRestrictionUntil() !== null;
+    }
+
+    public function loginRestrictionUntil(): ?CarbonInterface
+    {
+        if ($this->isSuperAdministrator()) {
+            return null;
+        }
+
+        if ($this->login_locked_until?->isFuture()) {
+            return $this->login_locked_until;
+        }
+
+        return $this->login_retry_at?->isFuture()
+            ? $this->login_retry_at
+            : null;
     }
 
     /**

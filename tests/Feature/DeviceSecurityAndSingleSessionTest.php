@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -828,6 +829,75 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
         ]);
         $this->assertTrue($approval->fresh()->trust_device_on_approval);
         $this->assertSame(LoginApprovalRequest::STATUS_COMPLETED, $approval->fresh()->status);
+    }
+
+    public function test_approved_device_request_cannot_be_claimed_after_account_lockout(): void
+    {
+        $user = User::factory()->create([
+            'login_locked_until' => now()->addMinutes(30),
+            'login_lockout_count' => 1,
+        ]);
+        $challengeToken = Str::random(64);
+        $approval = LoginApprovalRequest::create([
+            'user_id' => $user->id,
+            'guard' => 'web',
+            'challenge_token_hash' => hash('sha256', $challengeToken),
+            'status' => LoginApprovalRequest::STATUS_APPROVED,
+            'requested_at' => now(),
+            'expires_at' => now()->addMinutes(5),
+        ]);
+
+        $this->expectException(ConflictHttpException::class);
+        $this->expectExceptionMessage('This account is currently locked.');
+
+        try {
+            $this->deviceSecurity->claimApprovedRequest(
+                $approval,
+                hash('sha256', $challengeToken),
+                $this->createDeviceRequest(),
+            );
+        } finally {
+            $this->assertGuest('web');
+            $this->assertDatabaseMissing('user_active_sessions', ['user_id' => $user->id]);
+            $this->assertDatabaseMissing('trusted_devices', ['user_id' => $user->id]);
+        }
+    }
+
+    public function test_email_device_verification_cannot_bypass_account_lockout(): void
+    {
+        $user = User::factory()->create([
+            'login_locked_until' => now()->addMinutes(30),
+            'login_lockout_count' => 1,
+        ]);
+        $challengeToken = Str::random(64);
+        $otp = '123456';
+        $approval = LoginApprovalRequest::create([
+            'user_id' => $user->id,
+            'guard' => 'web',
+            'challenge_token_hash' => hash('sha256', $challengeToken),
+            'status' => LoginApprovalRequest::STATUS_PENDING,
+            'email_otp_hash' => hash('sha256', $otp),
+            'email_otp_expires_at' => now()->addMinutes(5),
+            'requested_at' => now(),
+            'expires_at' => now()->addMinutes(5),
+        ]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('This account is currently locked.');
+
+        try {
+            $this->deviceSecurity->verifyEmailConfirmation(
+                $approval,
+                hash('sha256', $challengeToken),
+                $otp,
+                $this->createDeviceRequest(),
+            );
+        } finally {
+            $this->assertGuest('web');
+            $this->assertSame(LoginApprovalRequest::STATUS_PENDING, $approval->fresh()->status);
+            $this->assertDatabaseMissing('user_active_sessions', ['user_id' => $user->id]);
+            $this->assertDatabaseMissing('trusted_devices', ['user_id' => $user->id]);
+        }
     }
 
     /**

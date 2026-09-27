@@ -236,8 +236,10 @@ class UserAccountService
 
             $oldValues = [
                 'failed_login_attempts' => (int) $lockedUser->failed_login_attempts,
+                'login_retry_at' => $lockedUser->login_retry_at?->toIso8601String(),
                 'login_locked_until' => $lockedUser->login_locked_until?->toIso8601String(),
                 'login_lockout_count' => (int) $lockedUser->login_lockout_count,
+                'lock_reason' => LoginLockoutService::REPEATED_FAILURES_REASON,
             ];
 
             $lockedUser->forceFill([
