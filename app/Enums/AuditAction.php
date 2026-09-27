@@ -136,6 +136,8 @@ enum AuditAction: string
     case TrustedDeviceRevoked = 'trusted_device_revoked';
     case SessionReplaced = 'session_replaced';
     case SuspiciousLoginBlocked = 'suspicious_login_blocked';
+    case GrantedConsent = 'granted_consent';
+    case WithdrewConsent = 'withdrew_consent';
 
     public function label(): string
     {
@@ -272,6 +274,8 @@ enum AuditAction: string
             self::TrustedDeviceRevoked => 'Trusted Device Revoked',
             self::SessionReplaced => 'Session Replaced by Another Device',
             self::SuspiciousLoginBlocked => 'Suspicious Sign-in Blocked',
+            self::GrantedConsent => 'Granted User Consent',
+            self::WithdrewConsent => 'Withdrew User Consent',
         };
     }
 
@@ -304,6 +308,7 @@ enum AuditAction: string
             str_contains($this->value, 'privacy_request')
                 || str_contains($this->value, 'privacy_package')
                 || str_contains($this->value, 'security_incident')
+                || str_contains($this->value, 'consent')
                 || $this === self::ExecutedDataRetention => 'Privacy & Security Governance',
             $this === self::ExportedSystemReport => 'Reports & Analytics',
             str_contains($this->value, 'ai_chat') => 'AI Assistant',

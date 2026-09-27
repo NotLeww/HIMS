@@ -52,4 +52,17 @@ return [
         'resolved_recovery_records_days' => (int) env('RETENTION_RECOVERY_RECORDS_DAYS', 180),
         'session_lifetime_minutes' => (int) env('SESSION_LIFETIME', 4),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Privacy Policy Governance & Versioning
+    |--------------------------------------------------------------------------
+    |
+    | Centralized policy versioning reference. Material updates require renewed
+    | consent from workforce members upon subsequent authenticated sessions.
+    |
+    */
+    'policy_version' => env('PRIVACY_POLICY_VERSION', 'v1.0'),
+    'policy_effective_date' => env('PRIVACY_POLICY_EFFECTIVE_DATE', 'September 2026'),
+    'policy_document_ref' => env('PRIVACY_POLICY_DOCUMENT_REF', 'DPA-2012-HIMS-POL'),
 ];

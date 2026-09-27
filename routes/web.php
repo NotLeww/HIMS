@@ -29,6 +29,7 @@ use App\Http\Controllers\Inventory\StockTransferController;
 use App\Http\Controllers\Inventory\StorageLocationController;
 use App\Http\Controllers\Inventory\WarehouseTaskController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Privacy\ConsentController;
 use App\Http\Controllers\Privacy\DsarDownloadController;
 use App\Http\Controllers\PrivacyRequestController;
 use App\Http\Controllers\ProfileController;
@@ -308,6 +309,14 @@ Route::middleware('auth:web,admin,super_admin')->group(function () {
         ->name('privacy.requests.store');
     Route::get('/privacy/requests/{privacyRequest}/download', [DsarDownloadController::class, 'download'])
         ->name('privacy.requests.download');
+
+    // Consent Management
+    Route::get('/consent/privacy-policy', [ConsentController::class, 'showPrivacyPolicyConsent'])
+        ->name('consent.privacy-policy');
+    Route::post('/consent/privacy-policy', [ConsentController::class, 'storePrivacyPolicyConsent'])
+        ->name('consent.privacy-policy.store');
+    Route::match(['post', 'patch'], '/profile/consent/optional', [ConsentController::class, 'updateOptionalConsent'])
+        ->name('profile.consent.optional');
 });
 
 /*

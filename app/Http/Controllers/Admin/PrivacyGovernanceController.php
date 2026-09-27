@@ -6,7 +6,9 @@ use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Models\PrivacyRequest;
 use App\Models\SecurityIncident;
+use App\Models\UserConsent;
 use App\Services\Privacy\CompliancePostureService;
+use App\Services\Privacy\ConsentService;
 use App\Services\Privacy\DataClassificationService;
 use App\Services\Privacy\DataProcessingRegisterService;
 use App\Services\Privacy\DataRetentionService;
@@ -30,6 +32,7 @@ class PrivacyGovernanceController extends Controller implements HasMiddleware
         private readonly PrivacyRequestService $privacyRequestService,
         private readonly SecurityIncidentService $securityIncidentService,
         private readonly DataRetentionService $retentionService,
+        private readonly ConsentService $consentService,
     ) {}
 
     /**
@@ -49,7 +52,7 @@ class PrivacyGovernanceController extends Controller implements HasMiddleware
     public function index(Request $request): View
     {
         $activeTab = $request->query('tab', 'posture');
-        if (! in_array($activeTab, ['posture', 'ropa', 'classification', 'dsr', 'incidents', 'retention'], true)) {
+        if (! in_array($activeTab, ['posture', 'ropa', 'classification', 'consent', 'dsr', 'incidents', 'retention'], true)) {
             $activeTab = 'posture';
         }
 
@@ -66,6 +69,11 @@ class PrivacyGovernanceController extends Controller implements HasMiddleware
             ->latest()
             ->paginate(15, ['*'], 'incident_page');
 
+        $consentStats = $this->consentService->getConsentAuditStats();
+        $recentConsents = UserConsent::with('user:id,name,email,role')
+            ->latest('id')
+            ->paginate(20, ['*'], 'consent_page');
+
         $openDsrCount = PrivacyRequest::whereIn('status', ['pending', 'in_review'])->count();
         $openIncidentsCount = SecurityIncident::whereIn('status', ['reported', 'investigating', 'contained'])->count();
 
@@ -77,6 +85,8 @@ class PrivacyGovernanceController extends Controller implements HasMiddleware
             'classificationTiers' => $classificationTiers,
             'privacyRequests' => $privacyRequests,
             'securityIncidents' => $securityIncidents,
+            'consentStats' => $consentStats,
+            'recentConsents' => $recentConsents,
             'openDsrCount' => $openDsrCount,
             'openIncidentsCount' => $openIncidentsCount,
         ]);

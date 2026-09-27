@@ -187,6 +187,23 @@ class DataClassificationService
                 'statutory_basis' => 'NPC Circular 16-03 / ISO 27001 A.5.24',
                 'retention' => 'No automatic incident disposal; the DPO/records owner must approve the applicable schedule.',
             ],
+            'user_consents' => [
+                'entity' => 'Workforce Consent Records',
+                'module' => 'Consent Management',
+                'tier' => self::TIER_CONFIDENTIAL,
+                'fields' => [
+                    'user_id' => self::TIER_INTERNAL,
+                    'consent_type' => self::TIER_INTERNAL,
+                    'policy_version' => self::TIER_INTERNAL,
+                    'status' => self::TIER_INTERNAL,
+                    'consented_at' => self::TIER_INTERNAL,
+                    'withdrawn_at' => self::TIER_INTERNAL,
+                    'ip_address' => self::TIER_RESTRICTED,
+                    'user_agent' => self::TIER_INTERNAL,
+                ],
+                'statutory_basis' => 'RA 10173 Section 12 (Lawful Processing) & NPC Circulars',
+                'retention' => 'Preserved during account lifecycle and for audit accountability.',
+            ],
         ];
     }
 }

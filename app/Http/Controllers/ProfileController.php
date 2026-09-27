@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\AuthenticatorSecretService;
 use App\Services\AuthenticatorSetupService;
 use App\Services\DeviceSecurity\DeviceSecurityService;
+use App\Services\Privacy\ConsentService;
 use App\Services\Sms\SmsOtpDelivery;
 use App\Services\UserAccountService;
 use App\Support\AuditBrowserLocation;
@@ -44,6 +45,7 @@ class ProfileController extends Controller
         Request $request,
         AuthenticatorSetupService $setup,
         AuthenticatorSecretService $authenticatorSecrets,
+        ConsentService $consentService,
     ): View {
         $user = $request->user();
         $authenticatorStatus = $user instanceof User
@@ -66,6 +68,9 @@ class ProfileController extends Controller
                     ->orderByDesc('last_used_at')
                     ->get()
                 : collect(),
+            'consentSummary' => $user instanceof User
+                ? $consentService->getUserConsentSummary($user)
+                : null,
         ]);
     }
 

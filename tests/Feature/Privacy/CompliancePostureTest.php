@@ -22,15 +22,15 @@ class CompliancePostureTest extends TestCase
         $this->assertArrayHasKey('controls', $result);
         $this->assertArrayHasKey('disclaimer', $result);
 
-        $this->assertCount(14, $result['controls']);
-        $this->assertSame(14, $result['summary']['total']);
+        $this->assertCount(15, $result['controls']);
+        $this->assertSame(15, $result['summary']['total']);
 
         $sum = $result['summary']['implemented']
             + $result['summary']['partially_implemented']
             + $result['summary']['needs_review']
             + $result['summary']['not_implemented'];
 
-        $this->assertSame(14, $sum);
+        $this->assertSame(15, $sum);
         $this->assertStringContainsString('does NOT constitute formal ISO certification', $result['disclaimer']);
     }
 
@@ -40,10 +40,10 @@ class CompliancePostureTest extends TestCase
         $report = $service->getPostureReport();
 
         $this->assertIsArray($report);
-        $this->assertSame(14, $report['total_controls']);
+        $this->assertSame(15, $report['total_controls']);
         $this->assertGreaterThan(0, $report['passed_count']);
-        $this->assertSame(14, $report['passed_count'] + $report['attention_count']);
-        $this->assertCount(14, $report['checks']);
+        $this->assertSame(15, $report['passed_count'] + $report['attention_count']);
+        $this->assertCount(15, $report['checks']);
 
         foreach ($report['checks'] as $check) {
             $this->assertArrayHasKey('id', $check);
@@ -57,6 +57,7 @@ class CompliancePostureTest extends TestCase
     public function test_authorized_super_admin_can_access_privacy_governance_posture(): void
     {
         $admin = User::factory()->superAdministrator()->create();
+        app(\App\Services\Privacy\ConsentService::class)->recordConsent($admin, \App\Models\UserConsent::TYPE_PRIVACY_POLICY);
 
         $response = $this->actingAs($admin)
             ->get(route('admin.privacy.index', ['tab' => 'ropa']));
@@ -74,6 +75,7 @@ class CompliancePostureTest extends TestCase
     public function test_unauthorized_user_cannot_access_privacy_governance(): void
     {
         $user = User::factory()->pharmacyStaff()->create();
+        app(\App\Services\Privacy\ConsentService::class)->recordConsent($user, \App\Models\UserConsent::TYPE_PRIVACY_POLICY);
 
         $response = $this->actingAs($user)
             ->get(route('admin.privacy.index'));

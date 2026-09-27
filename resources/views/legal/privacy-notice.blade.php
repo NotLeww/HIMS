@@ -98,6 +98,9 @@
     $portalIcon = $isAuth ? 'squares-2x2' : 'arrow-right-on-rectangle';
 
     $hospitalName = config('privacy.hospital_name', 'Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium (DJNRMHS)');
+    $policyVersion = config('privacy.policy_version', 'v1.0');
+    $policyDocumentRef = config('privacy.policy_document_ref', 'DPA-2012-HIMS-POL');
+    $policyEffectiveDate = config('privacy.policy_effective_date', 'September 2026');
 @endphp
 
     {{-- Screen Document Canvas --}}
@@ -157,9 +160,9 @@
 
                     {{-- Document Tracking Block --}}
                     <div class="hidden sm:block text-right text-[8.5pt] font-mono leading-tight text-neutral-800 dark:text-neutral-200 border-l border-neutral-400 dark:border-neutral-600 pl-4 shrink-0">
-                        <div><strong class="text-neutral-900 dark:text-white">REF:</strong> DPA-2012-HIMS-POL</div>
-                        <div><strong class="text-neutral-900 dark:text-white">VER:</strong> 1.0 (Operational)</div>
-                        <div><strong class="text-neutral-900 dark:text-white">DATE:</strong> September 2026</div>
+                        <div><strong class="text-neutral-900 dark:text-white">REF:</strong> {{ $policyDocumentRef }}</div>
+                        <div><strong class="text-neutral-900 dark:text-white">VER:</strong> {{ $policyVersion }} (Operational)</div>
+                        <div><strong class="text-neutral-900 dark:text-white">DATE:</strong> {{ $policyEffectiveDate }}</div>
                         <div class="text-[8pt] font-bold text-neutral-700 dark:text-neutral-300 mt-1 uppercase">Institutional Policy</div>
                     </div>
                 </div>
@@ -174,7 +177,7 @@
                     Privacy Policy
                 </h1>
                 <p class="mt-0.5 text-[9pt] font-bold uppercase tracking-widest text-neutral-700 dark:text-neutral-300">
-                    System Privacy Notice &bull; Republic Act No. 10173 Reference &bull; Effective: September 2026
+                    System Privacy Notice &bull; Republic Act No. 10173 Reference &bull; Effective: {{ $policyEffectiveDate }}
                 </p>
             </div>
 
@@ -186,13 +189,13 @@
                             <th class="w-1/4 doc-meta-label">Document Title</th>
                             <td class="w-1/4 doc-meta-value font-semibold">System Privacy Notice &amp; Data Protection Policy</td>
                             <th class="w-1/4 doc-meta-label">Document Reference</th>
-                            <td class="w-1/4 doc-meta-value font-mono font-bold">DPA-2012-HIMS-POL</td>
+                            <td class="w-1/4 doc-meta-value font-mono font-bold">{{ $policyDocumentRef }}</td>
                         </tr>
                         <tr class="border-b border-neutral-400 dark:border-neutral-600">
                             <th class="doc-meta-label">Release Version</th>
-                            <td class="doc-meta-value font-mono font-medium">Version 1.0 (Operational)</td>
+                            <td class="doc-meta-value font-mono font-medium">Version {{ $policyVersion }} (Operational)</td>
                             <th class="doc-meta-label">Effective Date</th>
-                            <td class="doc-meta-value font-medium">September 2026</td>
+                            <td class="doc-meta-value font-medium">{{ $policyEffectiveDate }}</td>
                         </tr>
                         <tr class="border-b border-neutral-400 dark:border-neutral-600">
                             <th class="doc-meta-label">Governing Institution</th>

@@ -101,4 +101,28 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => ['status' => UserStatus::Inactive]);
     }
+
+    public function unconsented(): static
+    {
+        return $this->afterCreating(function (User $user) {
+            $user->consents()->delete();
+        });
+    }
+
+    public function configure(): static
+    {
+        return $this->afterCreating(function (User $user) {
+            if (\Illuminate\Support\Facades\Schema::hasTable('user_consents')) {
+                \App\Models\UserConsent::firstOrCreate([
+                    'user_id' => $user->id,
+                    'consent_type' => \App\Models\UserConsent::TYPE_PRIVACY_POLICY,
+                    'policy_version' => config('privacy.policy_version', 'v1.0'),
+                ], [
+                    'status' => \App\Models\UserConsent::STATUS_CONSENTED,
+                    'consented_at' => now(),
+                    'source' => 'factory_setup',
+                ]);
+            }
+        });
+    }
 }

@@ -26,6 +26,7 @@
         <div class="min-w-0 space-y-4">
             @include('profile.partials.update-profile-information-form')
             @include('profile.partials.update-theme-form')
+            @include('profile.partials.consent-management-card')
             @include('profile.partials.account-retention-notice')
         </div>
 

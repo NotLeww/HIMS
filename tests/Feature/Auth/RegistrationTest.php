@@ -18,6 +18,19 @@ class RegistrationTest extends TestCase
         $response->assertStatus(200);
     }
 
+    public function test_new_users_cannot_register_without_privacy_consent(): void
+    {
+        $response = $this->post('/register', [
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
+        ]);
+
+        $response->assertSessionHasErrors('privacy_consent');
+        $this->assertGuest();
+    }
+
     public function test_new_users_can_register(): void
     {
         $response = $this->post('/register', [
@@ -25,6 +38,7 @@ class RegistrationTest extends TestCase
             'email' => 'test@example.com',
             'password' => 'Password123!',
             'password_confirmation' => 'Password123!',
+            'privacy_consent' => '1',
         ]);
 
         $this->assertAuthenticated();

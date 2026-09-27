@@ -27,6 +27,7 @@ class CompliancePostureService
     {
         $controls = [
             $this->checkDpaTransparency(),
+            $this->checkDpaConsentManagement(),
             $this->checkDpaSubjectRights(),
             $this->checkDpaRopaRegister(),
             $this->checkDpaIncidentManagement(),
@@ -104,6 +105,25 @@ class CompliancePostureService
             'evidence' => 'Notice available at /privacy-notice with configured entity: ['.config('privacy.hospital_name').'].',
             'last_checked' => now()->toFormattedDateString(),
             'required_action' => 'Ensure hospital contact details in config/privacy.php remain up to date.',
+            'responsible_role' => 'Data Protection Officer',
+        ];
+    }
+
+    private function checkDpaConsentManagement(): array
+    {
+        $tableExists = Schema::hasTable('user_consents');
+        $policyVersion = config('privacy.policy_version');
+        $hasVersion = filled($policyVersion);
+
+        return [
+            'control_id' => 'DPA-01B',
+            'framework' => 'RA 10173',
+            'category' => 'Consent Management',
+            'title' => 'Explicit Consent Collection & Policy Versioning',
+            'status' => ($tableExists && $hasVersion) ? 'Implemented' : 'Partially Implemented',
+            'evidence' => 'Functional consent test, Privacy Policy version ('.$policyVersion.'), and database/audit records confirming that user consent is explicitly collected, versioned, stored, and managed.',
+            'last_checked' => now()->toFormattedDateString(),
+            'required_action' => 'Ensure renewed consent is collected when material updates are made to the policy version.',
             'responsible_role' => 'Data Protection Officer',
         ];
     }

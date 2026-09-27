@@ -427,4 +427,44 @@ class User extends Authenticatable
     {
         return $this->hasMany(PrivacyRequest::class, 'user_id');
     }
+
+    public function consents(): HasMany
+    {
+        return $this->hasMany(UserConsent::class);
+    }
+
+    public function hasConsentedToCurrentPolicy(): bool
+    {
+        return $this->consents()
+            ->where('consent_type', UserConsent::TYPE_PRIVACY_POLICY)
+            ->where('policy_version', config('privacy.policy_version', 'v1.0'))
+            ->where('status', UserConsent::STATUS_CONSENTED)
+            ->whereNull('withdrawn_at')
+            ->exists();
+    }
+
+    public function hasConsentedTo(string $type, ?string $version = null): bool
+    {
+        $query = $this->consents()
+            ->where('consent_type', $type)
+            ->where('status', UserConsent::STATUS_CONSENTED)
+            ->whereNull('withdrawn_at');
+
+        if ($version !== null) {
+            $query->where('policy_version', $version);
+        }
+
+        return $query->exists();
+    }
+
+    public function currentPolicyConsent(): ?UserConsent
+    {
+        return $this->consents()
+            ->where('consent_type', UserConsent::TYPE_PRIVACY_POLICY)
+            ->where('policy_version', config('privacy.policy_version', 'v1.0'))
+            ->where('status', UserConsent::STATUS_CONSENTED)
+            ->whereNull('withdrawn_at')
+            ->latest('consented_at')
+            ->first();
+    }
 }

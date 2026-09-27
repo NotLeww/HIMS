@@ -7,6 +7,7 @@ use App\Http\Middleware\EnsureAdministrator;
 use App\Http\Middleware\EnsureAuthenticationPanelRole;
 use App\Http\Middleware\EnsureMfaIsComplete;
 use App\Http\Middleware\EnsurePasswordIsCurrent;
+use App\Http\Middleware\EnsurePrivacyConsentIsCurrent;
 use App\Http\Middleware\EnsureSuperAdministrator;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\PreventBackHistoryCache;
@@ -60,6 +61,7 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsureAuthenticationPanelRole::class,
             EnsureMfaIsComplete::class,
             EnsurePasswordIsCurrent::class,
+            EnsurePrivacyConsentIsCurrent::class,
             PreventBackHistoryCache::class,
             EnforceSecurityHeaders::class,
         ]);
@@ -78,6 +80,7 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsureAuthenticationPanelRole::class,
             EnsureMfaIsComplete::class,
             EnsurePasswordIsCurrent::class,
+            EnsurePrivacyConsentIsCurrent::class,
             PreventBackHistoryCache::class,
             EnforceSecurityHeaders::class,
         ]);

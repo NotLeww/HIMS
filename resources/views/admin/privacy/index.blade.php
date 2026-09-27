@@ -104,6 +104,13 @@
             </a>
 
             <a
+                href="{{ route('admin.privacy.index', ['tab' => 'consent']) }}"
+                class="whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition {{ $activeTab === 'consent' ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400' : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 dark:text-neutral-400 dark:hover:text-neutral-300' }}"
+            >
+                Consent Management
+            </a>
+
+            <a
                 href="{{ route('admin.privacy.index', ['tab' => 'dsr']) }}"
                 class="whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition {{ $activeTab === 'dsr' ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400' : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 dark:text-neutral-400 dark:hover:text-neutral-300' }}"
             >
@@ -334,6 +341,152 @@
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- TAB: CONSENT MANAGEMENT --}}
+    @if ($activeTab === 'consent')
+        <div class="space-y-4">
+            {{-- Metrics Row --}}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <x-ui.stat
+                    label="Current Policy Adoption"
+                    :value="$consentStats['current_version_consented'] . ' / ' . $consentStats['total_active_users']"
+                    icon="shield-check"
+                    :tone="$consentStats['pending_consent'] === 0 ? 'success' : 'warning'"
+                    :hint="'Policy Version: ' . config('privacy.policy_version', 'v1.0')"
+                />
+
+                <x-ui.stat
+                    label="Pending Policy Renewal"
+                    :value="(string) $consentStats['pending_consent']"
+                    icon="clock"
+                    :tone="$consentStats['pending_consent'] > 0 ? 'warning' : 'neutral'"
+                    hint="Requires acknowledgment on next login"
+                />
+
+                <x-ui.stat
+                    label="Older Version Holders"
+                    :value="(string) $consentStats['older_version_consented']"
+                    icon="document-text"
+                    tone="neutral"
+                    hint="Previously consented to prior versions"
+                />
+
+                <x-ui.stat
+                    label="Audit Location Opt-Ins"
+                    :value="(string) $consentStats['location_opt_ins']"
+                    icon="map-pin"
+                    tone="primary"
+                    hint="High-accuracy GPS audit tracking opt-in"
+                />
+            </div>
+
+            {{-- Statutory Safeguard Notice --}}
+            <div class="rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/60 p-4 text-xs text-neutral-600 dark:text-neutral-400">
+                <strong class="text-neutral-900 dark:text-neutral-200 font-semibold">Statutory Consent Governance Rule:</strong>
+                Under Section 12 of Republic Act No. 10173 and ISO/IEC 27001 guidelines, user consent must represent an active, unambiguous, and intentional act by the data subject. Administrators may inspect audit timestamps and adoption levels, but cannot grant, modify, or fabricate consent on behalf of workforce members.
+            </div>
+
+            {{-- Consents Table --}}
+            <div class="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+                <div class="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Workforce Consent Audit Registry</h3>
+                        <p class="text-xs text-neutral-500 dark:text-neutral-400">Auditable log of policy acknowledgments, version agreements, and optional consent withdrawals.</p>
+                    </div>
+                </div>
+
+                @if ($recentConsents->isEmpty())
+                    <div class="py-12 text-center text-xs text-neutral-500">
+                        No consent records have been registered yet.
+                    </div>
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-neutral-200 dark:divide-neutral-800 text-left text-xs">
+                            <thead class="bg-neutral-50 dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-400 font-semibold uppercase tracking-wider">
+                                <tr>
+                                    <th class="px-4 py-3">Workforce Member</th>
+                                    <th class="px-4 py-3">Consent Purpose</th>
+                                    <th class="px-4 py-3">Policy Version</th>
+                                    <th class="px-4 py-3">Status</th>
+                                    <th class="px-4 py-3">Consented At</th>
+                                    <th class="px-4 py-3">Withdrawn At</th>
+                                    <th class="px-4 py-3">Source / Context</th>
+                                    <th class="px-4 py-3">IP Address</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-neutral-200 dark:divide-neutral-800 font-normal">
+                                @foreach ($recentConsents as $consent)
+                                    <tr class="hover:bg-neutral-50/60 dark:hover:bg-neutral-800/30 transition">
+                                        <td class="px-4 py-3">
+                                            <div class="font-semibold text-neutral-900 dark:text-neutral-100">
+                                                {{ $consent->user?->name ?? 'User #' . $consent->user_id }}
+                                            </div>
+                                            <div class="text-[11px] text-neutral-500 font-mono">
+                                                {{ $consent->user?->email }} &bull; {{ $consent->user?->role?->label() ?? 'Viewer' }}
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            @if ($consent->consent_type === 'privacy_policy')
+                                                <span class="font-medium text-neutral-800 dark:text-neutral-200">
+                                                    System Privacy Policy &amp; Terms
+                                                </span>
+                                                <span class="block text-[10px] text-neutral-400 uppercase">Mandatory</span>
+                                            @elseif ($consent->consent_type === 'audit_browser_location')
+                                                <span class="font-medium text-neutral-800 dark:text-neutral-200">
+                                                    High-Accuracy Geolocation
+                                                </span>
+                                                <span class="block text-[10px] text-neutral-400 uppercase">Optional</span>
+                                            @else
+                                                <span class="font-medium text-neutral-800 dark:text-neutral-200">
+                                                    {{ $consent->consent_type }}
+                                                </span>
+                                            @endif
+                                        </td>
+                                        <td class="px-4 py-3 font-mono text-neutral-700 dark:text-neutral-300 whitespace-nowrap">
+                                            {{ $consent->policy_version }}
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            @if ($consent->status === 'consented')
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                                    Consented
+                                                </span>
+                                            @elseif ($consent->status === 'withdrawn')
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                                                    Withdrawn
+                                                </span>
+                                            @else
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
+                                                    {{ ucfirst($consent->status) }}
+                                                </span>
+                                            @endif
+                                        </td>
+                                        <td class="px-4 py-3 text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
+                                            {{ $consent->consented_at?->format('Y-m-d H:i:s') ?? $consent->created_at->format('Y-m-d H:i:s') }}
+                                        </td>
+                                        <td class="px-4 py-3 text-neutral-600 dark:text-neutral-400 whitespace-nowrap">
+                                            {{ $consent->withdrawn_at?->format('Y-m-d H:i:s') ?? '—' }}
+                                        </td>
+                                        <td class="px-4 py-3 font-mono text-neutral-500 whitespace-nowrap">
+                                            {{ $consent->source ?? 'system' }}
+                                        </td>
+                                        <td class="px-4 py-3 font-mono text-neutral-500 whitespace-nowrap text-[11px]">
+                                            {{ $consent->ip_address ?? '—' }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @if ($recentConsents->hasPages())
+                        <div class="px-4 py-3 border-t border-neutral-200 dark:border-neutral-800">
+                            {{ $recentConsents->appends(['tab' => 'consent'])->links() }}
+                        </div>
+                    @endif
+                @endif
             </div>
         </div>
     @endif
