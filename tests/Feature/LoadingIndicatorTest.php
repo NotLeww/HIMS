@@ -117,11 +117,12 @@ class LoadingIndicatorTest extends TestCase
         }
     }
 
-    public function test_navigation_loader_waits_for_destination_load_instead_of_outgoing_page_timeouts(): void
+    public function test_navigation_loader_clears_when_destination_dom_is_ready(): void
     {
         $script = file_get_contents(resource_path('js/app.js'));
 
-        $this->assertStringContainsString("window.addEventListener('load', revealDestination, { once: true })", $script);
+        $this->assertStringContainsString("document.addEventListener('DOMContentLoaded', revealDestination, { once: true })", $script);
+        $this->assertStringNotContainsString("window.addEventListener('load', revealDestination", $script);
         $this->assertStringContainsString("window.sessionStorage.setItem(navigationStorageKey, '1')", $script);
         $this->assertStringContainsString('rememberPageTransition({ coverCurrentPage: false })', $script);
         $this->assertStringNotContainsString('navigationWatchdog', $script);
@@ -202,7 +203,8 @@ class LoadingIndicatorTest extends TestCase
             ->get(route('inventory.purchases'))
             ->assertOk()
             ->assertSee('id="purchase-orders"', false)
-            ->assertDontSee('purchase-orders-api-status');
+            ->assertDontSee('purchase-orders-api-status')
+            ->assertSee("'X-Session-Activity': 'passive'", false);
 
         // Supplier Management is now server-rendered because its compliance
         // and authorization state cannot be safely reconstructed by the old

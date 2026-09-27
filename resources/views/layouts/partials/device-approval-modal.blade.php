@@ -10,6 +10,7 @@
         loginUrl: '{{ route(\App\Support\AuthenticationContext::loginRoute(\App\Support\AuthenticationContext::authenticatedGuard() ?? 'web')) }}',
 
         init() {
+            this.checkForPending();
             this.startPolling();
 
             // React across browser tabs if session replaced
@@ -32,7 +33,7 @@
                 if (!document.hidden && !this.isOpen) {
                     this.checkForPending();
                 }
-            }, 3500);
+            }, 10000);
         },
 
         destroy() {
@@ -53,7 +54,8 @@
                 const response = await fetch(this.pendingCheckUrl, {
                     headers: {
                         'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-Session-Activity': 'passive'
                     }
                 });
 

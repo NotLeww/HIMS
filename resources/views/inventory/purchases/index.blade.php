@@ -2565,7 +2565,8 @@
             const res = await fetch(url, {
                 headers: {
                     'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-Session-Activity': 'passive'
                 }
             });
 

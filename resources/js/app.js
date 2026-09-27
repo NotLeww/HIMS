@@ -505,7 +505,7 @@ const startSessionMonitor = () => {
         heartbeatTimer = window.setTimeout(sendHeartbeat, Math.min(500, maxWaitRemaining));
     };
 
-    const recordActivity = () => {
+    const recordActivity = (event) => {
         // Interacting with the warning, including dismissing it, must not
         // silently extend the session. Only Continue Session may do that.
         if (expirationStarted || warningOpen) return;
@@ -514,6 +514,11 @@ const startSessionMonitor = () => {
         warningDismissed = false;
         writeSharedActivity(lastActivityAt);
         scheduleExpiration();
+
+        // The destination request records activity itself. Avoid racing it
+        // with a redundant session write while the next page is loading.
+        if (event.target instanceof Element && event.target.closest('a[href]')) return;
+
         queueHeartbeat();
     };
 
@@ -1750,10 +1755,10 @@ const startLoadingIndicators = () => {
         showOverlay('Loading page...');
 
         const revealDestination = () => continueAfterPaint(finishDestinationLoad);
-        if (document.readyState === 'complete') {
+        if (document.readyState !== 'loading') {
             revealDestination();
         } else {
-            window.addEventListener('load', revealDestination, { once: true });
+            document.addEventListener('DOMContentLoaded', revealDestination, { once: true });
         }
     } else {
         // Never inherit a visible or busy state from cached/restored page markup.
