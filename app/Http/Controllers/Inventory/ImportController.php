@@ -24,6 +24,7 @@ use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -121,6 +122,7 @@ class ImportController extends Controller implements HasMiddleware
         $clientExt = strtolower($file->getClientOriginalExtension());
         if (! in_array($clientExt, ['csv', 'txt', 'json', 'xlsx', 'xls'], true)) {
             $extLabel = $clientExt !== '' ? "[{$clientExt}]" : '[no extension]';
+
             return response()->json([
                 'is_valid' => false,
                 'total_rows' => 0,
@@ -144,7 +146,7 @@ class ImportController extends Controller implements HasMiddleware
 
         try {
             $tableData = $this->reader->read($file, $clientExt, $target);
-        } catch (Throwable $e) {
+        } catch (InvalidArgumentException $e) {
             return response()->json([
                 'is_valid' => false,
                 'total_rows' => 0,
@@ -162,6 +164,26 @@ class ImportController extends Controller implements HasMiddleware
                         'message' => $e->getMessage(),
                     ],
                 ],
+                'preview_rows' => [],
+            ], 422);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'is_valid' => false,
+                'total_rows' => 0,
+                'valid_count' => 0,
+                'invalid_count' => 1,
+                'create_count' => 0,
+                'update_count' => 0,
+                'message' => 'The uploaded file could not be parsed. Verify the file and try again.',
+                'errors' => [[
+                    'row' => 1,
+                    'field' => 'file',
+                    'value' => $file->getClientOriginalName(),
+                    'type' => 'invalid_structure',
+                    'message' => 'The uploaded file could not be parsed. Verify the file and try again.',
+                ]],
                 'preview_rows' => [],
             ], 422);
         }

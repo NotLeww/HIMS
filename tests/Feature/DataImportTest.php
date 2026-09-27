@@ -6,6 +6,7 @@ use App\Models\InventoryItem;
 use App\Models\ItemCategory;
 use App\Models\StorageLocation;
 use App\Models\User;
+use App\Services\Import\DataImportReader;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
@@ -36,6 +37,25 @@ class DataImportTest extends TestCase
         $this->actingAs($this->viewer())
             ->get('/inventory/import')
             ->assertStatus(403);
+    }
+
+    public function test_user_without_import_permissions_cannot_preview_or_commit_directly(): void
+    {
+        $user = $this->viewer();
+        $file = UploadedFile::fake()->createWithContent('items.csv', "sku,name\nBLOCKED-01,Blocked Item\n");
+
+        $this->actingAs($user)->postJson('/inventory/import/preview', [
+            'file' => $file,
+            'target' => 'items',
+            'mode' => 'create_only',
+        ])->assertForbidden();
+
+        $this->actingAs($user)->postJson('/inventory/import/commit', [
+            'import_token' => 'forged-token',
+            'target' => 'items',
+        ])->assertForbidden();
+
+        $this->assertDatabaseMissing('inventory_items', ['sku' => 'BLOCKED-01']);
     }
 
     public function test_authorized_user_can_access_import_index(): void
@@ -72,6 +92,33 @@ class DataImportTest extends TestCase
             ->get('/inventory/import/template?target=items&format=xlsx');
         $xlsxRes->assertStatus(200)
             ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+
+    public function test_retained_csv_json_and_xlsx_evidence_files_import_successfully(): void
+    {
+        $user = $this->inventoryManager();
+        $samples = [
+            ['valid-items.csv', 'text/csv', 'CSV-EVIDENCE-001'],
+            ['valid-items.json', 'application/json', 'JSON-EVIDENCE-001'],
+            ['valid-items.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '00012345678901234567'],
+        ];
+
+        foreach ($samples as [$name, $mime, $expectedSku]) {
+            $path = base_path("docs/evidence/data-import/{$name}");
+            $preview = $this->actingAs($user)->postJson('/inventory/import/preview', [
+                'file' => new UploadedFile($path, $name, $mime, null, true),
+                'target' => 'items',
+                'mode' => 'create_only',
+            ]);
+
+            $preview->assertOk()->assertJsonPath('is_valid', true);
+            $this->actingAs($user)->postJson('/inventory/import/commit', [
+                'import_token' => $preview->json('import_token'),
+                'target' => 'items',
+            ])->assertOk()->assertJsonPath('success', true);
+
+            $this->assertDatabaseHas('inventory_items', ['sku' => $expectedSku]);
+        }
     }
 
     public function test_preview_and_commit_valid_csv_items(): void
@@ -133,6 +180,13 @@ class DataImportTest extends TestCase
             'unit_cost' => 18.00,
             'reorder_level' => 50,
         ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $user->id,
+            'action' => 'created_inventory_item',
+            'module' => 'Inventory',
+            'outcome' => 'success',
+        ]);
     }
 
     public function test_preview_and_commit_valid_json_items(): void
@@ -184,35 +238,10 @@ class DataImportTest extends TestCase
     {
         $user = $this->inventoryManager();
 
-        // Create a native OpenXML XLSX file
-        $tmpPath = tempnam(sys_get_temp_dir(), 'test_xlsx_').'.xlsx';
-        $zip = new ZipArchive;
-        $zip->open($tmpPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
-        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-            <Default Extension="xml" ContentType="application/xml"/>
-            <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
-            <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
-        </Types>');
-
-        $strings = ['sku', 'name', 'unit_cost', 'MED-ORAL-01', 'Oral Rehydration Salts', '12.50'];
-        $sstXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="6" uniqueCount="6">';
-        foreach ($strings as $s) {
-            $sstXml .= '<si><t>'.htmlspecialchars($s).'</t></si>';
-        }
-        $sstXml .= '</sst>';
-        $zip->addFromString('xl/sharedStrings.xml', $sstXml);
-
-        $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-            <sheetData>
-                <row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>2</v></c></row>
-                <row r="2"><c r="A2" t="s"><v>3</v></c><c r="B2" t="s"><v>4</v></c><c r="C2"><v>12.50</v></c></row>
-            </sheetData>
-        </worksheet>';
-        $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
-        $zip->close();
-
+        $tmpPath = $this->xlsxFixture([
+            ['sku', 'name', 'unit_cost'],
+            ['00012345678901234567', 'Oral Rehydration Salts', '12.50'],
+        ]);
         $file = new UploadedFile($tmpPath, 'salts.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
 
         $previewRes = $this->actingAs($user)->postJson('/inventory/import/preview', [
@@ -233,13 +262,47 @@ class DataImportTest extends TestCase
 
         $commitRes->assertStatus(200)->assertJsonPath('created', 1);
         $this->assertDatabaseHas('inventory_items', [
-            'sku' => 'MED-ORAL-01',
+            'sku' => '00012345678901234567',
             'name' => 'Oral Rehydration Salts',
             'unit_cost' => 12.50,
             'unit' => null,
         ]);
 
         @unlink($tmpPath);
+    }
+
+    public function test_xlsx_reports_missing_headers_duplicates_and_invalid_numbers(): void
+    {
+        $missingPath = $this->xlsxFixture([
+            ['sku', 'unit_cost'],
+            ['XLSX-MISSING-01', '10.00'],
+        ]);
+        $missing = $this->actingAs($this->inventoryManager())->postJson('/inventory/import/preview', [
+            'file' => new UploadedFile($missingPath, 'missing.xlsx', null, null, true),
+            'target' => 'items',
+            'mode' => 'create_only',
+        ]);
+        $missing->assertOk()
+            ->assertJsonPath('is_valid', false)
+            ->assertJsonPath('errors.0.type', 'missing_header');
+
+        $invalidPath = $this->xlsxFixture([
+            ['sku', 'name', 'unit_cost'],
+            ['XLSX-DUP-01', 'First Item', 'not-a-number'],
+            ['XLSX-DUP-01', 'Second Item', '10.00'],
+        ]);
+        $invalid = $this->actingAs($this->inventoryManager())->postJson('/inventory/import/preview', [
+            'file' => new UploadedFile($invalidPath, 'invalid.xlsx', null, null, true),
+            'target' => 'items',
+            'mode' => 'create_only',
+        ]);
+        $invalid->assertOk()->assertJsonPath('is_valid', false);
+        $types = array_column($invalid->json('errors'), 'type');
+        $this->assertContains('invalid_value', $types);
+        $this->assertContains('duplicate_record', $types);
+
+        @unlink($missingPath);
+        @unlink($invalidPath);
     }
 
     public function test_preview_detects_in_file_duplicate_skus(): void
@@ -919,6 +982,25 @@ class DataImportTest extends TestCase
             ->assertJsonPath('errors.0.field', 'name');
     }
 
+    public function test_json_reports_duplicate_identifiers_and_unknown_relationships(): void
+    {
+        $file = UploadedFile::fake()->createWithContent('invalid-items.json', json_encode([
+            ['sku' => 'JSON-DUP-01', 'name' => 'First Item', 'category' => 'Unknown Category'],
+            ['sku' => 'JSON-DUP-01', 'name' => 'Second Item'],
+        ]));
+
+        $res = $this->actingAs($this->inventoryManager())->postJson('/inventory/import/preview', [
+            'file' => $file,
+            'target' => 'items',
+            'mode' => 'create_only',
+        ]);
+
+        $res->assertOk()->assertJsonPath('is_valid', false);
+        $types = array_column($res->json('errors'), 'type');
+        $this->assertContains('referential_integrity', $types);
+        $this->assertContains('duplicate_record', $types);
+    }
+
     public function test_csv_with_item_description_header_maps_to_name(): void
     {
         $user = $this->inventoryManager();
@@ -1165,6 +1247,23 @@ class DataImportTest extends TestCase
         $this->assertStringContainsString('Expected a JSON object with key-value pairs', $resNonObject->json('errors.0.message'));
     }
 
+    public function test_preview_rejects_nested_json_values_for_scalar_fields(): void
+    {
+        $file = UploadedFile::fake()->createWithContent('nested.json', json_encode([
+            ['sku' => 'JSON-NESTED-01', 'name' => ['unexpected']],
+        ]));
+
+        $res = $this->actingAs($this->inventoryManager())->postJson('/inventory/import/preview', [
+            'file' => $file,
+            'target' => 'items',
+            'mode' => 'create_only',
+        ]);
+
+        $res->assertUnprocessable()
+            ->assertJsonPath('errors.0.field', 'file');
+        $this->assertStringContainsString("record #1, field 'name'", $res->json('errors.0.message'));
+    }
+
     public function test_preview_rejects_empty_json_files_and_empty_envelopes(): void
     {
         $user = $this->inventoryManager();
@@ -1267,6 +1366,44 @@ class DataImportTest extends TestCase
         $this->assertStringContainsString('The file size cannot exceed 10 MB', $res->json('errors.file.0'));
     }
 
+    public function test_preview_rejects_more_than_five_thousand_records(): void
+    {
+        $rows = ['sku,name'];
+        for ($i = 1; $i <= 5001; $i++) {
+            $rows[] = "LIMIT-{$i},Limit Item {$i}";
+        }
+
+        $res = $this->actingAs($this->inventoryManager())->postJson('/inventory/import/preview', [
+            'file' => UploadedFile::fake()->createWithContent('too-many.csv', implode("\n", $rows)),
+            'target' => 'items',
+            'mode' => 'create_only',
+        ]);
+
+        $res->assertOk()
+            ->assertJsonPath('is_valid', false)
+            ->assertJsonPath('total_rows', 5001)
+            ->assertJsonPath('errors.0.type', 'record_limit')
+            ->assertJsonPath('import_token', null);
+    }
+
+    public function test_unexpected_parser_failures_do_not_expose_internal_details(): void
+    {
+        $this->mock(DataImportReader::class)
+            ->shouldReceive('read')
+            ->once()
+            ->andThrow(new \RuntimeException('C:\\private\\imports\\secret.csv line 99'));
+
+        $res = $this->actingAs($this->inventoryManager())->postJson('/inventory/import/preview', [
+            'file' => UploadedFile::fake()->createWithContent('items.csv', "sku,name\nSAFE-01,Safe Item\n"),
+            'target' => 'items',
+            'mode' => 'create_only',
+        ]);
+
+        $res->assertUnprocessable()
+            ->assertJsonPath('message', 'The uploaded file could not be parsed. Verify the file and try again.')
+            ->assertJsonMissing(['message' => 'C:\\private\\imports\\secret.csv line 99']);
+    }
+
     public function test_invalid_files_safely_prevent_commit_and_prevent_database_writes(): void
     {
         $user = $this->inventoryManager();
@@ -1298,5 +1435,47 @@ class DataImportTest extends TestCase
 
         // 3. Verify zero database modification occurred
         $this->assertSame($initialItemCount, InventoryItem::count());
+    }
+
+    /**
+     * @param  array<int, array<int, string>>  $rows
+     */
+    private function xlsxFixture(array $rows): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'test_xlsx_').'.xlsx';
+        $strings = [];
+        foreach ($rows as $row) {
+            foreach ($row as $value) {
+                if (! in_array($value, $strings, true)) {
+                    $strings[] = $value;
+                }
+            }
+        }
+
+        $zip = new ZipArchive;
+        $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>');
+
+        $sharedStrings = '<?xml version="1.0" encoding="UTF-8"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
+        foreach ($strings as $value) {
+            $sharedStrings .= '<si><t>'.htmlspecialchars($value, ENT_XML1, 'UTF-8').'</t></si>';
+        }
+        $zip->addFromString('xl/sharedStrings.xml', $sharedStrings.'</sst>');
+
+        $sheet = '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+        foreach ($rows as $rowIndex => $row) {
+            $number = $rowIndex + 1;
+            $sheet .= "<row r=\"{$number}\">";
+            foreach ($row as $columnIndex => $value) {
+                $column = chr(65 + $columnIndex);
+                $sharedIndex = array_search($value, $strings, true);
+                $sheet .= "<c r=\"{$column}{$number}\" t=\"s\"><v>{$sharedIndex}</v></c>";
+            }
+            $sheet .= '</row>';
+        }
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheet.'</sheetData></worksheet>');
+        $zip->close();
+
+        return $path;
     }
 }

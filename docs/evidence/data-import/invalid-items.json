@@ -1,0 +1,6 @@
+[
+    {
+        "sku": "JSON-INVALID-001",
+        "name": ["nested values are not allowed"]
+    }
+]

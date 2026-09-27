@@ -10,6 +10,9 @@ use InvalidArgumentException;
 
 class DataImportValidator
 {
+    // ponytail: synchronous imports stop here; add queued chunking if larger batches become necessary.
+    public const MAX_ROWS = 5000;
+
     /**
      * Required canonical headers per module.
      *
@@ -54,6 +57,11 @@ class DataImportValidator
      */
     public function validate(string $target, array $tableData, string $mode = 'create_only'): array
     {
+        $rowCount = count($tableData['rows'] ?? []);
+        if ($rowCount > self::MAX_ROWS) {
+            return $this->buildRowLimitError($rowCount);
+        }
+
         return match ($target) {
             'items' => $this->validateItems($tableData, $mode),
             'locations' => $this->validateLocations($tableData, $mode),
@@ -874,6 +882,31 @@ class DataImportValidator
                     'message' => $message,
                 ],
             ],
+            'warnings' => [],
+            'preview_rows' => [],
+            'validated_payload' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function buildRowLimitError(int $rowCount): array
+    {
+        return [
+            'is_valid' => false,
+            'total_rows' => $rowCount,
+            'valid_count' => 0,
+            'invalid_count' => $rowCount,
+            'create_count' => 0,
+            'update_count' => 0,
+            'errors' => [[
+                'row' => 1,
+                'field' => 'file',
+                'value' => number_format($rowCount).' rows',
+                'type' => 'record_limit',
+                'message' => 'The file contains '.number_format($rowCount).' records. The maximum per import is '.number_format(self::MAX_ROWS).'.',
+            ]],
             'warnings' => [],
             'preview_rows' => [],
             'validated_payload' => [],

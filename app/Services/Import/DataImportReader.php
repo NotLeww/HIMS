@@ -285,6 +285,10 @@ class DataImportReader
                     continue;
                 }
 
+                if (is_array($val) || is_object($val)) {
+                    throw new InvalidArgumentException('Invalid JSON value at record #'.($idx + 1).", field '{$rawKeyStr}'. Expected a scalar value or null.");
+                }
+
                 $normKey = $this->normalizeHeaderName($rawKeyStr);
                 $canonicalField = $this->resolveCanonicalField($normKey, $targetKey);
 
@@ -296,7 +300,7 @@ class DataImportReader
                 }
                 $headerMap[$rawKeyStr] = $canonicalField;
 
-                $cleanVal = is_string($val) ? trim($val) : (is_scalar($val) ? $val : json_encode($val));
+                $cleanVal = is_string($val) ? trim($val) : $val;
                 $rowAssoc[$canonicalField] = $cleanVal;
             }
 
