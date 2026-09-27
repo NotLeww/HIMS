@@ -68,6 +68,28 @@ class AiChatbotConversationHistoryTest extends TestCase
         ]);
     }
 
+    public function test_personal_identifiers_are_redacted_before_chat_storage(): void
+    {
+        $manager = User::factory()->inventoryManager()->create();
+
+        $response = $this->actingAs($manager)
+            ->postJson(route('dashboard.ai-assistant'), [
+                'message' => 'Contact maria.santos@example.test or 09171234567 about TIN 123-456-789.',
+            ])
+            ->assertOk();
+
+        $conversation = AiChatConversation::findOrFail($response->json('conversation_id'));
+        $storedMessage = $conversation->messages()->where('role', 'user')->firstOrFail();
+        $storedText = $conversation->title.' '.$storedMessage->content;
+
+        $this->assertStringNotContainsString('maria.santos@example.test', $storedText);
+        $this->assertStringNotContainsString('09171234567', $storedText);
+        $this->assertStringNotContainsString('123-456-789', $storedText);
+        $this->assertStringContainsString('[REDACTED EMAIL]', $storedMessage->content);
+        $this->assertStringContainsString('[REDACTED PH PHONE]', $storedMessage->content);
+        $this->assertStringContainsString('[REDACTED TIN]', $storedMessage->content);
+    }
+
     public function test_user_cannot_access_another_users_conversation(): void
     {
         $userA = User::factory()->inventoryManager()->create();

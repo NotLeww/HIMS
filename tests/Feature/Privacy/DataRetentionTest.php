@@ -3,13 +3,16 @@
 namespace Tests\Feature\Privacy;
 
 use App\Enums\AuditAction;
+use App\Enums\RecoveryFailureType;
+use App\Models\AiChatConversation;
 use App\Models\AuditLog;
+use App\Models\PrivacyRequest;
 use App\Models\SystemRecoveryRecord;
 use App\Models\User;
 use App\Services\Privacy\DataRetentionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -40,7 +43,7 @@ class DataRetentionTest extends TestCase
             'severity' => 'low',
             'status' => 'resolved',
             'module' => 'System',
-            'failure_type' => \App\Enums\RecoveryFailureType::Application->value,
+            'failure_type' => RecoveryFailureType::Application->value,
             'operation' => 'Cache Cleanup',
             'error_summary' => 'Cache connection timeout',
             'exception_class' => 'RuntimeException',
@@ -128,7 +131,7 @@ class DataRetentionTest extends TestCase
             $log->delete();
             $this->fail('AuditLog model delete was expected to throw an exception or be prevented.');
         } catch (\Throwable $e) {
-            $this->assertTrue(true, 'AuditLog prevented deletion: ' . $e->getMessage());
+            $this->assertTrue(true, 'AuditLog prevented deletion: '.$e->getMessage());
         }
     }
 
@@ -138,5 +141,67 @@ class DataRetentionTest extends TestCase
             ->expectsOutputToContain('DRY-RUN mode')
             ->expectsOutputToContain('Permanent Audit Trail Preserved')
             ->assertExitCode(0);
+    }
+
+    public function test_retention_sweep_removes_expired_ai_conversations_and_private_attachments(): void
+    {
+        Storage::fake('local');
+        config()->set('privacy.retention.ai_chat_history_days', 30);
+
+        $user = User::factory()->create();
+        $conversation = AiChatConversation::create([
+            'user_id' => $user->id,
+            'title' => 'Expired private conversation',
+        ]);
+        $message = $conversation->messages()->create([
+            'role' => 'user',
+            'content' => 'Synthetic inventory question.',
+            'attachment_name' => 'inventory.txt',
+            'attachment_path' => "ai-chat-attachments/{$user->id}/expired.txt",
+            'attachment_type' => 'text',
+        ]);
+        Storage::disk('local')->put($message->attachment_path, 'synthetic attachment');
+        AiChatConversation::whereKey($conversation->id)->update(['updated_at' => now()->subDays(31)]);
+
+        $results = app(DataRetentionService::class)->sweepEphemeralData(actor: $user);
+
+        $this->assertSame(1, $results['ai_chat_conversations_purged']);
+        $this->assertSame(1, $results['ai_chat_attachments_purged']);
+        $this->assertDatabaseMissing('ai_chat_conversations', ['id' => $conversation->id]);
+        $this->assertDatabaseMissing('ai_chat_messages', ['id' => $message->id]);
+        Storage::disk('local')->assertMissing($message->attachment_path);
+    }
+
+    public function test_retention_sweep_disposes_expired_dsar_package_but_preserves_case_record(): void
+    {
+        Storage::fake('local');
+
+        $user = User::factory()->create();
+        $request = PrivacyRequest::create([
+            'user_id' => $user->id,
+            'request_type' => PrivacyRequest::TYPE_ACCESS,
+            'details' => 'Provide access to my account information.',
+            'status' => PrivacyRequest::STATUS_FULFILLED,
+            'package_path' => 'dsar/synthetic/package.zip',
+            'package_filename' => 'package.zip',
+            'package_hash' => str_repeat('a', 64),
+            'package_size_bytes' => 9,
+            'package_manifest' => ['synthetic' => true],
+            'export_payload' => ['synthetic' => true],
+            'package_expires_at' => now()->subMinute(),
+        ]);
+        Storage::disk('local')->put($request->package_path, 'synthetic');
+
+        $results = app(DataRetentionService::class)->sweepEphemeralData(actor: $user);
+
+        $this->assertSame(1, $results['expired_dsar_packages_disposed']);
+        $this->assertDatabaseHas('privacy_requests', [
+            'id' => $request->id,
+            'status' => PrivacyRequest::STATUS_EXPIRED,
+            'package_path' => null,
+        ]);
+        Storage::disk('local')->assertMissing('dsar/synthetic/package.zip');
+        $this->assertNull($request->fresh()->export_payload);
+        $this->assertNull($request->fresh()->package_manifest);
     }
 }

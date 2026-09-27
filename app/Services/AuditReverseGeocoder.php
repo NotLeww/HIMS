@@ -3,15 +3,13 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
-use Throwable;
 
 class AuditReverseGeocoder
 {
     /**
      * Resolve a friendly place name from geographic coordinates.
-     * Uses offline local bounding boxes first for fast zero-latency resolution
-     * across Philippine cities, and caches online reverse geocoding when available.
+     * Uses local Philippine bounding boxes so device coordinates are never
+     * disclosed to a public reverse-geocoding service.
      */
     public static function resolve(?float $latitude, ?float $longitude): ?string
     {
@@ -25,69 +23,11 @@ class AuditReverseGeocoder
 
         $cacheKey = "audit_geo_place_{$lat}_{$lng}";
 
-        return Cache::remember($cacheKey, now()->addDays(30), function () use ($lat, $lng): string {
-            // If running unit tests, rely strictly on local Philippine offline lookup
-            if (app()->runningUnitTests()) {
-                return self::offlinePhilippineLookup($lat, $lng) ?? "{$lat}, {$lng}";
-            }
-
-            // Attempt online reverse geocoding with strict 1.5-second timeout
-            try {
-                $response = Http::timeout(1.5)
-                    ->withHeaders(['User-Agent' => 'HIMS-Hospital-Audit/1.0'])
-                    ->get('https://nominatim.openstreetmap.org/reverse', [
-                        'format' => 'json',
-                        'lat' => $lat,
-                        'lon' => $lng,
-                        'zoom' => 14,
-                    ]);
-
-                if ($response->successful()) {
-                    $data = $response->json();
-                    $address = $data['address'] ?? [];
-
-                    $parts = array_values(array_unique(array_filter([
-                        $address['quarter'] ?? $address['suburb'] ?? $address['neighbourhood'] ?? $address['city_district'] ?? null,
-                        $address['city'] ?? $address['town'] ?? $address['municipality'] ?? null,
-                        $address['region'] ?? $address['state'] ?? $address['province'] ?? null,
-                        $address['country'] ?? null,
-                    ])));
-
-                    if (! empty($parts)) {
-                        return implode(', ', $parts);
-                    }
-                }
-            } catch (Throwable) {
-                // Ignore network errors and fall through to offline lookup
-            }
-
-            // Secondary attempt: BigDataCloud client reverse geocoding
-            try {
-                $response = Http::timeout(1.5)->get('https://api.bigdatacloud.net/data/reverse-geocode-client', [
-                    'latitude' => $lat,
-                    'longitude' => $lng,
-                    'localityLanguage' => 'en',
-                ]);
-
-                if ($response->successful()) {
-                    $data = $response->json();
-                    $parts = array_values(array_unique(array_filter([
-                        $data['locality'] ?? $data['city'] ?? null,
-                        $data['principalSubdivision'] ?? null,
-                        $data['countryName'] ?? null,
-                    ])));
-
-                    if (! empty($parts)) {
-                        return implode(', ', $parts);
-                    }
-                }
-            } catch (Throwable) {
-                // Ignore network errors and fall through to offline lookup
-            }
-
-            // Offline lookup for Philippine coordinates
-            return self::offlinePhilippineLookup($lat, $lng) ?? "{$lat}, {$lng}";
-        });
+        return Cache::remember(
+            $cacheKey,
+            now()->addDays(30),
+            fn (): string => self::offlinePhilippineLookup($lat, $lng) ?? 'Location unavailable',
+        );
     }
 
     /**

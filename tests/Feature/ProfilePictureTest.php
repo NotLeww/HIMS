@@ -16,7 +16,7 @@ class ProfilePictureTest extends TestCase
     private function createFakeJpg(string $name = 'avatar.jpg', int $extraBytes = 0): UploadedFile
     {
         $binary = base64_decode('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=')
-            . str_repeat('A', $extraBytes);
+            .str_repeat('A', $extraBytes);
 
         return UploadedFile::fake()->createWithContent($name, $binary);
     }
@@ -24,7 +24,7 @@ class ProfilePictureTest extends TestCase
     private function createFakePng(string $name = 'avatar.png', int $extraBytes = 0): UploadedFile
     {
         $binary = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==')
-            . str_repeat('A', $extraBytes);
+            .str_repeat('A', $extraBytes);
 
         return UploadedFile::fake()->createWithContent($name, $binary);
     }
@@ -292,6 +292,36 @@ class ProfilePictureTest extends TestCase
             ->assertHeader('X-Content-Type-Options', 'nosniff');
 
         $this->assertStringStartsWith('image/', $response->headers->get('Content-Type'));
+    }
+
+    public function test_unrelated_user_cannot_view_another_users_avatar(): void
+    {
+        Storage::fake('public');
+
+        $owner = User::factory()->create();
+        $viewer = User::factory()->pharmacyStaff()->create();
+        $this->actingAs($owner)->post(route('profile.avatar.update'), [
+            'avatar' => $this->createFakeJpg(),
+        ]);
+
+        $this->actingAs($viewer)
+            ->get(route('users.avatar', $owner->fresh()))
+            ->assertForbidden();
+    }
+
+    public function test_authorized_user_manager_can_view_a_managed_users_avatar(): void
+    {
+        Storage::fake('public');
+
+        $owner = User::factory()->pharmacyStaff()->create();
+        $manager = User::factory()->superAdministrator()->create();
+        $this->actingAs($owner)->post(route('profile.avatar.update'), [
+            'avatar' => $this->createFakeJpg(),
+        ]);
+
+        $this->actingAs($manager, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('users.avatar', $owner->fresh()))
+            ->assertOk();
     }
 
     public function test_avatar_endpoint_returns_404_when_user_has_no_avatar_or_file_is_missing(): void

@@ -4,6 +4,7 @@ namespace App\Services\Privacy;
 
 use App\Models\PrivacyRequest;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use ZipArchive;
@@ -24,14 +25,14 @@ class DsarPackageService
      *     package_hash: string,
      *     package_size_bytes: int,
      *     manifest: array<string, mixed>,
-     *     expires_at: \Illuminate\Support\Carbon
+     *     expires_at: Carbon
      * }
      */
     public function generatePackage(PrivacyRequest $request, User $actor): array
     {
         $user = $request->user;
         if (! $user) {
-            throw new RuntimeException("Cannot generate DSAR fulfillment package: Requester account is missing.");
+            throw new RuntimeException('Cannot generate DSAR fulfillment package: Requester account is missing.');
         }
 
         $ticket = $request->ticket_number;
@@ -54,7 +55,7 @@ class DsarPackageService
                     'hospital_identity' => config('privacy.hospital_name'),
                     'hospital_address' => config('privacy.hospital_address'),
                     'system_name' => config('privacy.system_name'),
-                    'npc_registration_number' => config('privacy.npc_registration_number'),
+                    'npc_registration_number' => config('privacy.npc_registration_number') ?: 'Not configured; verify with the DPO',
                     'dpo_contact' => [
                         'name' => config('privacy.dpo_name'),
                         'email' => config('privacy.dpo_email'),
@@ -169,7 +170,7 @@ class DsarPackageService
                 ];
             }
 
-            $expiresAt = now()->addDays(7);
+            $expiresAt = now()->addDays(max(1, (int) config('privacy.retention.dsar_package_days', 7)));
             $readmeContent = $this->buildReadmeContent($ticket, $user, $fileEntries, $expiresAt);
             $readmeFilename = 'README.txt';
             $readmePath = "{$tempDir}/{$readmeFilename}";
@@ -212,7 +213,7 @@ class DsarPackageService
             $zipFilename = "HIMS-DSAR-{$ticket}.zip";
             $zipPath = "{$finalDir}/{$zipFilename}";
 
-            $zip = new ZipArchive();
+            $zip = new ZipArchive;
             $zipOpenResult = $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
             if ($zipOpenResult !== true) {
                 throw new RuntimeException("Failed to create ZIP package at {$zipPath}. Error code: {$zipOpenResult}");
@@ -275,7 +276,7 @@ class DsarPackageService
                 ['label' => 'Official Email', 'value' => $user->email],
             ],
             [
-                ['label' => 'Request Ref', 'value' => '#' . $request->ticket_number],
+                ['label' => 'Request Ref', 'value' => '#'.$request->ticket_number],
                 ['label' => 'System Role', 'value' => $user->role->label()],
                 ['label' => 'Account Status', 'value' => ucfirst($user->status->value)],
                 ['label' => 'Date Submitted', 'value' => $request->created_at->format('M d, Y H:i')],
@@ -359,7 +360,7 @@ class DsarPackageService
             ['label' => 'Account Created', 'value' => $user->created_at?->format('M d, Y H:i') ?? 'N/A'],
             ['label' => 'Last Login Recorded', 'value' => $user->last_login_at?->format('M d, Y H:i') ?? 'Never'],
             ['label' => 'Password Last Changed', 'value' => $user->password_changed_at?->format('M d, Y') ?? 'Default'],
-            ['label' => 'Total Activity Events', 'value' => number_format($activityCount) . ' records'],
+            ['label' => 'Total Activity Events', 'value' => number_format($activityCount).' records'],
         ]);
 
         // Section 8: Statutory Exclusions and Redactions
@@ -383,7 +384,7 @@ class DsarPackageService
             [
                 ['label' => 'Controller Entity', 'value' => config('privacy.hospital_name')],
                 ['label' => 'Institutional Address', 'value' => config('privacy.hospital_address')],
-                ['label' => 'NPC Registration', 'value' => config('privacy.npc_registration_number')],
+                ['label' => 'NPC Registration', 'value' => config('privacy.npc_registration_number') ?: 'Not configured; verify with the DPO'],
             ],
             [
                 ['label' => 'Data Protection Officer', 'value' => config('privacy.dpo_name')],
@@ -395,8 +396,8 @@ class DsarPackageService
         // Section 10: Data Subject Follow-Up Rights
         $builder->addSectionHeading('10. Data Subject Follow-Up Rights & Remedies');
         $builder->addParagraph(
-            'Under RA 10173, if you identify inaccurate personal information, you may submit a Right to Rectification request (Sec. 16d). If you have privacy inquiries or wish to escalate a concern, you may contact the institutional Data Protection Officer at ' .
-            config('privacy.dpo_email') .
+            'Under RA 10173, if you identify inaccurate personal information, you may submit a Right to Rectification request (Sec. 16d). If you have privacy inquiries or wish to escalate a concern, you may contact the institutional Data Protection Officer at '.
+            config('privacy.dpo_email').
             ' or file a formal complaint with the National Privacy Commission (complaints@privacy.gov.ph).'
         );
 
@@ -421,15 +422,15 @@ class DsarPackageService
         $builder = DsarPdfBuilder::make(
             'DPO RESOLUTION & COMPLIANCE ORDER',
             'Official Disposition Granting Data Subject Access & Portability under RA 10173',
-            'RES-' . $request->ticket_number
+            'RES-'.$request->ticket_number
         );
 
         $builder->addProfileCard(
             'PROCEDURAL HISTORY & CASE REFERENCE',
             [
-                ['label' => 'Case Reference', 'value' => 'In Re DSAR #' . $request->ticket_number],
-                ['label' => 'Data Subject', 'value' => $user->name . ' (' . ($user->employee_id ?: 'N/A') . ')'],
-                ['label' => 'Department / Role', 'value' => (string) ($user->department?->value ?? $user->department ?? 'General') . ' | ' . $user->role->label()],
+                ['label' => 'Case Reference', 'value' => 'In Re DSAR #'.$request->ticket_number],
+                ['label' => 'Data Subject', 'value' => $user->name.' ('.($user->employee_id ?: 'N/A').')'],
+                ['label' => 'Department / Role', 'value' => (string) ($user->department?->value ?? $user->department ?? 'General').' | '.$user->role->label()],
             ],
             [
                 ['label' => 'Date Submitted', 'value' => $request->created_at->format('F d, Y')],
@@ -441,7 +442,7 @@ class DsarPackageService
 
         $builder->addSectionHeading('1. Findings of Fact');
         $builder->addParagraph(
-            '1. On ' . $request->created_at->format('F d, Y') . ', the Data Subject submitted a formal request under Republic Act No. 10173 Section 16(c) (Right to Access) and Section 18 (Right to Data Portability) requesting an export of their personal data.'
+            '1. On '.$request->created_at->format('F d, Y').', the Data Subject submitted a formal request under Republic Act No. 10173 Section 16(c) (Right to Access) and Section 18 (Right to Data Portability) requesting an export of their personal data.'
         );
         $builder->addParagraph(
             '2. The identity of the Data Subject was authenticated through system credentials and validated against institutional employee records.'
@@ -476,8 +477,8 @@ class DsarPackageService
 
         $builder->addSectionHeading('5. Follow-Up Privacy Rights');
         $builder->addParagraph(
-            'The Data Subject is advised of their statutory rights to petition for correction of inaccurate data (Sec. 16d) or file inquiries with the institutional DPO (' .
-            config('privacy.dpo_email') .
+            'The Data Subject is advised of their statutory rights to petition for correction of inaccurate data (Sec. 16d) or file inquiries with the institutional DPO ('.
+            config('privacy.dpo_email').
             ').'
         );
 
@@ -493,58 +494,58 @@ class DsarPackageService
     /**
      * Build plaintext README content included in the ZIP package.
      */
-    private function buildReadmeContent(string $ticket, User $user, array $manifestEntries, \Illuminate\Support\Carbon $expiresAt): string
+    private function buildReadmeContent(string $ticket, User $user, array $manifestEntries, Carbon $expiresAt): string
     {
         $lines = [];
-        $lines[] = "================================================================================";
-        $lines[] = "HOSPITAL INVENTORY MANAGEMENT SYSTEM (HIMS) — DATA SUBJECT EXPORT PACKAGE";
-        $lines[] = "Republic Act No. 10173 (Data Privacy Act of 2012) — Sections 16(c) & 18";
-        $lines[] = "================================================================================";
-        $lines[] = "";
+        $lines[] = '================================================================================';
+        $lines[] = 'HOSPITAL INVENTORY MANAGEMENT SYSTEM (HIMS) — DATA SUBJECT EXPORT PACKAGE';
+        $lines[] = 'Republic Act No. 10173 (Data Privacy Act of 2012) — Sections 16(c) & 18';
+        $lines[] = '================================================================================';
+        $lines[] = '';
         $lines[] = "Request Reference   : #{$ticket}";
-        $lines[] = "Data Subject        : {$user->name} (Employee ID: " . ($user->employee_id ?: 'N/A') . ")";
-        $lines[] = "Department          : " . ($user->department?->value ?? (string) $user->department);
-        $lines[] = "Date Generated      : " . now()->toIso8601String();
-        $lines[] = "Package Expiration  : " . $expiresAt->toIso8601String() . " (7 calendar days)";
-        $lines[] = "";
-        $lines[] = "--------------------------------------------------------------------------------";
-        $lines[] = "PACKAGE CONTENTS & INTEGRITY CHECKSUMS (SHA-256)";
-        $lines[] = "--------------------------------------------------------------------------------";
+        $lines[] = "Data Subject        : {$user->name} (Employee ID: ".($user->employee_id ?: 'N/A').')';
+        $lines[] = 'Department          : '.($user->department?->value ?? (string) $user->department);
+        $lines[] = 'Date Generated      : '.now()->toIso8601String();
+        $lines[] = 'Package Expiration  : '.$expiresAt->toIso8601String().' (configured limited release window)';
+        $lines[] = '';
+        $lines[] = '--------------------------------------------------------------------------------';
+        $lines[] = 'PACKAGE CONTENTS & INTEGRITY CHECKSUMS (SHA-256)';
+        $lines[] = '--------------------------------------------------------------------------------';
         foreach ($manifestEntries as $entry) {
-            $lines[] = sprintf("%-46s %8d bytes  %s", $entry['filename'], $entry['size_bytes'], $entry['sha256_hash']);
+            $lines[] = sprintf('%-46s %8d bytes  %s', $entry['filename'], $entry['size_bytes'], $entry['sha256_hash']);
         }
-        $lines[] = "";
-        $lines[] = "--------------------------------------------------------------------------------";
-        $lines[] = "FILE DESCRIPTIONS";
-        $lines[] = "--------------------------------------------------------------------------------";
-        $lines[] = "1. account-profile-and-roles.json";
-        $lines[] = "   Structured, machine-readable JSON containing your account profile, assigned";
-        $lines[] = "   roles, granular RBAC permissions, and access scopes. All security secrets";
-        $lines[] = "   (passwords, hashes, TOTP keys) are strictly excluded.";
-        $lines[] = "";
-        $lines[] = "2. activity-metadata.csv";
-        $lines[] = "   Tabular CSV ledger of personal activity logs where your account was the actor";
-        $lines[] = "   or administrative target. Third-party and patient PII has been redacted.";
-        $lines[] = "";
-        $lines[] = "3. data-access-and-processing-transparency-report.pdf";
-        $lines[] = "   Print-ready institutional document explaining data categories, sources,";
-        $lines[] = "   recipients, processing methods, purposes, and automated decision statements.";
-        $lines[] = "";
-        $lines[] = "4. dpo-resolution.pdf";
-        $lines[] = "   Formal Data Protection Officer resolution order approving and releasing the request.";
-        $lines[] = "";
-        $lines[] = "5. manifest.json";
-        $lines[] = "   Cryptographic manifest recording filenames, sizes, and SHA-256 checksums.";
-        $lines[] = "";
-        $lines[] = "--------------------------------------------------------------------------------";
-        $lines[] = "INSTITUTIONAL CONTACT";
-        $lines[] = "--------------------------------------------------------------------------------";
-        $lines[] = "Personal Information Controller : " . config('privacy.hospital_name');
-        $lines[] = "Address                         : " . config('privacy.hospital_address');
-        $lines[] = "Data Protection Officer         : " . config('privacy.dpo_name');
-        $lines[] = "Official DPO Contact            : " . config('privacy.dpo_email') . " | " . config('privacy.dpo_phone');
-        $lines[] = "NPC Registration Number         : " . config('privacy.npc_registration_number');
-        $lines[] = "================================================================================";
+        $lines[] = '';
+        $lines[] = '--------------------------------------------------------------------------------';
+        $lines[] = 'FILE DESCRIPTIONS';
+        $lines[] = '--------------------------------------------------------------------------------';
+        $lines[] = '1. account-profile-and-roles.json';
+        $lines[] = '   Structured, machine-readable JSON containing your account profile, assigned';
+        $lines[] = '   roles, granular RBAC permissions, and access scopes. All security secrets';
+        $lines[] = '   (passwords, hashes, TOTP keys) are strictly excluded.';
+        $lines[] = '';
+        $lines[] = '2. activity-metadata.csv';
+        $lines[] = '   Tabular CSV ledger of personal activity logs where your account was the actor';
+        $lines[] = '   or administrative target. Third-party and patient PII has been redacted.';
+        $lines[] = '';
+        $lines[] = '3. data-access-and-processing-transparency-report.pdf';
+        $lines[] = '   Print-ready institutional document explaining data categories, sources,';
+        $lines[] = '   recipients, processing methods, purposes, and automated decision statements.';
+        $lines[] = '';
+        $lines[] = '4. dpo-resolution.pdf';
+        $lines[] = '   Formal Data Protection Officer resolution order approving and releasing the request.';
+        $lines[] = '';
+        $lines[] = '5. manifest.json';
+        $lines[] = '   Cryptographic manifest recording filenames, sizes, and SHA-256 checksums.';
+        $lines[] = '';
+        $lines[] = '--------------------------------------------------------------------------------';
+        $lines[] = 'INSTITUTIONAL CONTACT';
+        $lines[] = '--------------------------------------------------------------------------------';
+        $lines[] = 'Personal Information Controller : '.config('privacy.hospital_name');
+        $lines[] = 'Address                         : '.config('privacy.hospital_address');
+        $lines[] = 'Data Protection Officer         : '.config('privacy.dpo_name');
+        $lines[] = 'Official DPO Contact            : '.config('privacy.dpo_email').' | '.config('privacy.dpo_phone');
+        $lines[] = 'NPC Registration Number         : '.(config('privacy.npc_registration_number') ?: 'Not configured; verify with the DPO');
+        $lines[] = '================================================================================';
 
         return implode("\r\n", $lines);
     }

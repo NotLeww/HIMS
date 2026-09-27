@@ -23,7 +23,15 @@ class EncryptedPhone implements CastsAttributes, ComparesCastableAttributes
             throw new InvalidArgumentException('The encrypted phone number must be a string.');
         }
 
-        return Crypt::decryptString($value);
+        try {
+            return Crypt::decryptString($value);
+        } catch (DecryptException $exception) {
+            if (preg_match('/^09[0-9]{9}$/D', $value) === 1) {
+                return $value;
+            }
+
+            throw $exception;
+        }
     }
 
     /** @return array<string, string|null> */

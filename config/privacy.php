@@ -24,15 +24,16 @@ return [
     |
     */
     'dpo_name' => env('DPO_NAME', 'Office of the Data Protection Officer'),
-    'dpo_email' => env('DPO_EMAIL', 'privacy@djnrmhs.gov.ph'),
-    'dpo_phone' => env('DPO_PHONE', '+63 (2) 8962-8209'),
+    'dpo_email' => env('DPO_EMAIL') ?: 'privacy@djnrmhs.gov.ph',
+    'dpo_phone' => env('DPO_PHONE') ?: '+63 (2) 8962-8209',
 
     /*
     |--------------------------------------------------------------------------
     | National Privacy Commission Registration Reference
     |--------------------------------------------------------------------------
     */
-    'npc_registration_number' => env('NPC_REGISTRATION_NUMBER', 'NPC-REG-2026-HIMS-001'),
+    // Never publish a placeholder as if it were an issued NPC registration.
+    'npc_registration_number' => env('NPC_REGISTRATION_NUMBER'),
 
     /*
     |--------------------------------------------------------------------------
@@ -44,7 +45,9 @@ return [
     |
     */
     'retention' => [
+        'ai_chat_history_days' => (int) env('RETENTION_AI_CHAT_DAYS', 30),
         'temporary_chat_attachments_days' => (int) env('RETENTION_CHAT_ATTACHMENTS_DAYS', 30),
+        'dsar_package_days' => (int) env('RETENTION_DSAR_PACKAGE_DAYS', 7),
         'expired_notifications_days' => (int) env('RETENTION_NOTIFICATIONS_DAYS', 90),
         'resolved_recovery_records_days' => (int) env('RETENTION_RECOVERY_RECORDS_DAYS', 180),
         'session_lifetime_minutes' => (int) env('SESSION_LIFETIME', 4),

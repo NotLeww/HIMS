@@ -77,13 +77,14 @@ class AiInventoryAssistantService
         if ($attachment !== null) {
             try {
                 $attachmentData = $this->attachmentProcessor->process($attachment);
+                $attachmentData['name'] = $this->sanitizer->sanitize((string) $attachmentData['name'])['sanitized_text'];
             } catch (Throwable $e) {
                 try {
                     $this->auditLogger->record(
                         action: AuditAction::FailedAiChatAttachment,
                         actor: $actor,
-                        description: "Failed processing AI chat attachment: {$e->getMessage()}",
-                        newValues: ['error' => $e->getMessage()]
+                        description: 'Failed processing an AI chat attachment.',
+                        newValues: ['error_class' => $e::class]
                     );
                 } catch (Throwable) {
                     // Audit failure must not mask primary validation exception
@@ -200,7 +201,10 @@ class AiInventoryAssistantService
 
         // 4. If Gemini API key is not set, generate rich deterministic grounded response immediately
         $apiKey = (string) (config('services.gemini.key') ?: config('services.gemini.api_key'));
-        if (trim($apiKey) === '') {
+        $requiresLocalAttachmentHandling = $attachmentData !== null
+            && ! empty($attachmentData['inline_data']);
+
+        if (trim($apiKey) === '' || $requiresLocalAttachmentHandling) {
             $reply = $this->sanitizeAssistantText(
                 $this->generateGroundedFallback($cleanMessage, $contextData, $attachmentData, $actor, $conversationHistory, $entityResolution)
             );
@@ -527,7 +531,11 @@ class AiInventoryAssistantService
 
         $actorRole = $actor?->role?->label() ?? 'Not recorded';
         $actorPermissions = $actor?->role?->permissions() ?? [];
-        $systemPrompt = $this->buildSystemPrompt($contextData, $actorRole, $actorPermissions);
+        $systemPrompt = $this->buildSystemPrompt(
+            $this->sanitizer->sanitizeExternalPayload($contextData),
+            $actorRole,
+            $actorPermissions,
+        );
 
         // Format contents array for Gemini
         $contents = [];
@@ -544,15 +552,6 @@ class AiInventoryAssistantService
 
         // Build current user turn parts, including multimodal inlineData or extracted text
         $userParts = [];
-        if ($attachmentData !== null && ! empty($attachmentData['inline_data'])) {
-            $userParts[] = [
-                'inlineData' => [
-                    'mimeType' => $attachmentData['inline_data']['mime_type'],
-                    'data' => $attachmentData['inline_data']['base64'],
-                ],
-            ];
-        }
-
         $userText = $query;
         if ($attachmentData !== null && ! empty($attachmentData['text_content'])) {
             $userText .= "\n\n[ATTACHED FILE: {$attachmentData['name']} ({$attachmentData['formatted_size']})]\n".$attachmentData['text_content'];
@@ -2660,7 +2659,7 @@ PROMPT;
             }
             $lines[] = "\n*(Note: Attaching files to the AI assistant is strictly for analytical comparison and does not modify the HIMS database. To import new catalog items or inventory records permanently, please use [HIMS Import Data](/inventory/import).)*";
         } elseif ($attachment['type'] === 'image') {
-            $lines[] = "I have received and validated your image ({$attachment['name']}). Visual features have been verified against active HIMS inventory records.";
+            $lines[] = "I received and securely stored your image ({$attachment['name']}), but raw image content is not sent to the external AI provider. Add the item name, SKU, lot, or quantity in text so I can verify it against HIMS.";
         } else {
             $lines[] = "I have processed your document ({$attachment['name']}). The extracted textual information has been verified against active HIMS inventory thresholds.";
         }

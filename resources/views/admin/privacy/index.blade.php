@@ -250,6 +250,20 @@
                             <div class="text-xs text-neutral-500 dark:text-neutral-400">
                                 <strong>Security Measures:</strong> {{ implode(', ', $activity['security_measures']) }}
                             </div>
+                            <dl class="grid grid-cols-1 gap-2 text-xs text-neutral-500 dark:text-neutral-400 lg:grid-cols-3">
+                                <div class="min-w-0">
+                                    <dt class="font-semibold text-neutral-800 dark:text-neutral-200">Data subjects</dt>
+                                    <dd class="mt-0.5 break-words">{{ $activity['data_subjects'] }}</dd>
+                                </div>
+                                <div class="min-w-0">
+                                    <dt class="font-semibold text-neutral-800 dark:text-neutral-200">Authorized access</dt>
+                                    <dd class="mt-0.5 break-words">{{ $activity['access_roles'] }}</dd>
+                                </div>
+                                <div class="min-w-0">
+                                    <dt class="font-semibold text-neutral-800 dark:text-neutral-200">Recipients / transfers</dt>
+                                    <dd class="mt-0.5 break-words">{{ $activity['third_party_transfers'] }}</dd>
+                                </div>
+                            </dl>
                         </div>
                     @endforeach
                 </div>

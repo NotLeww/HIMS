@@ -174,7 +174,7 @@
                     Privacy Policy
                 </h1>
                 <p class="mt-0.5 text-[9pt] font-bold uppercase tracking-widest text-neutral-700 dark:text-neutral-300">
-                    System Privacy Notice &bull; Republic Act No. 10173 Compliance &bull; Effective: September 2026
+                    System Privacy Notice &bull; Republic Act No. 10173 Reference &bull; Effective: September 2026
                 </p>
             </div>
 
@@ -253,10 +253,10 @@
                     <strong>{{ $hospitalName }}</strong> collects information by various methods including information actively provided by authorized personnel, system administrators, and automated operational telemetry.
                 </p>
                 <p class="doc-body-p text-justify text-neutral-900 dark:text-neutral-100 mb-3 text-[10.5pt]">
-                    The types of personal information we collect include employee name, contact information, institutional email address, hospital employee ID number, assigned department, encrypted credentials, role permissions, and system activity logs. Account authentication credentials and security tokens are used for authentication and access control purposes only. We may record and log administrative and stock transactions for purposes of accuracy, inventory integrity, performance reviews, training, forensic accountability, and general quality assurance.
+                    The system processes employee identity and contact details, profile images, institutional account and role data, authentication and device-security records, IP/device/browser and optional audit-location data, operational actor attribution, supplier authorized-representative and delivery-personnel contact details, data-subject request records, security-incident records, notifications, and AI-assistant conversations or attachments submitted by authorized users. Passwords remain one-way hashed; MFA secrets and designated sensitive database fields use application encryption.
                 </p>
                 <div class="doc-callout text-[9.5pt] border-l-4 border-amber-600 dark:border-amber-400 pl-4 py-2.5 space-y-1 text-neutral-900 dark:text-neutral-100 mb-2">
-                    <strong class="text-neutral-900 dark:text-white">Clinical Data Distinction:</strong> HIMS is a specialized logistics, procurement, and warehouse inventory management platform. It records pharmaceuticals, surgical equipment, batch numbers, expiry dates, and staff movement logs. It does <em>not</em> collect or store patient medical charts, clinical diagnoses, or patient treatment records.
+                    <strong class="text-neutral-900 dark:text-white">Clinical Data Distinction:</strong> HIMS is a logistics, procurement, and warehouse platform and defines no patient chart, diagnosis, or treatment-record fields. Users must not place patient data, credentials, or unrelated personal information in free-text fields or uploads; submitted free text may still become part of the relevant operational record.
                 </div>
             </section>
 
@@ -272,7 +272,7 @@
                     Lawful Basis for Processing
                 </h3>
                 <p class="doc-body-p text-justify text-neutral-900 dark:text-neutral-100 mb-2.5 text-[10.5pt]">
-                    Under Section 12 of Republic Act No. 10173, processing of workforce information in HIMS does not rely on generic consent checkboxes because it is lawfully grounded upon:
+                    The configured purposes for processing workforce information identify the following potential bases under Section 12 of Republic Act No. 10173. The institutional DPO must validate the applicable basis for each real processing activity rather than relying on generic consent checkboxes:
                 </p>
                 <ul class="list-disc list-inside space-y-2 pl-3 text-neutral-900 dark:text-neutral-100 text-[10.5pt]">
                     <li><strong class="font-bold text-neutral-900 dark:text-white">Fulfillment of Employment / Contractual Role (Sec. 12[b]):</strong> Necessary for provisioning staff login credentials, maintaining duty assignments, and executing warehouse, procurement, or pharmacy tasks.</li>
@@ -290,6 +290,11 @@
                 <p class="doc-body-p text-justify text-neutral-900 dark:text-neutral-100 text-[10.5pt]">
                     <strong>{{ $hospitalName }}</strong> does not share personal information with any third parties except as disclosed in this policy or required by law. <strong>{{ $hospitalName }}</strong> may provide personal information to internal institutional auditors, statutory regulatory bodies, and contracted technology service providers (which shall be bound by strict confidentiality and data protection agreements) to assist <strong>{{ $hospitalName }}</strong> in the operations disclosed herein.
                 </p>
+                <ul class="mt-2 list-disc list-inside space-y-1.5 pl-3 text-neutral-900 dark:text-neutral-100 text-[10.5pt]">
+                    <li><strong>Configured email and SMS delivery providers:</strong> receive the destination address or number and the minimum security-message content needed for OTP, password-reset, or device-security delivery.</li>
+                    <li><strong>Google Gemini, when enabled:</strong> may receive pattern-sanitized prompts, minimized operational context, and sanitized extracted text from supported text-based attachments. Raw image and PDF files are not sent to the provider. Automated redaction reduces risk but is not a substitute for users avoiding personal or clinical data.</li>
+                    <li><strong>Audit location:</strong> device coordinates remain inside HIMS and are converted to coarse place labels using the application's local lookup; they are not sent to public reverse-geocoding services.</li>
+                </ul>
             </section>
 
             {{-- Section 5: Cookies & Technical Storage --}}
@@ -345,6 +350,10 @@
                 <ul class="list-disc list-inside space-y-2 pl-3 text-neutral-900 dark:text-neutral-100 text-[10.5pt]">
                     <li><strong class="font-bold text-neutral-900 dark:text-white">Deactivation vs. Deletion:</strong> When staff resign or transfer departments, user accounts are deactivated to immediately revoke login access. Account records and historic transaction attributions are preserved to maintain pharmaceutical custody trails.</li>
                     <li><strong class="font-bold text-neutral-900 dark:text-white">Immutable Audit Trail:</strong> All operations captured in the Audit Trail (<code class="font-mono text-xs font-bold bg-neutral-100 dark:bg-neutral-800 px-1 py-0.5 rounded text-neutral-900 dark:text-neutral-100 border border-neutral-300 dark:border-neutral-700">audit_logs</code>) are append-only. They cannot be modified or purged through the user interface, ensuring complete evidentiary reliability.</li>
+                    <li><strong class="font-bold text-neutral-900 dark:text-white">AI Conversations &amp; Attachments:</strong> Deleted by the scheduled retention sweep after {{ max(1, (int) config('privacy.retention.ai_chat_history_days', 30)) }} days without conversation activity.</li>
+                    <li><strong class="font-bold text-neutral-900 dark:text-white">DSAR Export Packages:</strong> Private downloadable packages expire after {{ max(1, (int) config('privacy.retention.dsar_package_days', 7)) }} days and are disposed by the retention sweep; the request case and its decision remain for accountability.</li>
+                    <li><strong class="font-bold text-neutral-900 dark:text-white">Ephemeral Records:</strong> Read notifications are removed after the configured {{ max(30, (int) config('privacy.retention.expired_notifications_days', 90)) }}-day period, and resolved recovery records after {{ max(90, (int) config('privacy.retention.resolved_recovery_records_days', 180)) }} days.</li>
+                    <li><strong class="font-bold text-neutral-900 dark:text-white">Other Operational Records:</strong> Supplier, procurement, logistics, inventory, and account-attribution records are preserved because HIMS does not define an approved automated disposal period for them. Their final retention or disposal requires the hospital's authorized records schedule and legal review.</li>
                     <li><strong class="font-bold text-neutral-900 dark:text-white">Password Security:</strong> Passwords are one-way hashed using salted bcrypt and cannot be retrieved in plaintext by any user or administrator.</li>
                 </ul>
             </section>
@@ -355,10 +364,10 @@
                     7. Security Safeguards
                 </h2>
                 <p class="doc-body-p text-justify text-neutral-900 dark:text-neutral-100 mb-2.5 text-[10.5pt]">
-                    In adherence to National Privacy Commission recommendations and industry best practices, HIMS incorporates technical, physical, and organizational safeguards:
+                    To support the hospital's privacy program, HIMS incorporates the following application-level safeguards; organizational and physical safeguards remain the institution's responsibility:
                 </p>
                 <ul class="list-disc list-inside space-y-2 pl-3 text-neutral-900 dark:text-neutral-100 text-[10.5pt]">
-                    <li>Transport Layer Security (TLS) cryptographic encryption for all transmissions.</li>
+                    <li>Production HTTPS/TLS is required by the deployment configuration; the deployed endpoint must be independently verified because TLS terminates outside Laravel.</li>
                     <li>Multi-Factor Authentication (MFA) via time-based one-time password (TOTP) protocols and secure email channels.</li>
                     <li>Granular Role-Based Access Control enforcing the Principle of Least Privilege across Pharmacy, Warehouse, Management, and Administration.</li>
                     <li>Intrusion rate-limiting and automatic account lockout defenses against brute-force credential attacks.</li>
@@ -371,7 +380,7 @@
                     8. Your Rights as a Data Subject
                 </h2>
                 <p class="doc-body-p text-justify text-neutral-900 dark:text-neutral-100 mb-3 text-[10.5pt]">
-                    Under Chapter VIII of Republic Act No. 10173, authorized users whose personal data is processed within HIMS are entitled to statutory rights including Information, Access, Rectification, Erasure/Deactivation, and Objection:
+                    Under Section 16 of Republic Act No. 10173 and Rule VIII of its IRR, data subjects have rights including information, access, correction, objection, and qualified blocking, removal, or destruction. Requests remain subject to lawful retention and evidentiary obligations:
                 </p>
 
                 {{-- Rights Matrix Table --}}
@@ -388,7 +397,7 @@
                             <td class="px-3 py-2 text-neutral-900 dark:text-neutral-100">To be notified of the nature, purpose, and legal basis of inventory data processing operations.</td>
                         </tr>
                         <tr class="doc-zebra bg-neutral-50/75 dark:bg-neutral-850/50">
-                            <td class="px-3 py-2 font-bold text-neutral-900 dark:text-white border-r border-neutral-400 dark:border-neutral-700">Right to Access &amp; Portability (Sec. 16c)</td>
+                            <td class="px-3 py-2 font-bold text-neutral-900 dark:text-white border-r border-neutral-400 dark:border-neutral-700">Right to Access (Sec. 16c)</td>
                             <td class="px-3 py-2 text-neutral-900 dark:text-neutral-100">To request an electronic export of your personal information recorded in the system.</td>
                         </tr>
                         <tr>
@@ -428,7 +437,7 @@
                     <p><strong class="font-bold text-neutral-900 dark:text-white">Office:</strong> Office of the Data Protection Officer</p>
                     <p><strong class="font-bold text-neutral-900 dark:text-white">Data Protection Officer:</strong> {{ config('privacy.dpo_name', 'Office of the Data Protection Officer') }}</p>
                     <p><strong class="font-bold text-neutral-900 dark:text-white">Email:</strong> <a href="mailto:{{ config('privacy.dpo_email', 'dpo@djnrmhs.gov.ph') }}" class="font-mono font-medium text-primary-900 dark:text-primary-300 underline">{{ config('privacy.dpo_email', 'dpo@djnrmhs.gov.ph') }}</a></p>
-                    <p><strong class="font-bold text-neutral-900 dark:text-white">NPC Registration:</strong> <span class="font-mono font-medium text-neutral-900 dark:text-neutral-200">{{ config('privacy.npc_registration_number', 'PIC-2026-HIMS-001') }}</span></p>
+                    <p><strong class="font-bold text-neutral-900 dark:text-white">NPC Registration:</strong> <span class="font-mono font-medium text-neutral-900 dark:text-neutral-200">{{ config('privacy.npc_registration_number') ?: 'Not configured; verify with the DPO' }}</span></p>
                     <p><strong class="font-bold text-neutral-900 dark:text-white">National Privacy Commission:</strong> <span class="font-mono font-medium text-neutral-900 dark:text-neutral-200">complaints@privacy.gov.ph</span></p>
                 </div>
             </section>

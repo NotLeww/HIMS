@@ -77,4 +77,27 @@ class AiDataSanitizerTest extends TestCase
         $this->assertStringNotContainsString('09171234567', $response['reply']);
         $this->assertStringNotContainsString('12-345678901-2', $response['reply']);
     }
+
+    public function test_external_payload_sanitizer_removes_personal_fields_but_keeps_inventory_data(): void
+    {
+        $sanitizer = app(AiDataSanitizerService::class);
+
+        $result = $sanitizer->sanitizeExternalPayload([
+            'item_name' => 'Paracetamol 500 mg',
+            'quantity' => 120,
+            'requested_by_name' => 'Maria Santos',
+            'employee_id' => 'EMP-00123',
+            'contact' => [
+                'email' => 'maria.santos@example.test',
+                'phone' => '09171234567',
+            ],
+        ]);
+
+        $this->assertSame('Paracetamol 500 mg', $result['item_name']);
+        $this->assertSame(120, $result['quantity']);
+        $this->assertSame('[REDACTED PERSONAL DATA]', $result['requested_by_name']);
+        $this->assertSame('[REDACTED PERSONAL DATA]', $result['employee_id']);
+        $this->assertSame('[REDACTED PERSONAL DATA]', $result['contact']['email']);
+        $this->assertSame('[REDACTED PERSONAL DATA]', $result['contact']['phone']);
+    }
 }

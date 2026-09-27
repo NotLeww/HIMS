@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Enums\Permission;
 use App\Models\AiChatConversation;
 use App\Models\AiChatMessage;
+use App\Models\User;
 use App\Services\AiChatTitleGenerator;
 use App\Services\AiInventoryAssistantService;
+use App\Services\Privacy\AiDataSanitizerService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,7 +34,7 @@ class DashboardAiAssistantController extends Controller implements HasMiddleware
     /**
      * Authorize user access to AI Inventory Assistant.
      */
-    private function authorizeAssistantAccess(Request $request): \App\Models\User
+    private function authorizeAssistantAccess(Request $request): User
     {
         $user = $request->user();
 
@@ -134,8 +136,11 @@ class DashboardAiAssistantController extends Controller implements HasMiddleware
     /**
      * Process an AI Inventory Assistant chat prompt with grounded HIMS database context.
      */
-    public function chat(Request $request, AiInventoryAssistantService $assistant): JsonResponse
-    {
+    public function chat(
+        Request $request,
+        AiInventoryAssistantService $assistant,
+        AiDataSanitizerService $sanitizer,
+    ): JsonResponse {
         $user = $this->authorizeAssistantAccess($request);
 
         // Decode JSON-encoded history if sent via multipart/form-data
@@ -156,6 +161,7 @@ class DashboardAiAssistantController extends Controller implements HasMiddleware
         ]);
 
         $messageText = trim($validated['message'] ?? '');
+        $messageText = $sanitizer->sanitize($messageText)['sanitized_text'];
         $attachment = $request->file('attachment');
         $conversationId = $validated['conversation_id'] ?? null;
 
@@ -174,7 +180,7 @@ class DashboardAiAssistantController extends Controller implements HasMiddleware
         $attachmentExt = null;
 
         if ($attachment !== null) {
-            $attachmentOriginalName = $attachment->getClientOriginalName();
+            $attachmentOriginalName = $sanitizer->sanitize($attachment->getClientOriginalName())['sanitized_text'];
             $attachmentExt = strtolower($attachment->getClientOriginalExtension());
             $storedAttachmentPath = $attachment->store("ai-chat-attachments/{$user->id}", 'local');
         }
@@ -205,12 +211,20 @@ class DashboardAiAssistantController extends Controller implements HasMiddleware
         try {
             $result = $assistant->respond($user, $messageText, $conversationHistory, $attachment);
         } catch (InvalidArgumentException $e) {
+            if ($storedAttachmentPath !== null) {
+                Storage::disk('local')->delete($storedAttachmentPath);
+            }
+
             return response()->json([
                 'status' => 'error',
                 'message' => $e->getMessage(),
                 'errors' => ['attachment' => [$e->getMessage()]],
             ], 422);
         } catch (Throwable $e) {
+            if ($storedAttachmentPath !== null) {
+                Storage::disk('local')->delete($storedAttachmentPath);
+            }
+
             report($e);
 
             return response()->json([

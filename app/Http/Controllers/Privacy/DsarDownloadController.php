@@ -64,7 +64,10 @@ class DsarDownloadController extends Controller implements HasMiddleware
                 targetName: "Data Subject Request {$privacyRequest->ticket_number}",
                 description: "Download blocked: Package for Data Subject Request {$privacyRequest->ticket_number} has expired.",
                 outcome: 'expired',
-                businessReason: 'Package validity window (7 days) exceeded'
+                businessReason: sprintf(
+                    'Package validity window (%d days) exceeded',
+                    max(1, (int) config('privacy.retention.dsar_package_days', 7)),
+                )
             );
 
             abort(410, 'This data subject export package has expired for security and confidentiality reasons. Please submit a new request to generate a refreshed package.');

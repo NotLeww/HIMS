@@ -6,6 +6,7 @@ use App\Models\PrivacyRequest;
 use App\Models\SecurityIncident;
 use App\Models\User;
 use App\Support\BlindIndex;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -76,6 +77,39 @@ class DatabaseEncryptionTest extends TestCase
         $this->assertNotSame($raw->sms_mfa_phone, $updatedCiphertext);
         $this->assertSame($updatedPhone, Crypt::decryptString($updatedCiphertext));
         $this->assertSame($updatedPhone, $fresh->fresh()->sms_mfa_phone);
+    }
+
+    public function test_profile_remains_readable_during_the_legacy_phone_migration_window(): void
+    {
+        $user = User::factory()->create();
+        $legacyPhone = '09175550123';
+
+        DB::table('users')->where('id', $user->id)->update([
+            'phone' => $legacyPhone,
+            'phone_blind_index' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('profile.edit'))
+            ->assertOk()
+            ->assertDontSee($legacyPhone);
+
+        $this->assertSame($legacyPhone, $user->fresh()->phone);
+        $this->assertSame($legacyPhone, DB::table('users')->where('id', $user->id)->value('phone'));
+    }
+
+    public function test_primary_phone_cast_still_rejects_unrecognized_values(): void
+    {
+        $user = User::factory()->create();
+
+        DB::table('users')->where('id', $user->id)->update([
+            'phone' => 'unrecognized-value',
+            'phone_blind_index' => null,
+        ]);
+
+        $this->expectException(DecryptException::class);
+
+        $user->fresh()->phone;
     }
 
     public function test_privacy_and_security_records_are_encrypted_and_transparently_decrypted(): void

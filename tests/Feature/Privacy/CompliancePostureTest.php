@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Privacy;
 
-use App\Enums\UserRole;
 use App\Models\User;
 use App\Services\Privacy\CompliancePostureService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -60,13 +59,16 @@ class CompliancePostureTest extends TestCase
         $admin = User::factory()->superAdministrator()->create();
 
         $response = $this->actingAs($admin)
-            ->get(route('admin.privacy.index'));
+            ->get(route('admin.privacy.index', ['tab' => 'ropa']));
 
         $response->assertOk();
         $response->assertSee('Privacy & Security Governance');
         $response->assertSee('Posture');
         $response->assertSee('RA 10173');
         $response->assertSee('ISO/IEC 27001:2022');
+        $response->assertSee('Data subjects');
+        $response->assertSee('Authorized access');
+        $response->assertSee('Recipients / transfers');
     }
 
     public function test_unauthorized_user_cannot_access_privacy_governance(): void

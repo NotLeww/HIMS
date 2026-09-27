@@ -2,12 +2,12 @@
 
 namespace App\Services\Privacy;
 
-use App\Enums\Permission;
+use App\Http\Middleware\EnforceSecurityHeaders;
+use App\Http\Middleware\PreventBackHistoryCache;
 use App\Models\AuditLog;
 use App\Models\PrivacyRequest;
 use App\Models\SecurityIncident;
-use App\Models\User;
-use Illuminate\Support\Facades\DB;
+use App\Services\LoginLockoutService;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 
@@ -101,7 +101,7 @@ class CompliancePostureService
             'category' => 'Transparency',
             'title' => 'Privacy Notice & Processing Transparency',
             'status' => ($viewExists && $hasHospitalConfig) ? 'Implemented' : 'Partially Implemented',
-            'evidence' => 'Notice available at /privacy-notice with configured entity: [' . config('privacy.hospital_name') . '].',
+            'evidence' => 'Notice available at /privacy-notice with configured entity: ['.config('privacy.hospital_name').'].',
             'last_checked' => now()->toFormattedDateString(),
             'required_action' => 'Ensure hospital contact details in config/privacy.php remain up to date.',
             'responsible_role' => 'Data Protection Officer',
@@ -200,7 +200,7 @@ class CompliancePostureService
     private function checkIsoAuthenticationSecurity(): array
     {
         $lifetime = config('session.lifetime');
-        $lockoutService = class_exists(\App\Services\LoginLockoutService::class);
+        $lockoutService = class_exists(LoginLockoutService::class);
 
         return [
             'control_id' => 'A.8.5',
@@ -224,17 +224,17 @@ class CompliancePostureService
             'framework' => 'ISO/IEC 27001:2022',
             'category' => 'Data Protection',
             'title' => 'Data Retention Schedules & Secure Disposal',
-            'status' => $retentionClass ? 'Implemented' : 'Partially Implemented',
-            'evidence' => 'DataRetentionService sweeps ephemeral files with dry-run safety. Logistics documents follow National Archives of the Philippines (NAP) GRDS.',
+            'status' => 'Partially Implemented',
+            'evidence' => 'DataRetentionService enforces configured disposal windows for AI conversations, private chat attachments, expired DSAR packages, notifications, recovery records, and temporary files. Logistics documents are flagged for institutional disposal review.',
             'last_checked' => now()->toFormattedDateString(),
-            'required_action' => 'Execute scheduled retention sweeps via artisan hims:enforce-retention.',
+            'required_action' => ($retentionClass ? '' : 'Restore the DataRetentionService. ').'Verify that the production scheduler runs privacy:enforce-retention and approve institutional retention periods for records preserved for accountability.',
             'responsible_role' => 'System Administrator',
         ];
     }
 
     private function checkIsoBrowserCacheProtection(): array
     {
-        $middlewareExists = class_exists(\App\Http\Middleware\PreventBackHistoryCache::class);
+        $middlewareExists = class_exists(PreventBackHistoryCache::class);
 
         return [
             'control_id' => 'A.8.12',
@@ -286,7 +286,7 @@ class CompliancePostureService
 
     private function checkIsoSecurityHeaders(): array
     {
-        $headerMiddleware = class_exists(\App\Http\Middleware\EnforceSecurityHeaders::class);
+        $headerMiddleware = class_exists(EnforceSecurityHeaders::class);
 
         return [
             'control_id' => 'A.8.28',
@@ -304,15 +304,17 @@ class CompliancePostureService
     private function checkOrgDpoRegistration(): array
     {
         $regNumber = config('privacy.npc_registration_number');
-        $isDefault = str_contains((string) $regNumber, 'NPC-REG-2026');
+        $isConfigured = filled($regNumber);
 
         return [
             'control_id' => 'ORG-01',
             'framework' => 'RA 10173',
             'category' => 'Governance',
             'title' => 'Formal DPO & System Registration with NPC',
-            'status' => $isDefault ? 'Needs Review' : 'Implemented',
-            'evidence' => "Configured NPC reference: [{$regNumber}]. Requires hospital administration to keep annual filing current with National Privacy Commission.",
+            'status' => 'Needs Review',
+            'evidence' => $isConfigured
+                ? 'An NPC registration reference is configured, but its validity and current status require institutional verification.'
+                : 'No NPC registration reference is configured; the application does not invent or infer one.',
             'last_checked' => now()->toFormattedDateString(),
             'required_action' => 'File annual compliance verification with National Privacy Commission.',
             'responsible_role' => 'Data Protection Officer',

@@ -613,6 +613,9 @@
                     <input type="checkbox" name="provides_regulated_health_products" value="1" @checked(old('provides_regulated_health_products')) class="mt-0.5 rounded border-neutral-300 text-primary-600 focus:ring-primary-500">
                     <span>Supplies FDA-regulated health products <span class="block text-xs text-neutral-500">This flags applicable review; it does not prove licensing.</span></span>
                 </label>
+                <p class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+                    Enter only business and authorized representative details required for supplier accreditation and procurement. Avoid unrelated personal information. See the <a href="{{ route('privacy.notice', ['return' => url()->current()]) }}" target="_blank" rel="opener" class="font-medium text-primary-600 underline hover:text-primary-700">Privacy Notice</a>.
+                </p>
                 <div class="flex flex-wrap justify-end gap-2 border-t border-neutral-200 pt-4">
                     <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'create-supplier')">Cancel</x-ui.button>
                     <x-ui.button type="submit" data-loading-text="Creating supplier...">Create Draft Supplier</x-ui.button>

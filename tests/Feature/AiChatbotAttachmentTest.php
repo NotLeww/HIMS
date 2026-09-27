@@ -93,8 +93,8 @@ class AiChatbotAttachmentTest extends TestCase
         config()->set('services.gemini.key', '');
         $manager = User::factory()->inventoryManager()->create();
 
-        $xlsxPath = tempnam(sys_get_temp_dir(), 'test_xlsx') . '.xlsx';
-        $zip = new ZipArchive();
+        $xlsxPath = tempnam(sys_get_temp_dir(), 'test_xlsx').'.xlsx';
+        $zip = new ZipArchive;
         $zip->open($xlsxPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
         $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>');
         $zip->addFromString('xl/sharedStrings.xml', '<?xml version="1.0" encoding="UTF-8"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><si><t>Item Name</t></si><si><t>Quantity</t></si><si><t>Latex Gloves</t></si></sst>');
@@ -123,8 +123,8 @@ class AiChatbotAttachmentTest extends TestCase
         config()->set('services.gemini.key', '');
         $manager = User::factory()->inventoryManager()->create();
 
-        $docxPath = tempnam(sys_get_temp_dir(), 'test_docx') . '.docx';
-        $zip = new ZipArchive();
+        $docxPath = tempnam(sys_get_temp_dir(), 'test_docx').'.docx';
+        $zip = new ZipArchive;
         $zip->open($docxPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
         $zip->addFromString('word/document.xml', '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Quarterly Hospital Supply Utilization Summary.</w:t></w:r></w:p></w:body></w:document>');
         $zip->close();
@@ -166,7 +166,7 @@ class AiChatbotAttachmentTest extends TestCase
         $this->assertStringContainsString('daily_logs.txt', $response->json('reply'));
     }
 
-    public function test_user_can_attach_image_and_gemini_receives_multimodal_inline_data(): void
+    public function test_raw_image_attachment_stays_internal_and_is_not_sent_to_gemini(): void
     {
         $manager = User::factory()->inventoryManager()->create();
 
@@ -194,27 +194,12 @@ class AiChatbotAttachmentTest extends TestCase
             ], ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJsonPath('status', 'success')
-            ->assertJsonPath('source', 'ai')
+            ->assertJsonPath('source', 'grounded_fallback')
             ->assertJsonPath('attachment.type', 'image')
             ->assertJsonPath('attachment.name', 'stock_shelf.png');
 
-        $this->assertStringContainsString('The image shows surgical supplies', $response->json('reply'));
-
-        Http::assertSent(function ($request) {
-            $contents = $request['contents'] ?? [];
-            $lastTurn = end($contents);
-            $parts = $lastTurn['parts'] ?? [];
-
-            $hasInlineData = false;
-            foreach ($parts as $part) {
-                if (isset($part['inlineData']['data']) && ($part['inlineData']['mimeType'] ?? '') === 'image/png') {
-                    $hasInlineData = true;
-                    break;
-                }
-            }
-
-            return $hasInlineData;
-        });
+        $this->assertStringContainsString('raw image content is not sent', $response->json('reply'));
+        Http::assertNothingSent();
     }
 
     public function test_empty_message_with_attachment_succeeds_with_default_prompt(): void
@@ -286,7 +271,7 @@ class AiChatbotAttachmentTest extends TestCase
         $manager = User::factory()->inventoryManager()->create();
 
         // Generate a 450-row CSV with stock and reorder columns
-        $lines = ["Item Name,SKU,Current Stock,Reorder Level"];
+        $lines = ['Item Name,SKU,Current Stock,Reorder Level'];
         for ($i = 1; $i <= 450; $i++) {
             $stock = ($i % 10 === 0) ? 0 : ($i % 5 === 0 ? 5 : 100);
             $reorder = 20;

@@ -4,6 +4,39 @@ namespace App\Services\Privacy;
 
 class AiDataSanitizerService
 {
+    private const EXTERNAL_PERSONAL_KEYS = [
+        'actor',
+        'actor_name',
+        'actor_employee_id',
+        'approved_by',
+        'approved_by_name',
+        'assigned_to',
+        'assigned_to_name',
+        'contact_person',
+        'driver_contact',
+        'driver_name',
+        'email',
+        'employee_id',
+        'ip_address',
+        'mobile',
+        'phone',
+        'received_by',
+        'received_by_name',
+        'reported_by',
+        'reported_by_name',
+        'requested_by',
+        'requested_by_name',
+        'requester',
+        'requester_name',
+        'supplier_contact',
+        'supplier_phone',
+        'user_agent',
+        'user_id',
+        'user_name',
+        'witness',
+        'witness_name',
+    ];
+
     /**
      * Inspect and redact personal and sensitive data from user queries and attachments
      * before transmitting payload to external AI services.
@@ -70,5 +103,35 @@ class AiDataSanitizerService
             'redaction_count' => $totalRedactions,
             'redacted_types' => array_values(array_unique($redactedTypes)),
         ];
+    }
+
+    /**
+     * Remove personal identifiers from structured operational context before
+     * it is included in a request to a configured external AI provider.
+     */
+    public function sanitizeExternalPayload(mixed $value, ?string $key = null): mixed
+    {
+        if ($key !== null && in_array(strtolower($key), self::EXTERNAL_PERSONAL_KEYS, true)) {
+            return filled($value) ? '[REDACTED PERSONAL DATA]' : $value;
+        }
+
+        if (is_array($value)) {
+            $sanitized = [];
+
+            foreach ($value as $childKey => $childValue) {
+                $sanitized[$childKey] = $this->sanitizeExternalPayload(
+                    $childValue,
+                    is_string($childKey) ? $childKey : null,
+                );
+            }
+
+            return $sanitized;
+        }
+
+        if (is_string($value)) {
+            return $this->sanitize($value)['sanitized_text'];
+        }
+
+        return $value;
     }
 }

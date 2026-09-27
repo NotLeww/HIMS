@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\AuthenticatorSecretStatus;
+use App\Enums\Permission;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\TrustedDevice;
 use App\Models\User;
@@ -10,6 +11,7 @@ use App\Services\AuthenticatorSecretService;
 use App\Services\AuthenticatorSetupService;
 use App\Services\DeviceSecurity\DeviceSecurityService;
 use App\Services\Sms\SmsOtpDelivery;
+use App\Services\UserAccountService;
 use App\Support\AuditBrowserLocation;
 use App\Support\AuthenticationContext;
 use App\Support\MfaSession;
@@ -311,8 +313,21 @@ class ProfileController extends Controller
     /**
      * Safely stream the user's profile picture.
      */
-    public function showAvatar(User $user): BinaryFileResponse
+    public function showAvatar(Request $request, User $user): BinaryFileResponse
     {
+        $actor = $request->user();
+        abort_unless(
+            $actor instanceof User
+                && (
+                    $actor->is($user)
+                    || (
+                        $actor->hasPermission(Permission::ManageUsers)
+                        && app(UserAccountService::class)->canManage($actor, $user)
+                    )
+                ),
+            403,
+        );
+
         abort_unless($user->avatar_path && Storage::disk('public')->exists($user->avatar_path), 404);
 
         $path = Storage::disk('public')->path($user->avatar_path);

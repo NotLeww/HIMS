@@ -12,6 +12,7 @@ use App\Services\Privacy\DataProcessingRegisterService;
 use App\Services\Privacy\DataRetentionService;
 use App\Services\Privacy\PrivacyRequestService;
 use App\Services\Privacy\SecurityIncidentService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -237,7 +238,7 @@ class PrivacyGovernanceController extends Controller implements HasMiddleware
                 incident: $incident,
                 isReportableBreach: (bool) ($validated['is_reportable_breach'] ?? false),
                 affectedCount: isset($validated['affected_subjects_count']) ? (int) $validated['affected_subjects_count'] : null,
-                notifiedAt: ! empty($validated['npc_notified_at']) ? \Carbon\Carbon::parse($validated['npc_notified_at']) : null,
+                notifiedAt: ! empty($validated['npc_notified_at']) ? Carbon::parse($validated['npc_notified_at']) : null,
                 actor: $request->user()
             );
         }
@@ -253,10 +254,12 @@ class PrivacyGovernanceController extends Controller implements HasMiddleware
         $results = $this->retentionService->sweepEphemeralData(dryRun: false, actor: $request->user());
 
         $message = sprintf(
-            'Retention sweep complete: %d temporary files removed, %d read notifications purged, %d recovery records archived. %d NAP records flagged for review. Permanent audit trails preserved.',
+            'Retention sweep complete: %d temporary files, %d read notifications, %d recovery records, %d AI conversations, and %d expired DSAR packages processed. %d NAP records flagged for review. Permanent audit trails preserved.',
             $results['temporary_files_cleared'],
             $results['notifications_purged'],
             $results['resolved_recovery_records_purged'],
+            $results['ai_chat_conversations_purged'],
+            $results['expired_dsar_packages_disposed'],
             $results['expired_documents_flagged']
         );
 

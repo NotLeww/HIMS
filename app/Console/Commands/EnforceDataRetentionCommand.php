@@ -27,6 +27,9 @@ class EnforceDataRetentionCommand extends Command
                 ['Temporary Export & Scratch Files Pruned', $results['temporary_files_cleared']],
                 ['Read Notifications Purged', $results['notifications_purged']],
                 ['Resolved Recovery Center Records Archived', $results['resolved_recovery_records_purged']],
+                ['Expired AI Conversations Purged', $results['ai_chat_conversations_purged']],
+                ['AI Chat Attachments Purged', $results['ai_chat_attachments_purged']],
+                ['Expired DSAR Packages Disposed', $results['expired_dsar_packages_disposed']],
                 ['NAP Logistics Records Flagged for Review', $results['expired_documents_flagged']],
                 ['Permanent Audit Trail Preserved', 'ALWAYS PRESERVED (0 Pruned)'],
             ]

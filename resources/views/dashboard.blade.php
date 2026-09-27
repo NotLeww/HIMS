@@ -2015,7 +2015,7 @@
                         x-ref="chatInput"
                         x-model="input"
                         type="text"
-                        maxlength="2000"
+                        maxlength="1000"
                         placeholder="Ask about inventory or attach a file..."
                         x-bind:disabled="isLoading"
                         class="w-full rounded-xl border border-neutral-300 py-2.5 pl-10 pr-11 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 disabled:bg-neutral-50"
@@ -2034,6 +2034,9 @@
                         </svg>
                     </button>
                 </div>
+                <p class="mt-1.5 break-words px-1 text-[10px] leading-normal text-neutral-500">
+                    Do not submit patient records, credentials, or unnecessary personal information. Recognized identifiers are redacted before storage and configured AI processing; raw image and PDF files stay within HIMS. Chats and attachments are retained for the configured 30-day window. <a href="{{ route('privacy.notice', ['return' => url()->current()]) }}" target="_blank" rel="opener" class="font-medium text-primary-600 underline hover:text-primary-700">Privacy Notice</a>
+                </p>
             </form>
         </section>
     </aside>

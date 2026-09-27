@@ -5,8 +5,11 @@ namespace App\Services\Privacy;
 class DataClassificationService
 {
     public const TIER_PUBLIC = 'public';
+
     public const TIER_INTERNAL = 'internal';
+
     public const TIER_CONFIDENTIAL = 'confidential';
+
     public const TIER_RESTRICTED = 'restricted';
 
     /**
@@ -96,7 +99,7 @@ class DataClassificationService
                     'login_lockout' => self::TIER_RESTRICTED,
                 ],
                 'statutory_basis' => 'RA 10173 Section 12 (Contract / Legitimate Purpose)',
-                'retention' => 'Retained during active employment; deactivated upon exit to preserve stock ledger traceability.',
+                'retention' => 'No automated deletion; deactivated upon exit while required transaction attribution remains. Final disposal needs an approved institutional schedule.',
             ],
             'suppliers' => [
                 'entity' => 'Suppliers & Vendors',
@@ -111,7 +114,7 @@ class DataClassificationService
                     'accreditation_files' => self::TIER_CONFIDENTIAL,
                 ],
                 'statutory_basis' => 'RA 12009 / RA 10173 Section 12 (Procurement Contract)',
-                'retention' => '10 Years per COA Circulars and Tax Accounting regulations.',
+                'retention' => 'No automated disposal; the applicable COA/NAP/procurement schedule requires institutional approval.',
             ],
             'inventory_items' => [
                 'entity' => 'Inventory Items & Batches',
@@ -141,7 +144,7 @@ class DataClassificationService
                     'new_values' => self::TIER_CONFIDENTIAL,
                 ],
                 'statutory_basis' => 'RA 10173 Section 20(c) / ISO 27001 A.8.15',
-                'retention' => 'Append-only immutable record. Never purged automatically.',
+                'retention' => 'Append-only and never purged automatically; final retention/disposal authority requires institutional validation.',
             ],
             'logistics_documents' => [
                 'entity' => 'Logistics & Receiving Documents',
@@ -168,7 +171,7 @@ class DataClassificationService
                     'export_payload' => self::TIER_CONFIDENTIAL,
                 ],
                 'statutory_basis' => 'RA 10173 Chapter IV (Data Subject Rights)',
-                'retention' => '5 Years post-resolution for regulatory compliance evidence.',
+                'retention' => 'Case records are not automatically purged; time-limited export packages are disposed separately. Final case retention requires DPO approval.',
             ],
             'security_incidents' => [
                 'entity' => 'Security Incidents & Breach Reports',
@@ -182,7 +185,7 @@ class DataClassificationService
                     'containment_actions' => self::TIER_RESTRICTED,
                 ],
                 'statutory_basis' => 'NPC Circular 16-03 / ISO 27001 A.5.24',
-                'retention' => '5 Years post-containment for NPC regulatory audit.',
+                'retention' => 'No automatic incident disposal; the DPO/records owner must approve the applicable schedule.',
             ],
         ];
     }
