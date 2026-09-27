@@ -904,6 +904,40 @@
 
 @layer utilities {
     /*
+     * WCAG AA contrast guards for repeated HIMS utility combinations.
+     * Tailwind neutral-400 is too faint for operational text on white, and
+     * several default 500/600 status fills are too light for white button text.
+     */
+    .text-neutral-400,
+    .placeholder\:text-neutral-400::placeholder {
+        color: theme('colors.neutral.500');
+    }
+
+    .dark .text-neutral-400,
+    .dark .dark\:text-neutral-400,
+    .dark .dark\:text-neutral-500,
+    .dark .dark\:placeholder\:text-neutral-400::placeholder,
+    .dark .dark\:placeholder\:text-neutral-500::placeholder {
+        color: theme('colors.neutral.400');
+    }
+
+    .bg-emerald-600,
+    .hover\:bg-emerald-500:hover {
+        background-color: theme('colors.emerald.700');
+    }
+
+    .bg-amber-500,
+    .bg-amber-600,
+    .hover\:bg-amber-500:hover {
+        background-color: theme('colors.amber.800');
+    }
+
+    .bg-rose-500,
+    .hover\:bg-rose-500:hover {
+        background-color: theme('colors.rose.600');
+    }
+
+    /*
      * Wide tables and tab lists remain horizontally scrollable without a
      * visual scrollbar creating a bar across the interface.
      */

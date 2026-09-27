@@ -829,6 +829,24 @@ Frontend restrictions never replace server validation or authorization. Use `him
 - Respect `prefers-reduced-motion`; avoid decorative animation that competes with operational data.
 - Check narrow mobile, intermediate, and desktop layouts. Stack and reduce columns instead of scrolling sideways, and verify no horizontal bar appears; do not hide critical actions or the data needed to identify a row to make a layout fit.
 
+### Accessibility and Color Contrast
+
+All new and modified HIMS UI must target WCAG 2.2 AA.
+
+- Normal text must meet at least `4.5:1` contrast; large text must meet at least `3:1`.
+- Meaningful non-text UI boundaries, state indicators, focus indicators, and graphical objects must meet `3:1` where WCAG non-text contrast applies.
+- Never rely on color alone to communicate status, validation, selection, risk, or errors; pair color with visible text, icons, labels, borders, or another distinguishable indicator.
+- Muted and secondary text must remain readable. Do not sacrifice accessibility merely to make text appear more subtle.
+- Placeholders must not serve as the only form label and must stay legible where they are shown.
+- Focus states must remain clearly visible against the adjacent surface in both default and interaction states.
+- Status badges must maintain readable foreground/background contrast and must keep their text label.
+- Check light and dark themes independently whenever both are supported.
+- Charts must keep axis labels and legends readable, and important data series must not be distinguished by color alone; use labels, markers, line styles, or patterns where needed.
+- Prefer shared design tokens and components over page-specific color overrides. When a shared color combination fails, fix the shared token/component instead of duplicating local patches.
+- Disabled-state styling must remain understandable while following applicable accessibility requirements.
+
+When a coding agent modifies HIMS UI, it must first inspect shared design tokens/components, reuse compliant patterns, verify any newly introduced foreground/background combination, check default/hover/active/focus/disabled states, and run or perform an accessibility contrast check before declaring the UI complete.
+
 ## Verification and Failure Handling
 
 - For copy-only changes, render the affected route and verify the text/context.
