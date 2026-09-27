@@ -1112,6 +1112,36 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
         Notification::assertSentTo($user, SessionTakeoverNotification::class);
     }
 
+    public function test_disabled_device_approval_emails_suppress_session_takeover_notice(): void
+    {
+        Notification::fake();
+        config()->set('auth.device_security.approval_emails_enabled', false);
+
+        $user = User::factory()->create();
+
+        UserActiveSession::create([
+            'user_id' => $user->id,
+            'guard' => 'web',
+            'session_id' => 'prev_session',
+            'last_active_at' => now(),
+        ]);
+
+        $trusted = $this->deviceSecurity->issueTrustedDevice($user, $this->createDeviceRequest(), 'iPad Pro');
+
+        $takeoverRequest = $this->createDeviceRequest('192.168.1.88', 'iPad Safari');
+        $takeoverRequest->cookies->set(config('auth.device_security.cookie_name'), $trusted['token']);
+
+        $activeSession = $this->deviceSecurity->activateSession(
+            $user,
+            'web',
+            $takeoverRequest,
+            $trusted['trustedDevice'],
+        );
+
+        $this->assertSame($takeoverRequest->session()->getId(), $activeSession->session_id);
+        Notification::assertNotSentTo($user, SessionTakeoverNotification::class);
+    }
+
     public function test_authenticated_session_without_authoritative_active_record_fails_closed(): void
     {
         $user = User::factory()->create();

@@ -656,7 +656,11 @@ class DeviceSecurityService
             );
         });
 
-        if ($isTrustedTakeover && $trustedDevice !== null) {
+        if (
+            $isTrustedTakeover
+            && $trustedDevice !== null
+            && (bool) config('auth.device_security.approval_emails_enabled', false)
+        ) {
             try {
                 $user->notify(new SessionTakeoverNotification(
                     $trustedDevice->display_name,
