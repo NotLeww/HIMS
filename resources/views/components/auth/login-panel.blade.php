@@ -90,6 +90,13 @@
                     {{ sprintf('%02d:%02d', intdiv($restrictionSeconds, 60), $restrictionSeconds % 60) }}
                 </span>
             </p>
+            @if ($loginRestriction['status'] === \App\Services\LoginLockoutService::LOCKED)
+                <p class="mt-2 border-t border-danger-200 pt-2 text-xs leading-5 dark:border-rose-900/60">
+                    Need access before the timer ends? Email the Super Administrator at
+                    <a href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=zediskaaa%40gmail.com" target="_blank" rel="noopener noreferrer" class="font-semibold underline underline-offset-2 hover:no-underline">zediskaaa@gmail.com</a>
+                    to request an account unlock. Otherwise, you can sign in again when the timer reaches 00:00.
+                </p>
+            @endif
             <p class="sr-only" data-login-cooldown-live aria-live="polite" aria-atomic="true"></p>
         </x-ui.alert>
     @endif

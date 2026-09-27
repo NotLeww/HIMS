@@ -77,6 +77,7 @@ class LoginLockoutTest extends TestCase
             ->assertSee('data-login-cooldown-value', false)
             ->assertSee('You have 0 attempts remaining.')
             ->assertSee('Try again in')
+            ->assertDontSee('https://mail.google.com/mail/?view=cm', false)
             ->assertSee('data-login-cooldown-expires-at="'.$user->login_retry_at->getTimestamp().'"', false);
 
         $this->post(route('login'), $this->credentials($user))
@@ -99,6 +100,13 @@ class LoginLockoutTest extends TestCase
         $this->assertSame(0, $user->failed_login_attempts);
         $this->assertSame(1, $user->login_lockout_count);
         $this->assertSame(LoginApprovalRequest::STATUS_CANCELLED, $pendingApproval->fresh()->status);
+
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=zediskaaa%40gmail.com', false)
+            ->assertSee('target="_blank" rel="noopener noreferrer"', false)
+            ->assertSee('zediskaaa@gmail.com')
+            ->assertSee('you can sign in again when the timer reaches 00:00.');
 
         $lockAudit = AuditLog::query()
             ->where('action', AuditAction::TemporarilyLockedUser->value)
