@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\AlertSeverity;
 use App\Enums\AuditAction;
 use App\Enums\Permission;
 use App\Enums\SupplierAccreditationStatus;
@@ -13,14 +12,13 @@ use App\Http\Requests\UpdateSupplierRequest;
 use App\Models\AuditLog;
 use App\Models\InventoryItem;
 use App\Models\ItemCategory;
-use App\Models\PurchaseOrder;
 use App\Models\Supplier;
-use App\Models\SupplierComplianceAlert;
 use App\Models\SupplierContract;
 use App\Models\SupplierDocument;
 use App\Models\SupplierPrice;
 use App\Models\SupplierProduct;
 use App\Services\AuditLogger;
+use App\Services\FileContentValidator;
 use App\Services\SupplierManagementService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -41,6 +39,7 @@ class SupplierController extends Controller implements HasMiddleware
     public function __construct(
         private readonly SupplierManagementService $suppliers,
         private readonly AuditLogger $audit,
+        private readonly FileContentValidator $fileContentValidator,
     ) {}
 
     public static function middleware(): array
@@ -343,6 +342,14 @@ class SupplierController extends Controller implements HasMiddleware
                 return;
             }
 
+            try {
+                $this->fileContentValidator->validate($file, ['jpg', 'jpeg', 'png']);
+            } catch (\InvalidArgumentException $exception) {
+                $validator->errors()->add('logo', $exception->getMessage());
+
+                return;
+            }
+
             // Image integrity check: verify decodable image headers and dimensions.
             $imageInfo = @getimagesize($file->getRealPath());
             if ($imageInfo === false || empty($imageInfo[0]) || empty($imageInfo[1])) {
@@ -483,6 +490,12 @@ class SupplierController extends Controller implements HasMiddleware
         }
 
         $file = $request->file('file');
+        try {
+            $this->fileContentValidator->validate($file, ['pdf', 'jpg', 'jpeg', 'png']);
+        } catch (\InvalidArgumentException $exception) {
+            throw ValidationException::withMessages(['file' => $exception->getMessage()]);
+        }
+
         $path = $file->store('supplier-documents/'.$supplier->id, 'local');
         abort_if($path === false, 500, 'The supplier document could not be stored.');
 
@@ -518,7 +531,7 @@ class SupplierController extends Controller implements HasMiddleware
                 $replacement?->update(['is_current' => false, 'superseded_by_id' => $document->id]);
                 $this->audit->log(AuditAction::UploadedSupplierDocument, $request->user(), 'Uploaded supplier document evidence for review.', $supplier, $supplier->name, newValues: ['document_id' => $document->id, 'document_type' => $document->document_type, 'replaces_document_id' => $replacement?->id]);
             });
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             Storage::disk('local')->delete($path);
             throw $exception;
         }

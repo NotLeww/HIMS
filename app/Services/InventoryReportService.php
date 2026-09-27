@@ -16,6 +16,7 @@ use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Support\DemoPdfBuilder;
+use App\Support\SpreadsheetValue;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
@@ -1856,57 +1857,58 @@ class InventoryReportService
         return response()->streamDownload(function () use ($report) {
             $out = fopen('php://output', 'w');
             fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM for MS Excel compatibility
+            $write = fn (array $row) => fputcsv($out, array_map([SpreadsheetValue::class, 'escapeFormula'], $row));
 
-            fputcsv($out, [$report['meta']['hospital_name'] ?? 'Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium']);
-            fputcsv($out, [$report['meta']['sub_title'] ?? 'Materials Management & Inventory Division']);
-            fputcsv($out, ['Report:', $report['meta']['report_title'] ?? 'Inventory Report']);
-            fputcsv($out, ['Generated:', optional($report['meta']['generated_at'])->format('Y-m-d H:i:s'), 'By:', $report['meta']['generated_by'] ?? '']);
-            fputcsv($out, ['Period:', $report['meta']['period']['description'] ?? '']);
+            $write([$report['meta']['hospital_name'] ?? 'Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium']);
+            $write([$report['meta']['sub_title'] ?? 'Materials Management & Inventory Division']);
+            $write(['Report:', $report['meta']['report_title'] ?? 'Inventory Report']);
+            $write(['Generated:', optional($report['meta']['generated_at'])->format('Y-m-d H:i:s'), 'By:', $report['meta']['generated_by'] ?? '']);
+            $write(['Period:', $report['meta']['period']['description'] ?? '']);
             foreach ($report['meta']['filter_labels'] ?? [] as $label => $val) {
-                fputcsv($out, ['Filter: '.$label, $val]);
+                $write(['Filter: '.$label, $val]);
             }
-            fputcsv($out, []); // blank line
+            $write([]); // blank line
 
             if (($report['meta']['report_type'] ?? '') === 'all') {
                 foreach ($report['sections'] ?? [] as $section) {
-                    fputcsv($out, ['=== '.strtoupper($section['title']).' ===']);
+                    $write(['=== '.strtoupper($section['title']).' ===']);
                     if (! empty($section['summary'])) {
                         foreach ($section['summary'] as $k => $v) {
-                            fputcsv($out, [$k, $v]);
+                            $write([$k, $v]);
                         }
-                        fputcsv($out, []);
+                        $write([]);
                     }
                     if (! empty($section['columns'])) {
-                        fputcsv($out, array_values($section['columns']));
+                        $write(array_values($section['columns']));
                         foreach ($section['rows'] ?? [] as $row) {
-                            fputcsv($out, array_map(fn ($k) => $row[$k] ?? '', array_keys($section['columns'])));
+                            $write(array_map(fn ($k) => $row[$k] ?? '', array_keys($section['columns'])));
                         }
                         if (! empty($section['totals'])) {
-                            fputcsv($out, array_map(fn ($k) => $section['totals'][$k] ?? '', array_keys($section['columns'])));
+                            $write(array_map(fn ($k) => $section['totals'][$k] ?? '', array_keys($section['columns'])));
                         }
                     }
-                    fputcsv($out, []);
+                    $write([]);
                 }
             } else {
                 if (! empty($report['summary'])) {
-                    fputcsv($out, ['--- SUMMARY ---']);
+                    $write(['--- SUMMARY ---']);
                     foreach ($report['summary'] as $k => $v) {
-                        fputcsv($out, [$k, $v]);
+                        $write([$k, $v]);
                     }
-                    fputcsv($out, []);
+                    $write([]);
                 }
 
                 if (! empty($report['columns'])) {
-                    fputcsv($out, array_values($report['columns']));
+                    $write(array_values($report['columns']));
                     if (empty($report['data'])) {
-                        fputcsv($out, ['No records found matching the applied filter criteria.']);
+                        $write(['No records found matching the applied filter criteria.']);
                     } else {
                         foreach ($report['data'] as $row) {
-                            fputcsv($out, array_map(fn ($k) => $row[$k] ?? '', array_keys($report['columns'])));
+                            $write(array_map(fn ($k) => $row[$k] ?? '', array_keys($report['columns'])));
                         }
                     }
                     if (! empty($report['totals'])) {
-                        fputcsv($out, array_map(fn ($k) => $report['totals'][$k] ?? '', array_keys($report['columns'])));
+                        $write(array_map(fn ($k) => $report['totals'][$k] ?? '', array_keys($report['columns'])));
                     }
                 }
             }

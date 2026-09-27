@@ -7,6 +7,7 @@ use App\Enums\DocumentType;
 use App\Models\LogisticsDocument;
 use App\Models\User;
 use App\Services\AuditLogger;
+use App\Services\FileContentValidator;
 use DomainException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +30,7 @@ class DocumentTrackingService
     public function __construct(
         private readonly AuditLogger $auditLogger,
         private readonly ChainOfCustodyService $custodyService,
+        private readonly FileContentValidator $fileContentValidator,
     ) {}
 
     /**
@@ -320,6 +322,12 @@ class DocumentTrackingService
 
     private function validateFile(UploadedFile $file): void
     {
+        try {
+            $this->fileContentValidator->validate($file, ['pdf', 'jpg', 'jpeg', 'png', 'webp']);
+        } catch (\InvalidArgumentException $exception) {
+            throw ValidationException::withMessages(['file' => [$exception->getMessage()]]);
+        }
+
         if ($file->getSize() > self::MAX_FILE_BYTES) {
             throw ValidationException::withMessages([
                 'file' => ['The uploaded document exceeds the maximum allowable file size of 15MB.'],

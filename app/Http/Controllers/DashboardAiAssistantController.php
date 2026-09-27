@@ -165,14 +165,11 @@ class DashboardAiAssistantController extends Controller implements HasMiddleware
         $attachment = $request->file('attachment');
         $conversationId = $validated['conversation_id'] ?? null;
 
-        // Retrieve or create conversation scoped to authenticated user
-        if ($conversationId !== null) {
-            $conversation = $user->aiChatConversations()->findOrFail($conversationId);
-        } else {
-            $conversation = $user->aiChatConversations()->create([
-                'title' => 'New Chat',
-            ]);
-        }
+        // Existing conversations are scoped before processing. A new conversation
+        // is created only after the attachment has passed content validation.
+        $conversation = $conversationId !== null
+            ? $user->aiChatConversations()->findOrFail($conversationId)
+            : null;
 
         // Store attachment securely in private storage if present
         $storedAttachmentPath = null;
@@ -182,18 +179,11 @@ class DashboardAiAssistantController extends Controller implements HasMiddleware
         if ($attachment !== null) {
             $attachmentOriginalName = $sanitizer->sanitize($attachment->getClientOriginalName())['sanitized_text'];
             $attachmentExt = strtolower($attachment->getClientOriginalExtension());
-            $storedAttachmentPath = $attachment->store("ai-chat-attachments/{$user->id}", 'local');
-        }
-
-        // Auto-generate title if currently "New Chat" or first message
-        if ($conversation->title === 'New Chat' || $conversation->messages()->count() === 0) {
-            $generatedTitle = AiChatTitleGenerator::generate($messageText, $attachmentOriginalName);
-            $conversation->update(['title' => $generatedTitle]);
         }
 
         // Server history wins. New-chat client history remains usable for
         // continuity, but the AI service wraps every turn as untrusted data.
-        $persistedHistory = $conversation->messages()
+        $persistedHistory = $conversation?->messages()
             ->orderBy('id', 'desc')
             ->take(10)
             ->get()
@@ -203,7 +193,7 @@ class DashboardAiAssistantController extends Controller implements HasMiddleware
                 'content' => $m->content,
             ])
             ->values()
-            ->all();
+            ->all() ?? [];
 
         $conversationHistory = ! empty($persistedHistory)
             ? $persistedHistory
@@ -212,26 +202,30 @@ class DashboardAiAssistantController extends Controller implements HasMiddleware
         try {
             $result = $assistant->respond($user, $messageText, $conversationHistory, $attachment);
         } catch (InvalidArgumentException $e) {
-            if ($storedAttachmentPath !== null) {
-                Storage::disk('local')->delete($storedAttachmentPath);
-            }
-
             return response()->json([
                 'status' => 'error',
                 'message' => $e->getMessage(),
                 'errors' => ['attachment' => [$e->getMessage()]],
             ], 422);
         } catch (Throwable $e) {
-            if ($storedAttachmentPath !== null) {
-                Storage::disk('local')->delete($storedAttachmentPath);
-            }
-
             report($e);
 
             return response()->json([
                 'status' => 'error',
                 'message' => 'An unexpected error occurred while processing your inventory inquiry. Please try again or check the system logs.',
             ], 500);
+        }
+
+        if ($attachment !== null) {
+            $storedAttachmentPath = $attachment->store("ai-chat-attachments/{$user->id}", 'local');
+        }
+
+        $conversation ??= $user->aiChatConversations()->create(['title' => 'New Chat']);
+
+        // Auto-generate title if currently "New Chat" or first message
+        if ($conversation->title === 'New Chat' || $conversation->messages()->count() === 0) {
+            $generatedTitle = AiChatTitleGenerator::generate($messageText, $attachmentOriginalName);
+            $conversation->update(['title' => $generatedTitle]);
         }
 
         // Persist user message

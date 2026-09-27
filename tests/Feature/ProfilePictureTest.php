@@ -100,7 +100,7 @@ class ProfilePictureTest extends TestCase
             ->assertHeader('Content-Type', 'image/png');
     }
 
-    public function test_supported_image_content_is_accepted_regardless_of_filename_extension(): void
+    public function test_image_content_must_match_a_supported_filename_extension(): void
     {
         Storage::fake('public');
 
@@ -110,12 +110,12 @@ class ProfilePictureTest extends TestCase
         $this->actingAs($user)
             ->post(route('profile.avatar.update'), ['avatar' => $file])
             ->assertRedirect(route('profile.edit'))
-            ->assertSessionHasNoErrors();
+            ->assertSessionHasErrors('avatar');
 
         $user->refresh();
 
-        $this->assertSame('png', pathinfo($user->avatar_path, PATHINFO_EXTENSION));
-        Storage::disk('public')->assertExists($user->avatar_path);
+        $this->assertNull($user->avatar_path);
+        $this->assertSame([], Storage::disk('public')->allFiles());
     }
 
     public function test_super_admin_can_upload_and_view_a_png_avatar(): void

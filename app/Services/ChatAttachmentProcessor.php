@@ -4,14 +4,16 @@ namespace App\Services;
 
 use Illuminate\Http\UploadedFile;
 use InvalidArgumentException;
-use SimpleXMLElement;
 use ZipArchive;
 
 class ChatAttachmentProcessor
 {
     public const MAX_TABLE_ROWS = 300;
+
     public const MAX_TEXT_CHARS = 150000;
+
     public const MAX_FILE_SIZE_BYTES = 36700160; // 35MB
+
     public const MAX_INLINE_PAYLOAD_BYTES = 12582912; // 12MB limit for base64 inlineData to prevent Gemini 413
 
     /**
@@ -27,6 +29,8 @@ class ChatAttachmentProcessor
         'jpeg' => 'image/jpeg',
         'png' => 'image/png',
     ];
+
+    public function __construct(private readonly FileContentValidator $fileContentValidator) {}
 
     /**
      * Process and extract content from an uploaded chat attachment.
@@ -46,6 +50,8 @@ class ChatAttachmentProcessor
      */
     public function process(UploadedFile $file): array
     {
+        $this->fileContentValidator->validate($file, array_keys(self::ALLOWED_EXTENSIONS));
+
         $realPath = $file->getRealPath();
         if (! $realPath || ! file_exists($realPath)) {
             throw new InvalidArgumentException('Uploaded file is inaccessible or missing.');
@@ -217,7 +223,7 @@ class ChatAttachmentProcessor
      */
     private function processXlsx(string $path, string $originalName, int $size, string $mimeType): array
     {
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($path) !== true) {
             throw new InvalidArgumentException('Unable to open the Excel (.xlsx) file. It may be corrupted or password-protected.');
         }
@@ -373,7 +379,7 @@ class ChatAttachmentProcessor
      */
     private function processDocx(string $path, string $originalName, int $size, string $mimeType): array
     {
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($path) !== true) {
             throw new InvalidArgumentException('Unable to open the Word (.docx) document. It may be corrupted or password-protected.');
         }

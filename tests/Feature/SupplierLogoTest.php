@@ -211,6 +211,21 @@ class SupplierLogoTest extends TestCase
         $this->assertSame([], Storage::disk('local')->allFiles('supplier-logos/'.$supplier->id));
     }
 
+    public function test_image_content_must_match_its_filename_extension(): void
+    {
+        Storage::fake('local');
+        $supplier = $this->supplier();
+
+        $this->actingAs($this->manager())
+            ->post(route('inventory.suppliers.logo.update', $supplier), [
+                'logo' => $this->createFakePng('renamed.jpg'),
+            ])
+            ->assertSessionHasErrors('logo');
+
+        $this->assertNull($supplier->fresh()->logo_path);
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
     public function test_a_truncated_image_that_still_reports_as_jpeg_is_rejected_by_the_integrity_check(): void
     {
         Storage::fake('local');

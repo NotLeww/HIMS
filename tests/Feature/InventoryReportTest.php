@@ -763,6 +763,20 @@ class InventoryReportTest extends TestCase
         $this->assertSame($itemName, $exportedRow[1]);
     }
 
+    public function test_csv_export_neutralizes_formula_like_text_but_preserves_negative_numbers(): void
+    {
+        $location = $this->location();
+        $this->stockedItem('=HYPERLINK("https://invalid.example")', 'FORMULA-001', 5, -1.25, location: $location);
+
+        $content = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=csv&period=30')
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertStringContainsString("'=HYPERLINK", $content);
+        $this->assertStringNotContainsString("'-1.25", $content);
+    }
+
     public function test_generate_report_exports_excel_format(): void
     {
         $location = $this->location();

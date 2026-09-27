@@ -2,6 +2,7 @@
 
 namespace App\Services\Privacy;
 
+use App\Support\SpreadsheetValue;
 use Illuminate\Support\Collection;
 
 class DsarRedactionService
@@ -14,7 +15,7 @@ class DsarRedactionService
      */
     public function redactActivityRecords(Collection $activities, int $requesterUserId): Collection
     {
-        return $activities->map(function (array $record) use ($requesterUserId) {
+        return $activities->map(function (array $record) {
             $record['description'] = $this->redactSensitiveString($record['description'] ?? '');
             $record['target_name'] = $this->redactSensitiveString($record['target_name'] ?? '');
             $record['business_reason'] = $this->redactSensitiveString($record['business_reason'] ?? '');
@@ -28,16 +29,7 @@ class DsarRedactionService
      */
     public function sanitizeForSpreadsheet(?string $value): string
     {
-        if ($value === null || $value === '') {
-            return '';
-        }
-
-        $firstChar = substr($value, 0, 1);
-        if (in_array($firstChar, ['=', '+', '-', '@', "\t", "\r"], true)) {
-            return "'" . $value;
-        }
-
-        return $value;
+        return (string) SpreadsheetValue::escapeFormula($value ?? '');
     }
 
     /**

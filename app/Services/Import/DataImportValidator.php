@@ -57,6 +57,14 @@ class DataImportValidator
      */
     public function validate(string $target, array $tableData, string $mode = 'create_only'): array
     {
+        $duplicateHeaders = $tableData['duplicate_headers'] ?? [];
+        if ($duplicateHeaders !== []) {
+            return $this->buildStructureError(
+                'Invalid import structure. Duplicate columns map to: '.implode(', ', $duplicateHeaders).'. Remove the duplicate columns and retry.',
+                implode(', ', $duplicateHeaders)
+            );
+        }
+
         $rowCount = count($tableData['rows'] ?? []);
         if ($rowCount > self::MAX_ROWS) {
             return $this->buildRowLimitError($rowCount);

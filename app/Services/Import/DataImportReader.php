@@ -5,7 +5,6 @@ namespace App\Services\Import;
 use DOMDocument;
 use Illuminate\Http\UploadedFile;
 use InvalidArgumentException;
-use SimpleXMLElement;
 use ZipArchive;
 
 class DataImportReader
@@ -153,7 +152,8 @@ class DataImportReader
      *     header_row_number: int,
      *     rows: array<int, array<string, mixed>>,
      *     total_rows: int,
-     *     raw_data_count: int
+     *     raw_data_count: int,
+     *     duplicate_headers: array<string>
      * }
      */
     public function read(UploadedFile|string $file, ?string $format = null, ?string $target = null): array
@@ -213,12 +213,13 @@ class DataImportReader
                 'rows' => [],
                 'total_rows' => 0,
                 'raw_data_count' => 0,
+                'duplicate_headers' => [],
             ];
         }
 
         $decoded = json_decode($raw, true);
         if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
-            throw new InvalidArgumentException('Invalid JSON syntax: ' . json_last_error_msg());
+            throw new InvalidArgumentException('Invalid JSON syntax: '.json_last_error_msg());
         }
 
         if (! is_array($decoded)) {
@@ -264,6 +265,7 @@ class DataImportReader
                 'rows' => [],
                 'total_rows' => 0,
                 'raw_data_count' => 0,
+                'duplicate_headers' => [],
             ];
         }
 
@@ -272,10 +274,11 @@ class DataImportReader
         $originalHeaders = [];
         $headerMap = [];
         $normalizedRows = [];
+        $duplicateHeaders = [];
 
         foreach ($decoded as $idx => $item) {
             if (! is_array($item)) {
-                throw new InvalidArgumentException("Invalid JSON structure at item #".($idx + 1).". Expected a JSON object with key-value pairs.");
+                throw new InvalidArgumentException('Invalid JSON structure at item #'.($idx + 1).'. Expected a JSON object with key-value pairs.');
             }
 
             $rowAssoc = [];
@@ -291,6 +294,10 @@ class DataImportReader
 
                 $normKey = $this->normalizeHeaderName($rawKeyStr);
                 $canonicalField = $this->resolveCanonicalField($normKey, $targetKey);
+
+                if (array_key_exists($canonicalField, $rowAssoc)) {
+                    $duplicateHeaders[] = $canonicalField;
+                }
 
                 if (! in_array($rawKeyStr, $originalHeaders, true)) {
                     $originalHeaders[] = $rawKeyStr;
@@ -333,6 +340,7 @@ class DataImportReader
             'rows' => $normalizedRows,
             'total_rows' => count($normalizedRows),
             'raw_data_count' => count($normalizedRows),
+            'duplicate_headers' => array_values(array_unique($duplicateHeaders)),
         ];
     }
 
@@ -411,6 +419,7 @@ class DataImportReader
                     return $cell;
                 }
                 $clean = str_replace(["\xEF\xBB\xBF", "\xC2\xA0", "\u{FEFF}", "\u{200B}", "\u{00A0}"], ' ', $cell);
+
                 return trim($clean);
             }, $row);
 
@@ -503,7 +512,7 @@ class DataImportReader
             throw new InvalidArgumentException('The uploaded Excel (.xlsx) file is empty (0 bytes).');
         }
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($path) !== true) {
             throw new InvalidArgumentException('Unable to open the Excel (.xlsx) file. It may be corrupted or password-protected.');
         }
@@ -644,7 +653,7 @@ class DataImportReader
 
         // Case 2: HTML Table (frequently exported with .xls extension)
         if (str_contains($content, '<table') || str_contains($content, '<tr')) {
-            $dom = new DOMDocument();
+            $dom = new DOMDocument;
             @$dom->loadHTML(mb_convert_encoding($content, 'HTML-ENTITIES', 'UTF-8'));
             $trNodes = $dom->getElementsByTagName('tr');
             $rows = [];
@@ -678,7 +687,6 @@ class DataImportReader
      *
      * @param  array<int, array<int, mixed>>  $rawRows
      * @param  string|null  $target  'items' | 'locations' | 'suppliers'
-     * @param  string  $format
      * @return array{
      *     format: string,
      *     headers: array<string>,
@@ -687,7 +695,8 @@ class DataImportReader
      *     header_row_number: int,
      *     rows: array<int, array<string, mixed>>,
      *     total_rows: int,
-     *     raw_data_count: int
+     *     raw_data_count: int,
+     *     duplicate_headers: array<string>
      * }
      */
     public function normalizeTable(array $rawRows, ?string $target = null, string $format = 'csv'): array
@@ -702,6 +711,7 @@ class DataImportReader
                 'rows' => [],
                 'total_rows' => 0,
                 'raw_data_count' => 0,
+                'duplicate_headers' => [],
             ];
         }
 
@@ -831,6 +841,10 @@ class DataImportReader
             'rows' => $normalizedRows,
             'total_rows' => count($normalizedRows),
             'raw_data_count' => count($normalizedRows),
+            'duplicate_headers' => array_values(array_keys(array_filter(
+                array_count_values($canonicalHeaders),
+                fn (int $count): bool => $count > 1
+            ))),
         ];
     }
 

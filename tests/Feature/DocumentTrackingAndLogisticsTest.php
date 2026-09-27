@@ -378,6 +378,51 @@ class DocumentTrackingAndLogisticsTest extends TestCase
         $this->assertEquals(200, $response->getStatusCode());
     }
 
+    public function test_logistics_document_upload_rejects_extension_content_mismatch(): void
+    {
+        Storage::fake('local');
+        extract($this->createSetup());
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+
+        $response = $this->actingAs($buyer)
+            ->from(route('inventory.logistics.documents'))
+            ->post(route('inventory.logistics.documents.upload'), [
+                'file' => UploadedFile::fake()->createWithContent('image-renamed.pdf', $png),
+                'document_type' => DocumentType::Invoice->value,
+                'title' => 'Spoofed invoice',
+            ]);
+
+        $response->assertRedirect(route('inventory.logistics.documents'))
+            ->assertSessionHas('error', 'Document upload failed: The file content does not match the .pdf extension. Upload a valid PDF file.');
+        $this->assertDatabaseCount('logistics_documents', 0);
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_logistics_upload_does_not_expose_unexpected_internal_errors(): void
+    {
+        Storage::fake('local');
+        extract($this->createSetup());
+        $this->mock(DocumentTrackingService::class)
+            ->shouldReceive('uploadDocument')
+            ->once()
+            ->andThrow(new \RuntimeException('C:\\private\\documents\\secret.pdf line 42'));
+
+        $response = $this->actingAs($buyer)
+            ->from(route('inventory.logistics.documents'))
+            ->post(route('inventory.logistics.documents.upload'), [
+                'file' => UploadedFile::fake()->createWithContent(
+                    'invoice.pdf',
+                    DemoPdfBuilder::create('Invoice', [['heading' => 'INVOICE', 'lines' => ['Valid content.']]])
+                ),
+                'document_type' => DocumentType::Invoice->value,
+                'title' => 'Invoice',
+            ]);
+
+        $response->assertRedirect(route('inventory.logistics.documents'))
+            ->assertSessionHas('error', 'Document upload failed. Please verify the file and try again.');
+        $this->assertDatabaseCount('logistics_documents', 0);
+    }
+
     public function test_authorized_document_download_returns_the_stored_file_and_records_one_audit_event(): void
     {
         Storage::fake('local');

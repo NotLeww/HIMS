@@ -66,7 +66,11 @@ class DataImportTest extends TestCase
             ->assertSee('Data Ingress &amp; System Import', false)
             ->assertSee('Inventory Items')
             ->assertSee('Storage Locations')
-            ->assertSee('Suppliers &amp; Vendors', false);
+            ->assertSee('Suppliers &amp; Vendors', false)
+            ->assertSee(':disabled="!selectedFile || isValidating"', false)
+            ->assertSee(':disabled="!validationResult || !validationResult.is_valid || isCommitting"', false)
+            ->assertSee('this.isValidating = false', false)
+            ->assertSee('this.isCommitting = false', false);
     }
 
     public function test_download_template_supports_csv_json_and_xlsx(): void
@@ -500,6 +504,26 @@ class DataImportTest extends TestCase
             ->assertJsonPath('success', false);
     }
 
+    public function test_staged_import_token_cannot_be_committed_twice(): void
+    {
+        $user = $this->inventoryManager();
+        $preview = $this->actingAs($user)->postJson('/inventory/import/preview', [
+            'file' => UploadedFile::fake()->createWithContent('single-use.csv', "sku,name\nSINGLE-USE-001,Single Use Import\n"),
+            'target' => 'items',
+            'mode' => 'create_only',
+        ])->assertOk();
+
+        $payload = ['import_token' => $preview->json('import_token'), 'target' => 'items'];
+        $this->actingAs($user)->postJson('/inventory/import/commit', $payload)
+            ->assertOk()
+            ->assertJsonPath('created', 1);
+        $this->actingAs($user)->postJson('/inventory/import/commit', $payload)
+            ->assertUnprocessable()
+            ->assertJsonPath('success', false);
+
+        $this->assertSame(1, InventoryItem::where('sku', 'SINGLE-USE-001')->count());
+    }
+
     public function test_preview_supports_case_insensitive_and_spaced_headers(): void
     {
         $user = $this->inventoryManager();
@@ -691,7 +715,7 @@ class DataImportTest extends TestCase
             'mode' => 'create_only',
         ]);
 
-        $resA->assertStatus(200)
+        $resA->assertStatus(422)
             ->assertJsonPath('is_valid', false)
             ->assertJsonPath('errors.0.type', 'invalid_structure');
 
@@ -906,7 +930,7 @@ class DataImportTest extends TestCase
             ->assertJsonPath('is_valid', false)
             ->assertJsonPath('errors.0.type', 'invalid_structure');
 
-        $this->assertStringContainsString('binary file or malformed CSV', $res->json('errors.0.message'));
+        $this->assertStringContainsString('does not match the .csv extension', $res->json('errors.0.message'));
     }
 
     public function test_json_import_validation_is_consistent_with_csv(): void
@@ -1091,6 +1115,56 @@ class DataImportTest extends TestCase
         }
     }
 
+    public function test_preview_rejects_extension_content_mismatches_and_allows_retry(): void
+    {
+        $user = $this->inventoryManager();
+        $initialCount = InventoryItem::count();
+
+        foreach (['spoofed.csv', 'spoofed.json', 'spoofed.xlsx'] as $name) {
+            $response = $this->actingAs($user)->postJson('/inventory/import/preview', [
+                'file' => UploadedFile::fake()->createWithContent($name, "%PDF-1.4\nnot the declared format\n%%EOF"),
+                'target' => 'items',
+                'mode' => 'create_only',
+            ]);
+
+            $response->assertUnprocessable()->assertJsonPath('is_valid', false);
+            $this->assertStringNotContainsString('C:\\', $response->json('errors.0.message'));
+        }
+
+        $valid = $this->actingAs($user)->postJson('/inventory/import/preview', [
+            'file' => UploadedFile::fake()->createWithContent('corrected.csv', "sku,name\nRETRY-001,Corrected File\n"),
+            'target' => 'items',
+            'mode' => 'create_only',
+        ]);
+        $valid->assertOk()->assertJsonPath('is_valid', true);
+        $this->actingAs($user)->postJson('/inventory/import/commit', [
+            'import_token' => $valid->json('import_token'),
+            'target' => 'items',
+        ])->assertOk();
+
+        $this->assertSame($initialCount + 1, InventoryItem::count());
+        $this->assertDatabaseHas('inventory_items', ['sku' => 'RETRY-001']);
+    }
+
+    public function test_preview_rejects_duplicate_columns_that_map_to_the_same_field(): void
+    {
+        $response = $this->actingAs($this->inventoryManager())->postJson('/inventory/import/preview', [
+            'file' => UploadedFile::fake()->createWithContent(
+                'duplicate-headers.csv',
+                "sku,item_code,name\nDUP-HEADER-1,DUP-HEADER-2,Duplicate Header Item\n"
+            ),
+            'target' => 'items',
+            'mode' => 'create_only',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('is_valid', false)
+            ->assertJsonPath('errors.0.type', 'invalid_structure')
+            ->assertJsonPath('import_token', null);
+        $this->assertStringContainsString('Duplicate columns map to: sku', $response->json('errors.0.message'));
+        $this->assertDatabaseMissing('inventory_items', ['sku' => 'DUP-HEADER-1']);
+    }
+
     public function test_preview_rejects_corrupted_or_empty_xlsx_files(): void
     {
         $user = $this->inventoryManager();
@@ -1106,7 +1180,7 @@ class DataImportTest extends TestCase
         $resEmpty->assertStatus(422)
             ->assertJsonPath('is_valid', false)
             ->assertJsonPath('errors.0.type', 'invalid_structure');
-        $this->assertStringContainsString('empty (0 bytes)', $resEmpty->json('errors.0.message'));
+        $this->assertStringContainsString('uploaded file is empty', $resEmpty->json('errors.0.message'));
 
         // 2. Non-zip / corrupted .xlsx file
         $corruptXlsx = UploadedFile::fake()->createWithContent('corrupt.xlsx', 'THIS_IS_NOT_A_VALID_ZIP_ARCHIVE');
@@ -1119,7 +1193,7 @@ class DataImportTest extends TestCase
         $resCorrupt->assertStatus(422)
             ->assertJsonPath('is_valid', false)
             ->assertJsonPath('errors.0.type', 'invalid_structure');
-        $this->assertStringContainsString('Unable to open the Excel (.xlsx) file', $resCorrupt->json('errors.0.message'));
+        $this->assertStringContainsString('Excel file could not be read', $resCorrupt->json('errors.0.message'));
 
         // 3. Valid zip archive with corrupted worksheet XML
         $tempZip = tempnam(sys_get_temp_dir(), 'xlsx_corrupt_test');
@@ -1141,6 +1215,26 @@ class DataImportTest extends TestCase
             ->assertJsonPath('is_valid', false)
             ->assertJsonPath('errors.0.type', 'invalid_structure');
         $this->assertStringContainsString('worksheet XML is corrupted or malformed', $resXmlCorrupt->json('errors.0.message'));
+    }
+
+    public function test_preview_rejects_macro_enabled_content_renamed_as_xlsx(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'macro_xlsx_').'.xlsx';
+        $zip = new ZipArchive;
+        $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $zip->addFromString('xl/worksheets/sheet1.xml', '<worksheet><sheetData/></worksheet>');
+        $zip->addFromString('xl/vbaProject.bin', 'macro payload');
+        $zip->close();
+
+        $response = $this->actingAs($this->inventoryManager())->postJson('/inventory/import/preview', [
+            'file' => new UploadedFile($path, 'renamed-macro.xlsx', null, null, true),
+            'target' => 'items',
+            'mode' => 'create_only',
+        ]);
+
+        $response->assertUnprocessable()->assertJsonPath('is_valid', false);
+        $this->assertStringContainsString('Macro-enabled Excel files are not supported', $response->json('errors.0.message'));
+        @unlink($path);
     }
 
     public function test_preview_rejects_legacy_binary_xls_with_clear_guidance(): void
@@ -1200,7 +1294,7 @@ class DataImportTest extends TestCase
         $res->assertStatus(422)
             ->assertJsonPath('is_valid', false)
             ->assertJsonPath('errors.0.type', 'invalid_structure');
-        $this->assertStringContainsString('binary file or corrupted CSV containing control characters', $res->json('errors.0.message'));
+        $this->assertStringContainsString('does not match the .csv extension', $res->json('errors.0.message'));
     }
 
     public function test_preview_rejects_malformed_json_syntax_and_primitives(): void

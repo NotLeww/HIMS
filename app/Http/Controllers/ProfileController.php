@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\AuthenticatorSecretService;
 use App\Services\AuthenticatorSetupService;
 use App\Services\DeviceSecurity\DeviceSecurityService;
+use App\Services\FileContentValidator;
 use App\Services\Privacy\ConsentService;
 use App\Services\Sms\SmsOtpDelivery;
 use App\Services\UserAccountService;
@@ -212,7 +213,7 @@ class ProfileController extends Controller
     /**
      * Update the user's profile picture.
      */
-    public function updateAvatar(Request $request): RedirectResponse
+    public function updateAvatar(Request $request, FileContentValidator $fileContentValidator): RedirectResponse
     {
         $validator = Validator::make($request->all(), [
             'avatar' => [
@@ -226,9 +227,17 @@ class ProfileController extends Controller
             'avatar.max' => 'The profile picture must not exceed 3 MB.',
         ]);
 
-        $validator->after(function ($validator) use ($request) {
+        $validator->after(function ($validator) use ($request, $fileContentValidator) {
             $file = $request->file('avatar');
             if (! $file || ! $file->isValid()) {
+                return;
+            }
+
+            try {
+                $fileContentValidator->validate($file, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']);
+            } catch (\InvalidArgumentException $exception) {
+                $validator->errors()->add('avatar', $exception->getMessage());
+
                 return;
             }
 

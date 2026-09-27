@@ -12,6 +12,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -247,6 +248,34 @@ class AiChatbotAttachmentTest extends TestCase
             ], ['Accept' => 'application/json'])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['attachment']);
+    }
+
+    public function test_extension_content_mismatch_is_rejected_without_persisting_chat_data_and_can_be_retried(): void
+    {
+        Storage::fake('local');
+        config()->set('services.gemini.key', '');
+        $manager = User::factory()->inventoryManager()->create();
+
+        $this->actingAs($manager)
+            ->post(route('dashboard.ai-assistant'), [
+                'message' => 'Analyze this CSV',
+                'attachment' => UploadedFile::fake()->createWithContent('spoofed.csv', "%PDF-1.4\nnot a csv\n%%EOF"),
+            ], ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonPath('status', 'error')
+            ->assertJsonPath('message', 'The file content does not match the .csv extension. Upload a valid CSV file.');
+
+        $this->assertDatabaseCount('ai_chat_conversations', 0);
+        $this->assertDatabaseCount('ai_chat_messages', 0);
+        $this->assertSame([], Storage::disk('local')->allFiles());
+
+        $this->actingAs($manager)
+            ->post(route('dashboard.ai-assistant'), [
+                'message' => 'Analyze the corrected CSV',
+                'attachment' => UploadedFile::fake()->createWithContent('corrected.csv', "Item,Stock\nGloves,5\n"),
+            ], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertJsonPath('status', 'success');
     }
 
     public function test_oversized_attachment_fails_validation(): void

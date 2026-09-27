@@ -20,13 +20,17 @@ use App\Services\Logistics\ChainOfCustodyService;
 use App\Services\Logistics\DocumentTrackingService;
 use App\Services\Logistics\InspectionAcceptanceService;
 use App\Services\Logistics\ShipmentTrackingService;
+use DomainException;
 use Exception;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class LogisticsController extends Controller implements HasMiddleware
 {
@@ -205,8 +209,16 @@ class LogisticsController extends Controller implements HasMiddleware
 
             return redirect()->route('inventory.logistics.documents')
                 ->with('success', "Document [{$doc->tracking_number}] uploaded successfully. SHA-256: ".substr($doc->sha256_checksum, 0, 12).'...');
-        } catch (Exception $e) {
+        } catch (ValidationException $e) {
+            $message = collect($e->errors())->flatten()->first() ?? 'The document could not be validated.';
+
+            return redirect()->back()->withInput()->with('error', 'Document upload failed: '.$message);
+        } catch (DomainException|InvalidArgumentException $e) {
             return redirect()->back()->withInput()->with('error', 'Document upload failed: '.$e->getMessage());
+        } catch (Throwable $e) {
+            report($e);
+
+            return redirect()->back()->withInput()->with('error', 'Document upload failed. Please verify the file and try again.');
         }
     }
 
@@ -258,8 +270,16 @@ class LogisticsController extends Controller implements HasMiddleware
 
             return redirect()->route('inventory.logistics.documents')
                 ->with('success', "Document [{$document->tracking_number}] superseded by new version [{$newDoc->tracking_number}].");
-        } catch (\Throwable $e) {
-            return redirect()->back()->with('error', 'Failed to supersede document: '.$e->getMessage());
+        } catch (ValidationException $e) {
+            $message = collect($e->errors())->flatten()->first() ?? 'The replacement document could not be validated.';
+
+            return redirect()->back()->withInput()->with('error', 'Failed to supersede document: '.$message);
+        } catch (DomainException|InvalidArgumentException $e) {
+            return redirect()->back()->withInput()->with('error', 'Failed to supersede document: '.$e->getMessage());
+        } catch (Throwable $e) {
+            report($e);
+
+            return redirect()->back()->withInput()->with('error', 'The document could not be superseded. Please verify the file and try again.');
         }
     }
 

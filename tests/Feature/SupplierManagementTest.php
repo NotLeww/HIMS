@@ -21,6 +21,7 @@ use App\Models\SupplierProduct;
 use App\Models\SupplierQuote;
 use App\Models\SupplierScorecard;
 use App\Models\User;
+use App\Support\DemoPdfBuilder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -31,6 +32,14 @@ use Tests\TestCase;
 class SupplierManagementTest extends TestCase
 {
     use RefreshDatabase;
+
+    private function validPdf(string $name): UploadedFile
+    {
+        return UploadedFile::fake()->createWithContent(
+            $name,
+            DemoPdfBuilder::create('Supplier evidence', [['heading' => 'LICENSE', 'lines' => ['Valid supplier evidence.']]])
+        );
+    }
 
     private function manager(): User
     {
@@ -301,7 +310,7 @@ class SupplierManagementTest extends TestCase
             'expires_at' => now()->addYear()->toDateString(),
             'required_for_accreditation' => '1',
             'blocks_procurement_when_invalid' => '1',
-            'file' => UploadedFile::fake()->create('lto.pdf', 100, 'application/pdf'),
+            'file' => $this->validPdf('lto.pdf'),
         ])->assertRedirect();
 
         $document = SupplierDocument::firstOrFail();
@@ -331,6 +340,21 @@ class SupplierManagementTest extends TestCase
         ])->assertSessionHasErrors(['expires_at', 'file']);
 
         $this->assertDatabaseCount('supplier_documents', 0);
+    }
+
+    public function test_document_upload_rejects_extension_content_mismatch_without_storage(): void
+    {
+        Storage::fake('local');
+        $supplier = $this->supplier();
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+
+        $this->actingAs($this->manager())->post("/inventory/suppliers/{$supplier->id}/documents", [
+            'document_type' => 'Invalid evidence',
+            'file' => UploadedFile::fake()->createWithContent('image-renamed.pdf', $png),
+        ])->assertSessionHasErrors('file');
+
+        $this->assertDatabaseCount('supplier_documents', 0);
+        $this->assertSame([], Storage::disk('local')->allFiles());
     }
 
     public function test_reviewer_can_verify_or_reject_documents_and_cross_supplier_ids_are_hidden(): void
@@ -440,7 +464,7 @@ class SupplierManagementTest extends TestCase
             'document_number' => 'LIC-RENEWED',
             'expires_at' => today()->addYear()->toDateString(),
             'replaces_document_id' => $expiredDocument->id,
-            'file' => UploadedFile::fake()->create('renewed-license.pdf', 100, 'application/pdf'),
+            'file' => $this->validPdf('renewed-license.pdf'),
         ])->assertRedirect();
 
         $replacement = $supplier->documents()->where('is_current', true)->firstOrFail();
@@ -849,12 +873,12 @@ class SupplierManagementTest extends TestCase
 
         $this->actingAs($manager)->post("/inventory/suppliers/{$supplier->id}/documents", [
             'document_type' => 'Business Permit', 'document_number' => 'BP-001',
-            'file' => UploadedFile::fake()->create('duplicate.pdf', 10, 'application/pdf'),
+            'file' => $this->validPdf('duplicate.pdf'),
         ])->assertSessionHasErrors('document_number');
 
         $this->actingAs($manager)->post("/inventory/suppliers/{$supplier->id}/documents", [
             'document_type' => 'Tax Registration', 'document_number' => 'TAX-001',
-            'file' => UploadedFile::fake()->create('../unsafe.pdf', 10, 'application/pdf'),
+            'file' => $this->validPdf('../unsafe.pdf'),
         ])->assertRedirect();
 
         $stored = $supplier->documents()->where('document_number', 'TAX-001')->firstOrFail();

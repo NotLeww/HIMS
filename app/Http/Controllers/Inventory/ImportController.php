@@ -11,6 +11,7 @@ use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
+use App\Services\FileContentValidator;
 use App\Services\HimsNotificationService;
 use App\Services\Import\DataImportExecutor;
 use App\Services\Import\DataImportReader;
@@ -22,7 +23,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -38,6 +38,7 @@ class ImportController extends Controller implements HasMiddleware
         private readonly ImportStagingService $staging,
         private readonly HimsNotificationService $notifications,
         private readonly SafeExecutionService $recovery,
+        private readonly FileContentValidator $fileContentValidator,
     ) {}
 
     /**
@@ -145,6 +146,7 @@ class ImportController extends Controller implements HasMiddleware
         }
 
         try {
+            $this->fileContentValidator->validate($file, ['csv', 'txt', 'json', 'xlsx', 'xls']);
             $tableData = $this->reader->read($file, $clientExt, $target);
         } catch (InvalidArgumentException $e) {
             return response()->json([

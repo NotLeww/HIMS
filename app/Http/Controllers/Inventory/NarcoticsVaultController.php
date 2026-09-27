@@ -11,6 +11,7 @@ use App\Models\PdeaDangerousDrugsRegister;
 use App\Models\StorageLocation;
 use App\Services\AuditLogger;
 use App\Services\Warehouse\NarcoticsVaultService;
+use App\Support\SpreadsheetValue;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -149,7 +150,7 @@ class NarcoticsVaultController extends Controller implements HasMiddleware
             ]);
 
             foreach ($records as $r) {
-                fputcsv($handle, [
+                fputcsv($handle, array_map([SpreadsheetValue::class, 'escapeFormula'], [
                     $r->register_number,
                     $r->recorded_at?->format('Y-m-d H:i:s'),
                     $r->item?->generic_name ?? $r->item?->name,
@@ -165,7 +166,7 @@ class NarcoticsVaultController extends Controller implements HasMiddleware
                     $r->custodian?->name,
                     $r->witnessPharmacist?->name,
                     $r->location?->code,
-                ]);
+                ]));
             }
 
             fclose($handle);

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\Permission;
+use App\Services\FileContentValidator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -49,6 +50,14 @@ class StoreSupplierRequest extends FormRequest
         $validator->after(function ($validator) {
             $file = $this->file('logo');
             if (! $file || ! $file->isValid()) {
+                return;
+            }
+
+            try {
+                app(FileContentValidator::class)->validate($file, ['jpg', 'jpeg', 'png']);
+            } catch (\InvalidArgumentException $exception) {
+                $validator->errors()->add('logo', $exception->getMessage());
+
                 return;
             }
 
