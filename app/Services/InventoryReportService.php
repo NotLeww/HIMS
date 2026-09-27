@@ -181,6 +181,8 @@ class InventoryReportService
                 ->select([
                     'inventory_items.id',
                     'inventory_items.sku',
+                    'inventory_items.barcode_value',
+                    'inventory_items.gtin',
                     'inventory_items.name',
                     'inventory_items.unit',
                     'inventory_items.reorder_level',
@@ -192,12 +194,15 @@ class InventoryReportService
                 ->groupBy(
                     'inventory_items.id',
                     'inventory_items.sku',
+                    'inventory_items.barcode_value',
+                    'inventory_items.gtin',
                     'inventory_items.name',
                     'inventory_items.unit',
                     'inventory_items.reorder_level',
                     'inventory_items.unit_cost',
                     'item_categories.name'
                 )
+                ->orderBy('inventory_items.id')
                 ->toBase()
                 ->get();
         }
@@ -206,6 +211,8 @@ class InventoryReportService
             ->select([
                 'inventory_items.id',
                 'inventory_items.sku',
+                'inventory_items.barcode_value',
+                'inventory_items.gtin',
                 'inventory_items.name',
                 'inventory_items.unit',
                 'inventory_items.reorder_level',
@@ -214,6 +221,7 @@ class InventoryReportService
                 'inventory_items.reserved_quantity',
             ])
             ->selectRaw("coalesce(item_categories.name, 'Uncategorised') as category")
+            ->orderBy('inventory_items.id')
             ->toBase()
             ->get();
     }
@@ -393,6 +401,7 @@ class InventoryReportService
             ->selectRaw('coalesce(sum(item_stock_levels.quantity * coalesce(inventory_items.unit_cost, 0)), 0) as value')
             ->groupBy('storage_locations.id', 'storage_locations.name', 'storage_locations.code', 'storage_locations.capacity')
             ->orderByDesc('units')
+            ->orderBy('storage_locations.id')
             ->toBase()
             ->get()
             ->map(fn (object $row) => [
@@ -790,7 +799,7 @@ class InventoryReportService
             'stock_by_location' => $this->generateStockByLocationReport($meta, $categoryId, $locationId, $status, $sortBy, $sortDir, $canViewFinancial),
             'expiry_exposure' => $this->generateExpiryExposureReport($meta, $locationId, $categoryId, $sortBy, $sortDir, $canViewFinancial),
             'movement_history' => $this->generateMovementHistoryReport($meta, $from, $to, $movementType, $locationId, $categoryId, $sortBy, $sortDir, $canViewFinancial),
-            'procurement_expense' => $this->generateProcurementExpenseReport($meta, $from, $to, $supplierId, $status, $sortBy, $sortDir, $canViewFinancial),
+            'procurement_expense' => $this->generateProcurementExpenseReport($meta, $from, $to, $supplierId, $sortBy, $sortDir, $canViewFinancial),
             'spend_by_supplier' => $this->generateSpendBySupplierReport($meta, $from, $to, $supplierId, $sortBy, $sortDir, $canViewFinancial),
             'most_consumed' => $this->generateMostConsumedReport($meta, $from, $to, $categoryId, $locationId, $sortBy, $sortDir, $canViewFinancial),
             'movements_by_type' => $this->generateMovementsByTypeReport($meta, $from, $to, $movementType, $locationId, $categoryId, $sortBy, $sortDir, $canViewFinancial),
@@ -815,6 +824,8 @@ class InventoryReportService
             return [
                 'id' => $item->id,
                 'sku' => $item->sku,
+                'barcode_value' => $item->barcode_value,
+                'gtin' => $item->gtin,
                 'name' => $item->name,
                 'category' => $item->category,
                 'quantity_on_hand' => $units,
@@ -848,7 +859,10 @@ class InventoryReportService
         $columns = [
             'sku' => 'SKU',
             'name' => 'Item Description',
+            'barcode_value' => 'Barcode',
+            'gtin' => 'GTIN',
             'category' => 'Category',
+            'unit' => 'Unit of Measure',
             'quantity_on_hand' => 'Units On Hand',
             'reserved_quantity' => 'Reserved Units',
             'reorder_level' => 'Reorder Level',
@@ -875,8 +889,11 @@ class InventoryReportService
 
         $totals = [
             'sku' => 'TOTALS',
+            'barcode_value' => '',
+            'gtin' => '',
             'name' => $classified->count().' items',
             'category' => '-',
+            'unit' => '-',
             'quantity_on_hand' => $totalUnits,
             'reserved_quantity' => (int) $classified->sum('reserved_quantity'),
             'reorder_level' => '-',
@@ -1168,7 +1185,7 @@ class InventoryReportService
             ->when($categoryId, fn ($q) => $q->whereHas('item', fn ($iq) => $iq->where('category_id', $categoryId)))
             ->when($locationId, fn ($q) => $q->where(fn ($lq) => $lq->where('from_location_id', $locationId)->orWhere('to_location_id', $locationId)));
 
-        $movements = $query->get();
+        $movements = $query->orderBy('id')->get();
 
         $rows = $movements->map(function (StockMovement $m) {
             $qty = (int) $m->quantity;
@@ -1263,7 +1280,7 @@ class InventoryReportService
     /**
      * Procurement Expense Report generation.
      */
-    protected function generateProcurementExpenseReport(array $meta, Carbon $from, Carbon $to, ?int $supplierId, ?string $statusFilter, ?string $sortBy, string $sortDir, bool $canViewFinancial): array
+    protected function generateProcurementExpenseReport(array $meta, Carbon $from, Carbon $to, ?int $supplierId, ?string $sortBy, string $sortDir, bool $canViewFinancial): array
     {
         if (! $canViewFinancial) {
             abort(403, 'You do not have permission to view procurement financial reports.');
@@ -1273,10 +1290,9 @@ class InventoryReportService
             ->with(['supplier', 'item', 'lines'])
             ->where('requested_at', '>=', $from)
             ->where('requested_at', '<=', $to)
-            ->when($supplierId, fn ($q) => $q->where('supplier_id', $supplierId))
-            ->when($statusFilter && $statusFilter !== 'all', fn ($q) => $q->where('status', $statusFilter));
+            ->when($supplierId, fn ($q) => $q->where('supplier_id', $supplierId));
 
-        $orders = $query->get();
+        $orders = $query->orderBy('id')->get();
 
         $rows = $orders->map(function (PurchaseOrder $po) {
             $qty = (int) $po->quantity;
@@ -1387,6 +1403,7 @@ class InventoryReportService
             ->selectRaw("coalesce(sum(case when purchase_orders.status in ('received', 'fulfilled') then 1 else 0 end), 0) as received_orders")
             ->selectRaw('coalesce(sum(purchase_orders.total_amount), 0) as value')
             ->groupBy('suppliers.id', 'suppliers.name')
+            ->orderBy('suppliers.id')
             ->toBase();
 
         $rows = $query->get()->map(function ($r) {
@@ -1475,6 +1492,7 @@ class InventoryReportService
             ->selectRaw('coalesce(sum(stock_movements.quantity), 0) as units')
             ->selectRaw('coalesce(sum(stock_movements.quantity * coalesce(stock_movements.unit_cost, inventory_items.unit_cost, 0)), 0) as value')
             ->groupBy('inventory_items.id', 'inventory_items.name', 'inventory_items.sku', 'inventory_items.unit', 'inventory_items.quantity_on_hand')
+            ->orderBy('inventory_items.id')
             ->toBase();
 
         $rawRows = $query->get();
@@ -1686,7 +1704,7 @@ class InventoryReportService
                 'title' => 'Recent Stock Movement Ledger',
                 'summary' => $movements['summary'],
                 'columns' => $movements['columns'],
-                'rows' => array_slice($movements['data'], 0, 50),
+                'rows' => $movements['data'],
                 'totals' => $movements['totals'],
             ],
             'consumed' => [
@@ -1706,7 +1724,7 @@ class InventoryReportService
         ];
 
         if ($canViewFinancial) {
-            $procurement = $this->generateProcurementExpenseReport($meta, $from, $to, $supplierId, $status, $sortBy, $sortDir, $canViewFinancial);
+            $procurement = $this->generateProcurementExpenseReport($meta, $from, $to, $supplierId, $sortBy, $sortDir, $canViewFinancial);
             $spend = $this->generateSpendBySupplierReport($meta, $from, $to, $supplierId, $sortBy, $sortDir, $canViewFinancial);
 
             $sections['procurement'] = [
@@ -1782,21 +1800,21 @@ class InventoryReportService
                         'lines' => collect($section['summary'])->map(fn ($value, $label) => $label.': '.$value)->values()->all(),
                     ];
                 }
-                $sections[] = $this->pdfTableSection(
+                array_push($sections, ...$this->pdfTableSections(
                     (string) $section['title'],
                     $section['columns'] ?? [],
                     $section['rows'] ?? [],
                     $section['totals'] ?? []
-                );
+                ));
             }
         } else {
-            $sections[] = $this->pdfTableSection(
+            array_push($sections, ...$this->pdfTableSections(
                 (string) ($meta['report_title'] ?? 'Inventory Report'),
                 $report['columns'] ?? [],
                 $report['data'] ?? [],
                 $report['totals'] ?? [],
                 $report['empty_message'] ?? null
-            );
+            ));
         }
 
         $filename = 'hims-'.($meta['report_type'] ?? 'report').'-'.now()->format('Ymd_His').'.pdf';
@@ -1814,6 +1832,43 @@ class InventoryReportService
     }
 
     /**
+     * Keep PDF tables legible without dropping fields from wide exports.
+     *
+     * @param  array<string, string>  $columns
+     * @param  iterable<int, array<string, mixed>>  $rows
+     * @param  array<string, mixed>  $totals
+     * @return array<int, array<string, mixed>>
+     */
+    private function pdfTableSections(string $title, array $columns, iterable $rows, array $totals = [], ?string $emptyMessage = null): array
+    {
+        $rows = collect($rows)->values();
+        foreach (['barcode_value', 'gtin', 'unit'] as $optionalKey) {
+            if (isset($columns[$optionalKey]) && $rows->every(
+                fn (array $row) => blank($row[$optionalKey] ?? null) || ($row[$optionalKey] ?? null) === 'Not recorded'
+            )) {
+                unset($columns[$optionalKey]);
+            }
+        }
+
+        if (count($columns) <= 9 || $rows->isEmpty()) {
+            return [$this->pdfTableSection($title, $columns, $rows, $totals, $emptyMessage)];
+        }
+
+        $identity = array_slice($columns, 0, 2, true);
+        $groups = array_chunk(array_slice($columns, 2, null, true), 5, true);
+
+        return collect($groups)->map(
+            fn (array $group, int $index) => $this->pdfTableSection(
+                $title.' ('.($index + 1).'/'.count($groups).')',
+                $identity + $group,
+                $rows,
+                $totals,
+                $emptyMessage
+            )
+        )->all();
+    }
+
+    /**
      * @param  array<string, string>  $columns
      * @param  iterable<int, array<string, mixed>>  $rows
      * @param  array<string, mixed>  $totals
@@ -1821,8 +1876,9 @@ class InventoryReportService
      */
     private function pdfTableSection(string $title, array $columns, iterable $rows, array $totals = [], ?string $emptyMessage = null): array
     {
+        $rows = collect($rows)->values();
         $keys = array_keys($columns);
-        $tableRows = collect($rows)
+        $tableRows = $rows
             ->map(fn ($row) => array_map(fn ($key) => (string) ($row[$key] ?? ''), $keys))
             ->values()
             ->all();
@@ -1926,6 +1982,23 @@ class InventoryReportService
     public function exportJson(array $report): JsonResponse
     {
         $filename = 'hims-'.($report['meta']['report_type'] ?? 'report').'-'.now()->format('Ymd_His').'.json';
+
+        if (($report['meta']['report_type'] ?? '') === 'all') {
+            foreach ($report['sections'] ?? [] as &$section) {
+                $publicKeys = array_flip(array_keys($section['columns'] ?? []));
+                $section['rows'] = array_map(
+                    fn (array $row) => array_intersect_key($row, $publicKeys),
+                    $section['rows'] ?? []
+                );
+            }
+            unset($section);
+        } else {
+            $publicKeys = array_flip(array_keys($report['columns'] ?? []));
+            $report['data'] = array_map(
+                fn (array $row) => array_intersect_key($row, $publicKeys),
+                $report['data'] ?? []
+            );
+        }
 
         return response()->json($report, 200, [
             'Content-Disposition' => 'attachment; filename="'.$filename.'"',

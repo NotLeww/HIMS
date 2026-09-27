@@ -153,7 +153,7 @@ class NarcoticsVaultService
      *
      * @return Collection<int, PdeaDangerousDrugsRegister>
      */
-    public function getSemiAnnualReportData(?Carbon $startDate = null, ?Carbon $endDate = null): Collection
+    public function getSemiAnnualReportData(?Carbon $startDate = null, ?Carbon $endDate = null, ?int $itemId = null, ?string $spf = null): Collection
     {
         $startDate ??= now()->subMonths(6)->startOfDay();
         $endDate ??= now()->endOfDay();
@@ -161,7 +161,10 @@ class NarcoticsVaultService
         return PdeaDangerousDrugsRegister::query()
             ->with(['item', 'batch', 'location', 'custodian', 'witnessPharmacist'])
             ->whereBetween('recorded_at', [$startDate, $endDate])
+            ->when($itemId, fn ($query) => $query->where('item_id', $itemId))
+            ->when($spf, fn ($query) => $query->where('pdea_spf_number', 'like', '%'.$spf.'%'))
             ->orderBy('recorded_at')
+            ->orderBy('id')
             ->get();
     }
 }

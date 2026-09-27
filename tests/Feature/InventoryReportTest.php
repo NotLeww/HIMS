@@ -777,6 +777,86 @@ class InventoryReportTest extends TestCase
         $this->assertStringNotContainsString("'-1.25", $content);
     }
 
+    public function test_stock_exports_preserve_database_identifiers_units_and_public_fields(): void
+    {
+        $location = $this->location();
+        $item = $this->stockedItem('Infusion Set', '000012345678', 25, 19.95, location: $location);
+        $item->update([
+            'barcode_value' => '000000987654321',
+            'gtin' => '00012345678905',
+            'unit' => 'set',
+        ]);
+
+        $json = $this->actingAs($this->reader())
+            ->getJson('/inventory/reports/generate?report_type=stock_status&format=json&period=30')
+            ->assertOk()
+            ->assertJsonPath('columns.barcode_value', 'Barcode')
+            ->assertJsonPath('columns.gtin', 'GTIN')
+            ->assertJsonPath('columns.unit', 'Unit of Measure')
+            ->assertJsonPath('data.0.sku', '000012345678')
+            ->assertJsonPath('data.0.barcode_value', '000000987654321')
+            ->assertJsonPath('data.0.gtin', '00012345678905')
+            ->assertJsonPath('data.0.unit', 'set');
+
+        $this->assertArrayNotHasKey('id', $json->json('data.0'));
+        $this->assertArrayNotHasKey('status_key', $json->json('data.0'));
+
+        $csv = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=csv&period=30')
+            ->assertOk()
+            ->streamedContent();
+
+        $handle = fopen('php://memory', 'r+');
+        fwrite($handle, substr($csv, 3));
+        rewind($handle);
+        $exported = null;
+        while (($row = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
+            if (($row[0] ?? null) === '000012345678') {
+                $exported = $row;
+                break;
+            }
+        }
+        fclose($handle);
+
+        $this->assertNotNull($exported);
+        $this->assertSame('000000987654321', $exported[2]);
+        $this->assertSame('00012345678905', $exported[3]);
+        $this->assertSame('set', $exported[5]);
+
+        $excel = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=excel&period=30')
+            ->assertOk();
+
+        $excel->assertSee('mso-number-format:', false)
+            ->assertSee('x:str', false)
+            ->assertSee('000012345678')
+            ->assertSee('000000987654321')
+            ->assertSee('00012345678905');
+    }
+
+    public function test_comprehensive_export_includes_every_matching_movement(): void
+    {
+        $location = $this->location();
+        $item = $this->stockedItem('Complete Ledger Item', 'LEDGER-ALL', 100, 2.50, location: $location);
+
+        foreach (range(1, 55) as $offset) {
+            StockMovement::create([
+                'item_id' => $item->id,
+                'from_location_id' => $location->id,
+                'movement_type' => MovementType::Issuance,
+                'quantity' => 1,
+                'unit_cost' => 2.50,
+                'moved_at' => now()->subMinutes($offset),
+            ]);
+        }
+
+        $this->actingAs($this->reader())
+            ->getJson('/inventory/reports/generate?report_type=all&format=json&period=30')
+            ->assertOk()
+            ->assertJsonPath('sections.movements.summary.Total Movements', 55)
+            ->assertJsonCount(55, 'sections.movements.rows');
+    }
+
     public function test_generate_report_exports_excel_format(): void
     {
         $location = $this->location();
@@ -993,6 +1073,28 @@ class InventoryReportTest extends TestCase
         $responseStatus->assertStatus(200)
             ->assertJsonFragment(['sku' => 'MED-ANL-01'])
             ->assertJsonMissing(['sku' => 'MED-ABX-01']);
+    }
+
+    public function test_stock_status_filter_does_not_remove_procurement_rows_from_comprehensive_export(): void
+    {
+        $supplier = Supplier::create(['name' => 'Accuracy Supplier', 'status' => 'active']);
+        $item = $this->stockedItem('Accuracy Item', 'ACCURACY-01', 10, 5.00);
+
+        PurchaseOrder::create([
+            'po_number' => 'PO-ACCURACY-001',
+            'supplier_id' => $supplier->id,
+            'item_id' => $item->id,
+            'quantity' => 2,
+            'unit_cost' => 5.00,
+            'total_amount' => 10.00,
+            'status' => PurchaseOrderStatus::Approved->value,
+            'requested_at' => now(),
+        ]);
+
+        $this->actingAs($this->reader())
+            ->getJson('/inventory/reports/generate?report_type=all&format=json&period=30&status=in_stock')
+            ->assertOk()
+            ->assertJsonPath('sections.procurement.rows.0.po_number', 'PO-ACCURACY-001');
     }
 
     public function test_generate_expiry_exposure_with_batch_stock_levels_and_storage_locations(): void

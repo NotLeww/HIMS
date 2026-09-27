@@ -2,10 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AuditAction;
 use App\Enums\MovementType;
+use App\Models\AuditLog;
 use App\Models\CostCenter;
 use App\Models\InventoryItem;
 use App\Models\ItemStockLevel;
+use App\Models\PdeaDangerousDrugsRegister;
 use App\Models\StockMovement;
 use App\Models\StorageLocation;
 use App\Models\SurgicalConsignmentBillOnly;
@@ -275,6 +278,72 @@ class SmartWarehousingAdvancedWorkflowTest extends TestCase
         // 6. DDRB register is append-only
         $this->expectException(LogicException::class);
         $entry->update(['quantity' => 999]);
+    }
+
+    public function test_narcotics_csv_export_matches_filters_preserves_identifiers_and_enforces_access(): void
+    {
+        $vault = StorageLocation::create([
+            'name' => 'Controlled Vault',
+            'code' => 'VAULT-EXPORT',
+            'is_narcotics_vault' => true,
+            'status' => 'active',
+        ]);
+        $morphine = InventoryItem::create([
+            'name' => 'Morphine Ampul',
+            'sku' => '0000012345',
+            'regulatory_category' => 'DANGEROUS_DRUG',
+            'status' => 'active',
+        ]);
+        $fentanyl = InventoryItem::create([
+            'name' => 'Fentanyl Ampul',
+            'sku' => '0000098765',
+            'regulatory_category' => 'DANGEROUS_DRUG',
+            'status' => 'active',
+        ]);
+        $custodian = User::factory()->pharmacyStaff()->create();
+        $witness = User::factory()->inventoryManager()->create();
+
+        foreach ([
+            [$morphine, 'DDRB-000001', '000123'],
+            [$fentanyl, 'DDRB-000002', '000999'],
+        ] as [$item, $register, $spf]) {
+            PdeaDangerousDrugsRegister::create([
+                'register_number' => $register,
+                'item_id' => $item->id,
+                'storage_location_id' => $vault->id,
+                'pdea_spf_number' => $spf,
+                'quantity' => 1,
+                'running_balance' => 9,
+                'custodian_id' => $custodian->id,
+                'witness_pharmacist_id' => $witness->id,
+                'witness_authenticated_at' => now(),
+                'recorded_at' => now(),
+            ]);
+        }
+
+        $response = $this->actingAs($custodian)
+            ->get(route('inventory.warehousing.narcotics.export', [
+                'item_id' => $morphine->id,
+                'spf' => '000123',
+            ]))
+            ->assertOk();
+
+        $this->assertSame('text/csv; charset=UTF-8', $response->headers->get('Content-Type'));
+        $content = $response->streamedContent();
+        $this->assertSame("\xEF\xBB\xBF", substr($content, 0, 3));
+        $this->assertStringContainsString('DDRB-000001', $content);
+        $this->assertStringContainsString('000123', $content);
+        $this->assertStringNotContainsString('DDRB-000002', $content);
+
+        $audit = AuditLog::query()->where('action', AuditAction::ExportedNarcoticsReport)->sole();
+        $this->assertSame($custodian->id, $audit->user_id);
+        $this->assertSame(1, $audit->new_values['record_count']);
+        $this->assertSame($morphine->id, $audit->new_values['item_id']);
+        $this->assertTrue($audit->new_values['spf_filter_applied']);
+
+        $this->actingAs(User::factory()->viewer()->create())
+            ->get(route('inventory.warehousing.narcotics.export'))
+            ->assertForbidden();
     }
 
     public function test_surgical_consignment_implant_consumption_and_bill_only_pr_creation(): void

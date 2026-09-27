@@ -1,44 +1,155 @@
-# Report Export Evidence
+# Export Accuracy Evidence
 
-**Checklist item:** Report Export  
-**Verified:** 2026-09-27
+**Checklist item:** Export Accuracy
 
-## Result
+**Verified:** 2026-09-28
 
-CSV and the project's Excel-compatible `.xls` export were already implemented. The PDF option returned a printable HTML page rather than a PDF file, so it was corrected to generate a downloadable, paginated PDF through the existing HIMS PDF builder.
+**Evidence entry:** Verified CSV/Excel/JSON export samples with database comparison showing complete records, accurate values, preserved identifiers, correct formatting, and matching filtered result counts.
 
-## Sample reports
+## Scope reviewed
 
-All three samples were generated through `/inventory/reports/generate` from the same isolated, non-sensitive test dataset and filters:
+The implemented business-data exports are:
 
-- Report: Stock Status
-- Period: September 1-27, 2026
-- Category: Sample PPE
-- Location: Evidence Store
-- Records: Sample N95 Respirator and Sample Sterile Gloves
-- Expected totals: 2 items, 155 units, PHP 5,925.00 valuation, 1 in stock, and 1 low stock
+- Reports & Analytics: stock status, valuation, stock by location, expiry exposure, movement history, procurement expense, supplier spend, consumed items, movement totals, and the comprehensive report.
+- Dangerous Drugs Vault: filtered PDEA/DDRB CSV.
+- Privacy governance: authorized personal-data JSON and fulfilled DSAR ZIP packages.
 
-Files:
+Related download/print paths were also reviewed: supplier documents, logistics documents, Inspection and Acceptance Reports, warehouse/location labels, and import templates. These preserve the stored document or render the authoritative model and are not parallel tabular export systems.
 
-- `sample-stock-status.pdf`
-- `sample-stock-status.xls`
-- `sample-stock-status.csv`
+There is no dedicated export endpoint for the Audit Trail, user directory, dashboard widgets, inbound shipment list, warehouse task list, or scan history. No unrequested format or endpoint was added for those screens.
 
-## Validation
+## Supported formats
 
-| Format | Validation result |
+| Surface | Formats |
 | --- | --- |
-| PDF | Valid `%PDF-1.4` document; one renderable A4 page; extracted values match the two filtered records and expected totals; visual inspection found no clipped or overlapping content. |
-| Excel | Opened successfully in Microsoft Excel as one worksheet with 24 used rows and 9 used columns; report records and PHP 5,925.00 total match the PDF and CSV. |
-| CSV | Valid UTF-8 BOM; parsed successfully with 24 rows and both expected data records; values match the PDF and Excel export. CSV escaping for commas, quotes, and embedded line breaks is covered by the feature test. |
+| Reports & Analytics | CSV, Excel-compatible `.xls`, JSON, PDF, print HTML |
+| PDEA/DDRB register | CSV |
+| Privacy governance | JSON, ZIP package containing JSON/CSV/PDF/TXT evidence |
+| Protected supplier/logistics documents | Original stored file |
+| IAR and warehouse labels | Print HTML |
 
-The export route remains protected by authentication and `view_reports`. Procurement and supplier-spend exports continue to require the financial-data permission. Empty filtered reports return valid output without fabricated rows.
+The project does not currently advertise native `.xlsx`; the existing Excel format remains the supported HTML-based `.xls` output.
 
-## Automated verification
+## Export surface matrix
 
-```text
-php artisan test tests/Unit/DemoPdfBuilderTest.php tests/Feature/InventoryReportTest.php --stop-on-failure
-47 passed (380 assertions)
-```
+All Reports & Analytics rows are produced by `InventoryReportService`; the controller validates the request and the service owns the database query, calculations, declared public columns, sorting, and export payload. CSV, `.xls`, JSON, PDF, and print HTML consume that same report payload.
 
-The samples contain synthetic checklist data only. No production records or credentials are included.
+| Report | Source | Exported fields | Applied filters | Export scope |
+| --- | --- | --- | --- | --- |
+| Stock Status | Inventory items, categories, and item stock levels | SKU, description, barcode, GTIN, category, unit, on-hand, reserved, reorder level, permitted cost/value, stock status | Category, location, stock status, sort | Complete filtered snapshot |
+| Inventory Valuation | Aggregated inventory snapshot by category | Category, catalogue item count, units, permitted value/share | Category, location, stock status, sort | Complete filtered aggregation |
+| Stock by Location | Storage locations joined to stock levels/items | Location, code, capacity, unique items, units, permitted value, utilisation | Category, location, stock status, sort | Complete filtered aggregation |
+| Expiry Exposure | Active item batches with scoped stock levels and item/category relationships | Batch, item, category, location, expiry date, timeline, units, permitted cost/risk value, status | Category, location, sort; reporting period is metadata only because this is a current exposure snapshot | Every current expired/expiring batch with stock |
+| Movement History | Stock movements with item, category, locations, actor, and reference | Reference, timestamp, type, item, SKU, quantity, permitted cost/value, origin, destination/reference, actor | Date range, category, location, movement type, sort | All filtered movements; no UI-page limit |
+| Procurement Expense | Purchase orders with supplier, item, and lines | PO number, order date, supplier, item, quantity, cost, amount, accepted/outstanding value, status, accepted date | Date range, supplier, sort | All filtered orders; requires financial permission |
+| PO Commitments by Supplier | Purchase orders aggregated by supplier | Supplier, orders, fulfilled orders, fulfilment rate, commitment value | Date range, supplier, sort | Complete filtered aggregation; requires financial permission |
+| Most Consumed Items | Consumption stock movements grouped by item | Item, SKU, unit, on-hand, event count, consumed units, permitted value | Date range, category, location, sort | Complete filtered aggregation |
+| Activity by Movement Type | Stock movements grouped by movement type | Type, movement count, units, permitted value | Date range, category, location, movement type, sort | All movement types in scope, including zero rows |
+| Comprehensive | The report sources above | Each permitted section's declared fields | Date range, category, location, supplier, movement type, stock status, sort | Full filtered section datasets; financial sections omitted without permission |
+| PDEA/DDRB CSV | `PdeaDangerousDrugsRegister` with item, batch, vault, custodian, and witness | Register number, PHT timestamp, clinical/brand/strength details, direction, quantity, balance, SPF, S-2, prescriber, encounter, custodians, vault code | Date range (default six months, maximum one year), item, SPF | All matching rows, independent of the 20-row screen paginator |
+| Personal-data JSON / DSAR ZIP | `PrivacyRequestService` and `DsarPackageService` | Authorized sanitized account, preference, activity, request, and package evidence fields | Requested data subject/case; owner and expiry checks for package download | One authorized subject/case; credentials excluded |
+
+Stored supplier/logistics downloads return the authorized original file. IAR and label print routes render their authoritative model rather than querying a paginated screen.
+
+## Database comparison
+
+All samples were generated by the real HTTP endpoints after records were inserted into Laravel's isolated test database. No production exporter contains sample rows.
+
+| Check | Database | Export | Result |
+| --- | ---: | ---: | --- |
+| Matching filtered inventory records | 1 | JSON 1 / CSV 1 | Match |
+| Deliberately excluded category record | 1 | 0 | Filter respected |
+| Comprehensive movement records | 55 | 55 | No 50-row truncation |
+| Quantity on hand | 125 | 125 | Match |
+| Reserved quantity | 5 | 5 | Match |
+| Unit cost | PHP 19.95 | 19.95 | Match |
+| Calculated inventory value | PHP 2,493.75 | 2,493.75 | Match |
+| SKU | `000012345678` | `000012345678` | Exact |
+| Barcode | `000000987654321` | `000000987654321` | Exact |
+| GTIN | `00012345678905` | `00012345678905` | Exact |
+| PDEA register number | `DDRB-20260928-000001` | `DDRB-20260928-000001` | Exact |
+| PDEA SPF number | `000123` | `000123` | Exact |
+| PDEA quantity / balance | 1 / 9 | 1 / 9 | Match |
+
+The complete machine-readable comparison is in `database-comparison.json`.
+
+## Formatting and completeness
+
+- CSV uses `fputcsv`, UTF-8 BOM, quoted commas/quotes/line breaks, formula neutralization for text, and unchanged legitimate negative numbers.
+- Excel opens as one worksheet in Microsoft Excel. SKU, barcode, and GTIN import as strings with leading zeros intact; quantities remain numeric; unit cost and total value remain numeric with PHP currency formatting.
+- JSON is valid, keeps identifiers as strings and numeric measures as numbers, preserves nulls, and limits each data row to its declared public columns rather than internal sort/database helpers.
+- PDF is a valid `%PDF-1.4` document. Wide tables split into consecutive sections with repeated row identity columns so all fields remain readable. The rendered evidence page showed no clipping or overlap.
+- Dates use the application's `Asia/Manila` timezone. Date-only batch/expiry values remain date-only, and PDEA timestamps are labeled PHT.
+- Empty optional values remain blank or use the existing report convention (`Not recorded`, `N/A`, or `-`) rather than fabricated business values.
+
+## Filters, pagination, and sorting
+
+- Report exports apply the submitted period/date range, category, storage location, supplier, movement type, stock status, and sort options.
+- Each filter is applied only to compatible datasets. In particular, the inventory stock-status filter no longer gets mistaken for a purchase-order status in the comprehensive report.
+- Exports query the complete filtered dataset; UI pagination/display limits do not limit report files.
+- The comprehensive report now includes every matching movement instead of silently taking the first 50.
+- Stable database tie-breakers are applied to item, location, movement, purchase-order, supplier, consumption, and PDEA queries.
+- The PDEA export now accepts the same item/SPF query scope and the screen's export link preserves those active query parameters.
+
+| Verification | Expected | Actual | Result |
+| --- | ---: | ---: | --- |
+| Stock Status category/location/status match | 1 row | JSON 1 / CSV 1 | Pass |
+| Excluded category control | 0 rows | 0 rows | Pass |
+| Comprehensive movement scope | 55 rows | 55 rows | Pass |
+| PDEA item + SPF match | 1 row | 1 row | Pass |
+| PDEA non-matching control | 0 rows | 0 rows | Pass |
+| Comprehensive procurement with `status=in_stock` | 1 PO | 1 PO | Pass |
+
+## Authorization and privacy
+
+| Actor / boundary | Action | Actual result |
+| --- | --- | --- |
+| Authenticated role with `view_reports` | Generate permitted report | Allowed; content and audit assertions passed |
+| Guest | Call report export directly | Redirected/denied; no export audit created |
+| Viewer without financial permission | Export procurement/supplier financial data | `403 Forbidden` |
+| Narcotics-vault user | Export filtered PDEA CSV | Allowed; one matching row and actor/count audit recorded |
+| Viewer without `access_narcotics_vault` | Call PDEA route directly | `403 Forbidden` |
+| Privacy compliance user | Export approved personal-data JSON | Allowed; valid sanitized JSON |
+| Different account | Download another user's DSAR package | `403 Forbidden` |
+| Package owner after expiry | Download expired DSAR package | Denied |
+| Authorized logistics/supplier user | Download protected stored document | Original file returned and audit recorded |
+| User without sensitive-document permission | Call protected document route | `403 Forbidden` |
+
+Personal-data JSON excludes password, authenticator/MFA secret, session/reset/trusted-device/API tokens, and credential fields. Report and PDEA export audits record the actor, safe scope metadata, format/count, and timestamp without storing exported rows or the full SPF filter value.
+
+## Issues fixed
+
+1. Removed the comprehensive report's hidden 50-movement truncation.
+2. Added supported SKU-adjacent fields: barcode, GTIN, and unit of measure.
+3. Forced Excel identifier cells to explicit text so leading zeros and long identifiers survive opening in Excel.
+4. Restricted JSON rows to declared export fields, excluding internal sort/helper keys.
+5. Preserved active item/SPF filters in PDEA CSV and added deterministic ordering, UTF-8 BOM, and charset metadata.
+6. Split wide PDF tables into readable sections without omitting columns.
+7. Stopped the inventory stock-status filter from being applied as an invalid purchase-order status in comprehensive exports.
+
+## Export samples
+
+- `sample-stock-status.csv`
+- `sample-stock-status.xls`
+- `sample-stock-status.json`
+- `sample-stock-status.pdf`
+- `sample-pdea-filtered.csv`
+- `database-comparison.json`
+
+These contain controlled, non-sensitive test records generated from the isolated HIMS test database. They contain no production records, passwords, tokens, or credentials.
+
+## Verification performed
+
+- `php artisan test tests/Unit/DemoPdfBuilderTest.php tests/Feature/InventoryReportTest.php tests/Feature/SmartWarehousingAdvancedWorkflowTest.php tests/Feature/Privacy/ReportExportAuditTest.php --stop-on-failure` - 62 tests, 480 assertions passed, including the final stock/procurement filter regression.
+- Privacy/DSAR and storage-label suites - 21 tests, 94 assertions passed.
+- Import-template download check - 1 test, 11 assertions passed.
+- Protected logistics download/IAR checks - 4 tests, 32 assertions passed.
+- Protected supplier-document download check - 1 test, 8 assertions passed.
+- Route inspection confirmed server-side authentication and permission middleware on report, PDEA, privacy, logistics, IAR, and label routes.
+- Saved artifact inspection confirmed UTF-8 BOM on both CSV samples; exact leading-zero SKU/barcode/GTIN/SPF values; numeric JSON quantities/cost/value; three Excel identifier cells marked as text; valid `%PDF-1.4`; and a one-page final PDF render with no clipping or overlap.
+- The broad `php artisan test` run executed the export suites successfully but was not green overall. Failures outside the export-focused change remain in password-history registration consent, the populated dashboard test, and Super Admin confirmation/provisioning tests; isolated reruns reproduced consent-related `428` responses. The runner also required interruption after it stopped producing output, so no aggregate full-suite count is claimed.
+
+## Remaining limitations
+
+- Excel output is the existing Excel-compatible `.xls` format, not native `.xlsx`.
+- Very large exports remain synchronous. Current queries avoid pagination truncation and N+1 relationship loading, but background jobs should only be introduced if measured production sizes exceed normal HTTP/runtime limits.

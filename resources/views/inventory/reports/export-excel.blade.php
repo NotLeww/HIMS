@@ -17,6 +17,7 @@
         .totals-row td { background-color: #e2e8f0; font-weight: bold; border-top: 2px solid #0f172a; }
         .text-right { text-align: right; }
         .text-center { text-align: center; }
+        .identifier { mso-number-format: "\@"; }
         .section-title { font-size: 12pt; font-weight: bold; color: #0369a1; padding-top: 15px; }
     </style>
 </head>
@@ -94,10 +95,12 @@
                             @foreach ($section['columns'] as $colKey => $colName)
                                 @php
                                     $val = $row[$colKey] ?? '-';
+                                    $val = \App\Support\SpreadsheetValue::escapeFormula($val);
                                     $isNumeric = is_numeric($val);
                                     $isCurrency = in_array($colKey, ['unit_cost', 'total_value', 'value', 'risk_value', 'total_amount'], true);
+                                    $isIdentifier = in_array($colKey, ['id', 'sku', 'barcode_value', 'gtin', 'batch_number', 'po_number', 'code'], true);
                                 @endphp
-                                <td class="{{ in_array($colKey, ['quantity_on_hand', 'units', 'quantity', 'reorder_level', 'items', 'orders', 'received_orders', 'movements', 'capacity'], true) ? 'text-center' : ($isCurrency ? 'text-right' : '') }}">
+                                <td @if ($isIdentifier) x:str @endif class="{{ in_array($colKey, ['quantity_on_hand', 'units', 'quantity', 'reorder_level', 'items', 'orders', 'received_orders', 'movements', 'capacity'], true) ? 'text-center' : ($isCurrency ? 'text-right' : '') }} {{ $isIdentifier ? 'identifier' : '' }}">
                                     @if ($isCurrency && $isNumeric)
                                         ₱{{ number_format((float) $val, 2) }}
                                     @else
@@ -145,10 +148,12 @@
                         @foreach ($report['columns'] as $colKey => $colName)
                             @php
                                 $val = $row[$colKey] ?? '-';
+                                $val = \App\Support\SpreadsheetValue::escapeFormula($val);
                                 $isNumeric = is_numeric($val);
                                 $isCurrency = in_array($colKey, ['unit_cost', 'total_value', 'value', 'risk_value', 'total_amount'], true);
+                                $isIdentifier = in_array($colKey, ['id', 'sku', 'barcode_value', 'gtin', 'batch_number', 'po_number', 'code'], true);
                             @endphp
-                            <td class="{{ in_array($colKey, ['quantity_on_hand', 'units', 'quantity', 'reorder_level', 'items', 'orders', 'received_orders', 'movements', 'capacity'], true) ? 'text-center' : ($isCurrency ? 'text-right' : '') }}">
+                            <td @if ($isIdentifier) x:str @endif class="{{ in_array($colKey, ['quantity_on_hand', 'units', 'quantity', 'reorder_level', 'items', 'orders', 'received_orders', 'movements', 'capacity'], true) ? 'text-center' : ($isCurrency ? 'text-right' : '') }} {{ $isIdentifier ? 'identifier' : '' }}">
                                 @if ($isCurrency && $isNumeric)
                                     ₱{{ number_format((float) $val, 2) }}
                                 @else

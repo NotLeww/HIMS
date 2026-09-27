@@ -1,0 +1,2 @@
+﻿"DDRB Register No","Date & Time (PHT)","Generic Clinical Name","Brand Name / Formulation","Dosage Strength","Transaction Type",Quantity,"Running Balance","Special Prescription Form (SPF No)","Prescriber S-2 License","Prescriber Name","Patient Hospital / Encounter ID","Primary Custodian","Witness Pharmacist (Dual-Custody)","Vault Location Code"
+DDRB-20260928-000001,"2026-09-28 10:30:00","Evidence Infusion Set, ""Latex-Free""",N/A,N/A,DISPENSE_OUTBOUND,1,9,000123,S2-0000456,"Evidence Prescriber",ENC-0000789,"Evidence Pharmacist","Evidence Witness",EVIDENCE-01

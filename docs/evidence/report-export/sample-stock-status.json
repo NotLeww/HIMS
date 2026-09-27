@@ -1,0 +1,89 @@
+{
+    "meta": {
+        "report_type": "stock_status",
+        "report_title": "Stock Status",
+        "generated_at": "2026-09-28T02:30:00.000000Z",
+        "generated_by": "Export Evidence Reviewer (Inventory Manager)",
+        "hospital_name": "Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium",
+        "sub_title": "Tala, Caloocan City • Materials Management & Supply Division",
+        "period": {
+            "from": "2026-08-31T16:00:00.000000Z",
+            "to": "2026-09-28T15:59:59.999999Z",
+            "description": "Sep 01, 2026 — Sep 28, 2026 (Custom Range)"
+        },
+        "filters": {
+            "report_type": "stock_status",
+            "format": "json",
+            "period": "custom",
+            "from": "2026-09-01",
+            "to": "2026-09-28",
+            "category_id": "1",
+            "storage_location_id": "1",
+            "status": "in_stock"
+        },
+        "filter_labels": {
+            "Reporting Period": "Sep 01, 2026 — Sep 28, 2026 (Custom Range)",
+            "Item Category": "Evidence Medical Supplies",
+            "Storage Location": "Evidence Pharmacy Store (EVIDENCE-01)",
+            "Supplier": "All Suppliers",
+            "Movement Type": "All Movement Types",
+            "Stock Status": "In Stock"
+        },
+        "is_financial_permitted": true,
+        "format": "json"
+    },
+    "summary": {
+        "Total Items": 1,
+        "In Stock Items": 1,
+        "Low Stock Items": 0,
+        "Out of Stock Items": 0,
+        "Total Units": 125,
+        "Total Valuation": "₱2,493.75"
+    },
+    "columns": {
+        "sku": "SKU",
+        "name": "Item Description",
+        "barcode_value": "Barcode",
+        "gtin": "GTIN",
+        "category": "Category",
+        "unit": "Unit of Measure",
+        "quantity_on_hand": "Units On Hand",
+        "reserved_quantity": "Reserved Units",
+        "reorder_level": "Reorder Level",
+        "unit_cost": "Unit Cost (₱)",
+        "total_value": "Total Value (₱)",
+        "status": "Stock Status"
+    },
+    "data": [
+        {
+            "sku": "000012345678",
+            "barcode_value": "000000987654321",
+            "gtin": "00012345678905",
+            "name": "Evidence Infusion Set, \"Latex-Free\"",
+            "category": "Evidence Medical Supplies",
+            "quantity_on_hand": 125,
+            "reserved_quantity": 5,
+            "reorder_level": 40,
+            "unit": "set",
+            "unit_cost": 19.95,
+            "total_value": 2493.75,
+            "status": "In Stock"
+        }
+    ],
+    "totals": {
+        "sku": "TOTALS",
+        "barcode_value": "",
+        "gtin": "",
+        "name": "1 items",
+        "category": "-",
+        "unit": "-",
+        "quantity_on_hand": 125,
+        "reserved_quantity": 5,
+        "reorder_level": "-",
+        "unit_cost": "-",
+        "total_value": "₱2,493.75",
+        "status": "-"
+    },
+    "is_empty": false,
+    "empty_message": "No items found matching the selected stock status criteria."
+}

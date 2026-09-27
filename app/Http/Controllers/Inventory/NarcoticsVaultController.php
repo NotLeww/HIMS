@@ -99,6 +99,8 @@ class NarcoticsVaultController extends Controller implements HasMiddleware
         $request->validate([
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'item_id' => ['nullable', 'integer', 'exists:inventory_items,id'],
+            'spf' => ['nullable', 'string', 'max:50'],
         ]);
 
         $start = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : now()->subMonths(6)->startOfDay();
@@ -110,7 +112,9 @@ class NarcoticsVaultController extends Controller implements HasMiddleware
             ]);
         }
 
-        $records = $this->vaultService->getSemiAnnualReportData($start, $end);
+        $itemId = $request->filled('item_id') ? $request->integer('item_id') : null;
+        $spf = $request->filled('spf') ? trim((string) $request->string('spf')) : null;
+        $records = $this->vaultService->getSemiAnnualReportData($start, $end, $itemId, $spf);
 
         $this->audit->log(
             AuditAction::ExportedNarcoticsReport,
@@ -120,17 +124,20 @@ class NarcoticsVaultController extends Controller implements HasMiddleware
             newValues: [
                 'start_date' => $start->toDateString(),
                 'end_date' => $end->toDateString(),
+                'item_id' => $itemId,
+                'spf_filter_applied' => $spf !== null,
                 'record_count' => $records->count(),
             ],
         );
 
         $headers = [
-            'Content-Type' => 'text/csv',
+            'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="PDEA-Dangerous-Drugs-Semi-Annual-Report-'.now()->format('Ymd').'.csv"',
         ];
 
         return response()->stream(function () use ($records) {
             $handle = fopen('php://output', 'w');
+            fwrite($handle, "\xEF\xBB\xBF");
             fputcsv($handle, [
                 'DDRB Register No',
                 'Date & Time (PHT)',
