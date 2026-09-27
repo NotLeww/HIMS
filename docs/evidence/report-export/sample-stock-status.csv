@@ -1,0 +1,24 @@
+﻿"Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium"
+"Tala, Caloocan City • Materials Management & Supply Division"
+Report:,"Stock Status"
+Generated:,"2026-09-27 23:21:19",By:,"Checklist Evidence User (Inventory Manager)"
+Period:,"Sep 01, 2026 — Sep 27, 2026 (Custom Range)"
+"Filter: Reporting Period","Sep 01, 2026 — Sep 27, 2026 (Custom Range)"
+"Filter: Item Category","Sample PPE"
+"Filter: Storage Location","Evidence Store (EVIDENCE-01)"
+"Filter: Supplier","All Suppliers"
+"Filter: Movement Type","All Movement Types"
+"Filter: Stock Status","All Stock Statuses"
+
+"--- SUMMARY ---"
+"Total Items",2
+"In Stock Items",1
+"Low Stock Items",1
+"Out of Stock Items",0
+"Total Units",155
+"Total Valuation","₱5,925.00"
+
+SKU,"Item Description",Category,"Units On Hand","Reserved Units","Reorder Level","Unit Cost (₱)","Total Value (₱)","Stock Status"
+SAMPLE-N95,"Sample N95 Respirator","Sample PPE",120,0,40,45,5400,"In Stock"
+SAMPLE-GLOVES,"Sample Sterile Gloves","Sample PPE",35,0,50,15,525,"Low Stock"
+TOTALS,"2 items",-,155,0,-,-,"₱5,925.00",-

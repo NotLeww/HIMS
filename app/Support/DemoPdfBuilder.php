@@ -1179,47 +1179,83 @@ class DemoPdfBuilder
     private function renderGeneralDocument(string $title, ?string $subtitle, array $sections): string
     {
         $pages = [];
-        $stream = "0 0 0 RG\n0 0 0 rg\n";
+        $stream = '';
+        $y = 0.0;
+        $pageNumber = 0;
 
-        // Top Accent Bar
-        $stream .= "0.08 0.22 0.45 rg\n" . self::MARGIN_LEFT . " 808 " . self::CONTENT_WIDTH . " 3.5 re f\n";
+        $startPage = function () use (&$stream, &$y, &$pageNumber, $title, $subtitle): void {
+            $pageNumber++;
+            $stream = "0 0 0 RG\n0 0 0 rg\n";
+            $stream .= "0.08 0.22 0.45 rg\n".self::MARGIN_LEFT." 808 ".self::CONTENT_WIDTH." 3.5 re f\n";
+            $stream .= "BT\n/F1 13.5 Tf\n0.08 0.18 0.35 rg\n".self::MARGIN_LEFT." 786 Td\n(".self::escape($title).") Tj\nET\n";
 
-        // Document Title
-        $stream .= "BT\n/F1 13.5 Tf\n0.08 0.18 0.35 rg\n" . self::MARGIN_LEFT . " 786 Td\n(" . self::escape($title) . ") Tj\nET\n";
+            $y = 770.0;
+            $pageSubtitle = trim(($subtitle ?? '').($pageNumber > 1 ? ' | Continued' : ''));
+            if ($pageSubtitle !== '') {
+                $stream .= "BT\n/F2 8.5 Tf\n0.35 0.40 0.48 rg\n".self::MARGIN_LEFT." {$y} Td\n(".self::escape($pageSubtitle).") Tj\nET\n";
+                $y -= 15.0;
+            }
 
-        $y = 770.0;
-        if ($subtitle !== null) {
-            $stream .= "BT\n/F2 8.5 Tf\n0.35 0.40 0.48 rg\n" . self::MARGIN_LEFT . " {$y} Td\n(" . self::escape($subtitle) . ") Tj\nET\n";
-            $y -= 15.0;
-        }
+            $stream .= "0.82 0.86 0.92 RG\n0.75 w\n".self::MARGIN_LEFT." {$y} ".self::CONTENT_WIDTH." 0 re S\n";
+            $y -= 16.0;
+        };
 
-        // Header Divider Line
-        $stream .= "0.82 0.86 0.92 RG\n0.75 w\n" . self::MARGIN_LEFT . " {$y} " . self::CONTENT_WIDTH . " 0 re S\n";
-        $y -= 16.0;
+        $finishPage = function () use (&$pages, &$stream): void {
+            $pages[] = $stream;
+        };
+
+        $newPage = function () use (&$stream, $startPage, $finishPage): void {
+            if ($stream !== '') {
+                $finishPage();
+            }
+            $startPage();
+        };
+
+        $ensureSpace = function (float $height) use (&$y, $newPage): void {
+            if (($y - $height) < self::BOTTOM_MARGIN) {
+                $newPage();
+            }
+        };
+
+        $newPage();
 
         foreach ($sections as $section) {
             if (! empty($section['heading'])) {
-                // Section header
-                $stream .= "0.12 0.35 0.65 rg\n" . self::MARGIN_LEFT . " " . ($y - 2) . " 3.5 12 re f\n";
-                $stream .= "BT\n/F1 9.5 Tf\n0.10 0.18 0.30 rg\n" . (self::MARGIN_LEFT + 8.0) . " {$y} Td\n(" . self::escape($section['heading']) . ") Tj\nET\n";
+                $ensureSpace(30.0);
+                $stream .= "0.12 0.35 0.65 rg\n".self::MARGIN_LEFT.' '.($y - 2)." 3.5 12 re f\n";
+                $stream .= "BT\n/F1 9.5 Tf\n0.10 0.18 0.30 rg\n".(self::MARGIN_LEFT + 8.0)." {$y} Td\n(".self::escape($section['heading']).") Tj\nET\n";
                 $y -= 16.0;
             }
 
             if (! empty($section['lines'])) {
-                $lineCount = count($section['lines']);
-                $boxHeight = ($lineCount * 15.0) + 12.0;
-                $boxY = $y - $boxHeight;
-
-                $stream .= "0.975 0.985 0.995 rg\n" . self::MARGIN_LEFT . " {$boxY} " . self::CONTENT_WIDTH . " {$boxHeight} re f\n";
-                $stream .= "0.85 0.88 0.93 RG\n0.6 w\n" . self::MARGIN_LEFT . " {$boxY} " . self::CONTENT_WIDTH . " {$boxHeight} re S\n";
-
-                $textY = $y - 12.0;
+                $wrappedLines = [];
                 foreach ($section['lines'] as $line) {
-                    $stream .= "BT\n/F2 8 Tf\n0.15 0.18 0.22 rg\n" . (self::MARGIN_LEFT + 10.0) . " {$textY} Td\n(" . self::escape($line) . ") Tj\nET\n";
-                    $textY -= 14.5;
+                    array_push($wrappedLines, ...$this->wrapText((string) $line, self::CONTENT_WIDTH - 20.0, 8.0));
                 }
 
-                $y = $boxY - 14.0;
+                while ($wrappedLines !== []) {
+                    if (($y - 40.0) < self::BOTTOM_MARGIN) {
+                        $newPage();
+                    }
+                    $availableLines = max(1, (int) floor(($y - self::BOTTOM_MARGIN - 26.0) / 14.5));
+                    $chunk = array_splice($wrappedLines, 0, $availableLines);
+                    $boxHeight = (count($chunk) * 14.5) + 12.0;
+                    $ensureSpace($boxHeight + 14.0);
+                    $boxY = $y - $boxHeight;
+                    $stream .= "0.975 0.985 0.995 rg\n".self::MARGIN_LEFT." {$boxY} ".self::CONTENT_WIDTH." {$boxHeight} re f\n";
+                    $stream .= "0.85 0.88 0.93 RG\n0.6 w\n".self::MARGIN_LEFT." {$boxY} ".self::CONTENT_WIDTH." {$boxHeight} re S\n";
+
+                    $textY = $y - 12.0;
+                    foreach ($chunk as $line) {
+                        $stream .= "BT\n/F2 8 Tf\n0.15 0.18 0.22 rg\n".(self::MARGIN_LEFT + 10.0)." {$textY} Td\n(".self::escape($line).") Tj\nET\n";
+                        $textY -= 14.5;
+                    }
+
+                    $y = $boxY - 14.0;
+                    if ($wrappedLines !== []) {
+                        $newPage();
+                    }
+                }
             }
 
             if (! empty($section['table'])) {
@@ -1247,21 +1283,26 @@ class DemoPdfBuilder
                     $headerLineCount = max(array_map('count', $headerLines));
                     $headerHeight = max(20.0, ($headerLineCount * 9.0) + 8.0);
 
-                    $stream .= "0.91 0.94 0.975 rg\n" . self::MARGIN_LEFT . " " . ($y - $headerHeight) . " " . self::CONTENT_WIDTH . " {$headerHeight} re f\n";
-                    $stream .= "0.75 0.80 0.88 RG\n0.75 w\n" . self::MARGIN_LEFT . " " . ($y - $headerHeight) . " " . self::CONTENT_WIDTH . " {$headerHeight} re S\n";
+                    $drawHeader = function () use (&$stream, &$y, $headerHeight, $headerLines, $columnWidths): void {
+                        $stream .= "0.91 0.94 0.975 rg\n".self::MARGIN_LEFT.' '.($y - $headerHeight).' '.self::CONTENT_WIDTH." {$headerHeight} re f\n";
+                        $stream .= "0.75 0.80 0.88 RG\n0.75 w\n".self::MARGIN_LEFT.' '.($y - $headerHeight).' '.self::CONTENT_WIDTH." {$headerHeight} re S\n";
 
-                    $columnX = self::MARGIN_LEFT;
-                    foreach ($headerLines as $idx => $lines) {
-                        $textY = $y - 12.0;
-                        foreach ($lines as $headerLine) {
-                            $xPos = $columnX + 7.0;
-                            $stream .= "BT\n/F1 7.5 Tf\n0.06 0.16 0.32 rg\n{$xPos} {$textY} Td\n(" . self::escape($headerLine) . ") Tj\nET\n";
-                            $textY -= 9.0;
+                        $columnX = self::MARGIN_LEFT;
+                        foreach ($headerLines as $idx => $lines) {
+                            $textY = $y - 12.0;
+                            foreach ($lines as $headerLine) {
+                                $xPos = $columnX + 7.0;
+                                $stream .= "BT\n/F1 7.5 Tf\n0.06 0.16 0.32 rg\n{$xPos} {$textY} Td\n(".self::escape($headerLine).") Tj\nET\n";
+                                $textY -= 9.0;
+                            }
+                            $columnX += $columnWidths[$idx];
                         }
-                        $columnX += $columnWidths[$idx];
-                    }
 
-                    $y -= $headerHeight;
+                        $y -= $headerHeight;
+                    };
+
+                    $ensureSpace($headerHeight + 22.0);
+                    $drawHeader();
 
                     foreach ($rows as $rIdx => $row) {
                         $wrappedCells = [];
@@ -1278,8 +1319,13 @@ class DemoPdfBuilder
                         $rowHeight = max(20.0, ($rowLineCount * 9.5) + 8.0);
                         $rowBg = ($rIdx % 2 === 0) ? '1 1 1 rg' : '0.985 0.990 0.995 rg';
 
-                        $stream .= "{$rowBg}\n" . self::MARGIN_LEFT . " " . ($y - $rowHeight) . " " . self::CONTENT_WIDTH . " {$rowHeight} re f\n";
-                        $stream .= "0.88 0.90 0.93 RG\n0.4 w\n" . self::MARGIN_LEFT . " " . ($y - $rowHeight) . " " . self::CONTENT_WIDTH . " {$rowHeight} re S\n";
+                        if (($y - $rowHeight) < self::BOTTOM_MARGIN) {
+                            $newPage();
+                            $drawHeader();
+                        }
+
+                        $stream .= "{$rowBg}\n".self::MARGIN_LEFT.' '.($y - $rowHeight).' '.self::CONTENT_WIDTH." {$rowHeight} re f\n";
+                        $stream .= "0.88 0.90 0.93 RG\n0.4 w\n".self::MARGIN_LEFT.' '.($y - $rowHeight).' '.self::CONTENT_WIDTH." {$rowHeight} re S\n";
 
                         $columnX = self::MARGIN_LEFT;
                         foreach ($wrappedCells as $cIdx => $cellLines) {
@@ -1289,7 +1335,7 @@ class DemoPdfBuilder
 
                             foreach ($cellLines as $cellLine) {
                                 $xPos = $columnX + 7.0;
-                                $stream .= "BT\n{$font} 7.5 Tf\n{$color}\n{$xPos} {$textY} Td\n(" . self::escape($cellLine) . ") Tj\nET\n";
+                                $stream .= "BT\n{$font} 7.5 Tf\n{$color}\n{$xPos} {$textY} Td\n(".self::escape($cellLine).") Tj\nET\n";
                                 $textY -= 9.5;
                             }
 
@@ -1304,7 +1350,7 @@ class DemoPdfBuilder
             }
         }
 
-        $pages[] = $stream;
+        $finishPage();
 
         return $this->compilePdfDocument($pages);
     }
@@ -1401,9 +1447,11 @@ class DemoPdfBuilder
             "\u{2019}" => "'",
             "\u{2026}" => '...',
             "\u{00A0}" => ' ',
+            "\u{20B1}" => 'PHP ',
         ];
 
         $text = str_replace(array_keys($replacements), array_values($replacements), $text);
+        $text = str_replace('PHP )', 'PHP)', $text);
 
         return preg_replace('/[^\x20-\x7E\r\n\t]/', '', $text);
     }

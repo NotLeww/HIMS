@@ -731,7 +731,8 @@ class InventoryReportTest extends TestCase
     public function test_generate_report_exports_csv_format_with_utf8_bom(): void
     {
         $location = $this->location();
-        $this->stockedItem('Surgical Gloves', 'PPE-GLV', 200, 15.00, location: $location);
+        $itemName = "Surgical Gloves, \"Powder-Free\"\nLarge";
+        $this->stockedItem($itemName, 'PPE-GLV', 200, 15.00, location: $location);
 
         $response = $this->actingAs($this->reader())
             ->get('/inventory/reports/generate?report_type=stock_status&format=csv&period=30');
@@ -744,8 +745,22 @@ class InventoryReportTest extends TestCase
         // UTF-8 BOM must be the first 3 bytes
         $this->assertSame("\xEF\xBB\xBF", substr($content, 0, 3));
         $this->assertStringContainsString('Dr. Jose N. Rodriguez Memorial Hospital', $content);
-        $this->assertStringContainsString('Surgical Gloves', $content);
         $this->assertStringContainsString('PPE-GLV', $content);
+
+        $handle = fopen('php://memory', 'r+');
+        fwrite($handle, substr($content, 3));
+        rewind($handle);
+        $exportedRow = null;
+        while (($row = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
+            if (($row[0] ?? null) === 'PPE-GLV') {
+                $exportedRow = $row;
+                break;
+            }
+        }
+        fclose($handle);
+
+        $this->assertNotNull($exportedRow);
+        $this->assertSame($itemName, $exportedRow[1]);
     }
 
     public function test_generate_report_exports_excel_format(): void
@@ -763,7 +778,7 @@ class InventoryReportTest extends TestCase
             ->assertSee('Summary Overview');
     }
 
-    public function test_generate_report_renders_printable_view_with_hospital_letterhead(): void
+    public function test_generate_report_exports_valid_pdf_with_report_data(): void
     {
         $location = $this->location();
         $this->stockedItem('Paracetamol 500mg', 'PHARMA-PARA', 1000, 1.25, location: $location);
@@ -772,11 +787,12 @@ class InventoryReportTest extends TestCase
             ->get('/inventory/reports/generate?report_type=stock_status&format=pdf&period=30');
 
         $response->assertStatus(200)
-            ->assertSee('DR. JOSE N. RODRIGUEZ MEMORIAL HOSPITAL AND SANITARIUM')
-            ->assertSee('Hospital Inventory Management System (HIMS) — Official Report')
-            ->assertSee('Stock Status')
-            ->assertSee('Paracetamol 500mg')
-            ->assertSee('Verification & Institutional Sign-Off', false);
+            ->assertHeader('Content-Type', 'application/pdf');
+
+        $this->assertStringContainsString('attachment;', (string) $response->headers->get('Content-Disposition'));
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
+        $this->assertStringContainsString('(Paracetamol) Tj', $response->getContent());
+        $this->assertStringContainsString('(500mg) Tj', $response->getContent());
     }
 
     public function test_generate_all_reports_compiles_complete_dossier(): void
@@ -865,11 +881,13 @@ class InventoryReportTest extends TestCase
             ->assertJsonPath('is_empty', true)
             ->assertJsonPath('data', []);
 
-        // Also printable format handles empty cleanly
-        $this->actingAs($this->reader())
+        // PDF format also handles empty results cleanly.
+        $pdf = $this->actingAs($this->reader())
             ->get('/inventory/reports/generate?report_type=stock_status&format=pdf&category_id='.$emptyCategory->id)
             ->assertStatus(200)
-            ->assertSee('No items found matching the selected stock status criteria.');
+            ->assertHeader('Content-Type', 'application/pdf');
+
+        $this->assertStringContainsString('(No items found matching the selected stock status criteria.) Tj', $pdf->getContent());
     }
 
     public function test_generate_report_supports_today_and_all_time_periods(): void

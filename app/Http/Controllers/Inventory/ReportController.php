@@ -179,6 +179,7 @@ class ReportController extends Controller implements HasMiddleware
         return match ($validated['format']) {
             'json' => $this->reports->exportJson($report),
             'csv' => $this->reports->exportCsv($report),
+            'pdf' => $this->reports->exportPdf($report),
             'excel' => response()->view('inventory.reports.export-excel', [
                 'report' => $report,
             ], 200, [

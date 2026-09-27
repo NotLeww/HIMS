@@ -593,7 +593,7 @@
                                 <span x-show="format === 'pdf'" class="w-2 h-2 rounded-full bg-primary-600"></span>
                             </div>
                             <div class="mt-2">
-                                <div class="text-xs font-bold">PDF / Print</div>
+                                <div class="text-xs font-bold">PDF</div>
                                 <div class="text-[10px] text-neutral-500">Official hospital layout</div>
                             </div>
                         </button>
@@ -661,7 +661,7 @@
                         <template x-if="!loading">
                             <x-ui.icon name="arrow-down-tray" class="w-3.5 h-3.5 text-white" />
                         </template>
-                        <span x-text="loading ? 'Generating Report...' : (format === 'pdf' ? 'Open Printable Report' : 'Generate & Export Report')"></span>
+                        <span x-text="loading ? 'Generating Report...' : (format === 'pdf' ? 'Download PDF' : 'Generate & Export Report')"></span>
                     </button>
                 </div>
             </div>
@@ -2056,7 +2056,9 @@
                     if (this.format === 'pdf' || this.format === 'print') {
                         window.open(url, '_blank');
                         this.loading = false;
-                        this.successMessage = 'Official report opened in print view.';
+                        this.successMessage = this.format === 'pdf'
+                            ? 'PDF report generated successfully.'
+                            : 'Official report opened in print view.';
                         return;
                     }
 

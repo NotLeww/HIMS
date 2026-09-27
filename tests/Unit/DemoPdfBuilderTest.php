@@ -37,4 +37,24 @@ class DemoPdfBuilderTest extends TestCase
         $this->assertMatchesRegularExpression('/\/Type\s*\/Page\b/', $pdf);
         $this->assertStringContainsString('/Contents', $pdf);
     }
+
+    public function test_long_tables_continue_on_additional_pages_without_dropping_rows(): void
+    {
+        $rows = array_map(
+            fn (int $number) => ['ITEM-'.$number, 'Inventory item '.$number, (string) $number],
+            range(1, 80)
+        );
+
+        $pdf = DemoPdfBuilder::create('Stock Status', [[
+            'heading' => 'INVENTORY',
+            'table' => [
+                'headers' => ['SKU', 'Item', 'Units'],
+                'rows' => $rows,
+            ],
+        ]]);
+
+        $this->assertGreaterThan(1, substr_count($pdf, '/Type/Page/Parent'));
+        $this->assertStringContainsString('(ITEM-1) Tj', $pdf);
+        $this->assertStringContainsString('(ITEM-80) Tj', $pdf);
+    }
 }
