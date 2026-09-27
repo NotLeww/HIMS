@@ -93,7 +93,7 @@ Dependency audits were preserved to avoid overlooking known vulnerable packages,
 - Composer: 0 critical, 9 high, and 7 medium advisories across `guzzlehttp/guzzle` and `league/commonmark`.
 - npm: 0 critical, 3 high, and 1 moderate advisory.
 
-These non-critical dependency advisories remain visible in the raw reports. They do not contradict the checklist's critical-vulnerability threshold, but they should be scheduled for compatible dependency updates and regression testing.
+These were the dependency findings at the time of this source-code scan and remain visible in the raw baseline reports. They were subsequently remediated with compatible lockfile updates; see `docs/security/dependency-security/2026-09-27/DEPENDENCY_SECURITY_REPORT.md` and its final audit artifacts.
 
 ## Regression verification
 
