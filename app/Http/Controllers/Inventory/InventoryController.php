@@ -113,6 +113,7 @@ class InventoryController extends Controller implements HasMiddleware
             'openAlertCount' => $snapshot['openAlertCount'],
             'expiringSoonCount' => $snapshot['expiringSoonCount'],
             'criticalExpiryCount' => $snapshot['criticalExpiryCount'],
+            'totalItems' => $snapshot['totalItems'],
             'lowStockItems' => $snapshot['lowStockItems'],
             'outOfStockItems' => $snapshot['outOfStockItems'],
             'totalOnHand' => $snapshot['totalOnHand'],

@@ -816,7 +816,7 @@
                         <x-ui.button variant="ghost" size="sm" :href="route('inventory.alerts')">View all</x-ui.button>
                     </x-slot:actions>
 
-                    <div data-dashboard-alerts>
+                    <div x-ref="alerts" data-dashboard-alerts>
                         @include('inventory.partials.dashboard-alerts')
                     </div>
                 </x-ui.card>
@@ -1314,7 +1314,7 @@
                 <x-ui.button variant="ghost" size="sm" :href="route('inventory.alerts')">View all</x-ui.button>
             </x-slot:actions>
 
-            <div data-dashboard-alerts>
+            <div x-ref="alerts" data-dashboard-alerts>
                 @include('inventory.partials.dashboard-alerts')
             </div>
         </x-ui.card>

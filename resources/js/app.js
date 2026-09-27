@@ -3507,20 +3507,27 @@ Alpine.data('demandForecastDashboard', ({ initialForecast, endpoint }) => ({
  */
 Alpine.data('dashboardLive', (endpoint) => ({
     intervalId: null,
+    request: null,
     polling: false,
     statusLabel: '',
+    visibilityHandler: null,
 
     start() {
-        this.poll();
-        this.intervalId = setInterval(() => this.poll(), 30000);
-
-        document.addEventListener('visibilitychange', () => {
+        this.visibilityHandler = () => {
             if (document.hidden) {
                 this.pause();
             } else {
                 this.resume();
             }
-        });
+        };
+        document.addEventListener('visibilitychange', this.visibilityHandler);
+        if (!document.hidden) this.intervalId = setInterval(() => this.poll(), 30000);
+    },
+
+    destroy() {
+        this.pause();
+        this.request?.abort();
+        document.removeEventListener('visibilitychange', this.visibilityHandler);
     },
 
     pause() {
@@ -3544,31 +3551,44 @@ Alpine.data('dashboardLive', (endpoint) => ({
     async poll() {
         if (this.polling || document.hidden) return;
         this.polling = true;
+        this.request = new AbortController();
 
         try {
             const response = await fetch(endpoint, {
+                signal: this.request.signal,
                 headers: {
                     Accept: 'application/json',
                     'X-Session-Activity': 'passive',
                 },
             });
-            if (!response.ok) return;
+            if (!response.ok) {
+                this.statusLabel = '— update unavailable';
+                return;
+            }
 
             const data = await response.json();
+            const format = new Intl.NumberFormat();
 
             this.$refs.alerts.innerHTML = data.alertsHtml;
 
             // Update stat tiles
+            const trackedItemsTile = this.$refs.trackedItemsTile;
             const lowStockTile = this.$refs.lowStockTile;
             const expiryTile = this.$refs.expiryTile;
+            const inventoryValueTile = this.$refs.inventoryValueTile;
+
+            if (trackedItemsTile) {
+                trackedItemsTile.querySelector('[data-stat-value]').textContent = format.format(data.totalItems);
+                trackedItemsTile.querySelector('[data-stat-hint]').textContent = `${format.format(data.totalOnHand)} units on hand`;
+            }
 
             if (lowStockTile) {
                 const valueEl = lowStockTile.querySelector('[data-stat-value]');
                 const hintEl = lowStockTile.querySelector('[data-stat-hint]');
-                if (valueEl) valueEl.textContent = new Intl.NumberFormat().format(data.lowStockItems);
+                if (valueEl) valueEl.textContent = format.format(data.lowStockItems);
                 if (hintEl) {
                     hintEl.textContent = data.outOfStockItems > 0
-                        ? `${new Intl.NumberFormat().format(data.outOfStockItems)} fully out of stock`
+                        ? `${format.format(data.outOfStockItems)} fully out of stock`
                         : 'No items out of stock';
                 }
             }
@@ -3576,21 +3596,29 @@ Alpine.data('dashboardLive', (endpoint) => ({
             if (expiryTile) {
                 const valueEl = expiryTile.querySelector('[data-stat-value]');
                 const hintEl = expiryTile.querySelector('[data-stat-hint]');
-                if (valueEl) valueEl.textContent = new Intl.NumberFormat().format(data.expiringSoonCount);
+                if (valueEl) valueEl.textContent = format.format(data.expiringSoonCount);
                 if (hintEl) {
                     hintEl.textContent = data.criticalExpiryCount > 0
-                        ? `${new Intl.NumberFormat().format(data.criticalExpiryCount)} critical / near expiry`
+                        ? `${format.format(data.criticalExpiryCount)} critical / near expiry`
                         : (data.expiringSoonCount > 0
                             ? '1–90 days remaining'
                             : 'No batches expiring within 90 days');
                 }
             }
 
+            if (inventoryValueTile && data.totalInventoryValue !== undefined) {
+                inventoryValueTile.querySelector('[data-stat-value]').textContent = `₱${new Intl.NumberFormat(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                }).format(data.totalInventoryValue)}`;
+            }
+
             const now = new Date();
             this.statusLabel = `— refreshed ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
         } catch (error) {
-            console.error('Dashboard poll failed:', error);
+            if (error.name !== 'AbortError') this.statusLabel = '— update unavailable';
         } finally {
+            this.request = null;
             this.polling = false;
         }
     }

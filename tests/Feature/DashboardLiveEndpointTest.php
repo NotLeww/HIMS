@@ -58,6 +58,18 @@ class DashboardLiveEndpointTest extends TestCase
         $this->get('/dashboard/live')->assertRedirect('/login');
     }
 
+    public function test_the_dashboard_renders_the_live_polling_targets(): void
+    {
+        [$user] = $this->stockedItem();
+
+        $this->actingAs($user)->get('/dashboard')
+            ->assertOk()
+            ->assertSee('x-data="dashboardLive(', false)
+            ->assertSee('x-ref="alerts"', false)
+            ->assertSee('x-ref="trackedItemsTile"', false)
+            ->assertSee('x-ref="inventoryValueTile"', false);
+    }
+
     public function test_it_returns_the_alert_markup_and_the_tile_counters(): void
     {
         [$user] = $this->stockedItem();
@@ -70,6 +82,7 @@ class DashboardLiveEndpointTest extends TestCase
                 'openAlertCount',
                 'expiringSoonCount',
                 'criticalExpiryCount',
+                'totalItems',
                 'lowStockItems',
                 'outOfStockItems',
                 'totalOnHand',
@@ -79,10 +92,19 @@ class DashboardLiveEndpointTest extends TestCase
         $this->assertSame(0, $response->json('openAlertCount'));
         $this->assertSame(0, $response->json('expiringSoonCount'));
         $this->assertSame(0, $response->json('criticalExpiryCount'));
+        $this->assertSame(1, $response->json('totalItems'));
         $this->assertSame(0, $response->json('lowStockItems'));
         $this->assertSame(100, $response->json('totalOnHand'));
         $this->assertStringContainsString('data-dashboard-alert-list', $response->json('alertsHtml'));
         $this->assertStringContainsString('No active alerts', $response->json('alertsHtml'));
+    }
+
+    public function test_it_does_not_expose_inventory_value_without_financial_permission(): void
+    {
+        $response = $this->actingAs(User::factory()->viewer()->create())->get('/dashboard/live');
+
+        $response->assertOk();
+        $this->assertArrayNotHasKey('totalInventoryValue', $response->json());
     }
 
     /**
