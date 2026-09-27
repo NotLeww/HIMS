@@ -5,27 +5,40 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 class SecurityIncident extends Model
 {
     use HasFactory;
 
     public const CATEGORY_UNAUTHORIZED_ACCESS = 'unauthorized_access_attempt';
+
     public const CATEGORY_BRUTE_FORCE_SPIKE = 'brute_force_spike';
+
     public const CATEGORY_SUSPICIOUS_EXPORT = 'suspicious_export';
+
     public const CATEGORY_CREDENTIAL_ANOMALY = 'credential_anomaly';
+
     public const CATEGORY_DATA_LEAKAGE_RISK = 'data_leakage_risk';
+
     public const CATEGORY_SYSTEM_TAMPERING = 'system_tampering';
 
     public const SEVERITY_LOW = 'low';
+
     public const SEVERITY_MEDIUM = 'medium';
+
     public const SEVERITY_HIGH = 'high';
+
     public const SEVERITY_CRITICAL = 'critical';
 
     public const STATUS_DETECTED = 'detected';
+
     public const STATUS_INVESTIGATING = 'investigating';
+
     public const STATUS_CONTAINED = 'contained';
+
     public const STATUS_RESOLVED = 'resolved';
+
     public const STATUS_FALSE_POSITIVE = 'false_positive';
 
     protected $table = 'security_incidents';
@@ -54,7 +67,12 @@ class SecurityIncident extends Model
     {
         return [
             'is_suspected_breach' => 'boolean',
-            'metadata' => 'array',
+            'description' => 'encrypted',
+            'affected_system_or_data' => 'encrypted',
+            'breach_assessment' => 'encrypted',
+            'containment_actions' => 'encrypted',
+            'remediation_notes' => 'encrypted',
+            'metadata' => 'encrypted:array',
             'detected_at' => 'datetime',
             'resolved_at' => 'datetime',
         ];
@@ -140,16 +158,17 @@ class SecurityIncident extends Model
         $this->metadata = $meta;
     }
 
-    public function getNpcNotifiedAtAttribute(): ?\Illuminate\Support\Carbon
+    public function getNpcNotifiedAtAttribute(): ?Carbon
     {
         $val = $this->metadata['npc_notified_at'] ?? null;
-        return $val ? \Illuminate\Support\Carbon::parse($val) : null;
+
+        return $val ? Carbon::parse($val) : null;
     }
 
     public function setNpcNotifiedAtAttribute($value): void
     {
         $meta = $this->metadata ?? [];
-        $meta['npc_notified_at'] = $value ? \Illuminate\Support\Carbon::parse($value)->toIso8601String() : null;
+        $meta['npc_notified_at'] = $value ? Carbon::parse($value)->toIso8601String() : null;
         $this->metadata = $meta;
     }
 
@@ -163,14 +182,14 @@ class SecurityIncident extends Model
         return $this->statusBadge()['label'];
     }
 
-    public function getReportedAtAttribute(): ?\Illuminate\Support\Carbon
+    public function getReportedAtAttribute(): ?Carbon
     {
         return $this->detected_at ?? $this->created_at;
     }
 
     public static function generateIncidentNumber(): string
     {
-        return 'INC-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(4)));
+        return 'INC-'.date('Y').'-'.strtoupper(bin2hex(random_bytes(4)));
     }
 
     public function severityBadge(): array

@@ -4,9 +4,11 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Casts\EncryptedAuthenticatorSecret;
+use App\Casts\EncryptedPhone;
 use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Support\BlindIndex;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -57,6 +59,7 @@ class User extends Authenticatable
         'remember_token',
         'authenticator_secret',
         'sms_mfa_phone',
+        'phone_blind_index',
         'failed_login_attempts',
         'last_failed_login_at',
         'login_retry_at',
@@ -81,6 +84,8 @@ class User extends Authenticatable
             'is_protected' => 'boolean',
             'mfa_enabled' => 'boolean',
             'sms_mfa_enabled' => 'boolean',
+            'sms_mfa_phone' => 'encrypted',
+            'phone' => EncryptedPhone::class,
             'session_timeout_reminder_enabled' => 'boolean',
             'authenticator_secret' => EncryptedAuthenticatorSecret::class,
             'authenticator_enabled_at' => 'datetime',
@@ -401,6 +406,11 @@ class User extends Authenticatable
             UserRole::SuperAdministrator->value,
             UserRole::Administrator->value,
         ]);
+    }
+
+    public function scopeWherePhoneNumber(Builder $query, string $phone): Builder
+    {
+        return $query->where('phone_blind_index', BlindIndex::phone($phone));
     }
 
     public function scopeSuperAdministrators(Builder $query): Builder

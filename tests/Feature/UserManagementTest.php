@@ -432,10 +432,9 @@ class UserManagementTest extends TestCase
                 'phone' => $phone,
             ])->assertRedirect('/admin/users');
 
-            $this->assertDatabaseHas('users', [
-                'email' => $email,
-                'phone' => $phone,
-            ]);
+            $created = User::query()->where('email', $email)->firstOrFail();
+            $this->assertSame($phone, $created->phone);
+            $this->assertTrue(User::query()->wherePhoneNumber($phone)->whereKey($created->id)->exists());
         }
     }
 
@@ -936,5 +935,3 @@ class UserManagementTest extends TestCase
             ->assertSee(':type="showPassword ? \'text\' : \'password\'"', false);
     }
 }
-
-

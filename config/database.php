@@ -47,7 +47,7 @@ return [
         'mysql' => [
             'driver' => 'mysql',
             'url' => env('DB_URL'),
-            'host' => env('DB_RESOLVE_IPV4', true) && env('DB_HOST') && !in_array(env('DB_HOST'), ['127.0.0.1', 'localhost', '::1'])
+            'host' => env('DB_RESOLVE_IPV4', true) && env('DB_HOST') && ! in_array(env('DB_HOST'), ['127.0.0.1', 'localhost', '::1'])
                 ? gethostbyname(env('DB_HOST'))
                 : env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '3306'),
@@ -136,6 +136,10 @@ return [
     'migrations' => [
         'table' => 'migrations',
         'update_date_on_publish' => true,
+    ],
+
+    'encryption' => [
+        'blind_index_key' => env('DB_BLIND_INDEX_KEY'),
     ],
 
     /*

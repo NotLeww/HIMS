@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 
 class AuditLogger
 {
-    private const SENSITIVE_KEY_PATTERN = '/(?:password|passphrase|token|secret|otp|totp|authorization|cookie|session|api[_-]?key|private[_-]?key|file[_-]?(?:content|contents)|document[_-]?content)/i';
+    private const SENSITIVE_KEY_PATTERN = '/(?:password|passphrase|token|secret|otp|totp|authorization|cookie|session|phone|resolution[_-]?notes|api[_-]?key|private[_-]?key|file[_-]?(?:content|contents)|document[_-]?content)/i';
 
     public function __construct(
         private readonly AuditDeviceContextResolver $deviceContext,

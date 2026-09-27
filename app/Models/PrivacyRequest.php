@@ -5,28 +5,44 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 class PrivacyRequest extends Model
 {
     use HasFactory;
 
     public const TYPE_ACCESS = 'access';
+
     public const TYPE_RECTIFICATION = 'rectification';
+
     public const TYPE_ERASURE_REVIEW = 'erasure_review';
+
     public const TYPE_INQUIRY = 'inquiry';
+
     public const TYPE_OBJECTION = 'objection';
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_SUBMITTED = 'submitted';
+
     public const STATUS_UNDER_REVIEW = 'under_review';
+
     public const STATUS_APPROVED = 'approved';
+
     public const STATUS_PROCESSING = 'processing';
+
     public const STATUS_READY_FOR_RELEASE = 'ready_for_release';
+
     public const STATUS_FULFILLED = 'fulfilled';
+
     public const STATUS_RELEASED = 'released';
+
     public const STATUS_REJECTED = 'rejected';
+
     public const STATUS_CLOSED = 'closed';
+
     public const STATUS_CANCELLED = 'cancelled';
+
     public const STATUS_EXPIRED = 'expired';
 
     protected $table = 'privacy_requests';
@@ -80,9 +96,13 @@ class PrivacyRequest extends Model
     protected function casts(): array
     {
         return [
-            'export_payload' => 'array',
-            'package_manifest' => 'array',
-            'exclusions_summary' => 'array',
+            'requestor_name' => 'encrypted',
+            'requestor_email' => 'encrypted',
+            'details' => 'encrypted',
+            'resolution_notes' => 'encrypted',
+            'export_payload' => 'encrypted:array',
+            'package_manifest' => 'encrypted:array',
+            'exclusions_summary' => 'encrypted:array',
             'handled_at' => 'datetime',
             'approved_at' => 'datetime',
             'target_completion_date' => 'datetime',
@@ -130,14 +150,14 @@ class PrivacyRequest extends Model
         return $this->handled_by_user_id;
     }
 
-    public function getResolvedAtAttribute(): ?\Illuminate\Support\Carbon
+    public function getResolvedAtAttribute(): ?Carbon
     {
         return $this->handled_at;
     }
 
     public static function generateTicketNumber(): string
     {
-        return 'DSR-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(4)));
+        return 'DSR-'.date('Y').'-'.strtoupper(bin2hex(random_bytes(4)));
     }
 
     public function typeLabel(): string
@@ -221,12 +241,12 @@ class PrivacyRequest extends Model
 
         $bytes = $this->package_size_bytes;
         if ($bytes >= 1048576) {
-            return number_format($bytes / 1048576, 2) . ' MB';
+            return number_format($bytes / 1048576, 2).' MB';
         }
         if ($bytes >= 1024) {
-            return number_format($bytes / 1024, 1) . ' KB';
+            return number_format($bytes / 1024, 1).' KB';
         }
 
-        return $bytes . ' B';
+        return $bytes.' B';
     }
 }
