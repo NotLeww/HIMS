@@ -423,6 +423,30 @@ class DocumentTrackingAndLogisticsTest extends TestCase
         $this->assertDatabaseCount('logistics_documents', 0);
     }
 
+    public function test_logistics_verification_does_not_expose_unexpected_internal_errors(): void
+    {
+        Storage::fake('local');
+        extract($this->createSetup());
+        $document = $this->createDownloadableDocument($buyer);
+        $document->update(['status' => 'submitted']);
+
+        $this->mock(DocumentTrackingService::class)
+            ->shouldReceive('verifyDocument')
+            ->once()
+            ->andThrow(new \RuntimeException('SQLSTATE[HY000] secret database path C:\\private\\hims.sqlite'));
+
+        $response = $this->actingAs($buyer)
+            ->from(route('inventory.logistics.documents'))
+            ->post(route('inventory.logistics.documents.verify', $document), [
+                'status' => 'verified',
+                'verification_notes' => 'Evidence reviewed.',
+            ]);
+
+        $response->assertRedirect(route('inventory.logistics.documents'))
+            ->assertSessionHas('error', 'Document verification could not be completed. Please try again.');
+        $this->assertSame('submitted', $document->fresh()->status);
+    }
+
     public function test_authorized_document_download_returns_the_stored_file_and_records_one_audit_event(): void
     {
         Storage::fake('local');

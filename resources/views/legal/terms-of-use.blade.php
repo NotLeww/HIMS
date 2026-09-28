@@ -150,7 +150,7 @@
                                 {{ $hospitalName }}
                             </h2>
                             <p class="text-[8.5pt] font-bold tracking-wider text-primary-900 dark:text-primary-300 uppercase">
-                                Hospital Inventory Management System (HIMS)
+                                Hospital Information Management System (HIMS)
                             </p>
                         </div>
                     </div>
@@ -220,7 +220,7 @@
                     1. Terms of Use
                 </h2>
                 <p class="doc-body-p text-justify text-neutral-900 dark:text-neutral-100 mb-3 text-[10.5pt]">
-                    These are the terms and conditions of <strong>{{ $hospitalName }}</strong> governing authorized access to and use of the Hospital Inventory Management System (HIMS). These Terms of Use establish the standards, access responsibilities, and operational conditions applicable to all authorized hospital staff, administrators, and designated contractors. Access to the system constitutes an agreement to strictly comply with the administrative rules and institutional directives contained herein.
+                    These are the terms and conditions of <strong>{{ $hospitalName }}</strong> governing authorized access to and use of the Hospital Information Management System (HIMS). These Terms of Use establish the standards, access responsibilities, and operational conditions applicable to all authorized hospital staff, administrators, and designated contractors. Access to the system constitutes an agreement to strictly comply with the administrative rules and institutional directives contained herein.
                 </p>
             </section>
 

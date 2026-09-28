@@ -351,7 +351,13 @@ class EvidenceBasedProcessReviewTest extends TestCase
         $this->actingAs($this->evaluator)->get(route('reviews.index'))->assertOk();
 
         // Create page
-        $this->actingAs($this->evaluator)->get(route('reviews.create'))->assertOk();
+        $this->actingAs($this->evaluator)->get(route('reviews.create'))
+            ->assertOk()
+            ->assertSee('Availability Check Failed')
+            ->assertSee('Availability could not be checked. Please try again.');
+        $createView = file_get_contents(resource_path('views/reviews/create.blade.php'));
+        $this->assertStringContainsString('Please review the information below:', $createView);
+        $this->assertStringNotContainsString('Validation Exception:', $createView);
 
         // Show page
         $this->actingAs($this->evaluator)->get(route('reviews.show', $review))->assertOk();

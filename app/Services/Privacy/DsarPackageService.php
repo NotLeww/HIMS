@@ -288,7 +288,7 @@ class DsarPackageService
         // Section 1: Categories of Personal Data Processed
         $builder->addSectionHeading('1. Categories of Personal Data Maintained by HIMS');
         $builder->addParagraph(
-            'The Hospital Inventory Management System (HIMS) maintains specific categories of employee personal information strictly required for operational inventory governance, supply chain accountability, and role-based access control:'
+            'The Hospital Information Management System (HIMS) maintains specific categories of employee personal information strictly required for operational inventory governance, supply chain accountability, and role-based access control:'
         );
 
         $categoriesTable = [

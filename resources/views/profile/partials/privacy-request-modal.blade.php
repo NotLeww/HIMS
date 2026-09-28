@@ -25,7 +25,7 @@
 
         <div class="space-y-4">
             <x-ui.alert variant="info" title="Republic Act No. 10173 — Data Privacy Act">
-                As a hospital employee or authorized system user, you have statutory rights to access, rectify, or request restriction of your personal data processed within the DJNRMHS Hospital Inventory Management System.
+                As a hospital employee or authorized system user, you have statutory rights to access, rectify, or request restriction of your personal data processed within the DJNRMHS Hospital Information Management System.
             </x-ui.alert>
 
             <form method="POST" action="{{ route('privacy.requests.store') }}" class="space-y-4">

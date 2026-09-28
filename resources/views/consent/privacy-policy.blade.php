@@ -100,7 +100,7 @@
                            aria-describedby="consent-description"
                            class="mt-0.5 h-4 w-4 rounded border-neutral-300 dark:border-neutral-600 text-primary-600 focus:ring-primary-500 dark:bg-neutral-900" />
                     <span class="text-xs sm:text-sm text-neutral-800 dark:text-neutral-200 leading-relaxed font-medium">
-                        I have read, understand, and agree to the Hospital Inventory Management System
+                        I have read, understand, and agree to the Hospital Information Management System
                         <a href="{{ route('privacy.notice') }}" target="_blank" rel="noopener noreferrer" class="text-primary-600 dark:text-primary-400 underline font-semibold hover:text-primary-700">Privacy Policy ({{ $policyVersion }})</a>
                         and
                         <a href="{{ route('terms') }}" target="_blank" rel="noopener noreferrer" class="text-primary-600 dark:text-primary-400 underline font-semibold hover:text-primary-700">Terms of Use</a>.

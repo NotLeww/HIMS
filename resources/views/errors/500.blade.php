@@ -24,7 +24,7 @@
                     >
                     <div>
                         <p class="text-base font-semibold leading-5 tracking-tight text-neutral-900">HIMS</p>
-                        <p class="text-xs text-neutral-500">Hospital Inventory Management System</p>
+                        <p class="text-xs text-neutral-500">Hospital Information Management System</p>
                     </div>
                 </div>
 

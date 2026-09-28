@@ -12,7 +12,7 @@ return [
     */
     'hospital_name' => env('HOSPITAL_NAME', 'Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium (DJNRMHS)'),
     'hospital_short_name' => env('HOSPITAL_SHORT_NAME', 'DJNRMHS'),
-    'system_name' => env('SYSTEM_NAME', 'Hospital Inventory Management System (HIMS)'),
+    'system_name' => env('SYSTEM_NAME', 'Hospital Information Management System (HIMS)'),
     'hospital_address' => env('HOSPITAL_ADDRESS', 'Tala, Caloocan City, Metro Manila, Philippines'),
 
     /*

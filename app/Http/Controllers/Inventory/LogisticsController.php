@@ -21,7 +21,6 @@ use App\Services\Logistics\DocumentTrackingService;
 use App\Services\Logistics\InspectionAcceptanceService;
 use App\Services\Logistics\ShipmentTrackingService;
 use DomainException;
-use Exception;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -242,8 +241,16 @@ class LogisticsController extends Controller implements HasMiddleware
 
             return redirect()->back()
                 ->with('success', "Document [{$document->tracking_number}] status marked as {$validated['status']}.");
-        } catch (Exception $e) {
-            return redirect()->back()->with('error', 'Verification failed: '.$e->getMessage());
+        } catch (ValidationException $e) {
+            $message = collect($e->errors())->flatten()->first() ?? 'The document could not be verified.';
+
+            return redirect()->back()->withInput()->with('error', 'Verification failed: '.$message);
+        } catch (DomainException|InvalidArgumentException $e) {
+            return redirect()->back()->withInput()->with('error', 'Verification failed: '.$e->getMessage());
+        } catch (Throwable $e) {
+            report($e);
+
+            return redirect()->back()->withInput()->with('error', 'Document verification could not be completed. Please try again.');
         }
     }
 
@@ -384,8 +391,12 @@ class LogisticsController extends Controller implements HasMiddleware
 
             return redirect()->route('inventory.logistics.shipments')
                 ->with('success', "Inbound shipment [{$shipment->shipment_number}] registered successfully.");
-        } catch (Exception $e) {
+        } catch (DomainException|InvalidArgumentException $e) {
             return redirect()->back()->withInput()->with('error', 'Shipment registration failed: '.$e->getMessage());
+        } catch (Throwable $e) {
+            report($e);
+
+            return redirect()->back()->withInput()->with('error', 'The shipment could not be registered. Please review the information and try again.');
         }
     }
 
@@ -412,8 +423,12 @@ class LogisticsController extends Controller implements HasMiddleware
             }
 
             return redirect()->back()->with('success', $msg);
-        } catch (Exception $e) {
-            return redirect()->back()->with('error', 'Dock arrival recording failed: '.$e->getMessage());
+        } catch (DomainException|InvalidArgumentException $e) {
+            return redirect()->back()->withInput()->with('error', 'Dock arrival recording failed: '.$e->getMessage());
+        } catch (Throwable $e) {
+            report($e);
+
+            return redirect()->back()->withInput()->with('error', 'The dock arrival could not be recorded. Please review the information and try again.');
         }
     }
 
@@ -478,8 +493,12 @@ class LogisticsController extends Controller implements HasMiddleware
 
             return redirect()->route('inventory.logistics.iar.show', $iar)
                 ->with('success', "COA GAM Appendix 50 IAR [{$iar->iar_number}] successfully generated.");
-        } catch (Exception $e) {
-            return redirect()->back()->with('error', 'Failed to generate IAR: '.$e->getMessage());
+        } catch (DomainException|InvalidArgumentException $e) {
+            return redirect()->back()->withInput()->with('error', 'Failed to generate IAR: '.$e->getMessage());
+        } catch (Throwable $e) {
+            report($e);
+
+            return redirect()->back()->withInput()->with('error', 'The IAR could not be generated. Please review the information and try again.');
         }
     }
 
@@ -545,8 +564,16 @@ class LogisticsController extends Controller implements HasMiddleware
             );
 
             return redirect()->back()->with('success', "Technical inspection completed for IAR [{$iar->iar_number}]. Status: {$validated['status']}.");
-        } catch (Exception $e) {
-            return redirect()->back()->with('error', 'Inspection execution failed: '.$e->getMessage());
+        } catch (ValidationException $e) {
+            $message = collect($e->errors())->flatten()->first() ?? 'The inspection could not be validated.';
+
+            return redirect()->back()->withInput()->with('error', 'Inspection execution failed: '.$message);
+        } catch (DomainException|InvalidArgumentException $e) {
+            return redirect()->back()->withInput()->with('error', 'Inspection execution failed: '.$e->getMessage());
+        } catch (Throwable $e) {
+            report($e);
+
+            return redirect()->back()->withInput()->with('error', 'The inspection could not be completed. Please review the information and try again.');
         }
     }
 
@@ -577,8 +604,12 @@ class LogisticsController extends Controller implements HasMiddleware
             }
 
             return redirect()->back()->with('success', $msg);
-        } catch (Exception $e) {
-            return redirect()->back()->with('error', 'Acceptance approval failed: '.$e->getMessage());
+        } catch (DomainException|InvalidArgumentException $e) {
+            return redirect()->back()->withInput()->with('error', 'Acceptance approval failed: '.$e->getMessage());
+        } catch (Throwable $e) {
+            report($e);
+
+            return redirect()->back()->withInput()->with('error', 'Custodial acceptance could not be approved. Please review the information and try again.');
         }
     }
 
@@ -602,8 +633,12 @@ class LogisticsController extends Controller implements HasMiddleware
             );
 
             return redirect()->back()->with('success', "IAR [{$iar->iar_number}] officially transmitted to Resident COA Auditor. Ref: {$validated['transmittal_reference']}.");
-        } catch (Exception $e) {
-            return redirect()->back()->with('error', 'COA transmittal failed: '.$e->getMessage());
+        } catch (DomainException|InvalidArgumentException $e) {
+            return redirect()->back()->withInput()->with('error', 'COA transmittal failed: '.$e->getMessage());
+        } catch (Throwable $e) {
+            report($e);
+
+            return redirect()->back()->withInput()->with('error', 'The COA transmittal could not be completed. Please review the information and try again.');
         }
     }
 

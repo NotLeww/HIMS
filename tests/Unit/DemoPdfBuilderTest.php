@@ -74,7 +74,7 @@ class DemoPdfBuilderTest extends TestCase
         ]], 'Last 30 days', [
             'organization' => 'DJNRMHS',
             'address' => 'Tala, Caloocan City',
-            'system' => 'Hospital Inventory Management System',
+            'system' => 'Hospital Information Management System',
             'logo_path' => dirname(__DIR__, 2).'/public/img/hims-logo.png',
             'footer' => 'DJNRMHS | Generated 2026-09-28 12:00:00',
         ]);

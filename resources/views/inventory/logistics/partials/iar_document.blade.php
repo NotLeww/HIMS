@@ -30,7 +30,7 @@
         <div class="iar-document__identity">
             <p class="iar-document__republic">Republic of the Philippines</p>
             <p class="iar-document__organization">{{ $organizationName ?: 'Organization not recorded' }}</p>
-            <p class="iar-document__system">Hospital Inventory Management System · Logistics and Supply Records</p>
+            <p class="iar-document__system">Hospital Information Management System · Logistics and Supply Records</p>
         </div>
 
         <div class="iar-document__form-meta">

@@ -212,7 +212,7 @@ class DashboardAiAssistantController extends Controller implements HasMiddleware
 
             return response()->json([
                 'status' => 'error',
-                'message' => 'An unexpected error occurred while processing your inventory inquiry. Please try again or check the system logs.',
+                'message' => 'Your inventory inquiry could not be processed. Please try again. If the problem continues, contact system support.',
             ], 500);
         }
 

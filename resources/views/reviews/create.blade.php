@@ -20,7 +20,7 @@
                 <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 shadow-sm">
                     <div class="flex items-center gap-2 font-semibold">
                         <svg class="h-5 w-5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                        <span>Validation Exception:</span>
+                        <span>Please review the information below:</span>
                     </div>
                     <ul class="mt-2 list-inside list-disc text-xs space-y-1">
                         @foreach($errors->all() as $error)
@@ -61,7 +61,7 @@
 
                 {{-- Live Operational Data Availability Checker --}}
                 <div class="rounded-lg p-4 transition border"
-                     :class="availability.has_sufficient_data ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-200 text-amber-900'">
+                     :class="availability.failed ? 'bg-rose-50 border-rose-200 text-rose-900' : (availability.has_sufficient_data ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-200 text-amber-900')">
                     <div class="flex items-start gap-3">
                         <div class="mt-0.5">
                             <template x-if="loading">
@@ -75,7 +75,7 @@
                             </template>
                         </div>
                         <div>
-                            <div class="text-sm font-semibold" x-text="loading ? 'Validating operational database records...' : (availability.has_sufficient_data ? 'Operational Data Verified' : 'Insufficient Operational Data')"></div>
+                            <div class="text-sm font-semibold" x-text="loading ? 'Validating operational database records...' : (availability.failed ? 'Availability Check Failed' : (availability.has_sufficient_data ? 'Operational Data Verified' : 'Insufficient Operational Data'))"></div>
                             <div class="mt-1 text-xs text-neutral-600" x-text="availability.message"></div>
                             <div class="mt-2 flex items-center gap-4 text-xs font-medium" x-show="!loading && availability.has_sufficient_data">
                                 <span class="rounded bg-white/70 px-2 py-0.5 border border-neutral-300">POs: <strong x-text="availability.pos_count"></strong></span>
@@ -129,6 +129,7 @@
                     pos_count: 0,
                     iars_count: 0,
                     cycle_counts_count: 0,
+                    failed: false,
                     message: 'Checking operational database...',
                 },
                 init() {
@@ -149,12 +150,20 @@
                             period_end: this.periodEnd,
                         }),
                     })
-                    .then(res => res.json())
+                    .then(res => {
+                        if (!res.ok) throw new Error('Availability request failed');
+                        return res.json();
+                    })
                     .then(data => {
                         this.availability = data;
                         this.loading = false;
                     })
                     .catch(() => {
+                        this.availability = {
+                            has_sufficient_data: false,
+                            failed: true,
+                            message: 'Availability could not be checked. Please try again.',
+                        };
                         this.loading = false;
                     });
                 }

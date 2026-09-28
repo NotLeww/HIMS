@@ -153,7 +153,7 @@
                                 {{ $hospitalName }}
                             </h2>
                             <p class="text-[8.5pt] font-bold tracking-wider text-primary-900 dark:text-primary-300 uppercase">
-                                Hospital Inventory Management System (HIMS)
+                                Hospital Information Management System (HIMS)
                             </p>
                         </div>
                     </div>
@@ -226,7 +226,7 @@
             {{-- Document Preamble / Introduction --}}
             <section class="mb-5">
                 <p class="doc-body-p text-justify text-neutral-900 dark:text-neutral-100 mb-3 text-[10.5pt]">
-                    This is the privacy policy of <strong>{{ $hospitalName }}</strong>. This document explains <strong>{{ $hospitalName }}</strong>'s policies for the collection, use, and disclosure of personal information processed through the Hospital Inventory Management System (HIMS).
+                    This is the privacy policy of <strong>{{ $hospitalName }}</strong>. This document explains <strong>{{ $hospitalName }}</strong>'s policies for the collection, use, and disclosure of personal information processed through the Hospital Information Management System (HIMS).
                 </p>
             </section>
 

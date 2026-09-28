@@ -25,7 +25,7 @@ use Illuminate\Support\Str;
 /**
  * Centralized HIMS Capability Registry.
  *
- * Defines the complete capability architecture of the Hospital Inventory Management System.
+ * Defines the complete capability architecture of the Hospital Information Management System.
  * Replaces narrow static keyword lists with a capability-driven domain model that governs:
  * 1. Scope detection (Is this query part of what HIMS does?)
  * 2. Entity attribution (Which models and resources are involved?)

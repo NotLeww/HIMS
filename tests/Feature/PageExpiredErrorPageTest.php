@@ -25,7 +25,7 @@ class PageExpiredErrorPageTest extends TestCase
             ->assertStatus(419)
             ->assertSee('<title>419 | Page Expired &middot; HIMS</title>', false)
             ->assertSee(asset('img/hims-logo.png'), false)
-            ->assertSee('Hospital Inventory Management System')
+            ->assertSee('Hospital Information Management System')
             ->assertSee('Error 419:', false)
             ->assertSee('Page Expired')
             ->assertSee('Your session has expired or the page is no longer available.')
@@ -49,6 +49,6 @@ class PageExpiredErrorPageTest extends TestCase
         $this->getJson('/_test/json-page-expired')
             ->assertStatus(419)
             ->assertJsonStructure(['message'])
-            ->assertDontSee('Hospital Inventory Management System');
+            ->assertDontSee('Hospital Information Management System');
     }
 }
