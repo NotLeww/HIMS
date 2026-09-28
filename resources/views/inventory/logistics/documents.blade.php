@@ -40,7 +40,8 @@
             }
         }
     }"
-    @open-upload-modal.window="uploadModalOpen = true">
+    @open-upload-modal.window="uploadModalOpen = true"
+    @keydown.escape.window="detailsModalOpen = false; uploadModalOpen = false; verifyModalOpen = false; supersedeModalOpen = false">
 
             {{-- Flash Notifications --}}
             @if(session('success'))

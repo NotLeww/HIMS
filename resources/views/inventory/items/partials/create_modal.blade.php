@@ -407,7 +407,10 @@
                                             <span @click.stop="clear()"
                                                   role="button"
                                                   tabindex="0"
-                                                  class="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 p-0.5 rounded cursor-pointer"
+                                                  @keydown.enter.stop.prevent="clear()"
+                                                  @keydown.space.stop.prevent="clear()"
+                                                  aria-label="Clear selected location"
+                                                  class="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 p-0.5 rounded cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                                                   title="Clear location">
                                                 <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />

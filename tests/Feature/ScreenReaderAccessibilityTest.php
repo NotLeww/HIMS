@@ -104,4 +104,45 @@ class ScreenReaderAccessibilityTest extends TestCase
         $this->assertStringContainsString('returnFocus.focus()', $scanner);
         $this->assertStringContainsString('Code accepted:', $scanner);
     }
+
+    public function test_custom_controls_and_logistics_dialogs_support_standard_keyboard_actions(): void
+    {
+        $dashboard = file_get_contents(resource_path('views/dashboard.blade.php'));
+        $itemModal = file_get_contents(resource_path('views/inventory/items/partials/create_modal.blade.php'));
+
+        $this->assertIsString($dashboard);
+        $this->assertStringContainsString('role="button"', $dashboard);
+        $this->assertStringContainsString('x-on:keydown.space.prevent="selectItem(item.item_id)"', $dashboard);
+
+        $this->assertIsString($itemModal);
+        $this->assertStringContainsString('@keydown.enter.stop.prevent="clear()"', $itemModal);
+        $this->assertStringContainsString('@keydown.space.stop.prevent="clear()"', $itemModal);
+        $this->assertStringContainsString('aria-label="Clear selected location"', $itemModal);
+
+        foreach ([
+            'inventory/logistics/documents.blade.php',
+            'inventory/logistics/iar_index.blade.php',
+            'inventory/logistics/iar_show.blade.php',
+            'inventory/logistics/shipments.blade.php',
+        ] as $view) {
+            $markup = file_get_contents(resource_path('views/'.$view));
+
+            $this->assertIsString($markup);
+            $this->assertStringContainsString('keydown.escape.window', $markup);
+        }
+
+        $tabs = file_get_contents(resource_path('views/inventory/warehouse_tasks/show.blade.php'));
+        $dropdown = file_get_contents(resource_path('views/components/dropdown.blade.php'));
+        $navDropdown = file_get_contents(resource_path('views/components/ui/nav-dropdown.blade.php'));
+
+        $this->assertIsString($tabs);
+        $this->assertStringContainsString('keydown.arrow-right.prevent', $tabs);
+        $this->assertStringContainsString('keydown.arrow-left.prevent', $tabs);
+        $this->assertIsString($dropdown);
+        $this->assertStringContainsString('keydown.escape.stop', $dropdown);
+        $this->assertStringContainsString('$refs.trigger.querySelector', $dropdown);
+        $this->assertIsString($navDropdown);
+        $this->assertStringContainsString('keydown.escape.stop', $navDropdown);
+        $this->assertStringContainsString('$refs.trigger.focus()', $navDropdown);
+    }
 }

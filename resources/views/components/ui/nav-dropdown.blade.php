@@ -12,9 +12,11 @@
 
 <div
     x-data="typeof activeDropdown !== 'undefined' ? {} : { activeDropdown: {{ $active ? "'{$dropdownId}'" : 'null' }} }"
+    @keydown.escape.stop="if (activeDropdown === '{{ $dropdownId }}') { activeDropdown = null; $nextTick(() => $refs.trigger.focus()) }"
     class="space-y-1"
 >
     <button
+        x-ref="trigger"
         type="button"
         @click="activeDropdown = (activeDropdown === '{{ $dropdownId }}' ? null : '{{ $dropdownId }}')"
         class="w-full group flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors {{ $active ? 'text-primary-800 dark:text-primary-300 bg-primary-50/70 dark:bg-primary-950/60' : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100/70 dark:hover:bg-neutral-800/70' }}"

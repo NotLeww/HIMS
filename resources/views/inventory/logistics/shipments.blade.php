@@ -47,7 +47,8 @@
                 'estimatedDeliveryDate' => old('estimated_delivery_date', now()->addDay()->toDateString()),
             ]),
         })"
-         @open-shipment-modal.window="shipmentModalOpen = true">
+         @open-shipment-modal.window="shipmentModalOpen = true"
+         @keydown.escape.window="shipmentModalOpen = false; dockModalOpen = false">
 
         {{-- Search & Filter Toolbar --}}
         <div class="rounded-xl border border-neutral-200/90 bg-white p-3 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900">

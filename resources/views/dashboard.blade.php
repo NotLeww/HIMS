@@ -946,8 +946,10 @@
                                             x-on:click="selectItem(item.item_id)"
                                             x-on:mouseenter="setMiniHover(item, $event)"
                                             x-on:mouseleave="clearMiniHover()"
+                                            role="button"
                                             tabindex="0"
                                             x-on:keydown.enter="selectItem(item.item_id)"
+                                            x-on:keydown.space.prevent="selectItem(item.item_id)"
                                             aria-label="Select item for chart inspection"
                                         >
                                             <div class="flex items-center justify-between gap-2">
