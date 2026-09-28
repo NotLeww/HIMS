@@ -134,6 +134,33 @@ class ScheduledReportTest extends TestCase
         Mail::assertSentCount(1);
     }
 
+    public function test_scheduled_pdf_and_excel_exports_are_attached_in_the_expected_format(): void
+    {
+        Mail::fake();
+        $manager = User::factory()->inventoryManager()->create();
+        $schedule = $this->schedule($manager);
+
+        foreach ([
+            'pdf' => ['.pdf', 'application/pdf', fn (string $data): bool => str_starts_with($data, '%PDF')],
+            'excel' => ['.xls', 'application/vnd.ms-excel', fn (string $data): bool => str_contains($data, '<table')],
+        ] as $format => [$extension, $mime, $contentMatches]) {
+            $execution = $this->execution($schedule, $manager, [
+                'scheduled_for' => now()->addMinutes($format === 'pdf' ? 1 : 2),
+                'report_format' => $format,
+            ]);
+
+            (new GenerateScheduledReport($execution->id))->handle(app(InventoryReportService::class));
+
+            $this->assertSame('sent', $execution->fresh()->status);
+            Mail::assertSent(ScheduledReportMail::class, fn (ScheduledReportMail $mail): bool => str_ends_with($mail->attachmentName, $extension)
+                && $mail->attachmentMime === $mime
+                && $contentMatches($mail->attachmentData)
+            );
+        }
+
+        Mail::assertSentCount(2);
+    }
+
     public function test_disabled_schedule_is_not_executed_and_reenable_calculates_a_future_run(): void
     {
         Carbon::setTestNow('2026-09-28 10:00:00');

@@ -61,6 +61,36 @@ class AuditTrailTest extends TestCase
         ], $overrides));
     }
 
+    public function test_filtered_print_view_contains_the_full_authorized_result_without_controls(): void
+    {
+        $viewer = User::factory()->superAdministrator()->create();
+
+        foreach (range(1, 30) as $index) {
+            $this->auditLog([
+                'actor_name' => 'Print Operator '.str_pad((string) $index, 3, '0', STR_PAD_LEFT),
+                'description' => 'Printable filtered audit detail '.str_repeat('wrap ', 20),
+            ]);
+        }
+        $this->auditLog(['actor_name' => 'Excluded Operator']);
+
+        $response = $this->actingAs($viewer, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('admin.audit-logs.index', ['search' => 'Print Operator', 'print' => 1]));
+
+        $response->assertOk()
+            ->assertSee('Print Operator 001')
+            ->assertSee('Print Operator 030')
+            ->assertDontSee('Excluded Operator')
+            ->assertSee('30 records')
+            ->assertSee('size: A4 landscape', false)
+            ->assertSee('window.print()', false)
+            ->assertDontSee('audit-log-filters', false)
+            ->assertDontSee('Pagination Navigation');
+
+        $this->actingAs(User::factory()->administrator()->create())
+            ->get(route('admin.audit-logs.index', ['print' => 1]))
+            ->assertForbidden();
+    }
+
     public function test_creating_a_user_records_actor_target_context_and_no_password(): void
     {
         $admin = $this->admin();

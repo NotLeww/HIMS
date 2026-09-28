@@ -1,4 +1,7 @@
 <x-app-layout>
+    @if ($isPrint)
+        <style>@media print { @page { size: A4 landscape; margin: 10mm; } }</style>
+    @endif
     <x-ui.page-header
         title="Audit Trail"
         :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Audit Trail' => null]" />
@@ -6,9 +9,29 @@
     @php
         $activeFilterCount = count(array_filter($filters ?? []));
         $hasActiveFilters = $activeFilterCount > 0;
+        $recordCount = $isPrint ? $logs->count() : $logs->total();
+        $printUrl = route('admin.audit-logs.index', [...request()->except(['page', 'print']), 'print' => 1]);
     @endphp
 
-    <div x-data="{ open: @js($hasActiveFilters) }" class="relative z-20">
+    <div class="mb-4 flex justify-end print:hidden">
+        <x-ui.button variant="secondary" icon="printer" :href="$printUrl" target="_blank" rel="noopener">Print filtered trail</x-ui.button>
+    </div>
+
+    <section class="hidden print:block print-context" aria-label="Printed audit trail context">
+        <h1>Audit Trail</h1>
+        <p>Generated {{ now()->format('M d, Y, g:i:s A') }} {{ config('app.timezone') }} &middot; {{ number_format($recordCount) }} records</p>
+        @if ($hasActiveFilters)
+            <dl>
+                @foreach ($filters as $name => $value)
+                    @continue(blank($value))
+                    <div><dt>{{ \Illuminate\Support\Str::headline($name) }}</dt><dd>{{ $value }}</dd></div>
+                @endforeach
+            </dl>
+        @endif
+    </section>
+
+    @if (! $isPrint)
+    <div x-data="{ open: @js($hasActiveFilters) }" class="relative z-20 print:hidden">
         <x-ui.card
             title="Find Activity"
             subtitle="Use controlled filters for known values and search for descriptive activity."
@@ -202,11 +225,12 @@
             </div>
         </x-ui.card>
     </div>
+    @endif
 
     <x-ui.card
-        class="audit-logs-table [&_.hims-table-scroll]:overflow-x-hidden [&_.hims-table-scroll]:[scrollbar-width:none] [&_.hims-table-scroll::-webkit-scrollbar]:hidden"
+        class="audit-logs-table audit-print-table [&_.hims-table-scroll]:overflow-x-hidden [&_.hims-table-scroll]:[scrollbar-width:none] [&_.hims-table-scroll::-webkit-scrollbar]:hidden"
         title="Activity"
-        :subtitle="$logs->total().' '.\Illuminate\Support\Str::plural('record', $logs->total()).' - '.config('app.timezone').' (PHT)'"
+        :subtitle="$recordCount.' '.\Illuminate\Support\Str::plural('record', $recordCount).' - '.config('app.timezone').' (PHT)'"
         :padding="false">
         <x-ui.table class="audit-logs-table" aria-label="Audit trail entries">
             <x-ui.table.head>
@@ -216,7 +240,7 @@
                 <x-ui.table.th>Target</x-ui.table.th>
                 <x-ui.table.th>Description</x-ui.table.th>
                 <x-ui.table.th>Date &amp; Time</x-ui.table.th>
-                <x-ui.table.th class="text-right">Actions</x-ui.table.th>
+                <x-ui.table.th class="text-right print:hidden">Actions</x-ui.table.th>
             </x-ui.table.head>
             <tbody>
                 @forelse ($logs as $log)
@@ -285,7 +309,7 @@
                             </div>
                         </x-ui.table.td>
 
-                        <x-ui.table.td class="whitespace-nowrap text-right">
+                        <x-ui.table.td class="whitespace-nowrap text-right print:hidden">
                             <div class="inline-flex items-center justify-end gap-1.5">
                                 @if ($hasDetails)
                                     <button
@@ -317,13 +341,14 @@
             </tbody>
         </x-ui.table>
 
-        @if ($logs->hasPages())
+        @if (! $isPrint && $logs->hasPages())
             <x-slot:footer>
                 {{ $logs->links() }}
             </x-slot:footer>
         @endif
     </x-ui.card>
 
+    @if (! $isPrint)
     @foreach ($logs as $log)
         @if (!empty($log->old_values) || !empty($log->new_values))
             @php
@@ -449,4 +474,11 @@
             </x-ui.modal>
         @endif
     @endforeach
+    @endif
+
+    @if ($isPrint)
+        <script>
+            window.addEventListener('load', () => window.print(), { once: true });
+        </script>
+    @endif
 </x-app-layout>

@@ -11,13 +11,18 @@
 
 ## Verification completed
 
-An isolated SQLite environment was used to create a due daily PDF schedule, add current inventory data, invoke `reports:run-scheduled`, and inspect the persisted result:
+An isolated SQLite environment was used to create a short-term daily CSV schedule with current inventory data. Laravel's real `schedule:work` process reached the configured time without a browser or manual report-command invocation:
 
 ```text
+scheduled_for=2026-09-28 11:24:00 Asia/Manila
+mail_sent_at=2026-09-28 11:24:04 Asia/Manila
 status=sent
 mail_status=accepted
 record_count=1
+next_run_at=2026-09-29 11:24:00 Asia/Manila
 ```
+
+The isolated scheduler test used the synchronous queue driver so it could not consume the shared development database's unrelated queue backlog. Normal HIMS operation continues to use the configured queue connection.
 
 The focused and adjacent regression suites cover creation, persistence, due detection, current filtered data, CSV attachment contents, recipient authorization scope, email submission, history, last/next run timestamps, disabled schedules, duplicate prevention, retries, failure states, monthly date handling, editing, deletion with preserved history, audit events, and unchanged manual exports.
 
@@ -37,7 +42,9 @@ Recommended checklist evidence entry:
 
 ## Deployment requirement
 
-The repository registers the task, but production automation still requires both a scheduler trigger and a queue worker. Configure the deployment host with equivalents of:
+Local development starts the web server, queue listener, and scheduler together with `composer run dev`.
+
+Production automation still requires both a scheduler trigger and a queue worker. Configure the deployment host with equivalents of:
 
 ```cron
 * * * * * cd /path/to/hims && php artisan schedule:run >> /dev/null 2>&1

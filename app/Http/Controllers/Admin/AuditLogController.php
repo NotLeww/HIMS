@@ -46,7 +46,11 @@ class AuditLogController extends Controller implements HasMiddleware
             'source' => ['nullable', Rule::in(['user', 'system', 'scheduled_job', 'integration'])],
             'date_from' => ['nullable', 'date_format:Y-m-d'],
             'date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from'],
+            'print' => ['nullable', 'boolean'],
         ]);
+
+        $isPrint = (bool) ($filters['print'] ?? false);
+        unset($filters['print']);
 
         $searchTerm = trim($filters['search'] ?? '');
         $targetTerm = trim($filters['target'] ?? '');
@@ -60,7 +64,7 @@ class AuditLogController extends Controller implements HasMiddleware
             ? CarbonImmutable::parse($filters['date_to'], config('app.timezone'))->endOfDay()
             : null;
 
-        $logs = AuditLog::query()
+        $logsQuery = AuditLog::query()
             ->when($searchTerm !== '', function ($query) use ($matchingActions, $searchTerm): void {
                 $term = '%'.$searchTerm.'%';
 
@@ -113,9 +117,11 @@ class AuditLogController extends Controller implements HasMiddleware
             ->orderByRaw('CASE WHEN occurred_at_utc IS NULL THEN 1 ELSE 0 END')
             ->latest('occurred_at_utc')
             ->latest('created_at')
-            ->latest('id')
-            ->paginate(25)
-            ->withQueryString();
+            ->latest('id');
+
+        $logs = $isPrint
+            ? $logsQuery->get()
+            : $logsQuery->paginate(25)->withQueryString();
 
         return view('admin.audit-logs.index', [
             'logs' => $logs,
@@ -132,6 +138,7 @@ class AuditLogController extends Controller implements HasMiddleware
                 'integration' => 'Integration',
             ],
             'filters' => $filters,
+            'isPrint' => $isPrint,
         ]);
     }
 

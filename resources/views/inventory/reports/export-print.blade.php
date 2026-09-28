@@ -1,3 +1,9 @@
+@php
+    $wideReport = ($report['meta']['report_type'] ?? '') === 'all'
+        || count($report['columns'] ?? []) > 7
+        || collect($report['sections'] ?? [])->contains(fn ($section) => count($section['columns'] ?? []) > 7);
+    $identifierColumns = ['id', 'sku', 'barcode_value', 'gtin', 'batch_number', 'po_number', 'reference_number', 'tracking_number', 'sscc'];
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -233,6 +239,8 @@
             border: 1px solid #cbd5e1;
             text-align: left;
             vertical-align: middle;
+            overflow-wrap: anywhere;
+            word-break: normal;
         }
         table.report-table th {
             background-color: #f1f5f9;
@@ -254,6 +262,12 @@
         .text-right { text-align: right !important; }
         .text-center { text-align: center !important; }
         .nowrap { white-space: nowrap; }
+        .identifier {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            overflow-wrap: normal;
+        }
 
         /* Badges inside table */
         .badge {
@@ -328,6 +342,10 @@
 
         /* Print Media Styles */
         @media print {
+            @page {
+                size: A4 {{ $wideReport ? 'landscape' : 'portrait' }};
+                margin: {{ $wideReport ? '10mm' : '12mm' }};
+            }
             body {
                 background: #ffffff !important;
                 padding: 0 !important;
@@ -341,14 +359,22 @@
                 border-radius: 0 !important;
             }
             .no-print-bar { display: none !important; }
-            table.report-table { font-size: 9.5px !important; }
-            table.report-table th, table.report-table td { padding: 4px 6px !important; }
-            .section-header { page-break-after: avoid; }
-            tr { page-break-inside: avoid; }
-            @page {
-                size: letter portrait;
-                margin: 12mm 10mm 12mm 10mm;
+            .hospital-header,
+            .report-title-block,
+            .filters-summary,
+            .stats-grid,
+            .signoff-section,
+            .report-footer { break-inside: avoid-page; }
+            table.report-table {
+                font-size: {{ $wideReport ? '8.25px' : '9.5px' }} !important;
+                table-layout: auto;
             }
+            table.report-table th, table.report-table td { padding: 4px 6px !important; }
+            table.report-table thead { display: table-header-group; }
+            table.report-table tfoot { display: table-row-group; }
+            .section-header { break-after: avoid-page; page-break-after: avoid; }
+            tr { break-inside: avoid-page; page-break-inside: avoid; }
+            .identifier { font-size: 7.5px; white-space: nowrap; overflow-wrap: normal; }
         }
     </style>
 </head>
@@ -475,7 +501,7 @@
                                             $isCurrency = in_array($colKey, ['unit_cost', 'total_value', 'value', 'risk_value', 'total_amount'], true);
                                             $isStatus = in_array($colKey, ['status', 'status_key'], true);
                                         @endphp
-                                        <td class="{{ in_array($colKey, ['quantity_on_hand', 'units', 'quantity', 'reorder_level', 'items', 'orders', 'received_orders', 'movements', 'capacity'], true) ? 'text-center' : ($isCurrency ? 'text-right nowrap' : '') }}">
+                                        <td class="{{ in_array($colKey, ['quantity_on_hand', 'units', 'quantity', 'reorder_level', 'items', 'orders', 'received_orders', 'movements', 'capacity'], true) ? 'text-center' : ($isCurrency ? 'text-right nowrap' : '') }} {{ in_array($colKey, $identifierColumns, true) ? 'identifier' : '' }}">
                                             @if ($isCurrency && $isNumeric)
                                                 ₱{{ number_format((float) $val, 2) }}
                                             @elseif ($isStatus)
@@ -504,7 +530,7 @@
                                             $totVal = $section['totals'][$colKey] ?? '-';
                                             $isCurrency = in_array($colKey, ['unit_cost', 'total_value', 'value', 'risk_value', 'total_amount'], true);
                                         @endphp
-                                        <td class="{{ in_array($colKey, ['quantity_on_hand', 'units', 'quantity', 'reorder_level', 'items', 'orders', 'received_orders', 'movements'], true) ? 'text-center' : ($isCurrency ? 'text-right' : '') }}">
+                                        <td class="{{ in_array($colKey, ['quantity_on_hand', 'units', 'quantity', 'reorder_level', 'items', 'orders', 'received_orders', 'movements'], true) ? 'text-center' : ($isCurrency ? 'text-right' : '') }} {{ in_array($colKey, $identifierColumns, true) ? 'identifier' : '' }}">
                                             {{ is_numeric($totVal) ? number_format($totVal) : $totVal }}
                                         </td>
                                     @endforeach
@@ -547,7 +573,7 @@
                                         $isCurrency = in_array($colKey, ['unit_cost', 'total_value', 'value', 'risk_value', 'total_amount'], true);
                                         $isStatus = in_array($colKey, ['status', 'status_key'], true);
                                     @endphp
-                                    <td class="{{ in_array($colKey, ['quantity_on_hand', 'units', 'quantity', 'reorder_level', 'items', 'orders', 'received_orders', 'movements', 'capacity'], true) ? 'text-center' : ($isCurrency ? 'text-right nowrap' : '') }}">
+                                    <td class="{{ in_array($colKey, ['quantity_on_hand', 'units', 'quantity', 'reorder_level', 'items', 'orders', 'received_orders', 'movements', 'capacity'], true) ? 'text-center' : ($isCurrency ? 'text-right nowrap' : '') }} {{ in_array($colKey, $identifierColumns, true) ? 'identifier' : '' }}">
                                         @if ($isCurrency && $isNumeric)
                                             ₱{{ number_format((float) $val, 2) }}
                                         @elseif ($isStatus)
@@ -576,7 +602,7 @@
                                         $totVal = $report['totals'][$colKey] ?? '-';
                                         $isCurrency = in_array($colKey, ['unit_cost', 'total_value', 'value', 'risk_value', 'total_amount'], true);
                                     @endphp
-                                    <td class="{{ in_array($colKey, ['quantity_on_hand', 'units', 'quantity', 'reorder_level', 'items', 'orders', 'received_orders', 'movements'], true) ? 'text-center' : ($isCurrency ? 'text-right' : '') }}">
+                                    <td class="{{ in_array($colKey, ['quantity_on_hand', 'units', 'quantity', 'reorder_level', 'items', 'orders', 'received_orders', 'movements'], true) ? 'text-center' : ($isCurrency ? 'text-right' : '') }} {{ in_array($colKey, $identifierColumns, true) ? 'identifier' : '' }}">
                                         {{ is_numeric($totVal) ? number_format($totVal) : $totVal }}
                                     </td>
                                 @endforeach

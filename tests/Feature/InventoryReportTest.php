@@ -981,7 +981,11 @@ class InventoryReportTest extends TestCase
             ->assertSee(config('privacy.hospital_address'))
             ->assertSee(config('privacy.system_name'))
             ->assertSee('data:image/png;base64,', false)
-            ->assertSee('official logo');
+            ->assertSee('official logo')
+            ->assertSee('size: A4 landscape', false)
+            ->assertSee('display: table-header-group', false)
+            ->assertSee('display: table-row-group', false)
+            ->assertSee('overflow-wrap: anywhere', false);
     }
 
     public function test_generate_all_reports_compiles_complete_dossier(): void

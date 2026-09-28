@@ -1,4 +1,14 @@
 <x-app-layout>
+    <style>
+        @media print {
+            @page { size: A4 landscape; margin: 10mm; }
+            .ris-document { break-inside: auto; }
+            .ris-document table { width: 100%; border-collapse: collapse; }
+            .ris-document thead { display: table-header-group; }
+            .ris-document tr { break-inside: avoid-page; page-break-inside: avoid; }
+            .ris-document th, .ris-document td { overflow-wrap: anywhere; white-space: normal; }
+        }
+    </style>
     <x-slot name="header">
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between print:hidden">
             <div>
@@ -25,7 +35,7 @@
     <div class="space-y-6">
 
             {{-- FORMAL COA GAM VOLUME II APPENDIX 63 CANVAS --}}
-            <div class="border border-neutral-300 bg-white p-8 shadow-sm print:border-none print:p-0 print:shadow-none font-serif text-neutral-900">
+            <div class="ris-document border border-neutral-300 bg-white p-8 shadow-sm print:border-none print:p-0 print:shadow-none font-serif text-neutral-900">
                 <div class="text-center">
                     <p class="text-[11px] font-sans font-semibold tracking-wider text-neutral-500 uppercase">Appendix 63</p>
                     <h1 class="text-xl font-bold tracking-tight uppercase">Requisition and Issue Slip</h1>

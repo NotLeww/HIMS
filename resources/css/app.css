@@ -67,6 +67,87 @@
             color: #111827 !important;
             color-scheme: light !important;
         }
+
+        [data-hims-loading-overlay],
+        [role='dialog'],
+        [aria-live='polite'].fixed,
+        nav[aria-label='Pagination Navigation'] {
+            display: none !important;
+        }
+
+        .hims-table-scroll {
+            overflow: visible !important;
+        }
+
+        .print-context {
+            margin-bottom: 12pt;
+            color: #111827;
+        }
+
+        .print-context h1 {
+            font-size: 18pt;
+            font-weight: 700;
+        }
+
+        .print-context p,
+        .print-context dl {
+            margin-top: 4pt;
+            font-size: 9pt;
+        }
+
+        .print-context dl {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 3pt 10pt;
+        }
+
+        .print-context dl div {
+            display: flex;
+            gap: 3pt;
+            min-width: 0;
+        }
+
+        .print-context dt {
+            font-weight: 600;
+        }
+
+        .print-context dd {
+            overflow-wrap: anywhere;
+        }
+
+        .audit-print-table table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            table-layout: fixed;
+            font-size: 7.5pt !important;
+        }
+
+        .audit-print-table thead {
+            display: table-header-group;
+        }
+
+        .audit-print-table tr {
+            break-inside: avoid-page;
+            page-break-inside: avoid;
+        }
+
+        .audit-print-table th,
+        .audit-print-table td {
+            padding: 4pt !important;
+            border: 0.5pt solid #9ca3af !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+            vertical-align: top !important;
+        }
+
+        .audit-print-table .truncate,
+        .audit-print-table .line-clamp-2 {
+            max-width: none !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            white-space: normal !important;
+            -webkit-line-clamp: unset !important;
+        }
     }
 
     @supports (overflow: clip) {
