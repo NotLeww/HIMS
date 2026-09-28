@@ -53,7 +53,7 @@ class InventoryModuleTest extends TestCase
             'quantity' => 20,
             'unit_cost' => 120,
             'total_amount' => 2400,
-            'status' => 'pending',
+            'status' => PurchaseOrderStatus::PendingApproval,
             'requested_at' => now(),
         ]);
 

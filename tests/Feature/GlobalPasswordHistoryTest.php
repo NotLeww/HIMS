@@ -95,6 +95,7 @@ class GlobalPasswordHistoryTest extends TestCase
             'email' => 'registrant@example.test',
             'password' => self::USED_PASSWORD,
             'password_confirmation' => self::USED_PASSWORD,
+            'privacy_consent' => '1',
         ])->assertRedirect(route('register'))
             ->assertSessionHasErrors([
                 'password' => PasswordHistoryService::REJECTION_MESSAGE,

@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Models\UserConsent;
+use App\Services\Privacy\ConsentService;
 use App\Support\AuthenticationContext;
 use Database\Seeders\SuperAdminSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -70,7 +72,10 @@ class SuperAdminProvisioningTest extends TestCase
     {
         $this->seed(SuperAdminSeeder::class);
 
-        return User::query()->where('email', self::EMAIL)->firstOrFail();
+        $user = User::query()->where('email', self::EMAIL)->firstOrFail();
+        app(ConsentService::class)->recordConsent($user, UserConsent::TYPE_PRIVACY_POLICY);
+
+        return $user;
     }
 
     public function test_seeder_provisions_the_exact_protected_account_with_a_hashed_password(): void

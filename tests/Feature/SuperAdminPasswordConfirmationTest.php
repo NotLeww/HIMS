@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Models\UserConsent;
+use App\Services\Privacy\ConsentService;
 use App\Support\AuthenticationContext;
 use App\Support\SuperAdminPasswordConfirmation;
 use Database\Seeders\SuperAdminSeeder;
@@ -36,7 +38,10 @@ class SuperAdminPasswordConfirmationTest extends TestCase
     {
         $this->seed(SuperAdminSeeder::class);
 
-        return User::query()->where('email', self::SUPER_ADMIN_EMAIL)->firstOrFail();
+        $user = User::query()->where('email', self::SUPER_ADMIN_EMAIL)->firstOrFail();
+        app(ConsentService::class)->recordConsent($user, UserConsent::TYPE_PRIVACY_POLICY);
+
+        return $user;
     }
 
     private function validCreatePayload(string $email = 'new.user@example.com'): array
