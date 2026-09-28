@@ -56,6 +56,7 @@ class DropdownNavigationTest extends TestCase
         $response->assertSee("activeDropdown: 'administration'", false);
         $response->assertSee("activeDropdown === 'administration'", false);
         $response->assertSee("activeDropdown = (activeDropdown === 'administration' ? null : 'administration')", false);
+        $response->assertSee(":inert=\"activeDropdown !== 'administration'\"", false);
     }
 
     public function test_inventory_items_page_renders_grouped_workflow_dropdowns(): void

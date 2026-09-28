@@ -55,6 +55,7 @@
         class="grid transition-[grid-template-rows,opacity] duration-300 ease-in-out overflow-hidden"
         :class="activeDropdown === '{{ $dropdownId }}' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 pointer-events-none'"
         :aria-hidden="activeDropdown === '{{ $dropdownId }}' ? 'false' : 'true'"
+        :inert="activeDropdown !== '{{ $dropdownId }}'"
     >
         <div class="overflow-hidden min-h-0">
             <div
