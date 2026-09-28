@@ -1,7 +1,8 @@
 <x-app-layout>
     @include('inventory.logistics.partials.nav')
 
-    <div x-data="{ newModal: false }" class="space-y-6">
+    <div x-data="{ newModal: {{ $errors->any() ? 'true' : 'false' }} }" class="space-y-6">
+        <x-ui.validation-summary />
 
         {{-- Breadcrumbs & Header --}}
         <div class="border-b border-neutral-200 pb-4">

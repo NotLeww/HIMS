@@ -32,6 +32,8 @@
         </x-slot:actions>
     </x-ui.page-header>
 
+    <x-ui.validation-summary class="mb-6" />
+
     @if (session('status'))
         <x-ui.alert variant="success" title="Action Completed" dismissible class="mb-6">
             {{ session('status') }}

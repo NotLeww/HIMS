@@ -42,6 +42,7 @@
     }"
     @open-upload-modal.window="uploadModalOpen = true"
     @keydown.escape.window="detailsModalOpen = false; uploadModalOpen = false; verifyModalOpen = false; supersedeModalOpen = false">
+            <x-ui.validation-summary />
 
             {{-- Flash Notifications --}}
             @if(session('success'))

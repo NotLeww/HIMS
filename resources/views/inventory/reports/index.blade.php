@@ -180,6 +180,8 @@
         </x-slot>
     </x-ui.page-header>
 
+    <x-ui.validation-summary />
+
     <form method="GET" action="{{ route('inventory.reports') }}"
           x-data="{ period: @js($currentPeriod) }"
           class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm print:hidden">

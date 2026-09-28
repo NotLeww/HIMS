@@ -309,6 +309,41 @@ class EvidenceBasedProcessReviewTest extends TestCase
         ]);
     }
 
+    public function test_dpri_validation_errors_are_visible_and_invalid_data_is_not_saved(): void
+    {
+        $response = $this->actingAs($this->evaluator)
+            ->from(route('reviews.dpri'))
+            ->post(route('reviews.dpri.store'), [
+                'pndf_code' => '',
+                'drug_name' => '',
+                'unit_of_measure' => 'not-a-real-unit',
+                'ceiling_price' => -1,
+                'edition_year' => 2019,
+            ]);
+
+        $response
+            ->assertRedirect(route('reviews.dpri'))
+            ->assertSessionHasErrors([
+                'pndf_code',
+                'drug_name',
+                'unit_of_measure',
+                'ceiling_price',
+                'edition_year',
+            ]);
+
+        $this->assertDatabaseMissing('dpri_reference_prices', [
+            'pndf_code' => '',
+            'edition_year' => 2019,
+        ]);
+
+        $this->get(route('reviews.dpri'))
+            ->assertOk()
+            ->assertSee('Please review the information below.')
+            ->assertSee('The pndf code field is required.')
+            ->assertSee('The ceiling price field must be at least 0.')
+            ->assertSee('newModal: true', false);
+    }
+
     public function test_reviews_screens_render_successfully(): void
     {
         // 1. Create a review to view

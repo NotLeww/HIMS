@@ -19,6 +19,7 @@
     @include('inventory.logistics.partials.nav')
 
     <div class="space-y-6" x-data="{ genModalOpen: false, selectedGrnId: null, selectedGrnNumber: '', defaultDr: '', defaultSi: '' }" @keydown.escape.window="genModalOpen = false">
+            <x-ui.validation-summary />
 
             {{-- Flash Notifications --}}
             @if(session('success'))

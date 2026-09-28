@@ -23,6 +23,7 @@
     @include('inventory.logistics.partials.nav')
 
     <div class="space-y-6 print:p-0 print:m-0 print:space-y-0" x-data="{ inspectModalOpen: false, acceptModalOpen: false, coaModalOpen: false }" @keydown.escape.window="inspectModalOpen = false; acceptModalOpen = false; coaModalOpen = false">
+            <x-ui.validation-summary class="print:hidden" />
 
             {{-- Flash Messages --}}
             @if(session('success'))

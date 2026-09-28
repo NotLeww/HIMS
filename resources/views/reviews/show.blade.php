@@ -9,6 +9,8 @@
         rejectionReason: '',
         implementationNotes: ''
     }" @keydown.escape.window="openDropdown = null; rejectModal = false; implementModal = false" class="space-y-6">
+        <x-ui.validation-summary />
+
         {{-- Breadcrumbs & Header --}}
         <div class="border-b border-neutral-200 pb-4">
             <nav class="flex text-xs text-neutral-500 mb-2" aria-label="Breadcrumb">
