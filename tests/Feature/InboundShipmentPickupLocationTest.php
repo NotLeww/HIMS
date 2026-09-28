@@ -113,8 +113,29 @@ class InboundShipmentPickupLocationTest extends TestCase
         $this->actingAs($actor)->get(route('inventory.logistics.shipments'))
             ->assertOk()
             ->assertSee('North Luzon Medical Supply - Registered Address')
-            ->assertSee('10 Supplier Avenue, San Fernando, La Union')
+            ->assertSee('Address: 10 Supplier Avenue, San Fernando, La Union')
             ->assertSee('Operating Theatre Store');
+    }
+
+    public function test_duplicate_legacy_pickup_address_is_not_rendered_twice(): void
+    {
+        extract($this->setupLogistics());
+
+        Shipment::create([
+            'shipment_number' => 'SHP-LEGACY-DUPLICATE-PICKUP',
+            'purchase_order_id' => $po->id,
+            'supplier_id' => $supplier->id,
+            'carrier_name' => 'Legacy Carrier',
+            'pickup_location_name' => 'Legacy Distribution Facility',
+            'origin_address' => 'Legacy Distribution Facility',
+            'destination_facility' => 'Main Receiving Dock',
+            'status' => 'dispatched',
+        ]);
+
+        $this->actingAs($actor)->get(route('inventory.logistics.shipments', ['search' => 'SHP-LEGACY-DUPLICATE-PICKUP']))
+            ->assertOk()
+            ->assertSee('Pickup: Legacy Distribution Facility')
+            ->assertDontSee('Address: Legacy Distribution Facility');
     }
 
     public function test_page_supplies_database_backed_supplier_and_internal_pickup_options_with_po_prefill_contract(): void

@@ -130,11 +130,14 @@
                                         Supplier: <span class="font-medium text-neutral-700 dark:text-neutral-300">{{ $shipment->supplier->name ?? 'N/A' }}</span>
                                     </div>
                                     <div class="mt-2 border-t border-neutral-100 pt-1.5 text-[11px] leading-relaxed dark:border-neutral-800">
-                                        <div class="font-medium text-neutral-700 dark:text-neutral-300" title="{{ $shipment->pickup_location_name ?? $shipment->origin_address ?? 'Not recorded' }}">
-                                            Pickup: {{ $shipment->pickup_location_name ?? $shipment->origin_address ?? 'Not recorded' }}
+                                        @php
+                                            $pickupLabel = $shipment->pickup_location_name ?: $shipment->origin_address;
+                                        @endphp
+                                        <div class="font-medium text-neutral-700 dark:text-neutral-300" title="{{ $pickupLabel ?: 'Not recorded' }}">
+                                            Pickup: {{ $pickupLabel ?: 'Not recorded' }}
                                         </div>
-                                        @if($shipment->pickup_location_name && $shipment->origin_address)
-                                            <div class="max-w-64 break-words text-neutral-500 dark:text-neutral-400">{{ $shipment->origin_address }}</div>
+                                        @if(filled($shipment->origin_address) && strcasecmp(trim((string) $pickupLabel), trim((string) $shipment->origin_address)) !== 0)
+                                            <div class="max-w-64 break-words text-neutral-500 dark:text-neutral-400">Address: {{ $shipment->origin_address }}</div>
                                         @endif
                                         <div class="text-neutral-500 dark:text-neutral-400" title="{{ $shipment->destination_facility }}">
                                             Destination: {{ $shipment->destination_facility }}

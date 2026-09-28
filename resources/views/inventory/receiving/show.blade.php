@@ -132,9 +132,12 @@
                 @if($linkedShipment)
                     <div class="min-w-0 flex-1 basis-64">
                         <dt class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Pickup Location</dt>
-                        <dd class="mt-1 font-semibold text-neutral-900 dark:text-neutral-100">{{ $linkedShipment->pickup_location_name ?: 'Not recorded' }}</dd>
-                        @if($linkedShipment->origin_address)
-                            <dd class="mt-0.5 break-words text-xs text-neutral-500 dark:text-neutral-400">{{ $linkedShipment->origin_address }}</dd>
+                        @php
+                            $pickupLabel = $linkedShipment->pickup_location_name ?: $linkedShipment->origin_address;
+                        @endphp
+                        <dd class="mt-1 font-semibold text-neutral-900 dark:text-neutral-100">{{ $pickupLabel ?: 'Not recorded' }}</dd>
+                        @if(filled($linkedShipment->origin_address) && strcasecmp(trim((string) $pickupLabel), trim((string) $linkedShipment->origin_address)) !== 0)
+                            <dd class="mt-0.5 break-words text-xs text-neutral-500 dark:text-neutral-400">Address: {{ $linkedShipment->origin_address }}</dd>
                         @endif
                         @if($linkedShipment->pickup_contact_name || $linkedShipment->pickup_contact_number)
                             <dd class="mt-0.5 break-words text-xs text-neutral-500 dark:text-neutral-400">Contact: {{ collect([$linkedShipment->pickup_contact_name, $linkedShipment->pickup_contact_number])->filter()->join(' · ') }}</dd>
