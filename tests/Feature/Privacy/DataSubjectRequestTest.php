@@ -254,6 +254,11 @@ class DataSubjectRequestTest extends TestCase
         $this->assertArrayNotHasKey('password', $jsonData['account_profile']['personal_identity']);
         $this->assertArrayNotHasKey('authenticator_secret', $jsonData['account_profile']['security_settings']);
 
+        $readmeContent = $zip->getFromName('README.txt');
+        $this->assertIsString($readmeContent);
+        $this->assertStringContainsString('HOSPITAL INFORMATION MANAGEMENT SYSTEM (HIMS)', $readmeContent);
+        $this->assertStringNotContainsString('HOSPITAL INVENTORY MANAGEMENT SYSTEM', $readmeContent);
+
         // Inspect Manifest and Checksums
         $manifestContent = $zip->getFromName('manifest.json');
         $this->assertIsString($manifestContent);
@@ -397,4 +402,3 @@ class DataSubjectRequestTest extends TestCase
         $response->assertStatus(410);
     }
 }
-

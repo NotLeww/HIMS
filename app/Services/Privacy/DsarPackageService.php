@@ -498,7 +498,7 @@ class DsarPackageService
     {
         $lines = [];
         $lines[] = '================================================================================';
-        $lines[] = 'HOSPITAL INVENTORY MANAGEMENT SYSTEM (HIMS) — DATA SUBJECT EXPORT PACKAGE';
+        $lines[] = 'HOSPITAL INFORMATION MANAGEMENT SYSTEM (HIMS) — DATA SUBJECT EXPORT PACKAGE';
         $lines[] = 'Republic Act No. 10173 (Data Privacy Act of 2012) — Sections 16(c) & 18';
         $lines[] = '================================================================================';
         $lines[] = '';
