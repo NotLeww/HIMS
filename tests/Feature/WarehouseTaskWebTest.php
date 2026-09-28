@@ -139,6 +139,9 @@ class WarehouseTaskWebTest extends TestCase
         $response->assertOk()
             ->assertSee('Scan verification')
             ->assertSee('Scan with Camera')
+            ->assertSee('data-offline-sync="warehouse-scan"', false)
+            ->assertSee('data-offline-sync-status', false)
+            ->assertSee('/api/v1/inventory/warehouse-tasks/'.$task->id.'/scans', false)
             ->assertDontSee('change-task-assignment')
             ->assertDontSee('cancel-warehouse-task');
     }

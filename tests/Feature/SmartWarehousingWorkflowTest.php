@@ -10,11 +10,13 @@ use App\Models\ItemBatch;
 use App\Models\ItemStockLevel;
 use App\Models\StorageLocation;
 use App\Models\User;
+use App\Models\WarehouseScanEvent;
 use App\Models\WarehouseTaskEvent;
 use App\Services\Warehouse\BarcodeService;
 use App\Services\Warehouse\WarehouseTaskService;
 use Database\Seeders\SmartWarehousingDemoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Laravel\Sanctum\Sanctum;
 use LogicException;
 use Tests\TestCase;
@@ -143,6 +145,71 @@ class SmartWarehousingWorkflowTest extends TestCase
         $this->postJson('/api/v1/inventory/warehouse-tasks', $payload, ['Idempotency-Key' => 'api-create-task'])
             ->assertCreated()
             ->assertJsonPath('data.task_type', 'move');
+    }
+
+    public function test_offline_scan_replay_reaches_the_server_exactly_once(): void
+    {
+        $manager = User::factory()->inventoryManager()->create();
+        $operator = User::factory()->warehouseStaff()->create();
+        [$source, $destination] = $this->locations();
+        [$item] = $this->itemAndBatch();
+        $task = app(WarehouseTaskService::class)->create([
+            'task_type' => WarehouseTaskType::Move,
+            'priority' => 'normal',
+            'source_location_id' => $source->id,
+            'destination_location_id' => $destination->id,
+            'item_id' => $item->id,
+            'requested_quantity' => 1,
+            'assigned_to_id' => $operator->id,
+        ], $manager);
+        app(WarehouseTaskService::class)->start($task, $operator);
+
+        Sanctum::actingAs($operator);
+        $endpoint = "/api/v1/inventory/warehouse-tasks/{$task->id}/scans";
+        $headers = ['Idempotency-Key' => 'offline-scan-1'];
+
+        $this->postJson($endpoint, ['scan_value' => $source->code], $headers)
+            ->assertOk()
+            ->assertJsonPath('data.outcome', 'accepted');
+        $this->postJson($endpoint, ['scan_value' => $source->code], $headers)
+            ->assertOk()
+            ->assertHeader('X-Idempotent-Replay', 'true');
+
+        $this->assertSame(1, WarehouseScanEvent::where('idempotency_key', 'offline-scan-1')->count());
+    }
+
+    public function test_offline_scan_retry_keeps_authorization_and_rejects_key_reuse(): void
+    {
+        $manager = User::factory()->inventoryManager()->create();
+        $operator = User::factory()->warehouseStaff()->create();
+        $viewer = User::factory()->viewer()->create();
+        [$source, $destination] = $this->locations();
+        [$item] = $this->itemAndBatch();
+        $task = app(WarehouseTaskService::class)->create([
+            'task_type' => WarehouseTaskType::Move,
+            'priority' => 'normal',
+            'source_location_id' => $source->id,
+            'destination_location_id' => $destination->id,
+            'item_id' => $item->id,
+            'requested_quantity' => 1,
+            'assigned_to_id' => $operator->id,
+        ], $manager);
+        app(WarehouseTaskService::class)->start($task, $operator);
+        $endpoint = "/api/v1/inventory/warehouse-tasks/{$task->id}/scans";
+
+        Sanctum::actingAs($viewer);
+        $this->postJson($endpoint, ['scan_value' => $source->code], ['Idempotency-Key' => 'offline-secure'])
+            ->assertForbidden();
+
+        Sanctum::actingAs($operator);
+        $this->postJson($endpoint, ['scan_value' => $source->code], ['Idempotency-Key' => 'offline-secure'])
+            ->assertOk();
+        Cache::flush();
+        $this->postJson($endpoint, ['scan_value' => $destination->code], ['Idempotency-Key' => 'offline-secure'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'This scan identifier was already used for a different warehouse scan.');
+
+        $this->assertSame(1, WarehouseScanEvent::where('idempotency_key', 'offline-secure')->count());
     }
 
     public function test_event_records_are_append_only(): void

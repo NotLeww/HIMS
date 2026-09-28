@@ -98,6 +98,7 @@
 </head>
 <body
     class="h-full font-sans antialiased bg-neutral-50 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-100"
+    data-auth-user-id="{{ auth()->id() }}"
     data-login-url="{{ route(\App\Support\AuthenticationContext::loginRoute(\App\Support\AuthenticationContext::authenticatedGuard() ?? 'web')) }}"
     data-session-timeout-seconds="{{ (int) config('session.lifetime') * 60 }}"
     data-session-warning-seconds="{{ (int) config('session.warning_seconds') }}"

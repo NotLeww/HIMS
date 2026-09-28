@@ -179,7 +179,7 @@
                                     @endif
                                 </div>
 
-                                <form method="POST" action="{{ route('inventory.warehouse-tasks.scan', $warehouseTask) }}" class="mt-2 flex flex-col gap-2 2xl:flex-row">
+                                <form method="POST" action="{{ route('inventory.warehouse-tasks.scan', $warehouseTask) }}" class="mt-2 flex flex-col gap-2 2xl:flex-row" data-offline-sync="warehouse-scan" data-sync-endpoint="{{ url('/api/v1/inventory/warehouse-tasks/'.$warehouseTask->id.'/scans') }}" data-no-loading>
                                     @csrf
                                     <input type="text" id="task_scan_input_{{ $warehouseTask->id }}" name="scan_value" required autofocus autocomplete="off" placeholder="{{ $targetCode ? 'Scan or enter '.$targetCode : 'Required scans complete' }}" class="min-h-10 min-w-0 flex-1 rounded-lg border-neutral-300 font-mono text-sm shadow-xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500" aria-label="Warehouse scan value" @disabled(! $targetCode)>
                                     <input type="hidden" name="idempotency_key" value="{{ (string) \Illuminate\Support\Str::ulid() }}">
@@ -197,6 +197,10 @@
                                         <x-ui.button type="submit" size="sm" data-loading-text="Validating..." :disabled="! $targetCode">Validate scan</x-ui.button>
                                     </div>
                                 </form>
+                                <div data-offline-sync-status hidden class="mt-2 flex flex-col gap-2 rounded-lg border border-warning-300 bg-warning-50 px-3 py-2 text-xs text-warning-900 dark:border-warning-800 dark:bg-warning-950/40 dark:text-warning-200 sm:flex-row sm:items-center sm:justify-between">
+                                    <span data-offline-sync-message role="status" aria-live="polite"></span>
+                                    <x-ui.button type="button" variant="secondary" size="sm" data-offline-sync-retry hidden>Retry pending scans</x-ui.button>
+                                </div>
                             </div>
 
                         </div>

@@ -149,14 +149,21 @@ class WarehouseTaskService
     public function scan(WarehouseTask $task, string $rawValue, User $actor, ?string $idempotencyKey = null): WarehouseScanEvent
     {
         return DB::transaction(function () use ($task, $rawValue, $actor, $idempotencyKey): WarehouseScanEvent {
+            $locked = WarehouseTask::lockForUpdate()->findOrFail($task->id);
+
             if ($idempotencyKey) {
                 $existing = WarehouseScanEvent::query()->where('idempotency_key', $idempotencyKey)->first();
                 if ($existing) {
+                    if ((int) $existing->warehouse_task_id !== (int) $locked->id
+                        || (int) $existing->scanned_by_id !== (int) $actor->id
+                        || ! hash_equals($existing->raw_value, $rawValue)) {
+                        throw new DomainException('This scan identifier was already used for a different warehouse scan.');
+                    }
+
                     return $existing;
                 }
             }
 
-            $locked = WarehouseTask::lockForUpdate()->findOrFail($task->id);
             $this->assertOperator($locked, $actor);
             if ($locked->status !== WarehouseTaskStatus::InProgress) {
                 if (in_array($locked->status, [WarehouseTaskStatus::Ready, WarehouseTaskStatus::Assigned], true)) {

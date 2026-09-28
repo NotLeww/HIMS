@@ -1,4 +1,5 @@
 import './bootstrap';
+import './offline-sync';
 
 import Alpine from 'alpinejs';
 import { himsTheme, registerThemeWithAlpine } from './theme';
