@@ -22,6 +22,7 @@ use App\Http\Controllers\Inventory\NarcoticsVaultController;
 use App\Http\Controllers\Inventory\ProcurementController;
 use App\Http\Controllers\Inventory\PurchaseOrderController;
 use App\Http\Controllers\Inventory\ReportController;
+use App\Http\Controllers\Inventory\ScheduledReportController;
 use App\Http\Controllers\Inventory\SmartWarehousingController;
 use App\Http\Controllers\Inventory\StockAdjustmentController;
 use App\Http\Controllers\Inventory\StockMovementController;
@@ -237,6 +238,11 @@ Route::middleware('auth:web,admin,super_admin')->group(function () {
     Route::get('/inventory/alerts', [InventoryController::class, 'alerts'])->name('inventory.alerts');
     Route::get('/inventory/reports', [ReportController::class, 'index'])->name('inventory.reports');
     Route::get('/inventory/reports/generate', [ReportController::class, 'generate'])->name('inventory.reports.generate');
+    Route::get('/inventory/reports/schedules', [ScheduledReportController::class, 'index'])->name('inventory.reports.schedules');
+    Route::post('/inventory/reports/schedules', [ScheduledReportController::class, 'store'])->name('inventory.reports.schedules.store');
+    Route::patch('/inventory/reports/schedules/{scheduledReport}', [ScheduledReportController::class, 'update'])->name('inventory.reports.schedules.update');
+    Route::patch('/inventory/reports/schedules/{scheduledReport}/toggle', [ScheduledReportController::class, 'toggle'])->name('inventory.reports.schedules.toggle');
+    Route::delete('/inventory/reports/schedules/{scheduledReport}', [ScheduledReportController::class, 'destroy'])->name('inventory.reports.schedules.destroy');
 
     // Data Import System (CSV, Excel, JSON)
     Route::get('/inventory/import', [ImportController::class, 'index'])->name('inventory.import.index');

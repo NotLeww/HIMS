@@ -168,6 +168,11 @@
             </div>
 
             {{-- Single Primary Generate Report Button --}}
+            @can(\App\Enums\Permission::ManageScheduledReports->value)
+                <x-ui.button variant="secondary" icon="calendar" :href="route('inventory.reports.schedules')" class="print:hidden">
+                    Scheduled Reports
+                </x-ui.button>
+            @endcan
             <x-ui.button icon="arrow-down-tray" class="print:hidden"
                          @click="$dispatch('open-report-modal')">
                 Generate Report

@@ -13,4 +13,5 @@ Schedule::command('inventory:check-alerts')->dailyAt('01:00');
 Schedule::command('suppliers:check-compliance')->dailyAt('01:15')->withoutOverlapping();
 Schedule::command('procurement:close-expired-rfqs')->everyMinute()->withoutOverlapping();
 Schedule::command('privacy:enforce-retention')->dailyAt('02:00')->withoutOverlapping();
+Schedule::command('reports:run-scheduled')->everyMinute()->withoutOverlapping()->onOneServer();
 

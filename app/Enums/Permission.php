@@ -21,6 +21,7 @@ enum Permission: string
     // Read-only.
     case ViewInventory = 'view_inventory';
     case ViewReports = 'view_reports';
+    case ManageScheduledReports = 'manage_scheduled_reports';
     case ViewSuppliers = 'view_suppliers';
     case ViewSupplierSensitiveData = 'view_supplier_sensitive_data';
     case ViewProcurement = 'view_procurement';
@@ -89,6 +90,7 @@ enum Permission: string
         return match ($this) {
             self::ViewInventory => 'View stock levels',
             self::ViewReports => 'View reports',
+            self::ManageScheduledReports => 'Manage scheduled reports',
             self::ViewSuppliers => 'View supplier profiles',
             self::ViewSupplierSensitiveData => 'View sensitive supplier evidence and commercial data',
             self::ViewProcurement => 'View procurement and purchase orders',
@@ -151,6 +153,7 @@ enum Permission: string
         return match ($this) {
             self::ViewInventory => 'Read item records, stock levels and open alerts.',
             self::ViewReports => 'Read dashboards, stock levels and reports.',
+            self::ManageScheduledReports => 'Create, edit, enable, disable, and delete automated report deliveries.',
             self::ViewSuppliers => 'Read the supplier directory, qualification status, and operational summary.',
             self::ViewSupplierSensitiveData => 'Read supplier contacts, tax identifiers, addresses, compliance files, pricing, contracts, and internal history.',
             self::ViewProcurement => 'Read procurement status, quantities, suppliers, and purchase-order fulfillment records.',
@@ -230,7 +233,7 @@ enum Permission: string
             self::AwardProcurement, self::IssuePurchaseOrder, self::ApprovePurchaseOrder, self::ManageProcurementPolicy => 'Procurement',
             self::ViewLogisticsRecords, self::ViewLogisticsSensitiveData, self::ManageLogisticsRecords, self::VerifyLogisticsDocuments,
             self::PerformTechnicalInspection, self::ApproveIarAcceptance, self::ManageChainOfCustody => 'Logistics & Records',
-            self::ViewReports, self::GenerateForecasts, self::ViewProcessReviews,
+            self::ViewReports, self::ManageScheduledReports, self::GenerateForecasts, self::ViewProcessReviews,
             self::CreateProcessReview, self::ApproveProcessReview, self::ImplementProcessReview => 'Records & Analysis',
             self::ManageUsers, self::ViewAuditTrail, self::ManageSystemRecovery, self::ManagePrivacyCompliance, self::ViewArchive, self::ManageArchive => 'Administration',
         };

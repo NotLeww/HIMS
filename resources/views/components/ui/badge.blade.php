@@ -14,7 +14,7 @@
         'resolved' => 'success', 'delivered' => 'success', 'healthy' => 'success',
         'accepted' => 'success', 'arrived_at_dock' => 'success',
         'posted' => 'success', 'stored' => 'success', 'complete' => 'success',
-        'good' => 'success',
+        'good' => 'success', 'sent' => 'success',
 
         // amber — needs attention, in flight
         'low_stock' => 'warning', 'pending' => 'warning', 'submitted' => 'warning',
@@ -22,7 +22,7 @@
         'acknowledged' => 'warning', 'under_review' => 'warning',
         'pending_review' => 'warning', 'action_required' => 'danger',
         'warning' => 'warning', 'degraded' => 'warning',
-        'pending_inspection' => 'warning', 'customs_hold' => 'warning',
+        'pending_inspection' => 'warning', 'customs_hold' => 'warning', 'processing' => 'warning',
         'quarantined' => 'warning', 'under_qc' => 'warning', 'under_inspection' => 'warning',
         'partially_received' => 'warning', 'partially_disposed' => 'warning',
         'awaiting_put_away' => 'warning', 'pending_sample' => 'warning',
@@ -37,7 +37,7 @@
         'recovery_failed' => 'danger', 'failed' => 'danger',
         'recovery_pending' => 'warning', 'retrying' => 'warning',
         'recovered' => 'success',
-        'not_recoverable' => 'neutral',
+        'not_recoverable' => 'neutral', 'skipped' => 'neutral',
 
         // neutral — inert states
         'draft' => 'neutral', 'inactive' => 'neutral', 'archived' => 'neutral',

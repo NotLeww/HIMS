@@ -130,6 +130,10 @@ enum AuditAction: string
     case UpdatedSecurityIncident = 'updated_security_incident';
     case ExecutedDataRetention = 'executed_data_retention';
     case ExportedSystemReport = 'exported_system_report';
+    case CreatedScheduledReport = 'created_scheduled_report';
+    case UpdatedScheduledReport = 'updated_scheduled_report';
+    case ToggledScheduledReport = 'toggled_scheduled_report';
+    case DeletedScheduledReport = 'deleted_scheduled_report';
     case LoginApprovalRequested = 'login_approval_requested';
     case LoginApprovalEmailSent = 'login_approval_email_sent';
     case LoginApprovalEmailResent = 'login_approval_email_resent';
@@ -274,6 +278,10 @@ enum AuditAction: string
             self::UpdatedSecurityIncident => 'Updated Security Incident',
             self::ExecutedDataRetention => 'Executed Data Retention',
             self::ExportedSystemReport => 'Exported System Report',
+            self::CreatedScheduledReport => 'Created Scheduled Report',
+            self::UpdatedScheduledReport => 'Updated Scheduled Report',
+            self::ToggledScheduledReport => 'Enabled or Disabled Scheduled Report',
+            self::DeletedScheduledReport => 'Deleted Scheduled Report',
             self::LoginApprovalRequested => 'Login Approval Requested',
             self::LoginApprovalEmailSent => 'Login Approval Email Sent',
             self::LoginApprovalEmailResent => 'Login Approval Email Resent',
@@ -323,7 +331,13 @@ enum AuditAction: string
                 || str_contains($this->value, 'consent')
                 || $this === self::CompletedDataDeletion
                 || $this === self::ExecutedDataRetention => 'Privacy & Security Governance',
-            $this === self::ExportedSystemReport => 'Reports & Analytics',
+            in_array($this, [
+                self::ExportedSystemReport,
+                self::CreatedScheduledReport,
+                self::UpdatedScheduledReport,
+                self::ToggledScheduledReport,
+                self::DeletedScheduledReport,
+            ], true) => 'Reports & Analytics',
             str_contains($this->value, 'ai_chat') => 'AI Assistant',
             str_contains($this->value, 'supplier') && ! in_array($this, [self::SubmittedSupplierQuote], true) => 'Supplier Management',
             str_contains($this->value, 'purchase_request')

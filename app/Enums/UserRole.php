@@ -72,6 +72,7 @@ enum UserRole: string
             self::Administrator => [
                 Permission::ViewInventory,
                 Permission::ViewReports,
+                Permission::ManageScheduledReports,
                 Permission::ViewSuppliers,
                 Permission::ViewSupplierSensitiveData,
                 Permission::ReviewSupplierCompliance,
@@ -102,6 +103,7 @@ enum UserRole: string
             self::InventoryManager => [
                 Permission::ViewInventory,
                 Permission::ViewReports,
+                Permission::ManageScheduledReports,
                 Permission::ViewSuppliers,
                 Permission::ViewSupplierSensitiveData,
                 Permission::ViewProcurement,

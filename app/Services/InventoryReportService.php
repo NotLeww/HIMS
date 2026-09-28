@@ -1920,70 +1920,84 @@ class InventoryReportService
     {
         $filename = 'hims-'.($report['meta']['report_type'] ?? 'report').'-'.now()->format('Ymd_His').'.csv';
 
-        return response()->streamDownload(function () use ($report) {
-            $out = fopen('php://output', 'w');
-            fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM for MS Excel compatibility
-            $write = fn (array $row) => fputcsv($out, array_map([SpreadsheetValue::class, 'escapeFormula'], $row));
+        return response()->streamDownload(
+            fn () => print ($this->csvContent($report)),
+            $filename,
+            [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            ]
+        );
+    }
 
-            $write([$report['meta']['hospital_name'] ?? 'Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium']);
-            $write([$report['meta']['sub_title'] ?? 'Materials Management & Inventory Division']);
-            $write(['Report:', $report['meta']['report_title'] ?? 'Inventory Report']);
-            $write(['Generated:', optional($report['meta']['generated_at'])->format('Y-m-d H:i:s'), 'By:', $report['meta']['generated_by'] ?? '']);
-            $write(['Period:', $report['meta']['period']['description'] ?? '']);
-            foreach ($report['meta']['filter_labels'] ?? [] as $label => $val) {
-                $write(['Filter: '.$label, $val]);
-            }
-            $write([]); // blank line
+    /**
+     * Build the same CSV bytes used by manual and scheduled exports.
+     */
+    public function csvContent(array $report): string
+    {
+        $out = fopen('php://temp', 'w+');
+        fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM for MS Excel compatibility
+        $write = fn (array $row) => fputcsv($out, array_map([SpreadsheetValue::class, 'escapeFormula'], $row));
 
-            if (($report['meta']['report_type'] ?? '') === 'all') {
-                foreach ($report['sections'] ?? [] as $section) {
-                    $write(['=== '.strtoupper($section['title']).' ===']);
-                    if (! empty($section['summary'])) {
-                        foreach ($section['summary'] as $k => $v) {
-                            $write([$k, $v]);
-                        }
-                        $write([]);
-                    }
-                    if (! empty($section['columns'])) {
-                        $write(array_values($section['columns']));
-                        foreach ($section['rows'] ?? [] as $row) {
-                            $write(array_map(fn ($k) => $row[$k] ?? '', array_keys($section['columns'])));
-                        }
-                        if (! empty($section['totals'])) {
-                            $write(array_map(fn ($k) => $section['totals'][$k] ?? '', array_keys($section['columns'])));
-                        }
-                    }
-                    $write([]);
-                }
-            } else {
-                if (! empty($report['summary'])) {
-                    $write(['--- SUMMARY ---']);
-                    foreach ($report['summary'] as $k => $v) {
+        $write([$report['meta']['hospital_name'] ?? 'Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium']);
+        $write([$report['meta']['sub_title'] ?? 'Materials Management & Inventory Division']);
+        $write(['Report:', $report['meta']['report_title'] ?? 'Inventory Report']);
+        $write(['Generated:', optional($report['meta']['generated_at'])->format('Y-m-d H:i:s'), 'By:', $report['meta']['generated_by'] ?? '']);
+        $write(['Period:', $report['meta']['period']['description'] ?? '']);
+        foreach ($report['meta']['filter_labels'] ?? [] as $label => $val) {
+            $write(['Filter: '.$label, $val]);
+        }
+        $write([]); // blank line
+
+        if (($report['meta']['report_type'] ?? '') === 'all') {
+            foreach ($report['sections'] ?? [] as $section) {
+                $write(['=== '.strtoupper($section['title']).' ===']);
+                if (! empty($section['summary'])) {
+                    foreach ($section['summary'] as $k => $v) {
                         $write([$k, $v]);
                     }
                     $write([]);
                 }
-
-                if (! empty($report['columns'])) {
-                    $write(array_values($report['columns']));
-                    if (empty($report['data'])) {
-                        $write(['No records found matching the applied filter criteria.']);
-                    } else {
-                        foreach ($report['data'] as $row) {
-                            $write(array_map(fn ($k) => $row[$k] ?? '', array_keys($report['columns'])));
-                        }
+                if (! empty($section['columns'])) {
+                    $write(array_values($section['columns']));
+                    foreach ($section['rows'] ?? [] as $row) {
+                        $write(array_map(fn ($k) => $row[$k] ?? '', array_keys($section['columns'])));
                     }
-                    if (! empty($report['totals'])) {
-                        $write(array_map(fn ($k) => $report['totals'][$k] ?? '', array_keys($report['columns'])));
+                    if (! empty($section['totals'])) {
+                        $write(array_map(fn ($k) => $section['totals'][$k] ?? '', array_keys($section['columns'])));
                     }
                 }
+                $write([]);
+            }
+        } else {
+            if (! empty($report['summary'])) {
+                $write(['--- SUMMARY ---']);
+                foreach ($report['summary'] as $k => $v) {
+                    $write([$k, $v]);
+                }
+                $write([]);
             }
 
-            fclose($out);
-        }, $filename, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
-        ]);
+            if (! empty($report['columns'])) {
+                $write(array_values($report['columns']));
+                if (empty($report['data'])) {
+                    $write(['No records found matching the applied filter criteria.']);
+                } else {
+                    foreach ($report['data'] as $row) {
+                        $write(array_map(fn ($k) => $row[$k] ?? '', array_keys($report['columns'])));
+                    }
+                }
+                if (! empty($report['totals'])) {
+                    $write(array_map(fn ($k) => $report['totals'][$k] ?? '', array_keys($report['columns'])));
+                }
+            }
+        }
+
+        rewind($out);
+        $content = stream_get_contents($out);
+        fclose($out);
+
+        return $content;
     }
 
     /**
