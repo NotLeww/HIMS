@@ -796,7 +796,7 @@ class InventoryReportTest extends TestCase
         $response->assertStatus(200)
             ->assertHeader('Content-Type', 'application/json')
             ->assertJsonPath('meta.report_type', 'stock_status')
-            ->assertJsonPath('meta.hospital_name', 'Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium')
+            ->assertJsonPath('meta.hospital_name', config('privacy.hospital_name'))
             ->assertJsonStructure([
                 'meta' => ['report_type', 'report_title', 'generated_at', 'generated_by', 'period', 'filters'],
                 'summary',
@@ -963,8 +963,25 @@ class InventoryReportTest extends TestCase
 
         $this->assertStringContainsString('attachment;', (string) $response->headers->get('Content-Disposition'));
         $this->assertStringStartsWith('%PDF-', $response->getContent());
+        $this->assertStringContainsString('/Subtype/Image', $response->getContent());
+        $this->assertStringContainsString('Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium', $response->getContent());
+        $this->assertStringContainsString('Tala, Caloocan City, Metro Manila, Philippines', $response->getContent());
+        $this->assertStringContainsString('(Page 1 of 1) Tj', $response->getContent());
         $this->assertStringContainsString('(Paracetamol) Tj', $response->getContent());
         $this->assertStringContainsString('(500mg) Tj', $response->getContent());
+    }
+
+    public function test_print_report_uses_the_configured_organization_branding_and_logo(): void
+    {
+        $response = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=print&period=30');
+
+        $response->assertOk()
+            ->assertSee(config('privacy.hospital_name'))
+            ->assertSee(config('privacy.hospital_address'))
+            ->assertSee(config('privacy.system_name'))
+            ->assertSee('data:image/png;base64,', false)
+            ->assertSee('official logo');
     }
 
     public function test_generate_all_reports_compiles_complete_dossier(): void

@@ -77,10 +77,20 @@
 
         /* Institutional Header */
         .hospital-header {
+            position: relative;
             text-align: center;
             border-bottom: 2px solid #0f172a;
             padding-bottom: 14px;
             margin-bottom: 20px;
+        }
+        .hospital-logo {
+            position: absolute;
+            left: 0;
+            top: 50%;
+            width: 64px;
+            height: 64px;
+            object-fit: contain;
+            transform: translateY(-50%);
         }
         .hospital-header .republic {
             font-size: 10px;
@@ -343,6 +353,12 @@
     </style>
 </head>
 <body>
+    @php
+        $logoPath = public_path('img/hims-logo.png');
+        $logoDataUri = is_file($logoPath)
+            ? 'data:image/png;base64,'.base64_encode(file_get_contents($logoPath))
+            : null;
+    @endphp
 
     {{-- Floating Print Actions Bar (Hidden on Print) --}}
     <div class="no-print-bar">
@@ -364,11 +380,14 @@
 
         {{-- Official Hospital Letterhead --}}
         <header class="hospital-header">
+            @if ($logoDataUri)
+                <img class="hospital-logo" src="{{ $logoDataUri }}" alt="{{ $report['meta']['hospital_name'] }} official logo">
+            @endif
             <div class="republic">Republic of the Philippines</div>
             <div class="agency">Department of Health</div>
-            <div class="facility-name">DR. JOSE N. RODRIGUEZ MEMORIAL HOSPITAL AND SANITARIUM</div>
-            <div class="facility-address">Tala, Caloocan City, Metro Manila • www.djnrmhs.doh.gov.ph</div>
-            <div class="system-name">Hospital Inventory Management System (HIMS) — Official Report</div>
+            <div class="facility-name">{{ $report['meta']['hospital_name'] }}</div>
+            <div class="facility-address">{{ $report['meta']['hospital_address'] }}</div>
+            <div class="system-name">{{ $report['meta']['system_name'] }} — Official Report</div>
         </header>
 
         {{-- Report Identification & Metadata Block --}}
@@ -594,8 +613,8 @@
 
         {{-- Document Footnote --}}
         <footer class="report-footer">
-            <div>CONFIDENTIAL & PROPRIETARY — Hospital Inventory Management System (HIMS)</div>
-            <div>Generated: {{ $report['meta']['generated_at']->format('Y-m-d H:i:s') }} • Tala Hospital</div>
+            <div>CONFIDENTIAL & PROPRIETARY — {{ $report['meta']['system_name'] }}</div>
+            <div>Generated: {{ $report['meta']['generated_at']->format('Y-m-d H:i:s') }} • {{ $report['meta']['hospital_name'] }}</div>
         </footer>
 
     </div>

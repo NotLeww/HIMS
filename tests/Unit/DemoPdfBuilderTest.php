@@ -57,4 +57,36 @@ class DemoPdfBuilderTest extends TestCase
         $this->assertStringContainsString('(ITEM-1) Tj', $pdf);
         $this->assertStringContainsString('(ITEM-80) Tj', $pdf);
     }
+
+    public function test_branded_headers_and_footers_repeat_on_every_page_with_an_embedded_logo(): void
+    {
+        $rows = array_map(
+            fn (int $number) => ['ITEM-'.$number, 'Inventory item '.$number, (string) $number],
+            range(1, 80)
+        );
+
+        $pdf = DemoPdfBuilder::create('Stock Status', [[
+            'heading' => 'INVENTORY',
+            'table' => [
+                'headers' => ['SKU', 'Item', 'Units'],
+                'rows' => $rows,
+            ],
+        ]], 'Last 30 days', [
+            'organization' => 'DJNRMHS',
+            'address' => 'Tala, Caloocan City',
+            'system' => 'Hospital Inventory Management System',
+            'logo_path' => dirname(__DIR__, 2).'/public/img/hims-logo.png',
+            'footer' => 'DJNRMHS | Generated 2026-09-28 12:00:00',
+        ]);
+
+        $pageCount = substr_count($pdf, '/Type/Page/Parent');
+
+        $this->assertGreaterThan(1, $pageCount);
+        $this->assertSame($pageCount, substr_count($pdf, '/Im1 Do'));
+        $this->assertSame($pageCount, substr_count($pdf, '(DJNRMHS) Tj'));
+        $this->assertSame($pageCount, substr_count($pdf, '(DJNRMHS | Generated 2026-09-28 12:00:00) Tj'));
+        $this->assertStringContainsString('/Subtype/Image', $pdf);
+        $this->assertStringContainsString('(Page 1 of '.$pageCount.') Tj', $pdf);
+        $this->assertStringContainsString('(Page '.$pageCount.' of '.$pageCount.') Tj', $pdf);
+    }
 }

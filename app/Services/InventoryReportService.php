@@ -780,8 +780,10 @@ class InventoryReportService
             'report_title' => self::REPORT_TYPES[$reportType] ?? 'Inventory Report',
             'generated_at' => now(),
             'generated_by' => $user ? $user->name.' ('.($user->role?->label() ?? 'Staff').')' : 'HIMS System',
-            'hospital_name' => 'Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium',
-            'sub_title' => 'Tala, Caloocan City • Materials Management & Supply Division',
+            'hospital_name' => config('privacy.hospital_name'),
+            'hospital_address' => config('privacy.hospital_address'),
+            'system_name' => config('privacy.system_name'),
+            'sub_title' => config('privacy.hospital_address').' • Materials Management & Supply Division',
             'period' => [
                 'from' => $from,
                 'to' => $to,
@@ -1822,7 +1824,14 @@ class InventoryReportService
         $pdf = DemoPdfBuilder::create(
             (string) ($meta['report_title'] ?? 'Inventory Report'),
             $sections,
-            (string) ($meta['period']['description'] ?? '')
+            (string) ($meta['period']['description'] ?? ''),
+            [
+                'organization' => (string) ($meta['hospital_name'] ?? config('privacy.hospital_name')),
+                'address' => (string) ($meta['hospital_address'] ?? config('privacy.hospital_address')),
+                'system' => (string) ($meta['system_name'] ?? config('privacy.system_name')),
+                'logo_path' => public_path('img/hims-logo.png'),
+                'footer' => config('privacy.hospital_short_name').' | Generated '.optional($meta['generated_at'] ?? null)->format('Y-m-d H:i:s').' | '.($meta['generated_by'] ?? 'HIMS System'),
+            ]
         );
 
         return response($pdf, 200, [

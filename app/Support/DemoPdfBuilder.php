@@ -38,10 +38,11 @@ class DemoPdfBuilder
      * Build a formatted PDF document binary with institutional header, detail cards, styled tables, and footer.
      *
      * @param  array<int, array{heading?: string, lines?: array<string>, table?: array{headers: array<string>, widths?: array<float|int>, rows: array<array<string>>}}>  $sections
+     * @param  array{organization?: string, address?: string, system?: string, logo_path?: string, footer?: string}  $branding
      */
-    public static function create(string $title, array $sections, ?string $subtitle = null): string
+    public static function create(string $title, array $sections, ?string $subtitle = null, array $branding = []): string
     {
-        return (new self())->renderGeneralDocument($title, $subtitle, $sections);
+        return (new self)->renderGeneralDocument($title, $subtitle, $sections, $branding);
     }
 
     /**
@@ -1176,16 +1177,49 @@ class DemoPdfBuilder
     /**
      * Render general PDF documents (e.g. Delivery Receipts, Licenses, Records) with enhanced typography and A4 layout.
      */
-    private function renderGeneralDocument(string $title, ?string $subtitle, array $sections): string
+    private function renderGeneralDocument(string $title, ?string $subtitle, array $sections, array $branding = []): string
     {
         $pages = [];
         $stream = '';
         $y = 0.0;
         $pageNumber = 0;
+        $logo = $this->readPngImage($branding['logo_path'] ?? null);
 
-        $startPage = function () use (&$stream, &$y, &$pageNumber, $title, $subtitle): void {
+        $startPage = function () use (&$stream, &$y, &$pageNumber, $title, $subtitle, $branding, $logo): void {
             $pageNumber++;
             $stream = "0 0 0 RG\n0 0 0 rg\n";
+
+            if ($branding !== []) {
+                $textX = self::MARGIN_LEFT;
+                if ($logo) {
+                    $maxLogoSize = 48.0;
+                    $scale = min($maxLogoSize / $logo['width'], $maxLogoSize / $logo['height']);
+                    $logoWidth = $logo['width'] * $scale;
+                    $logoHeight = $logo['height'] * $scale;
+                    $logoY = 814.0 - $logoHeight;
+                    $stream .= "q\n{$logoWidth} 0 0 {$logoHeight} ".self::MARGIN_LEFT." {$logoY} cm\n/Im1 Do\nQ\n";
+                    $textX += $maxLogoSize + 12.0;
+                }
+
+                $stream .= "0.08 0.22 0.45 rg\n".self::MARGIN_LEFT.' 818 '.self::CONTENT_WIDTH." 3.5 re f\n";
+                $stream .= "BT\n/F1 9.5 Tf\n0.08 0.18 0.35 rg\n{$textX} 807 Td\n(".self::escape($branding['organization'] ?? '').") Tj\nET\n";
+                $stream .= "BT\n/F2 7 Tf\n0.35 0.40 0.48 rg\n{$textX} 795 Td\n(".self::escape($branding['address'] ?? '').") Tj\nET\n";
+                $stream .= "BT\n/F2 7 Tf\n0.12 0.35 0.65 rg\n{$textX} 783 Td\n(".self::escape($branding['system'] ?? '').") Tj\nET\n";
+                $stream .= "BT\n/F1 13.5 Tf\n0.08 0.18 0.35 rg\n{$textX} 764 Td\n(".self::escape($title).") Tj\nET\n";
+
+                $y = 749.0;
+                $pageSubtitle = trim(($subtitle ?? '').($pageNumber > 1 ? ' | Continued' : ''));
+                if ($pageSubtitle !== '') {
+                    $stream .= "BT\n/F2 8.5 Tf\n0.35 0.40 0.48 rg\n{$textX} {$y} Td\n(".self::escape($pageSubtitle).") Tj\nET\n";
+                    $y -= 15.0;
+                }
+
+                $stream .= "0.82 0.86 0.92 RG\n0.75 w\n".self::MARGIN_LEFT." {$y} ".self::CONTENT_WIDTH." 0 re S\n";
+                $y -= 16.0;
+
+                return;
+            }
+
             $stream .= "0.08 0.22 0.45 rg\n".self::MARGIN_LEFT." 808 ".self::CONTENT_WIDTH." 3.5 re f\n";
             $stream .= "BT\n/F1 13.5 Tf\n0.08 0.18 0.35 rg\n".self::MARGIN_LEFT." 786 Td\n(".self::escape($title).") Tj\nET\n";
 
@@ -1352,7 +1386,7 @@ class DemoPdfBuilder
 
         $finishPage();
 
-        return $this->compilePdfDocument($pages);
+        return $this->compilePdfDocument($pages, $logo, $branding['footer'] ?? null);
     }
 
     /**
@@ -1471,9 +1505,116 @@ class DemoPdfBuilder
     }
 
     /**
+     * Read an 8-bit RGB/RGBA PNG and flatten transparency onto white for PDF embedding.
+     *
+     * @return array{width: int, height: int, data: string}|null
+     */
+    private function readPngImage(?string $path): ?array
+    {
+        if (! $path || ! is_file($path)) {
+            return null;
+        }
+
+        $png = file_get_contents($path);
+        if ($png === false || ! str_starts_with($png, "\x89PNG\r\n\x1a\n")) {
+            return null;
+        }
+
+        $offset = 8;
+        $idat = '';
+        $width = $height = $bitDepth = $colorType = $interlace = null;
+
+        while (($offset + 12) <= strlen($png)) {
+            $length = unpack('N', substr($png, $offset, 4))[1];
+            $type = substr($png, $offset + 4, 4);
+            $data = substr($png, $offset + 8, $length);
+            $offset += 12 + $length;
+
+            if ($type === 'IHDR') {
+                $header = unpack('Nwidth/Nheight/CbitDepth/CcolorType/Ccompression/Cfilter/Cinterlace', $data);
+                $width = $header['width'];
+                $height = $header['height'];
+                $bitDepth = $header['bitDepth'];
+                $colorType = $header['colorType'];
+                $interlace = $header['interlace'];
+            } elseif ($type === 'IDAT') {
+                $idat .= $data;
+            } elseif ($type === 'IEND') {
+                break;
+            }
+        }
+
+        if (! $width || ! $height || $bitDepth !== 8 || ! in_array($colorType, [2, 6], true) || $interlace !== 0) {
+            return null;
+        }
+
+        $decoded = zlib_decode($idat);
+        if ($decoded === false) {
+            return null;
+        }
+
+        $bytesPerPixel = $colorType === 6 ? 4 : 3;
+        $stride = $width * $bytesPerPixel;
+        $position = 0;
+        $previous = array_fill(0, $stride, 0);
+        $rgb = '';
+
+        for ($row = 0; $row < $height; $row++) {
+            $filter = ord($decoded[$position++]);
+            $scanline = array_values(unpack('C*', substr($decoded, $position, $stride)));
+            $position += $stride;
+
+            for ($index = 0; $index < $stride; $index++) {
+                $left = $index >= $bytesPerPixel ? $scanline[$index - $bytesPerPixel] : 0;
+                $above = $previous[$index];
+                $upperLeft = $index >= $bytesPerPixel ? $previous[$index - $bytesPerPixel] : 0;
+                $predictor = match ($filter) {
+                    0 => 0,
+                    1 => $left,
+                    2 => $above,
+                    3 => intdiv($left + $above, 2),
+                    4 => self::paethPredictor($left, $above, $upperLeft),
+                    default => null,
+                };
+
+                if ($predictor === null) {
+                    return null;
+                }
+
+                $scanline[$index] = ($scanline[$index] + $predictor) & 0xFF;
+            }
+
+            for ($pixel = 0; $pixel < $width; $pixel++) {
+                $index = $pixel * $bytesPerPixel;
+                $alpha = $bytesPerPixel === 4 ? $scanline[$index + 3] : 255;
+                for ($channel = 0; $channel < 3; $channel++) {
+                    $value = (int) round(($scanline[$index + $channel] * $alpha + 255 * (255 - $alpha)) / 255);
+                    $rgb .= chr($value);
+                }
+            }
+
+            $previous = $scanline;
+        }
+
+        return ['width' => $width, 'height' => $height, 'data' => gzcompress($rgb, 9)];
+    }
+
+    private static function paethPredictor(int $left, int $above, int $upperLeft): int
+    {
+        $estimate = $left + $above - $upperLeft;
+        $leftDistance = abs($estimate - $left);
+        $aboveDistance = abs($estimate - $above);
+        $upperLeftDistance = abs($estimate - $upperLeft);
+
+        return $leftDistance <= $aboveDistance && $leftDistance <= $upperLeftDistance
+            ? $left
+            : ($aboveDistance <= $upperLeftDistance ? $above : $upperLeft);
+    }
+
+    /**
      * Compile page streams into a standard PDF-1.4 binary.
      */
-    private function compilePdfDocument(array $pageStreams): string
+    private function compilePdfDocument(array $pageStreams, ?array $image = null, ?string $footer = null): string
     {
         $totalPages = count($pageStreams);
 
@@ -1487,7 +1628,7 @@ class DemoPdfBuilder
 
             // Left footer title
             $stream .= "BT\n/F2 7 Tf\n0.40 0.45 0.52 rg\n" . self::MARGIN_LEFT . " {$footerY} Td\n(" .
-                self::escape("Hospital Information Management System | Official Electronic Records Archive | Verified Digital Document") .
+                self::escape($footer ?: 'Hospital Information Management System | Official Electronic Records Archive | Verified Digital Document') .
                 ") Tj\nET\n";
 
             // Right footer page numbering
@@ -1520,14 +1661,16 @@ class DemoPdfBuilder
 
         $f1Id = 3 + $totalPages;
         $f2Id = 4 + $totalPages;
-        $firstContentId = 5 + $totalPages;
+        $imageId = $image ? 5 + $totalPages : null;
+        $firstContentId = ($imageId ?? (4 + $totalPages)) + 1;
 
         for ($i = 1; $i <= $totalPages; $i++) {
             $pageObjId = 2 + $i;
             $contentObjId = $firstContentId + ($i - 1);
+            $imageResource = $imageId ? "/XObject<</Im1 {$imageId} 0 R>>" : '';
 
             $offsets[$pageObjId] = strlen($pdf);
-            $pdf .= "{$pageObjId} 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 595.28 841.89]/Resources<</Font<</F1 {$f1Id} 0 R/F2 {$f2Id} 0 R>>>>/Contents {$contentObjId} 0 R>>\nendobj\n";
+            $pdf .= "{$pageObjId} 0 obj\n<</Type/Page/Parent 2 0 R/MediaBox[0 0 595.28 841.89]/Resources<</Font<</F1 {$f1Id} 0 R/F2 {$f2Id} 0 R>>{$imageResource}>>/Contents {$contentObjId} 0 R>>\nendobj\n";
         }
 
         // Fonts
@@ -1536,6 +1679,12 @@ class DemoPdfBuilder
 
         $offsets[$f2Id] = strlen($pdf);
         $pdf .= "{$f2Id} 0 obj\n<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>\nendobj\n";
+
+        if ($imageId) {
+            $imageLength = strlen($image['data']);
+            $offsets[$imageId] = strlen($pdf);
+            $pdf .= "{$imageId} 0 obj\n<</Type/XObject/Subtype/Image/Width {$image['width']}/Height {$image['height']}/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/FlateDecode/Length {$imageLength}>>\nstream\n{$image['data']}\nendstream\nendobj\n";
+        }
 
         // Content streams
         for ($i = 1; $i <= $totalPages; $i++) {
