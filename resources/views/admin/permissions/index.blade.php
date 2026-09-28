@@ -11,12 +11,11 @@
         title="Permission Matrix"
         subtitle="Rows are abilities grouped by module; columns are the configured account roles.">
 
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm border-collapse">
+        <x-ui.table :sticky-header="false" class="w-full text-sm border-collapse">
                 <thead>
                     <tr class="border-b border-neutral-200 dark:border-neutral-800">
                         <th scope="col"
-                            class="sticky left-0 z-10 bg-white dark:bg-neutral-900 py-3 pr-4 text-left text-xs font-semibold
+                            class="xl:sticky xl:left-0 z-10 bg-white dark:bg-neutral-900 py-3 pr-4 text-left text-xs font-semibold
                                    uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                             Module / Ability
                         </th>
@@ -44,7 +43,7 @@
                     @foreach ($modules as $module => $permissions)
                         <tr class="bg-neutral-50 dark:bg-neutral-800/50">
                             <th scope="colgroup" colspan="{{ count($roles) + 1 }}"
-                                class="sticky left-0 py-1.5 pr-4 text-left text-[11px] font-semibold
+                                class="xl:sticky xl:left-0 py-1.5 pr-4 text-left text-[11px] font-semibold
                                        uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                                 {{ $module }}
                             </th>
@@ -52,7 +51,7 @@
 
                         @foreach ($permissions as $permission)
                             <tr class="border-b border-neutral-100 dark:border-neutral-800/60 last:border-0 hover:bg-neutral-50/60 dark:hover:bg-neutral-800/40">
-                                <th scope="row" class="sticky left-0 z-10 bg-white dark:bg-neutral-900 py-2.5 pr-4 text-left font-normal
+                                <th scope="row" class="xl:sticky xl:left-0 z-10 bg-white dark:bg-neutral-900 py-2.5 pr-4 text-left font-normal
                                                        hover:bg-neutral-50/60 dark:hover:bg-neutral-800/40">
                                     <span class="block font-medium text-neutral-900 dark:text-neutral-100">{{ $permission->label() }}</span>
                                     <span class="block text-xs text-neutral-500 dark:text-neutral-400">{{ $permission->description() }}</span>
@@ -75,7 +74,6 @@
                         @endforeach
                     @endforeach
                 </tbody>
-            </table>
-        </div>
+        </x-ui.table>
     </x-ui.card>
 </x-app-layout>

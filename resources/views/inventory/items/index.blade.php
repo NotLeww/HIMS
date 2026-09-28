@@ -45,8 +45,8 @@
                  the supplier column always come from the same authorized
                  response instead of being narrowed in the browser. --}}
             <form method="GET" action="{{ route('inventory.items') }}" class="p-4 sm:p-5 border-b border-neutral-100 dark:border-neutral-800/80" role="search">
-                <div class="flex flex-col gap-2.5 sm:flex-row sm:items-center">
-                    <div class="relative flex-1 min-w-0">
+                <div class="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+                    <div class="relative min-w-0 flex-1 sm:min-w-64">
                         <label for="item-search" class="sr-only">Search inventory items</label>
                         <x-ui.icon name="magnifying-glass" class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-neutral-400 dark:text-neutral-500" />
                         <input id="item-search" name="search" value="{{ $filters['search'] ?? '' }}" placeholder="Search item name, SKU, or barcode"

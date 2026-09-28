@@ -143,6 +143,9 @@ class UiNavigationAuthorizationTest extends TestCase
         $layout = file_get_contents(resource_path('views/layouts/app.blade.php'));
         $field = file_get_contents(resource_path('views/components/ui/field.blade.php'));
         $table = file_get_contents(resource_path('views/components/ui/table.blade.php'));
+        $permissionMatrix = file_get_contents(resource_path('views/admin/permissions/index.blade.php'));
+        $inventoryItems = file_get_contents(resource_path('views/inventory/items/index.blade.php'));
+        $procurement = file_get_contents(resource_path('views/inventory/purchases/index.blade.php'));
 
         $this->assertIsString($css);
         $this->assertStringContainsString('overflow-x: clip', $css);
@@ -152,6 +155,10 @@ class UiNavigationAuthorizationTest extends TestCase
         $this->assertStringContainsString('hims-app-content', $layout);
         $this->assertStringContainsString('min-w-0 max-w-full w-full', $field);
         $this->assertStringContainsString('w-full min-w-0 max-w-full touch-pan-x', $table);
+        $this->assertStringContainsString('[contain:layout_paint]', $table);
+        $this->assertStringContainsString('<x-ui.table :sticky-header="false"', $permissionMatrix);
+        $this->assertStringContainsString('sm:flex-wrap sm:items-center', $inventoryItems);
+        $this->assertStringContainsString('sm:grid-cols-2 xl:grid-cols-[minmax(10rem,1fr)_auto_auto_auto_auto]', $procurement);
     }
 
     public function test_sidebar_navigation_strictly_reflects_role_and_panel_boundaries(): void

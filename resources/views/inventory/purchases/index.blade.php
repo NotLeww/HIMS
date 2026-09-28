@@ -1365,9 +1365,9 @@
                             </div>
 
                             <form method="GET" action="{{ route('inventory.purchases') }}#purchase-orders" class="mt-3 space-y-2">
-                                <div class="grid gap-2 sm:grid-cols-[minmax(10rem,1fr)_auto_auto_auto_auto]">
+                                <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(10rem,1fr)_auto_auto_auto_auto]">
                                     <label class="sr-only" for="po-search">Search purchase orders</label>
-                                    <input id="po-search" name="po_search" type="search" value="{{ $poFilters['poSearch'] }}" placeholder="Search PO, item, supplier..." class="min-h-9 min-w-0 rounded-md border border-neutral-300 px-3 text-sm shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                    <input id="po-search" name="po_search" type="search" value="{{ $poFilters['poSearch'] }}" placeholder="Search PO, item, supplier..." class="min-h-9 min-w-0 rounded-md border border-neutral-300 px-3 text-sm shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30 sm:col-span-2 xl:col-span-1 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
                                     <label class="sr-only" for="po-status">Status</label>
                                     <select id="po-status" name="po_status" class="min-h-9 rounded-md border border-neutral-300 pl-2.5 pr-8 text-xs text-neutral-700 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
                                         <option value="">All statuses</option>

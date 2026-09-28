@@ -394,6 +394,16 @@ Because `main` is `overflow-x-clip`, horizontal overflow gets trapped and cuts o
 - **Verification Across Breakpoints**:
   - Every UI edit must be verified at narrow mobile (375px), intermediate tablet (768px), and standard desktop (1280px / 1920px). Confirm that zero horizontal scrollbars appear on `window`, `body`, `main`, or any nested card wrapper.
 
+### Responsive Layout Acceptance Standard
+
+- Every new or modified HIMS page must reflow for mobile, tablet, and desktop; never satisfy responsiveness by shrinking the desktop composition or reducing text below a readable size.
+- Reuse existing breakpoints and fix shared layouts/components before adding page-specific workarounds. Reference screenshots must not impose fixed dimensions that fail on smaller screens.
+- Forms must step down to fewer columns, actions must wrap or stack without hiding critical controls, and touch targets must remain usable.
+- Tables must progressively disclose secondary columns, use mobile cards when appropriate, or contain genuinely dense data in a table-only scroll region. Page-level horizontal scrolling is not acceptable.
+- Modals must fit the small-screen viewport with accessible controls and a vertically scrollable content region when needed. Charts must resize without clipped plots, unreadable labels, or overflowing legends.
+- Long text must wrap or expose its full value accessibly. Responsive rearrangement must preserve semantic order, keyboard access, visible focus, screen-reader meaning, contrast, and all other WCAG requirements.
+- Verify representative pages at mobile, tablet, and desktop widths, including page-overflow checks and the affected forms, tables, charts, modals, navigation, and primary actions.
+
 ### Element Sizing, Buffer Space & Text Clipping Prevention ("Laging May Pasobra")
 
 Zero letters, words, or character fragments may ever be clipped, cut off at the boundaries, or covered by adjacent controls or icons ("walang letters dapat na natatabunan"). Components, inputs, and badges must dynamically accommodate the true width of their content plus generous safety buffer ("inaakma ang size ng mga elements/components sa dapat talang size nila, laging may pasobra").
