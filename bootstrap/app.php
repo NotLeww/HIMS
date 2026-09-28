@@ -19,6 +19,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -86,6 +87,14 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (NotFoundHttpException $exception, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Not Found'], 404);
+            }
+
+            return null;
+        });
+
         // Keep Laravel's CSRF protection unchanged, but present browser token
         // mismatches with the branded recovery screen even when debug mode is
         // enabled locally. JSON callers retain Laravel's default response.

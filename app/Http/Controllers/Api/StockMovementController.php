@@ -35,7 +35,7 @@ class StockMovementController extends Controller implements HasMiddleware
         $items = StockMovement::with(['item', 'batch', 'fromLocation', 'toLocation'])
             ->latest('moved_at')
             ->latest('id')
-            ->paginate($perPage);
+            ->paginate(min(max($perPage, 1), 100));
 
         return StockMovementResource::collection($items);
     }

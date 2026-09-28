@@ -11,6 +11,7 @@ use App\Services\LoginLockoutService;
 use App\Support\AuthenticationPanel;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Http\Request;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -19,7 +20,7 @@ class AuthController extends Controller
         $request->validate([
             'email' => 'required|email',
             'password' => 'required|string',
-            'device_name' => 'nullable|string',
+            'device_name' => 'nullable|string|max:255',
         ]);
 
         if ((bool) config('auth.device_security.enabled', true)) {
@@ -107,6 +108,13 @@ class AuthController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
+        $token = $user->currentAccessToken();
+
+        if (! $token instanceof PersonalAccessToken) {
+            return response()->json([
+                'message' => 'A bearer token is required for this endpoint.',
+            ], 400);
+        }
 
         // Token revocation does not dispatch Laravel's web Logout event.
         $audit->log(
@@ -118,7 +126,7 @@ class AuthController extends Controller
         );
 
         // Revoke current token
-        $user->currentAccessToken()->delete();
+        $token->delete();
 
         return response()->json(null, 204);
     }

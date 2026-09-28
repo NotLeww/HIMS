@@ -12,7 +12,6 @@ use App\Models\PurchaseRequest;
 use App\Models\SourcingRfq;
 use App\Models\Supplier;
 use App\Services\Procurement\ProcurementAuditService;
-use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -94,7 +93,9 @@ class RfqController extends Controller implements HasMiddleware
         if (! empty($validated['purchase_request_id'])) {
             $pr = PurchaseRequest::with('lines.item')->findOrFail($validated['purchase_request_id']);
             if ($pr->status->value === 'draft' || $pr->status->value === 'rejected') {
-                throw new DomainException("Cannot initiate sourcing RFQ for PR #{$pr->pr_number}: Requisition must be approved first.");
+                throw ValidationException::withMessages([
+                    'purchase_request_id' => "Cannot initiate sourcing RFQ for PR #{$pr->pr_number}: Requisition must be approved first.",
+                ]);
             }
         }
 

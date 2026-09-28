@@ -26,6 +26,10 @@ use App\Http\Middleware\EnforceDeviceSecurityForApiToken;
 use App\Http\Middleware\EnsureIdempotency;
 use Illuminate\Support\Facades\Route;
 
+foreach (['adjustmentId', 'batchId', 'countId', 'itemId', 'reqId', 'rfqId'] as $parameter) {
+    Route::pattern($parameter, '[0-9]+');
+}
+
 Route::prefix('v1')->group(function () {
     // Auth
     Route::post('auth/token', [AuthController::class, 'token']);

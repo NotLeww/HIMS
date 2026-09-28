@@ -25,7 +25,7 @@ class DemandPlanController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $perPage = (int) $request->query('per_page', 15);
-        $items = DemandPlan::with('item')->paginate($perPage);
+        $items = DemandPlan::with('item')->paginate(min(max($perPage, 1), 100));
 
         return DemandPlanResource::collection($items);
     }

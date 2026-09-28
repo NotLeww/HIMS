@@ -299,6 +299,49 @@ class EnterpriseProcurementTest extends TestCase
         ]);
     }
 
+    public function test_rfq_and_award_business_rule_failures_return_validation_errors(): void
+    {
+        [$costCenter, , $manager] = $this->createCostCenterWithBudget();
+        $eligibleSupplier = $this->createEligibleSupplier();
+        $ineligibleSupplier = $this->createIneligibleSupplier();
+        $draft = PurchaseRequest::create([
+            'pr_number' => 'PR-DRAFT-API-001',
+            'requester_id' => $manager->id,
+            'cost_center_id' => $costCenter->id,
+            'title' => 'Draft request',
+            'status' => RequisitionStatus::Draft,
+            'total_estimated_amount' => 100,
+        ]);
+
+        Sanctum::actingAs($manager, ['*']);
+
+        $this->postJson('/api/v1/procurement/rfqs', [
+            'purchase_request_id' => $draft->id,
+            'title' => 'Invalid draft RFQ',
+            'submission_deadline' => now()->addDay()->toDateTimeString(),
+            'invited_supplier_ids' => [$eligibleSupplier->id],
+        ])->assertUnprocessable()->assertJsonValidationErrors(['purchase_request_id']);
+
+        $rfq = SourcingRfq::create([
+            'rfq_number' => 'RFQ-INELIGIBLE-AWARD-001',
+            'title' => 'Ineligible award',
+            'created_by_user_id' => $manager->id,
+            'submission_deadline' => now()->subHour(),
+            'status' => RfqStatus::UnderEvaluation,
+        ]);
+        $quote = SupplierQuote::create([
+            'sourcing_rfq_id' => $rfq->id,
+            'supplier_id' => $ineligibleSupplier->id,
+            'quoted_price' => 100,
+            'total_bid_amount' => 100,
+            'status' => QuoteStatus::UnderReview,
+        ]);
+
+        $this->postJson("/api/v1/procurement/rfqs/{$rfq->id}/award", [
+            'supplier_quote_id' => $quote->id,
+        ])->assertUnprocessable()->assertJsonPath('status', 'error');
+    }
+
     public function test_bidding_deadline_enforcement_rejects_late_quotes(): void
     {
         [$costCenter, $budget, $manager] = $this->createCostCenterWithBudget(100000.00);

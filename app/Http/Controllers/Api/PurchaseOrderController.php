@@ -36,7 +36,7 @@ class PurchaseOrderController extends Controller implements HasMiddleware
     public function index(Request $request)
     {
         $perPage = (int) $request->query('per_page', 15);
-        $items = PurchaseOrder::with(['supplier', 'item'])->paginate($perPage);
+        $items = PurchaseOrder::with(['supplier', 'item'])->paginate(min(max($perPage, 1), 100));
 
         return PurchaseOrderResource::collection($items);
     }

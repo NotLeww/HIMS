@@ -9,7 +9,6 @@ use App\Models\SourcingRfq;
 use App\Models\SupplierQuote;
 use App\Services\Procurement\ApprovalRoutingEngine;
 use App\Services\Procurement\ProcurementAuditService;
-use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -44,7 +43,10 @@ class AwardController extends Controller implements HasMiddleware
             ->findOrFail($validated['supplier_quote_id']);
 
         if (! $quote->supplier->isProcurementEligible()) {
-            throw new DomainException("Compliance Block: Supplier '{$quote->supplier->name}' is not eligible for procurement awards.");
+            return response()->json([
+                'status' => 'error',
+                'message' => "Compliance Block: Supplier '{$quote->supplier->name}' is not eligible for procurement awards.",
+            ], 422);
         }
 
         $user = $request->user();
