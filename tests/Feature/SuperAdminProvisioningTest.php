@@ -9,8 +9,10 @@ use App\Models\UserConsent;
 use App\Services\Privacy\ConsentService;
 use App\Support\AuthenticationContext;
 use Database\Seeders\SuperAdminSeeder;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class SuperAdminProvisioningTest extends TestCase
@@ -281,7 +283,7 @@ class SuperAdminProvisioningTest extends TestCase
                 'email' => 'changed@example.com',
                 'current_password' => self::INITIAL_PASSWORD,
             ])->assertSessionHasNoErrors()
-            ->assertSessionHas('profile_success', 'Email updated successfully.')
+            ->assertSessionHas('profile_success', 'Email updated. Check your new address to verify it.')
             ->assertRedirect(route('profile.edit'));
 
         $this->assertSame('changed@example.com', $superAdmin->refresh()->email);
@@ -302,6 +304,8 @@ class SuperAdminProvisioningTest extends TestCase
 
     public function test_artisan_command_can_provision_additional_super_admin(): void
     {
+        Notification::fake();
+
         $this->artisan('hims:create-super-admin', [
             '--name' => 'Command Super Administrator',
             '--email' => 'command.super-admin@example.test',
@@ -319,8 +323,10 @@ class SuperAdminProvisioningTest extends TestCase
         $this->assertSame(UserRole::SuperAdministrator, $user->role);
         $this->assertSame(UserStatus::Active, $user->status);
         $this->assertFalse($user->is_protected);
+        $this->assertNull($user->email_verified_at);
         $this->assertStringStartsWith('SA-', $user->employee_id);
         $this->assertTrue(Hash::check('SyntheticCommandAdmin123!', $user->password));
+        Notification::assertSentTo($user, VerifyEmail::class);
     }
 
     public function test_non_protected_super_admin_can_edit_phone_without_losing_its_role(): void

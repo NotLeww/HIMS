@@ -94,9 +94,16 @@ class ProfileController extends Controller
         }
 
         $request->user()->save();
+
+        if ($emailChanged) {
+            $request->user()->sendEmailVerificationNotification();
+        }
+
         $request->session()->put(
             'profile_success',
-            $emailChanged ? 'Email updated successfully.' : 'Profile updated successfully.'
+            $emailChanged
+                ? 'Email updated. Check your new address to verify it.'
+                : 'Profile updated successfully.'
         );
 
         return Redirect::route('profile.edit');

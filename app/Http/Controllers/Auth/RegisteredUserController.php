@@ -47,6 +47,7 @@ class RegisteredUserController extends Controller
         ]);
 
         $user = $passwords->usePassword(
+            null,
             $request->string('password')->toString(),
             fn (string $passwordHash): User => User::create([
                 'name' => $request->name,

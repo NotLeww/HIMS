@@ -37,6 +37,7 @@ class PasswordController extends Controller
         ]);
 
         $passwords->usePassword(
+            $user,
             $validated['password'],
             function (string $passwordHash) use ($user): User {
                 $user->forceFill(['password' => $passwordHash])->save();

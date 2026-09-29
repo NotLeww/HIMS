@@ -36,7 +36,7 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 
     // Protected API
-    Route::middleware(['auth:sanctum', EnforceDeviceSecurityForApiToken::class])->group(function () {
+    Route::middleware(['auth:sanctum', 'verified', EnforceDeviceSecurityForApiToken::class])->group(function () {
         // Item masters are retired by status. Permanent deletion would orphan
         // stock, receipt, count, and audit history, so no DELETE route exists.
         Route::apiResource('inventory-items', InventoryItemController::class)->only(['index', 'show', 'store', 'update']);

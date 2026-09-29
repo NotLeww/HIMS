@@ -34,6 +34,7 @@ class SuperAdminSeeder extends Seeder
             $employeeId = $user->employee_id ?: $this->availableEmployeeId($user);
 
             $passwords->usePassword(
+                $user->exists ? $user : null,
                 $account['password'],
                 function (string $passwordHash) use ($user, $account, $employeeId): User {
                     $user->forceFill([

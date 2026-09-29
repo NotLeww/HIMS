@@ -45,6 +45,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->name('password.request');
         Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
             ->defaults('auth_panel', AuthenticationPanel::Admin->value)
+            ->middleware('throttle:3,1')
             ->name('password.email');
         Route::get('reset-password-otp', [PasswordResetOtpController::class, 'show'])
             ->defaults('auth_panel', AuthenticationPanel::Admin->value)

@@ -2,11 +2,15 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Enums\UserRole;
 use App\Models\User;
+use App\Support\AuthenticationContext;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\URL;
+use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class EmailVerificationTest extends TestCase
@@ -54,5 +58,45 @@ class EmailVerificationTest extends TestCase
         $this->actingAs($user)->get($verificationUrl);
 
         $this->assertFalse($user->fresh()->hasVerifiedEmail());
+    }
+
+    #[DataProvider('unverifiedPanelProvider')]
+    public function test_unverified_accounts_cannot_access_business_pages(
+        UserRole $role,
+        string $guard,
+        string $routeName,
+    ): void {
+        $user = User::factory()->unverified()->role($role)->create();
+
+        $this->actingAs($user, $guard)
+            ->get(route($routeName))
+            ->assertRedirect(route('verification.notice'));
+    }
+
+    public function test_unverified_account_can_still_correct_its_profile_email(): void
+    {
+        $user = User::factory()->unverified()->create();
+
+        $this->actingAs($user)->get(route('profile.edit'))->assertOk();
+    }
+
+    public function test_unverified_account_cannot_use_protected_api_routes(): void
+    {
+        $user = User::factory()->unverified()->create();
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/v1/dashboard-summary')
+            ->assertForbidden()
+            ->assertJson(['message' => 'Your email address is not verified.']);
+    }
+
+    /** @return array<string, array{UserRole, string, string}> */
+    public static function unverifiedPanelProvider(): array
+    {
+        return [
+            'staff' => [UserRole::Viewer, AuthenticationContext::WEB_GUARD, 'dashboard'],
+            'admin' => [UserRole::Administrator, AuthenticationContext::ADMIN_GUARD, 'dashboard'],
+            'super admin' => [UserRole::SuperAdministrator, AuthenticationContext::SUPER_ADMIN_GUARD, 'super-admin.dashboard'],
+        ];
     }
 }

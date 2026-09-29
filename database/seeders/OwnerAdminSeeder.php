@@ -31,6 +31,7 @@ class OwnerAdminSeeder extends Seeder
 
         User::withoutEvents(function () use ($account, $passwords): void {
             $passwords->usePassword(
+                null,
                 $account['password'],
                 function (string $passwordHash) use ($account): User {
                     $user = new User;

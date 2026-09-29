@@ -9,17 +9,19 @@ use App\Notifications\PasswordResetOtp;
 use App\Services\PasswordHistoryService;
 use App\Support\AuthenticationContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\TestCase;
 
-class GlobalPasswordHistoryTest extends TestCase
+class PerUserPasswordHistoryTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const USED_PASSWORD = 'GloballyUsed1!';
+    private const SHARED_PASSWORD = 'SharedPassword1!';
 
     private const CURRENT_PASSWORD = 'CurrentSecure1!';
 
@@ -33,14 +35,12 @@ class GlobalPasswordHistoryTest extends TestCase
     }
 
     #[DataProvider('authenticationPanels')]
-    public function test_every_role_receives_the_same_generic_rejection_for_a_globally_used_password(
+    public function test_every_role_is_blocked_from_reusing_its_own_password(
         string $panel,
         string $guard,
     ): void {
-        $owner = User::factory()->create(['password' => self::USED_PASSWORD]);
-        $this->recordCurrentPassword($owner, now()->subYears(3));
-
-        $user = $this->userForPanel($panel);
+        $user = $this->userForPanel($panel, self::SHARED_PASSWORD);
+        $this->recordCurrentPassword($user, now()->subYears(3));
         $user->forceFill(['password' => self::CURRENT_PASSWORD])->save();
         $originalHash = $user->password;
 
@@ -48,8 +48,8 @@ class GlobalPasswordHistoryTest extends TestCase
             ->from(route('profile.edit'))
             ->put(route('password.update'), [
                 'current_password' => self::CURRENT_PASSWORD,
-                'password' => self::USED_PASSWORD,
-                'password_confirmation' => self::USED_PASSWORD,
+                'password' => self::SHARED_PASSWORD,
+                'password_confirmation' => self::SHARED_PASSWORD,
             ])->assertRedirect(route('profile.edit'))
             ->assertSessionHasErrorsIn('updatePassword', [
                 'password' => PasswordHistoryService::REJECTION_MESSAGE,
@@ -82,10 +82,10 @@ class GlobalPasswordHistoryTest extends TestCase
         ]);
     }
 
-    public function test_registration_and_user_management_cannot_reuse_an_inactive_accounts_password(): void
+    public function test_registration_and_user_management_can_use_another_accounts_password(): void
     {
         $formerUser = User::factory()->create([
-            'password' => self::USED_PASSWORD,
+            'password' => self::SHARED_PASSWORD,
             'status' => UserStatus::Inactive,
         ]);
         $this->recordCurrentPassword($formerUser, now()->subYears(5));
@@ -93,32 +93,31 @@ class GlobalPasswordHistoryTest extends TestCase
         $this->from(route('register'))->post(route('register'), [
             'name' => 'New Registrant',
             'email' => 'registrant@example.test',
-            'password' => self::USED_PASSWORD,
-            'password_confirmation' => self::USED_PASSWORD,
+            'password' => self::SHARED_PASSWORD,
+            'password_confirmation' => self::SHARED_PASSWORD,
             'privacy_consent' => '1',
-        ])->assertRedirect(route('register'))
-            ->assertSessionHasErrors([
-                'password' => PasswordHistoryService::REJECTION_MESSAGE,
-            ]);
+        ])->assertSessionHasNoErrors()
+            ->assertRedirect(route('dashboard'));
 
-        $this->assertDatabaseMissing('users', ['email' => 'registrant@example.test']);
+        $this->assertDatabaseHas('users', ['email' => 'registrant@example.test']);
+
+        Auth::guard(AuthenticationContext::WEB_GUARD)->logout();
+        $this->flushSession();
 
         $admin = User::factory()->administrator()->create();
         $this->actingAs($admin, AuthenticationContext::ADMIN_GUARD)
             ->from(route('admin.users.create'))
-            ->post(route('admin.users.store'), $this->userPayload(self::USED_PASSWORD))
-            ->assertRedirect(route('admin.users.create'))
-            ->assertSessionHasErrors([
-                'password' => PasswordHistoryService::REJECTION_MESSAGE,
-            ]);
+            ->post(route('admin.users.store'), $this->userPayload(self::SHARED_PASSWORD))
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('admin.users.index'));
 
-        $this->assertDatabaseMissing('users', ['email' => 'managed@example.test']);
+        $this->assertDatabaseHas('users', ['email' => 'managed@example.test']);
     }
 
-    public function test_password_reset_cannot_reuse_another_users_password(): void
+    public function test_password_reset_can_use_another_users_password(): void
     {
         Notification::fake();
-        $owner = User::factory()->create(['password' => self::USED_PASSWORD]);
+        $owner = User::factory()->create(['password' => self::SHARED_PASSWORD]);
         $this->recordCurrentPassword($owner);
         $account = User::factory()->warehouseStaff()->create(['password' => self::CURRENT_PASSWORD]);
         $originalHash = $account->password;
@@ -134,18 +133,18 @@ class GlobalPasswordHistoryTest extends TestCase
         $this->post(route('password.store'), [
             'token' => $token,
             'email' => $account->email,
-            'password' => self::USED_PASSWORD,
-            'password_confirmation' => self::USED_PASSWORD,
-        ])->assertSessionHasErrors([
-            'password' => PasswordHistoryService::REJECTION_MESSAGE,
-        ]);
+            'password' => self::SHARED_PASSWORD,
+            'password_confirmation' => self::SHARED_PASSWORD,
+        ])->assertSessionHasNoErrors()
+            ->assertRedirect(route('login'));
 
-        $this->assertSame($originalHash, $account->fresh()->password);
+        $this->assertNotSame($originalHash, $account->fresh()->password);
+        $this->assertTrue(Hash::check(self::SHARED_PASSWORD, $account->fresh()->password));
     }
 
-    public function test_expired_password_replacement_cannot_use_global_history(): void
+    public function test_expired_password_replacement_can_use_another_users_password(): void
     {
-        $owner = User::factory()->create(['password' => self::USED_PASSWORD]);
+        $owner = User::factory()->create(['password' => self::SHARED_PASSWORD]);
         $this->recordCurrentPassword($owner);
         $expired = User::factory()->warehouseStaff()->create([
             'password' => self::CURRENT_PASSWORD,
@@ -158,15 +157,94 @@ class GlobalPasswordHistoryTest extends TestCase
         ])->assertRedirect(route('password.expired'));
 
         $this->from(route('password.expired'))->put(route('password.expired.update'), [
-            'password' => self::USED_PASSWORD,
-            'password_confirmation' => self::USED_PASSWORD,
-        ])->assertRedirect(route('password.expired'))
-            ->assertSessionHasErrors([
+            'password' => self::SHARED_PASSWORD,
+            'password_confirmation' => self::SHARED_PASSWORD,
+        ])->assertSessionHasNoErrors()
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertAuthenticatedAs($expired);
+        $expired->refresh();
+        $this->assertTrue(Hash::check(self::SHARED_PASSWORD, $expired->password));
+        $this->assertFalse($expired->passwordHasExpired());
+    }
+
+    public function test_password_histories_are_completely_isolated_per_account(): void
+    {
+        $passwords = app(PasswordHistoryService::class);
+        $createUser = fn (string $email): callable => fn (string $hash): User => User::factory()->create([
+            'email' => $email,
+            'password' => $hash,
+        ]);
+        $changePassword = fn (User $user): callable => function (string $hash) use ($user): User {
+            $user->forceFill(['password' => $hash])->save();
+
+            return $user;
+        };
+
+        $userA = $passwords->usePassword(null, self::SHARED_PASSWORD, $createUser('user-a@example.test'));
+        $passwords->usePassword($userA, self::CURRENT_PASSWORD, $changePassword($userA));
+
+        try {
+            $passwords->usePassword($userA, self::SHARED_PASSWORD, $changePassword($userA));
+            $this->fail('User A reused a password from User A history.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                PasswordHistoryService::REJECTION_MESSAGE,
+                $exception->errors()['password'][0],
+            );
+        }
+
+        $userB = $passwords->usePassword(null, self::SHARED_PASSWORD, $createUser('user-b@example.test'));
+        $passwords->usePassword($userB, 'UserBReplacement2!', $changePassword($userB));
+
+        try {
+            $passwords->usePassword($userB, self::SHARED_PASSWORD, $changePassword($userB));
+            $this->fail('User B reused a password from User B history.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                PasswordHistoryService::REJECTION_MESSAGE,
+                $exception->errors()['password'][0],
+            );
+        }
+
+        $userAHistory = PasswordHistory::query()->whereBelongsTo($userA)->orderBy('id')->get();
+        $userBHistory = PasswordHistory::query()->whereBelongsTo($userB)->orderBy('id')->get();
+
+        $this->assertCount(2, $userAHistory);
+        $this->assertCount(2, $userBHistory);
+        $this->assertSame(
+            $userAHistory->first()->password_fingerprint,
+            $userBHistory->first()->password_fingerprint,
+        );
+        $this->assertTrue($userAHistory->every(fn (PasswordHistory $history) => $history->user_id === $userA->id));
+        $this->assertTrue($userBHistory->every(fn (PasswordHistory $history) => $history->user_id === $userB->id));
+    }
+
+    public function test_user_edit_shows_the_password_history_error_only_beside_the_password_field(): void
+    {
+        $admin = User::factory()->administrator()->create();
+        $user = User::factory()->warehouseStaff()->create(['password' => self::CURRENT_PASSWORD]);
+
+        $this->actingAs($admin, AuthenticationContext::ADMIN_GUARD)
+            ->from(route('admin.users.edit', $user))
+            ->put(route('admin.users.update', $user), [
+                ...$user->nameComponents(),
+                'email' => $user->email,
+                'role' => $user->role->value,
+                'status' => $user->status->value,
+                'department' => $user->department,
+                'phone' => $user->phone,
+                'password' => self::CURRENT_PASSWORD,
+                'password_confirmation' => self::CURRENT_PASSWORD,
+            ])->assertSessionHasErrors([
                 'password' => PasswordHistoryService::REJECTION_MESSAGE,
             ]);
 
-        $this->assertGuest();
-        $this->assertTrue($expired->fresh()->passwordHasExpired());
+        $page = $this->get(route('admin.users.edit', $user))->assertOk()
+            ->assertSee(PasswordHistoryService::REJECTION_MESSAGE)
+            ->assertDontSee('This account was not updated');
+
+        $this->assertSame(1, substr_count($page->getContent(), PasswordHistoryService::REJECTION_MESSAGE));
     }
 
     public function test_new_password_and_history_record_roll_back_together_on_failure(): void
@@ -176,6 +254,7 @@ class GlobalPasswordHistoryTest extends TestCase
 
         try {
             app(PasswordHistoryService::class)->usePassword(
+                $user,
                 'RollbackCandidate3!',
                 function (string $passwordHash) use ($user): User {
                     $user->forceFill(['password' => $passwordHash])->save();
@@ -195,19 +274,19 @@ class GlobalPasswordHistoryTest extends TestCase
 
     public function test_history_serialization_and_rejection_do_not_disclose_security_details(): void
     {
-        $owner = User::factory()->create(['password' => self::USED_PASSWORD]);
+        $owner = User::factory()->create(['password' => self::SHARED_PASSWORD]);
         $history = $this->recordCurrentPassword($owner);
+        $owner->forceFill(['password' => self::CURRENT_PASSWORD])->save();
 
         $this->assertArrayNotHasKey('password_hash', $history->toArray());
         $this->assertArrayNotHasKey('password_fingerprint', $history->toArray());
 
-        $candidate = User::factory()->warehouseStaff()->create(['password' => self::CURRENT_PASSWORD]);
-        $response = $this->actingAs($candidate)
+        $response = $this->actingAs($owner)
             ->from(route('profile.edit'))
             ->put(route('password.update'), [
                 'current_password' => self::CURRENT_PASSWORD,
-                'password' => self::USED_PASSWORD,
-                'password_confirmation' => self::USED_PASSWORD,
+                'password' => self::SHARED_PASSWORD,
+                'password_confirmation' => self::SHARED_PASSWORD,
             ]);
 
         $response->assertSessionHasErrorsIn('updatePassword', [
@@ -217,9 +296,7 @@ class GlobalPasswordHistoryTest extends TestCase
         $this->get(route('profile.edit'))
             ->assertOk()
             ->assertSee(PasswordHistoryService::REJECTION_MESSAGE)
-            ->assertDontSee($owner->email)
             ->assertDontSee($history->password_hash);
-        $this->assertStringNotContainsString($owner->email, (string) $response->getContent());
         $this->assertStringNotContainsString($history->password_hash, (string) $response->getContent());
     }
 
@@ -232,12 +309,12 @@ class GlobalPasswordHistoryTest extends TestCase
         ]);
     }
 
-    private function userForPanel(string $panel): User
+    private function userForPanel(string $panel, string $password): User
     {
         return match ($panel) {
-            'admin' => User::factory()->administrator()->create(),
-            'super-admin' => User::factory()->superAdministrator()->create(),
-            default => User::factory()->warehouseStaff()->create(),
+            'admin' => User::factory()->administrator()->create(['password' => $password]),
+            'super-admin' => User::factory()->superAdministrator()->create(['password' => $password]),
+            default => User::factory()->warehouseStaff()->create(['password' => $password]),
         };
     }
 

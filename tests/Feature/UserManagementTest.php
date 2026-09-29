@@ -13,9 +13,11 @@ use App\Models\StockMovement;
 use App\Models\User;
 use App\Services\UserAccountService;
 use App\Support\AuthenticationContext;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -161,6 +163,7 @@ class UserManagementTest extends TestCase
 
     public function test_an_administrator_creates_a_staff_account(): void
     {
+        Notification::fake();
         $admin = $this->admin();
 
         $response = $this->actingAs($admin)->post('/admin/users', [
@@ -195,8 +198,8 @@ class UserManagementTest extends TestCase
         $this->assertNotSame('Password123!', $created->password);
         $this->assertTrue(Hash::check('Password123!', $created->password));
 
-        // Created by an administrator in person, so no verification email step.
-        $this->assertNotNull($created->email_verified_at);
+        $this->assertNull($created->email_verified_at);
+        Notification::assertSentTo($created, VerifyEmail::class);
 
         $this->actingAs($admin)->get('/admin/users')
             ->assertSee('Account created successfully.')
@@ -552,6 +555,28 @@ class UserManagementTest extends TestCase
         $staff->refresh();
         $this->assertFalse(Hash::check('OriginalPass1!', $staff->password));
         $this->assertTrue(Hash::check('BrandNewPass1!', $staff->password));
+    }
+
+    public function test_changing_an_account_email_requires_verification_of_the_new_address(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $staff = User::factory()->create();
+
+        $this->actingAs($admin)->put("/admin/users/{$staff->id}", [
+            ...$staff->nameComponents(),
+            'email' => 'changed.account@example.com',
+            'role' => $staff->role->value,
+            'status' => $staff->status->value,
+            'department' => $staff->department,
+            'phone' => $staff->phone,
+        ])->assertSessionHasNoErrors();
+
+        $staff->refresh();
+
+        $this->assertSame('changed.account@example.com', $staff->email);
+        $this->assertNull($staff->email_verified_at);
+        Notification::assertSentTo($staff, VerifyEmail::class);
     }
 
     public function test_an_invalid_phone_number_cannot_update_a_user(): void

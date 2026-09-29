@@ -13,10 +13,10 @@ use RuntimeException;
 
 class PasswordHistoryService
 {
-    public const REJECTION_MESSAGE = 'This password cannot be used. Please choose a different password.';
+    public const REJECTION_MESSAGE = 'This password was previously used for this account. Please choose a different password.';
 
     /**
-     * Atomically persist and record a password after checking global history.
+     * Atomically persist and record a password after checking the target user's history.
      *
      * The callback receives a fresh Laravel hash and must return the saved user.
      * The unique blind fingerprint is the final concurrency guard if two
@@ -24,11 +24,11 @@ class PasswordHistoryService
      *
      * @param  Closure(string): User  $persist
      */
-    public function usePassword(string $password, Closure $persist, string $errorBag = 'default'): User
+    public function usePassword(?User $target, string $password, Closure $persist, string $errorBag = 'default'): User
     {
         try {
-            return DB::transaction(function () use ($password, $persist, $errorBag): User {
-                if ($this->hasBeenUsed($password)) {
+            return DB::transaction(function () use ($target, $password, $persist, $errorBag): User {
+                if ($target !== null && $this->hasBeenUsed($target, $password)) {
                     $this->reject($errorBag);
                 }
 
@@ -52,10 +52,15 @@ class PasswordHistoryService
         }
     }
 
-    public function hasBeenUsed(string $password): bool
+    public function hasBeenUsed(User $user, string $password): bool
     {
+        if (Hash::check($password, $user->getAuthPassword())) {
+            return true;
+        }
+
         $fingerprint = $this->fingerprint($password);
         $indexed = PasswordHistory::query()
+            ->where('user_id', $user->getKey())
             ->where('password_fingerprint', $fingerprint)
             ->first();
 
@@ -69,6 +74,7 @@ class PasswordHistoryService
         // plaintext is unavailable. Stream them in bounded chunks so they are
         // still protected without loading the whole history into memory.
         foreach (PasswordHistory::query()
+            ->where('user_id', $user->getKey())
             ->whereNull('password_fingerprint')
             ->select(['id', 'password_hash'])
             ->lazyById(100) as $history) {
@@ -109,7 +115,7 @@ class PasswordHistoryService
     {
         $message = $exception->getMessage();
 
-        return str_contains($message, 'password_histories_password_fingerprint_unique')
+        return str_contains($message, 'password_histories_user_password_fingerprint_unique')
             || str_contains($message, 'password_histories.password_fingerprint');
     }
 }

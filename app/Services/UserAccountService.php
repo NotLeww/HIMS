@@ -95,7 +95,7 @@ class UserAccountService
      */
     public function create(array $attributes, User $actor): User
     {
-        return $this->passwords->usePassword($attributes['password'], function (string $passwordHash) use ($attributes, $actor): User {
+        $user = $this->passwords->usePassword(null, $attributes['password'], function (string $passwordHash) use ($attributes, $actor): User {
             $role = UserRole::from($attributes['role']);
             $this->assertCanAssignRole($actor, $role);
 
@@ -110,16 +110,14 @@ class UserAccountService
                 'phone' => $attributes['phone'] ?? null,
             ]);
 
-            // An administrator created this account in person, so there is nobody
-            // to send a confirmation link to. Set outside the fillable list on
-            // purpose: email_verified_at must never be mass-assignable from a
-            // request, so passing it to User::create() would be dropped silently.
-            $user->email_verified_at = now();
-
             $user->save();
 
             return $user;
         });
+
+        $user->sendEmailVerificationNotification();
+
+        return $user;
     }
 
     /**
@@ -130,7 +128,9 @@ class UserAccountService
      */
     public function update(User $user, array $attributes, User $actor): User
     {
-        return DB::transaction(function () use ($user, $attributes, $actor): User {
+        $emailChanged = $attributes['email'] !== $user->email;
+
+        $user = DB::transaction(function () use ($user, $attributes, $actor, $emailChanged): User {
             $this->assertCanManage($actor, $user);
 
             $newRole = UserRole::from($attributes['role']);
@@ -166,11 +166,16 @@ class UserAccountService
                 'phone' => $attributes['phone'] ?? null,
             ]);
 
+            if ($emailChanged) {
+                $user->email_verified_at = null;
+            }
+
             // Blank means "leave it alone" — the edit form does not echo the
             // existing password back, so an empty field is not a request to
             // clear it.
             if (! empty($attributes['password'])) {
                 return $this->passwords->usePassword(
+                    $user,
                     $attributes['password'],
                     function (string $passwordHash) use ($user): User {
                         $user->password = $passwordHash;
@@ -185,6 +190,12 @@ class UserAccountService
 
             return $user;
         });
+
+        if ($emailChanged) {
+            $user->sendEmailVerificationNotification();
+        }
+
+        return $user;
     }
 
     /**
@@ -270,6 +281,7 @@ class UserAccountService
     public function resetPassword(User $user, string $password): User
     {
         return $this->passwords->usePassword(
+            $user,
             $password,
             function (string $passwordHash) use ($user): User {
                 $user->password = $passwordHash;

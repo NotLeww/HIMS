@@ -356,6 +356,26 @@ class PanelPasswordResetTest extends TestCase
             ->assertSessionMissing('wrong_panel');
 
         Notification::assertNothingSent();
+        $this->assertDatabaseMissing('password_reset_tokens', [
+            'email' => 'unknown@example.test',
+        ]);
+    }
+
+    public function test_password_reset_requests_are_throttled(): void
+    {
+        Notification::fake();
+
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            $this->post(route('password.email'), [
+                'email' => 'unknown@example.test',
+            ])->assertRedirect();
+        }
+
+        $this->post(route('password.email'), [
+            'email' => 'unknown@example.test',
+        ])->assertStatus(429);
+
+        Notification::assertNothingSent();
     }
 
     private function tokenFromRedirect(TestResponse $response): string

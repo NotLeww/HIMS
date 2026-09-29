@@ -4,7 +4,9 @@ namespace Tests\Feature\Auth;
 
 use App\Models\PasswordHistory;
 use App\Models\User;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
@@ -33,6 +35,8 @@ class RegistrationTest extends TestCase
 
     public function test_new_users_can_register(): void
     {
+        Notification::fake();
+
         $response = $this->post('/register', [
             'name' => 'Test User',
             'email' => 'test@example.com',
@@ -41,9 +45,13 @@ class RegistrationTest extends TestCase
             'privacy_consent' => '1',
         ]);
 
+        $user = User::where('email', 'test@example.com')->firstOrFail();
+
         $this->assertAuthenticated();
         $response->assertRedirect(route('dashboard', absolute: false));
-        $this->assertTrue(User::where('email', 'test@example.com')->firstOrFail()->password_changed_at->isToday());
+        $this->assertTrue($user->password_changed_at->isToday());
+        $this->assertNull($user->email_verified_at);
+        Notification::assertSentTo($user, VerifyEmail::class);
         $this->assertSame(1, PasswordHistory::query()->count());
     }
 }

@@ -49,27 +49,27 @@ Route::view('/terms-of-use', 'legal.terms-of-use')->name('terms');
 Route::redirect('/terms-and-conditions', '/terms-of-use');
 Route::redirect('/terms', '/terms-of-use');
 
-Route::get('/dashboard', [InventoryController::class, 'index'])->middleware('auth:web,admin,super_admin')->name('dashboard');
+Route::get('/dashboard', [InventoryController::class, 'index'])->middleware(['auth:web,admin,super_admin', 'verified'])->name('dashboard');
 
 // Polled by the dashboard's alert panel every 30s. Sits on the web routes so
 // it authenticates with the session cookie the page already has.
-Route::get('/dashboard/live', [InventoryController::class, 'live'])->middleware('auth:web,admin,super_admin')->name('dashboard.live');
+Route::get('/dashboard/live', [InventoryController::class, 'live'])->middleware(['auth:web,admin,super_admin', 'verified'])->name('dashboard.live');
 
 // Conversational HIMS AI Inventory Assistant.
 Route::post('/dashboard/ai-assistant', [DashboardAiAssistantController::class, 'chat'])
-    ->middleware(['auth:web,admin,super_admin', 'throttle:30,1'])
+    ->middleware(['auth:web,admin,super_admin', 'verified', 'throttle:30,1'])
     ->name('dashboard.ai-assistant');
 Route::get('/dashboard/ai-assistant/conversations', [DashboardAiAssistantController::class, 'conversations'])
-    ->middleware(['auth:web,admin,super_admin'])
+    ->middleware(['auth:web,admin,super_admin', 'verified'])
     ->name('dashboard.ai-assistant.conversations');
 Route::get('/dashboard/ai-assistant/conversations/active', [DashboardAiAssistantController::class, 'activeConversation'])
-    ->middleware(['auth:web,admin,super_admin'])
+    ->middleware(['auth:web,admin,super_admin', 'verified'])
     ->name('dashboard.ai-assistant.active');
 Route::get('/dashboard/ai-assistant/conversations/{id}', [DashboardAiAssistantController::class, 'showConversation'])
-    ->middleware(['auth:web,admin,super_admin'])
+    ->middleware(['auth:web,admin,super_admin', 'verified'])
     ->name('dashboard.ai-assistant.conversation');
 Route::get('/dashboard/ai-assistant/attachment/{message}', [DashboardAiAssistantController::class, 'attachment'])
-    ->middleware(['auth:web,admin,super_admin'])
+    ->middleware(['auth:web,admin,super_admin', 'verified'])
     ->name('dashboard.ai-assistant.attachment');
 
 /*
@@ -79,7 +79,7 @@ Route::get('/dashboard/ai-assistant/attachment/{message}', [DashboardAiAssistant
  * by being forgotten in this file. See App\Enums\UserRole::permissions() for
  * who holds what, and /admin/permissions for the matrix that renders it.
  */
-Route::middleware('auth:web,admin,super_admin')->group(function () {
+Route::middleware(['auth:web,admin,super_admin', 'verified'])->group(function () {
     Route::get('/global-search', [GlobalSearchController::class, 'search'])->name('global-search');
 
     Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
@@ -270,7 +270,9 @@ Route::middleware('auth:web,admin,super_admin')->group(function () {
     Route::post('/reviews/{review}/approve', [ProcessReviewController::class, 'approve'])->name('reviews.approve');
     Route::post('/reviews/{review}/reject', [ProcessReviewController::class, 'reject'])->name('reviews.reject');
     Route::post('/reviews/recommendations/{recommendation}/implement', [ProcessReviewController::class, 'implementRecommendation'])->name('reviews.recommendations.implement');
+});
 
+Route::middleware('auth:web,admin,super_admin')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::post('/profile/avatar', [ProfileController::class, 'updateAvatar'])
@@ -333,7 +335,7 @@ Route::middleware('auth:web,admin,super_admin')->group(function () {
  * itself (HasMiddleware) rather than here, so a method added later cannot slip
  * out from behind it.
  */
-Route::prefix('admin')->name('admin.')->group(function () {
+Route::prefix('admin')->name('admin.')->middleware(['auth:web,admin,super_admin', 'verified'])->group(function () {
     Route::get('/audit-trail/suggestions', [AuditLogController::class, 'suggestions'])->name('audit-logs.suggestions');
     Route::get('/audit-trail', [AuditLogController::class, 'index'])->name('audit-logs.index');
     Route::get('/audit-trail/{auditLog}', [AuditLogController::class, 'show'])->name('audit-logs.show');

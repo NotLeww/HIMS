@@ -11,16 +11,6 @@
         </x-slot:actions>
     </x-ui.page-header>
 
-    @if ($errors->any())
-        <x-ui.alert variant="danger" title="This account was not updated">
-            <ul class="space-y-0.5 list-disc list-inside">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </x-ui.alert>
-    @endif
-
     @if ($user->is(auth()->user()))
         <x-ui.alert variant="warning" title="This is your own account">
             You cannot remove your own administrator access or deactivate yourself — that would lock you out

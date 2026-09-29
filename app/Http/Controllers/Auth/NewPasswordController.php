@@ -69,6 +69,7 @@ class NewPasswordController extends Controller
             ],
             function (User $user) use ($request, $passwords) {
                 $passwords->usePassword(
+                    $user,
                     $request->string('password')->toString(),
                     function (string $passwordHash) use ($user): User {
                         $user->forceFill([

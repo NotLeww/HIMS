@@ -78,6 +78,7 @@ class ExpiredPasswordController extends Controller
         ]);
 
         $passwords->usePassword(
+            $attempt['user'],
             $validated['password'],
             function (string $passwordHash) use ($attempt): User {
                 $attempt['user']->forceFill([

@@ -37,6 +37,7 @@ class DemoUserSeeder extends Seeder
 
             User::withoutEvents(function () use ($account, $passwords, $role): void {
                 $passwords->usePassword(
+                    null,
                     $account['password'],
                     function (string $passwordHash) use ($account, $role): User {
                         $user = new User;

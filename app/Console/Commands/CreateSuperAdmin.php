@@ -52,7 +52,7 @@ class CreateSuperAdmin extends Command
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:30'],
-            'password' => ['required', 'string', new PasswordStandard()],
+            'password' => ['required', 'string', new PasswordStandard],
             'department' => ['required', 'string', 'max:100'],
         ]);
 
@@ -68,9 +68,10 @@ class CreateSuperAdmin extends Command
             $employeeId = $this->availableEmployeeId();
 
             $user = $passwords->usePassword(
+                null,
                 $password,
                 function (string $passwordHash) use ($name, $email, $phone, $department, $employeeId): User {
-                    $user = new User();
+                    $user = new User;
                     $user->forceFill([
                         'name' => $name,
                         'email' => $email,
@@ -80,7 +81,6 @@ class CreateSuperAdmin extends Command
                         'is_protected' => false,
                         'employee_id' => $employeeId,
                         'department' => $department,
-                        'email_verified_at' => now(),
                         'password' => $passwordHash,
                         'password_changed_at' => now(),
                     ]);
@@ -89,6 +89,8 @@ class CreateSuperAdmin extends Command
                     return $user;
                 }
             );
+
+            $user->sendEmailVerificationNotification();
 
             $audit->log(
                 AuditAction::CreatedUser,
@@ -124,7 +126,7 @@ class CreateSuperAdmin extends Command
 
             return self::FAILURE;
         } catch (\Throwable $e) {
-            $this->error('Failed to create Super Administrator: ' . $e->getMessage());
+            $this->error('Failed to create Super Administrator: '.$e->getMessage());
 
             return self::FAILURE;
         }
@@ -135,7 +137,7 @@ class CreateSuperAdmin extends Command
         $number = 1;
 
         do {
-            $employeeId = 'SA-' . str_pad((string) $number++, 4, '0', STR_PAD_LEFT);
+            $employeeId = 'SA-'.str_pad((string) $number++, 4, '0', STR_PAD_LEFT);
         } while (User::query()->where('employee_id', $employeeId)->exists());
 
         return $employeeId;

@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Models\User;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -151,6 +153,7 @@ class ProfileTest extends TestCase
 
     public function test_profile_information_can_be_updated(): void
     {
+        Notification::fake();
         $user = User::factory()->create();
 
         $response = $this
@@ -165,7 +168,7 @@ class ProfileTest extends TestCase
 
         $response
             ->assertSessionHasNoErrors()
-            ->assertSessionHas('profile_success', 'Email updated successfully.')
+            ->assertSessionHas('profile_success', 'Email updated. Check your new address to verify it.')
             ->assertSessionMissing('success')
             ->assertRedirect('/profile');
 
@@ -177,6 +180,7 @@ class ProfileTest extends TestCase
         $this->assertSame('Juan Santos Dela Cruz', $user->name);
         $this->assertSame('test@example.com', $user->email);
         $this->assertNull($user->email_verified_at);
+        Notification::assertSentTo($user, VerifyEmail::class);
 
         $profilePage = $this
             ->actingAs($user)
@@ -189,15 +193,15 @@ class ProfileTest extends TestCase
             ->assertSee('value="Santos"', false)
             ->assertSee('Juan Santos Dela Cruz')
             ->assertSee('Email updated')
-            ->assertSee('Email updated successfully.');
+            ->assertSee('Email updated. Check your new address to verify it.');
 
-        $this->assertSame(1, substr_count($profilePage->getContent(), 'Email updated successfully.'));
+        $this->assertSame(1, substr_count($profilePage->getContent(), 'Email updated. Check your new address to verify it.'));
 
         $this
             ->actingAs($user)
             ->get('/profile')
             ->assertOk()
-            ->assertDontSee('Email updated successfully.');
+            ->assertDontSee('Email updated. Check your new address to verify it.');
     }
 
     public function test_current_password_is_required_to_change_email(): void
@@ -384,7 +388,7 @@ class ProfileTest extends TestCase
         $this->get('/profile')
             ->assertOk()
             ->assertSee('Current password is incorrect.')
-            ->assertDontSee('Email updated successfully.');
+            ->assertDontSee('Email updated. Check your new address to verify it.');
 
         $this->get('/profile')
             ->assertOk()
@@ -434,19 +438,19 @@ class ProfileTest extends TestCase
             'email' => $newEmail,
             'current_password' => 'password',
         ])->assertSessionHasNoErrors()
-            ->assertSessionHas('profile_success', 'Email updated successfully.')
+            ->assertSessionHas('profile_success', 'Email updated. Check your new address to verify it.')
             ->assertRedirect('/profile');
 
         $this->assertSame($newEmail, $user->refresh()->email);
 
         $this->get('/profile')
             ->assertOk()
-            ->assertSee('Email updated successfully.')
+            ->assertSee('Email updated. Check your new address to verify it.')
             ->assertSee('value="'.$newEmail.'"', false);
 
         $this->get('/profile')
             ->assertOk()
-            ->assertDontSee('Email updated successfully.')
+            ->assertDontSee('Email updated. Check your new address to verify it.')
             ->assertSee('value="'.$newEmail.'"', false);
     }
 

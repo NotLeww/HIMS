@@ -80,6 +80,7 @@ Route::middleware(['guest:web', 'guest:admin', 'guest:super_admin'])->group(func
 
     Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
         ->defaults('auth_panel', AuthenticationPanel::Staff->value)
+        ->middleware('throttle:3,1')
         ->name('password.email');
 
     // Retire the former client-side OTP flow. It did not carry a Laravel
