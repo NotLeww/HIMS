@@ -31,7 +31,7 @@ class CycleCountController extends Controller implements HasMiddleware
     {
         $docs = CycleCountDoc::with(['assignedCounter', 'approvedBy', 'location'])
             ->latest()
-            ->paginate(25);
+            ->paginate(10);
 
         return response()->json($docs);
     }

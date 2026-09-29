@@ -36,7 +36,7 @@ class RequisitionController extends Controller implements HasMiddleware
     {
         $requests = PurchaseRequest::with(['requester', 'costCenter', 'lines.item', 'category'])
             ->latest('id')
-            ->paginate(20);
+            ->paginate(10);
 
         return response()->json([
             'status' => 'success',

@@ -44,7 +44,7 @@ class WarehouseTaskController extends Controller implements HasMiddleware
             ->when($validated['task_type'] ?? null, fn ($query, $value) => $query->where('task_type', $value))
             ->when($validated['assigned_to_id'] ?? null, fn ($query, $value) => $query->where('assigned_to_id', $value))
             ->latest()
-            ->paginate((int) ($validated['per_page'] ?? 25));
+            ->paginate((int) ($validated['per_page'] ?? 10));
 
         return response()->json($tasks);
     }

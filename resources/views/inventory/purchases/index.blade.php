@@ -1390,7 +1390,7 @@
                                     </select>
                                     <div class="flex gap-1.5">
                                         <x-ui.button type="submit" size="sm">Apply</x-ui.button>
-                                        @if($poFilters['poSearch'] !== '' || $poFilters['poStatus'] !== '' || $poFilters['poDate'] !== '' || $supplierFilter || $poPerPage !== 5)
+                                        @if($poFilters['poSearch'] !== '' || $poFilters['poStatus'] !== '' || $poFilters['poDate'] !== '' || $supplierFilter || $poPerPage !== 10)
                                             <x-ui.button variant="ghost" size="sm" :href="route('inventory.purchases').'#purchase-orders'">Clear</x-ui.button>
                                         @endif
                                     </div>

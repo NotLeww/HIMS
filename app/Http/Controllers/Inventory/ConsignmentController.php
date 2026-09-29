@@ -53,7 +53,7 @@ class ConsignmentController extends Controller implements HasMiddleware
             $query->where('status', $request->status);
         }
 
-        $records = $query->paginate(20)->withQueryString();
+        $records = $query->paginate(10)->withQueryString();
 
         return view('inventory.warehousing.consignment', compact('consignmentItems', 'consignmentLocations', 'balances', 'records'));
     }

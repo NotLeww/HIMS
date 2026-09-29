@@ -33,7 +33,7 @@ class RequisitionController extends Controller implements HasMiddleware
     {
         $requisitions = MaterialRequisition::with(['requestingUser', 'approvedBy', 'lines.item'])
             ->latest()
-            ->paginate(25);
+            ->paginate(10);
 
         return response()->json($requisitions);
     }

@@ -56,7 +56,7 @@ class NarcoticsVaultController extends Controller implements HasMiddleware
             $query->where('pdea_spf_number', 'like', "%{$request->spf}%");
         }
 
-        $entries = $query->paginate(20)->withQueryString();
+        $entries = $query->paginate(10)->withQueryString();
 
         return view('inventory.warehousing.narcotics', compact('vaultLocations', 'dangerousDrugItems', 'vaultBalances', 'entries'));
     }

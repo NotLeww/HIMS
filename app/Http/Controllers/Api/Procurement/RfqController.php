@@ -34,7 +34,7 @@ class RfqController extends Controller implements HasMiddleware
     {
         $rfqs = SourcingRfq::with(['creator', 'purchaseRequest', 'lines.item', 'invitations.supplier'])
             ->latest('id')
-            ->paginate(20);
+            ->paginate(10);
 
         return response()->json([
             'status' => 'success',

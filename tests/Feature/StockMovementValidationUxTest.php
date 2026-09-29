@@ -303,8 +303,8 @@ class StockMovementValidationUxTest extends TestCase
 
         $response->assertOk();
         $this->assertSame(43, $response->viewData('movements')->total());
-        $this->assertSame(20, $response->viewData('movements')->count());
-        $this->assertSame(3, $response->viewData('movements')->lastPage());
+        $this->assertSame(10, $response->viewData('movements')->count());
+        $this->assertSame(5, $response->viewData('movements')->lastPage());
 
         $filtered = $this->actingAs($user)->get(route('inventory.stock-movements', [
             'search' => 'Emergency theatre',
@@ -315,7 +315,8 @@ class StockMovementValidationUxTest extends TestCase
         $filtered->assertOk();
         $filteredMovements = $filtered->viewData('movements');
         $this->assertSame(21, $filteredMovements->total());
-        $this->assertSame(2, $filteredMovements->lastPage());
+        $this->assertSame(10, $filteredMovements->count());
+        $this->assertSame(3, $filteredMovements->lastPage());
         $filtered->assertSee('Emergency theatre release 21');
         $filtered->assertDontSee('Routine intake 1');
         $filtered->assertSee('value="stock_out" selected', false);

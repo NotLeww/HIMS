@@ -30,7 +30,7 @@ class InventoryItemController extends Controller implements HasMiddleware
 
     public function index(Request $request)
     {
-        $perPage = (int) $request->query('per_page', 15);
+        $perPage = (int) $request->query('per_page', 10);
         $items = InventoryItem::with([
             'supplier',
             'batches' => fn ($query) => $query->active()->whereNotNull('expiry_date')->with('stockLevels'),

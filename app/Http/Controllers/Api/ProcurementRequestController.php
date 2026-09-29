@@ -28,7 +28,7 @@ class ProcurementRequestController extends Controller implements HasMiddleware
 
     public function index(Request $request)
     {
-        $perPage = (int) $request->query('per_page', 15);
+        $perPage = (int) $request->query('per_page', 10);
         $items = ProcurementRequest::with(['item', 'supplier'])->paginate(min(max($perPage, 1), 100));
 
         return ProcurementRequestResource::collection($items);

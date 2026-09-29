@@ -237,6 +237,12 @@
                     </div></x-ui.table.td>
                 </x-ui.table.row>@empty<x-ui.table.empty colspan="7" title="No storage locations" message="Configure the real warehouse hierarchy before creating physical tasks." />@endforelse</tbody>
             </x-ui.table>
+
+            @if ($locations->hasPages())
+                <x-slot:footer>
+                    {{ $locations->links() }}
+                </x-slot:footer>
+            @endif
         </x-ui.card>
 
         {{-- Step 1: Deactivation Reason Modal (Super Admin only) --}}

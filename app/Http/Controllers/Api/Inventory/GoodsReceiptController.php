@@ -30,7 +30,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
     {
         $receipts = GoodsReceiptNote::with(['supplier', 'purchaseOrder', 'receivedBy', 'lines.item'])
             ->latest('received_at')
-            ->paginate(25);
+            ->paginate(10);
 
         return response()->json($receipts);
     }

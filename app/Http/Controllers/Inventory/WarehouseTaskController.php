@@ -51,7 +51,7 @@ class WarehouseTaskController extends Controller implements HasMiddleware
             ->when($validated['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->when($validated['type'] ?? null, fn ($q, $type) => $q->where('task_type', $type))
             ->latest()
-            ->paginate(20)
+            ->paginate(10)
             ->withQueryString();
 
         $locations = StorageLocation::active()->orderBy('code')->get();
