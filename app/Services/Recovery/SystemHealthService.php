@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * Read-only diagnostics for the Recovery Center health panel, plus the one
+ * Read-only diagnostics for operational health checks, plus the one
  * maintenance action that can be verified on the spot (cache clear).
  *
  * Diagnostics never report a status they did not observe, and never surface
@@ -249,11 +249,12 @@ class SystemHealthService
             $lastBackupAt = now()->setTimestamp($latestBackupTime);
 
             return [
-                'status' => 'healthy',
+                'status' => 'info',
                 'backup_count' => $backupCount,
                 'last_backup_at' => $lastBackupAt->format('Y-m-d H:i:s T'),
+                'managed_backup_verified' => false,
                 'message' => sprintf(
-                    '%d local backup archive(s) present. Most recent file written %s.',
+                    '%d local recovery artifact(s) found; this does not verify TiDB Cloud managed backups. Most recent file written %s.',
                     $backupCount,
                     $lastBackupAt->diffForHumans()
                 ),
@@ -264,7 +265,8 @@ class SystemHealthService
             'status' => 'info',
             'backup_count' => 0,
             'last_backup_at' => null,
-            'message' => 'No local disk backup archives detected. Remote snapshots may be managed by cloud infrastructure.',
+            'managed_backup_verified' => false,
+            'message' => 'No local recovery artifacts detected. TiDB Cloud managed backups are not verified from this application check.',
         ];
     }
 

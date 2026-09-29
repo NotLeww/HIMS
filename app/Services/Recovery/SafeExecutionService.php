@@ -29,8 +29,8 @@ use Throwable;
  * A record is written only when an operation actually failed; nothing here
  * fabricates an incident. Stack traces are never persisted — they belong in the
  * server log, and the stored copy of the failure message is redacted so that
- * credentials captured in an exception never reach the Recovery Center or the
- * Audit Trail.
+ * credentials captured in an exception never reach operator notifications or
+ * the Audit Trail.
  */
 class SafeExecutionService
 {
@@ -299,10 +299,9 @@ class SafeExecutionService
                 Permission::ManageSystemRecovery,
                 "system-recovery-record:{$record->id}",
                 'Critical system event',
-                "Incident {$errorId} in {$module} requires review in the Recovery Center.",
+                "Incident {$errorId} in {$module} was logged securely for technical review.",
                 NotificationPriority::Critical,
-                NotificationDestination::RecoveryRecord,
-                ['record' => $record->id],
+                NotificationDestination::Dashboard,
             );
         } catch (Throwable $notificationException) {
             Log::error('Failed to create a recovery notification.', [

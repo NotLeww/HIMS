@@ -42,6 +42,7 @@ class DatabaseRestoreProcedureTest extends TestCase
 
     public function test_backup_restores_into_an_isolated_database_with_valid_data_and_relationships(): void
     {
+        $startedAt = microtime(true);
         $source = $this->temporaryDirectory.'/source.sqlite';
         $backup = $this->temporaryDirectory.'/backup.sqlite';
         $target = $this->temporaryDirectory.'/restored.sqlite';
@@ -66,6 +67,10 @@ class DatabaseRestoreProcedureTest extends TestCase
         $this->assertNotContains(0, $expectedCounts);
         $sourcePdo = DB::connection('recovery_source')->getPdo();
         $sourcePdo->exec('VACUUM INTO '.$sourcePdo->quote($backup));
+        $this->assertFileExists($backup);
+        $backupSize = File::size($backup);
+        $this->assertGreaterThan(0, $backupSize);
+        $this->assertSame("SQLite format 3\0", file_get_contents($backup, false, null, 0, 16));
         $this->assertTrue(File::copy($backup, $target));
 
         config()->set('database.default', 'recovery_target');
@@ -90,6 +95,13 @@ class DatabaseRestoreProcedureTest extends TestCase
         $this->actingAs($inventoryManager, AuthenticationContext::WEB_GUARD)
             ->get(route('dashboard'))
             ->assertOk();
+
+        fwrite(STDOUT, sprintf(
+            "\nBACKUP_LOG task=database-restore-procedure type=sqlite-vacuum environment=testing status=completed identifier=%s/backup.sqlite size_bytes=%d duration_ms=%d integrity=ok foreign_key_violations=0\n",
+            basename($this->temporaryDirectory),
+            $backupSize,
+            (int) round((microtime(true) - $startedAt) * 1000),
+        ));
     }
 
     /** @return array<string, mixed> */

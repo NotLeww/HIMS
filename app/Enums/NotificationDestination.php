@@ -3,9 +3,8 @@
 namespace App\Enums;
 
 use App\Models\MaterialRequisition;
-use App\Models\WarehouseTask;
-use App\Models\SystemRecoveryRecord;
 use App\Models\User;
+use App\Models\WarehouseTask;
 use App\Support\AuthenticationPanel;
 
 /**
@@ -20,7 +19,6 @@ enum NotificationDestination: string
     case InventoryAdjustments = 'inventory_adjustments';
     case Procurement = 'procurement';
     case Import = 'import';
-    case RecoveryRecord = 'recovery_record';
     case Profile = 'profile';
     case QualityControl = 'quality_control';
     case GoodsReceipt = 'goods_receipt';
@@ -38,8 +36,6 @@ enum NotificationDestination: string
             self::Import => $user->hasPermission(Permission::ManageItems)
                 || $user->hasPermission(Permission::ManageLocations)
                 || $user->hasPermission(Permission::ManageSuppliers),
-            self::RecoveryRecord => $user->isSuperAdministrator()
-                && $user->hasPermission(Permission::ManageSystemRecovery),
             self::QualityControl => $user->hasPermission(Permission::InspectStock),
             self::GoodsReceipt => $user->hasPermission(Permission::ViewInventory)
                 || $user->hasPermission(Permission::ReceivePurchaseOrder),
@@ -53,9 +49,6 @@ enum NotificationDestination: string
         return match ($this) {
             self::MaterialRequisition => MaterialRequisition::query()
                 ->whereKey((int) ($parameters['requisition'] ?? 0))
-                ->exists(),
-            self::RecoveryRecord => SystemRecoveryRecord::query()
-                ->whereKey((int) ($parameters['record'] ?? 0))
                 ->exists(),
             self::WarehouseTask => WarehouseTask::query()
                 ->whereKey((int) ($parameters['task'] ?? 0))->exists(),
@@ -75,9 +68,6 @@ enum NotificationDestination: string
             self::InventoryAdjustments => route('inventory.adjustments'),
             self::Procurement => route('inventory.purchases'),
             self::Import => route('inventory.import.index'),
-            self::RecoveryRecord => route('super-admin.recovery.show', [
-                'record' => (int) ($parameters['record'] ?? 0),
-            ]),
             self::Profile => route('profile.edit'),
             self::QualityControl => route('inventory.qc.index'),
             self::GoodsReceipt => ! empty($parameters['grn'])

@@ -30,7 +30,7 @@ class QueueJobRecoveryService
 
     /**
      * A job failed. Either it is the first failure of a new job, or a retry that
-     * was dispatched from the Recovery Center has failed again.
+     * was dispatched by the recovery service has failed again.
      */
     public function handleFailure(JobFailed $event): void
     {
@@ -54,7 +54,7 @@ class QueueJobRecoveryService
             }
         } catch (Throwable $e) {
             // Never let bookkeeping break the worker's failure handling.
-            Log::error('Failed to reconcile a queue job failure with the Recovery Center.', [
+            Log::error('Failed to reconcile a queue job failure with its recovery record.', [
                 'exception' => $e,
             ]);
         }
@@ -88,7 +88,7 @@ class QueueJobRecoveryService
                 'last_attempt_error' => null,
                 'resolved_at' => now(),
                 'resolved_by_user_id' => null,
-                'resolution_notes' => 'The queued job completed successfully after being re-queued by the Recovery Center.',
+                'resolution_notes' => 'The queued job completed successfully after being re-queued by the recovery service.',
             ])->save();
 
             $this->auditLogger->log(
@@ -108,7 +108,7 @@ class QueueJobRecoveryService
                 source: 'system',
             );
         } catch (Throwable $e) {
-            Log::error('Failed to confirm a recovered queue job in the Recovery Center.', [
+            Log::error('Failed to confirm a recovered queue job in its recovery record.', [
                 'exception' => $e,
             ]);
         }
@@ -197,7 +197,7 @@ class QueueJobRecoveryService
             $name = $event->job->resolveName();
 
             // Named the same way the health panel names failed jobs, so one job
-            // reads identically everywhere it appears in the Recovery Center.
+            // reads identically everywhere it appears in technical diagnostics.
             return is_string($name) && $name !== '' ? class_basename($name) : null;
         } catch (Throwable) {
             return null;

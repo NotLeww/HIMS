@@ -91,7 +91,7 @@ Final result recorded after completion:
 
 ```text
 PASS  Tests\Feature\DatabaseRestoreProcedureTest
-Tests: 1 passed (11 assertions)
+Tests: 1 passed (14 assertions)
 ```
 
 The first continuation run reached the restored database and passed nine assertions, then failed only because the seeded user correctly lacked mandatory current privacy consent and was redirected. The source setup was corrected to record synthetic consent through the real service before backup; no restore assertion or production safeguard was weakened.
@@ -103,7 +103,7 @@ php artisan test tests/Feature/ComprehensiveDemoSeederTest.php
 Tests: 2 passed (26 assertions)
 
 php artisan test tests/Feature/ErrorRecoveryTest.php
-Tests: 35 passed (299 assertions)
+Tests: 35 passed (302 assertions)
 
 php -l tests/Feature/DatabaseRestoreProcedureTest.php
 No syntax errors detected
@@ -112,7 +112,7 @@ vendor/bin/pint --test tests/Feature/DatabaseRestoreProcedureTest.php
 passed
 ```
 
-Across the focused and adjacent PHPUnit runs: **38 tests passed with 336 assertions**.
+Across the focused and adjacent PHPUnit runs: **38 tests passed with 342 assertions**.
 
 ## Production TiDB Cloud recovery
 

@@ -345,7 +345,7 @@ class ImportController extends Controller implements HasMiddleware
 
             // The staging payload is deliberately kept: the executor rolled the
             // whole batch back, so the exact validated rows are still on hand and
-            // the Recovery Center can genuinely replay them. The token is stored
+            // the recovery service can genuinely replay them. The token is stored
             // as the reference ID so the incident is traceable back to the import
             // session that produced it.
             try {

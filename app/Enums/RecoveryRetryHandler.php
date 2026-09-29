@@ -3,7 +3,7 @@
 namespace App\Enums;
 
 /**
- * The recovery operations the Recovery Center can genuinely re-execute.
+ * The recovery operations the recovery service can genuinely re-execute.
  *
  * A record is only retryable when its handler appears here; anything else is
  * presented as not recoverable rather than offering a button that cannot work.

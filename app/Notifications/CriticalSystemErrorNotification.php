@@ -36,7 +36,6 @@ class CriticalSystemErrorNotification extends Notification
             ->line(sprintf('Triggered by: %s', $this->actorName ?? 'System / Automated'))
             ->line(sprintf('Error Summary: %s', $this->summary))
             ->line('All ongoing database transactions were automatically rolled back to preserve clinical records and inventory data integrity.')
-            ->action('Access Recovery Center', url('/super-admin/recovery'))
-            ->line('Please review and execute necessary recovery actions in the Recovery Center.');
+            ->line('Review the secure application logs using the incident reference and follow the established operational recovery procedure.');
     }
 }

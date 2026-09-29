@@ -130,10 +130,16 @@ class SystemRecoveryRecord extends Model
         return max(0, self::MAX_RECOVERY_ATTEMPTS - $this->retry_count);
     }
 
+    public function retryWasInterrupted(): bool
+    {
+        return $this->status === RecoveryStatus::Retrying
+            && $this->last_retried_at?->lte(now()->subMinutes(5));
+    }
+
     /**
      * Whether a retry may run right now.
      *
-     * Requires a handler the Recovery Center can actually execute, a status that
+     * Requires a handler the recovery service can actually execute, a status that
      * is not already in flight or closed, and an unspent attempt budget. Without
      * all three the UI must not offer a retry at all.
      */
@@ -141,7 +147,8 @@ class SystemRecoveryRecord extends Model
     {
         return $this->is_retryable
             && $this->retry_handler !== null
-            && in_array($this->status, [RecoveryStatus::Failed, RecoveryStatus::RecoveryFailed], true)
+            && (in_array($this->status, [RecoveryStatus::Failed, RecoveryStatus::RecoveryFailed], true)
+                || $this->retryWasInterrupted())
             && $this->attemptsRemaining() > 0;
     }
 
@@ -166,7 +173,7 @@ class SystemRecoveryRecord extends Model
             ! $this->is_retryable => 'This failure type has no safe automated retry.',
             $this->retry_handler === null => 'No recovery handler is registered for this operation.',
             $this->status->isInFlight() => 'A recovery attempt is already in progress.',
-            $this->attemptsRemaining() === 0 => 'The retry budget of ' . self::MAX_RECOVERY_ATTEMPTS . ' attempts is exhausted.',
+            $this->attemptsRemaining() === 0 => 'The retry budget of '.self::MAX_RECOVERY_ATTEMPTS.' attempts is exhausted.',
             $this->status->isTerminal() => 'This incident is already closed.',
             default => 'This incident cannot be retried in its current state.',
         };

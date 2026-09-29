@@ -71,12 +71,5 @@ Route::prefix('super-admin')->name('super-admin.')->group(function () {
         Route::post('session/activity', fn () => response()->noContent())->name('session.activity');
         Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
-        // Recovery Center
-        Route::get('recovery', [\App\Http\Controllers\SuperAdmin\RecoveryCenterController::class, 'index'])->name('recovery.index');
-        Route::get('recovery/health', [\App\Http\Controllers\SuperAdmin\RecoveryCenterController::class, 'health'])->name('recovery.health');
-        Route::post('recovery/rebuild-cache', [\App\Http\Controllers\SuperAdmin\RecoveryCenterController::class, 'rebuildCache'])->name('recovery.rebuild-cache');
-        Route::get('recovery/{record}', [\App\Http\Controllers\SuperAdmin\RecoveryCenterController::class, 'show'])->name('recovery.show');
-        Route::post('recovery/{record}/retry', [\App\Http\Controllers\SuperAdmin\RecoveryCenterController::class, 'retry'])->name('recovery.retry');
-        Route::post('recovery/{record}/resolve', [\App\Http\Controllers\SuperAdmin\RecoveryCenterController::class, 'resolve'])->name('recovery.resolve');
     });
 });

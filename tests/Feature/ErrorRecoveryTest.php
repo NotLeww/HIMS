@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\AuditAction;
-use App\Enums\Permission;
 use App\Enums\RecoveryAttemptOutcome;
 use App\Enums\RecoveryFailureType;
 use App\Enums\RecoveryRetryHandler;
@@ -18,7 +17,6 @@ use App\Models\User;
 use App\Services\Import\ImportStagingService;
 use App\Services\Recovery\SafeExecutionService;
 use App\Services\Recovery\SmartRetryService;
-use App\Services\Recovery\SystemHealthService;
 use App\Support\AuthenticationContext;
 use Illuminate\Contracts\Queue\Job as QueueJobContract;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -46,14 +44,6 @@ class ErrorRecoveryTest extends TestCase
         return User::factory()->superAdministrator()->create([
             'name' => 'Super Admin Officer',
             'employee_id' => 'EMP-0001',
-        ]);
-    }
-
-    private function admin(): User
-    {
-        return User::factory()->administrator()->create([
-            'name' => 'IT Administrator',
-            'employee_id' => 'EMP-0002',
         ]);
     }
 
@@ -101,7 +91,7 @@ class ErrorRecoveryTest extends TestCase
     /**
      * Record a failed import incident the way the running system does: through
      * SafeExecutionService, with the still-live staging token attached so the
-     * Recovery Center can genuinely replay it.
+     * recovery service can genuinely replay it.
      */
     private function failedImportIncident(string $token, ?string $message = null): SystemRecoveryRecord
     {
@@ -140,7 +130,7 @@ class ErrorRecoveryTest extends TestCase
     private function queueIncident(string $uuid, RecoveryStatus $status, array $attributes = []): SystemRecoveryRecord
     {
         return SystemRecoveryRecord::create([
-            'error_id' => 'REC-QUE-' . strtoupper(Str::random(6)),
+            'error_id' => 'REC-QUE-'.strtoupper(Str::random(6)),
             'module' => 'Queue',
             'failure_type' => RecoveryFailureType::QueueJob,
             'operation' => 'queue_job',
@@ -154,66 +144,6 @@ class ErrorRecoveryTest extends TestCase
             'retry_count' => 0,
             ...$attributes,
         ]);
-    }
-
-    // ---------------------------------------------------------------------
-    // Authorization
-    // ---------------------------------------------------------------------
-
-    public function test_guest_is_redirected_to_the_super_admin_login(): void
-    {
-        $this->get(route('super-admin.recovery.index'))->assertRedirect(route('super-admin.login'));
-        $this->get(route('super-admin.recovery.health'))->assertRedirect(route('super-admin.login'));
-        $this->post(route('super-admin.recovery.rebuild-cache'))->assertRedirect(route('super-admin.login'));
-    }
-
-    public function test_no_role_other_than_super_administrator_holds_the_recovery_permission(): void
-    {
-        $this->assertTrue($this->superAdmin()->can(Permission::ManageSystemRecovery->value));
-        $this->assertFalse($this->admin()->can(Permission::ManageSystemRecovery->value));
-        $this->assertFalse($this->inventoryManager()->can(Permission::ManageSystemRecovery->value));
-    }
-
-    public function test_a_non_super_administrator_cannot_reach_any_recovery_route(): void
-    {
-        foreach ([$this->admin(), $this->inventoryManager()] as $outsider) {
-            $record = SystemRecoveryRecord::create([
-                'error_id' => 'REC-AUTH-' . strtoupper(Str::random(6)),
-                'module' => 'Imports',
-                'operation' => 'data_import',
-                'error_summary' => 'Recorded failure',
-                'status' => RecoveryStatus::Failed,
-                'is_retryable' => true,
-                'retry_handler' => RecoveryRetryHandler::Import,
-            ]);
-
-            $this->actingAs($outsider, AuthenticationContext::ADMIN_GUARD)
-                ->get(route('super-admin.recovery.index'))
-                ->assertRedirect(route('super-admin.login'));
-
-            $this->actingAs($outsider, AuthenticationContext::ADMIN_GUARD)
-                ->get(route('super-admin.recovery.show', $record))
-                ->assertRedirect(route('super-admin.login'));
-
-            $this->actingAs($outsider, AuthenticationContext::ADMIN_GUARD)
-                ->post(route('super-admin.recovery.retry', $record))
-                ->assertRedirect(route('super-admin.login'));
-
-            $this->actingAs($outsider, AuthenticationContext::ADMIN_GUARD)
-                ->post(route('super-admin.recovery.resolve', $record), ['notes' => 'Attempting to close an incident without authority.'])
-                ->assertRedirect(route('super-admin.login'));
-
-            $this->actingAs($outsider, AuthenticationContext::ADMIN_GUARD)
-                ->post(route('super-admin.recovery.rebuild-cache'))
-                ->assertRedirect(route('super-admin.login'));
-
-            $record->refresh();
-            $this->assertSame(RecoveryStatus::Failed, $record->status);
-            $this->assertSame(0, $record->retry_count);
-        }
-
-        // No recovery action ran, so nothing was written to the attempt ledger.
-        $this->assertSame(0, SystemRecoveryAttempt::count());
     }
 
     // ---------------------------------------------------------------------
@@ -242,22 +172,9 @@ class ErrorRecoveryTest extends TestCase
         // The rolled-back import left nothing behind.
         $this->assertSame(0, InventoryItem::count());
 
-        // 2. It is visible in the Recovery Center with a retry that is offered.
-        $this->get(route('super-admin.recovery.index'))
-            ->assertOk()
-            ->assertSee($record->error_id)
-            ->assertSee('Retry');
-
-        $this->get(route('super-admin.recovery.show', $record))
-            ->assertOk()
-            ->assertSee('Original failure')
-            ->assertSee('No recovery attempt yet')
-            ->assertSee('Retry failed operation');
-
-        // 3. The retry actually re-runs the import.
-        $this->post(route('super-admin.recovery.retry', $record))
-            ->assertRedirect()
-            ->assertSessionHas('success');
+        // 2. The recovery service actually re-runs the import.
+        $outcome = app(SmartRetryService::class)->retry($record, $superAdmin);
+        $this->assertSame(RecoveryAttemptOutcome::Succeeded, $outcome->outcome);
 
         $record->refresh();
         $this->assertSame(RecoveryStatus::Recovered, $record->status);
@@ -273,18 +190,18 @@ class ErrorRecoveryTest extends TestCase
         // The staged payload was consumed, so the same batch cannot be applied twice.
         $this->assertNull(app(ImportStagingService::class)->retrieve($token, $superAdmin->id));
 
-        // 4. The original failure was preserved, not overwritten by the outcome.
+        // 3. The original failure was preserved, not overwritten by the outcome.
         $this->assertSame(self::ORIGINAL_FAILURE, $record->error_summary);
         $this->assertSame(self::ORIGINAL_FAILURE, $record->technical_details['message']);
 
-        // 5. Exactly one attempt, attributed to the operator who ran it.
+        // 4. Exactly one attempt, attributed to the operator who ran it.
         $attempt = SystemRecoveryAttempt::where('system_recovery_record_id', $record->id)->sole();
         $this->assertSame(1, $attempt->attempt_number);
         $this->assertSame(RecoveryAttemptOutcome::Succeeded, $attempt->outcome);
         $this->assertSame(RecoveryRetryHandler::Import, $attempt->handler);
         $this->assertSame($superAdmin->id, $attempt->actor_user_id);
 
-        // 6. Every step reached the Audit Trail.
+        // 5. Every step reached the Audit Trail.
         foreach ([AuditAction::SystemOperationFailed, AuditAction::TriggeredRecoveryAction, AuditAction::SystemOperationRecovered] as $action) {
             $this->assertTrue(
                 AuditLog::where('action', $action)->where('target_name', $record->error_id)->exists(),
@@ -301,9 +218,8 @@ class ErrorRecoveryTest extends TestCase
         // A token that was never staged, standing in for an expired import session.
         $record = $this->failedImportIncident((string) Str::uuid());
 
-        $this->post(route('super-admin.recovery.retry', $record))
-            ->assertRedirect()
-            ->assertSessionHas('error');
+        $outcome = app(SmartRetryService::class)->retry($record, $superAdmin);
+        $this->assertSame(RecoveryAttemptOutcome::Skipped, $outcome->outcome);
 
         $record->refresh();
         $this->assertSame(RecoveryStatus::NotRecoverable, $record->status);
@@ -338,9 +254,8 @@ class ErrorRecoveryTest extends TestCase
 
         $record = $this->failedImportIncident($token);
 
-        $this->post(route('super-admin.recovery.retry', $record))
-            ->assertRedirect()
-            ->assertSessionHas('error');
+        $outcome = app(SmartRetryService::class)->retry($record, $superAdmin);
+        $this->assertSame(RecoveryAttemptOutcome::Failed, $outcome->outcome);
 
         $record->refresh();
         $this->assertSame(RecoveryStatus::RecoveryFailed, $record->status);
@@ -354,13 +269,8 @@ class ErrorRecoveryTest extends TestCase
         $this->assertSame(self::ORIGINAL_FAILURE, $record->error_summary);
         $this->assertNotSame($record->error_summary, $record->last_attempt_error);
 
-        // The incident is still offered for retry, and says why the last one failed.
+        // The incident remains retryable after a failed attempt.
         $this->assertTrue($record->canRetry());
-        $this->get(route('super-admin.recovery.show', $record))
-            ->assertOk()
-            ->assertSee('Most recent attempt did not succeed')
-            ->assertSee(self::ORIGINAL_FAILURE)
-            ->assertSee('Attempt #1');
     }
 
     public function test_repeated_attempts_are_appended_then_refused_once_the_budget_is_spent(): void
@@ -381,7 +291,7 @@ class ErrorRecoveryTest extends TestCase
         $record = $this->failedImportIncident($token);
 
         foreach ([1, 2, 3] as $attemptNumber) {
-            $this->post(route('super-admin.recovery.retry', $record))->assertSessionHas('error');
+            app(SmartRetryService::class)->retry($record, $superAdmin);
 
             $record->refresh();
             $this->assertSame(RecoveryStatus::RecoveryFailed, $record->status);
@@ -400,21 +310,20 @@ class ErrorRecoveryTest extends TestCase
         // Nothing was written by any of the three attempts.
         $this->assertSame(0, InventoryItem::count());
 
-        // The budget is spent, so the retry control is withheld rather than failing later.
+        // The budget is spent, so another retry is refused.
         $record->refresh();
         $this->assertFalse($record->canRetry());
         $this->assertSame(
-            'The retry budget of ' . SystemRecoveryRecord::MAX_RECOVERY_ATTEMPTS . ' attempts is exhausted.',
+            'The retry budget of '.SystemRecoveryRecord::MAX_RECOVERY_ATTEMPTS.' attempts is exhausted.',
             $record->retryBlockedReason()
         );
 
-        $this->get(route('super-admin.recovery.show', $record))
-            ->assertOk()
-            ->assertSee('The retry budget of 3 attempts is exhausted.')
-            ->assertDontSee('Retry failed operation');
-
-        $this->post(route('super-admin.recovery.retry', $record))
-            ->assertSessionHas('error', fn (string $message): bool => str_contains($message, 'attempts is exhausted'));
+        try {
+            app(SmartRetryService::class)->retry($record, $superAdmin);
+            $this->fail('An incident with an exhausted retry budget should be refused.');
+        } catch (RecoveryNotRetryableException $e) {
+            $this->assertStringContainsString('attempts is exhausted', $e->getMessage());
+        }
 
         $record->refresh();
         $this->assertSame(3, $record->retry_count);
@@ -429,12 +338,16 @@ class ErrorRecoveryTest extends TestCase
         $token = $this->stageItems('REC-SKU-010', 'Recovered Gauze Pad', $superAdmin->id);
         $record = $this->failedImportIncident($token);
 
-        $this->post(route('super-admin.recovery.retry', $record))->assertSessionHas('success');
+        app(SmartRetryService::class)->retry($record, $superAdmin);
         $this->assertSame(1, InventoryItem::count());
 
         // A repeated submission must not apply the same batch a second time.
-        $this->post(route('super-admin.recovery.retry', $record))
-            ->assertSessionHas('error', fn (string $message): bool => str_contains($message, 'already closed'));
+        try {
+            app(SmartRetryService::class)->retry($record, $superAdmin);
+            $this->fail('A recovered incident should refuse another retry.');
+        } catch (RecoveryNotRetryableException $e) {
+            $this->assertStringContainsString('already closed', $e->getMessage());
+        }
 
         $record->refresh();
         $this->assertSame(RecoveryStatus::Recovered, $record->status);
@@ -453,14 +366,42 @@ class ErrorRecoveryTest extends TestCase
         $this->assertFalse($record->canRetry());
         $this->assertSame('A recovery attempt is already in progress.', $record->retryBlockedReason());
 
-        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->post(route('super-admin.recovery.retry', $record))
-            ->assertSessionHas('error', fn (string $message): bool => str_contains($message, 'already in progress'));
+        try {
+            app(SmartRetryService::class)->retry($record, $superAdmin);
+            $this->fail('An in-flight incident should refuse another retry.');
+        } catch (RecoveryNotRetryableException $e) {
+            $this->assertSame('A recovery attempt is already in progress.', $e->getMessage());
+        }
 
         $record->refresh();
         $this->assertSame(RecoveryStatus::RecoveryPending, $record->status);
         $this->assertSame(1, $record->retry_count);
         $this->assertSame(0, SystemRecoveryAttempt::count());
+    }
+
+    public function test_an_interrupted_retry_can_resume_with_the_next_ledger_number(): void
+    {
+        $superAdmin = $this->superAdmin();
+        $record = $this->queueIncident((string) Str::uuid(), RecoveryStatus::Retrying, [
+            'retry_count' => 1,
+            'last_retried_at' => now()->subMinutes(10),
+        ]);
+
+        SystemRecoveryAttempt::create([
+            'system_recovery_record_id' => $record->getKey(),
+            'attempt_number' => 1,
+            'outcome' => RecoveryAttemptOutcome::Skipped,
+            'handler' => RecoveryRetryHandler::QueueJob,
+            'message' => 'Earlier attempt did not execute.',
+        ]);
+
+        $outcome = app(SmartRetryService::class)->retry($record, $superAdmin);
+        $this->assertSame(RecoveryAttemptOutcome::Skipped, $outcome->outcome);
+
+        $record->refresh();
+        $this->assertSame(2, $record->retry_count);
+        $this->assertSame(RecoveryStatus::NotRecoverable, $record->status);
+        $this->assertSame([1, 2], $record->attempts()->pluck('attempt_number')->all());
     }
 
     /**
@@ -518,13 +459,12 @@ class ErrorRecoveryTest extends TestCase
         $this->assertNull($record->retry_handler);
         $this->assertFalse($record->canRetry());
 
-        $this->get(route('super-admin.recovery.show', $record))
-            ->assertOk()
-            ->assertSee('This failure type has no safe automated retry.')
-            ->assertDontSee('Retry failed operation');
-
-        $this->post(route('super-admin.recovery.retry', $record))
-            ->assertSessionHas('error', fn (string $message): bool => str_contains($message, 'no safe automated retry'));
+        try {
+            app(SmartRetryService::class)->retry($record, $superAdmin);
+            $this->fail('An incident without a handler should refuse retry.');
+        } catch (RecoveryNotRetryableException $e) {
+            $this->assertStringContainsString('no safe automated retry', $e->getMessage());
+        }
 
         $record->refresh();
         $this->assertSame(RecoveryStatus::NotRecoverable, $record->status);
@@ -631,9 +571,8 @@ class ErrorRecoveryTest extends TestCase
         // The failed job row was already consumed, so there is nothing to re-dispatch.
         $record = $this->queueIncident((string) Str::uuid(), RecoveryStatus::Failed);
 
-        $this->post(route('super-admin.recovery.retry', $record))
-            ->assertRedirect()
-            ->assertSessionHas('error');
+        $outcome = app(SmartRetryService::class)->retry($record, $superAdmin);
+        $this->assertSame(RecoveryAttemptOutcome::Skipped, $outcome->outcome);
 
         $record->refresh();
         $this->assertSame(RecoveryStatus::NotRecoverable, $record->status);
@@ -643,354 +582,31 @@ class ErrorRecoveryTest extends TestCase
     }
 
     // ---------------------------------------------------------------------
-    // Manual closure
+    // User-facing recovery modules
     // ---------------------------------------------------------------------
-
-    public function test_a_super_administrator_can_close_an_incident_without_running_a_retry(): void
+    public function test_recovery_ui_routes_and_dashboard_card_are_absent(): void
     {
-        $superAdmin = $this->superAdmin();
-        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD);
-
-        $record = $this->queueIncident((string) Str::uuid(), RecoveryStatus::Failed);
-
-        $this->post(route('super-admin.recovery.resolve', $record), [
-            'notes' => 'Confirmed with the pharmacy supervisor that the digest was delivered manually.',
-        ])->assertRedirect()->assertSessionHas('success');
-
-        $record->refresh();
-        $this->assertSame(RecoveryStatus::Resolved, $record->status);
-        $this->assertSame($superAdmin->id, $record->resolved_by_user_id);
-        $this->assertNotNull($record->resolved_at);
-        $this->assertSame('Confirmed with the pharmacy supervisor that the digest was delivered manually.', $record->resolution_notes);
-
-        // Closing is a decision, not a recovery: no attempt was executed.
-        $this->assertSame(0, $record->retry_count);
-        $this->assertSame(0, SystemRecoveryAttempt::count());
-
-        $this->assertTrue(
-            AuditLog::where('action', AuditAction::ResolvedRecoveryIncident)
-                ->where('target_name', $record->error_id)
-                ->exists()
-        );
-    }
-
-    public function test_closing_an_incident_requires_a_meaningful_reason(): void
-    {
-        $superAdmin = $this->superAdmin();
-        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD);
-
-        $record = $this->queueIncident((string) Str::uuid(), RecoveryStatus::Failed);
-
-        $this->post(route('super-admin.recovery.resolve', $record), ['notes' => 'Fixed'])
-            ->assertSessionHasErrors('notes');
-
-        $this->assertSame(RecoveryStatus::Failed, $record->fresh()->status);
-    }
-
-    public function test_an_incident_awaiting_a_worker_cannot_be_closed(): void
-    {
-        $superAdmin = $this->superAdmin();
-
-        $record = $this->queueIncident((string) Str::uuid(), RecoveryStatus::RecoveryPending, ['retry_count' => 1]);
-
-        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->post(route('super-admin.recovery.resolve', $record), [
-                'notes' => 'Closing this while the worker is still running.',
-            ])
-            ->assertSessionHas('error', fn (string $message): bool => str_contains($message, 'still waiting on a recovery attempt'));
-
-        $this->assertSame(RecoveryStatus::RecoveryPending, $record->fresh()->status);
-    }
-
-    public function test_an_already_closed_incident_cannot_be_closed_again(): void
-    {
-        $superAdmin = $this->superAdmin();
-        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD);
-
-        $record = $this->queueIncident((string) Str::uuid(), RecoveryStatus::Resolved, [
-            'resolved_by_user_id' => $superAdmin->id,
-            'resolved_at' => now()->subHour(),
-            'resolution_notes' => 'Already verified with the pharmacy supervisor.',
-        ]);
-
-        $this->post(route('super-admin.recovery.resolve', $record), ['notes' => 'Closing this incident a second time.'])
-            ->assertSessionHas('error', fn (string $message): bool => str_contains($message, 'already closed'));
-
-        $this->assertSame('Already verified with the pharmacy supervisor.', $record->fresh()->resolution_notes);
-    }
-
-    // ---------------------------------------------------------------------
-    // Metrics
-    // ---------------------------------------------------------------------
-
-    public function test_metrics_count_incidents_once_regardless_of_attempt_count(): void
-    {
-        $superAdmin = $this->superAdmin();
-
-        // One incident that took three attempts before it was verified recovered.
-        $recovered = $this->queueIncident((string) Str::uuid(), RecoveryStatus::Recovered, [
-            'retry_count' => 3,
-            'last_attempt_outcome' => RecoveryAttemptOutcome::Succeeded,
-            'resolved_at' => now(),
-        ]);
-        $this->writeAttempts($recovered, [
-            RecoveryAttemptOutcome::Failed,
-            RecoveryAttemptOutcome::Failed,
-            RecoveryAttemptOutcome::Succeeded,
-        ]);
-
-        // One incident whose two attempts did not succeed.
-        $failed = $this->queueIncident((string) Str::uuid(), RecoveryStatus::RecoveryFailed, [
-            'retry_count' => 2,
-            'last_attempt_outcome' => RecoveryAttemptOutcome::Failed,
-        ]);
-        $this->writeAttempts($failed, [
-            RecoveryAttemptOutcome::Failed,
-            RecoveryAttemptOutcome::Skipped,
-        ]);
-
-        $this->queueIncident((string) Str::uuid(), RecoveryStatus::Failed);
-        $this->queueIncident((string) Str::uuid(), RecoveryStatus::NotRecoverable, [
-            'is_retryable' => false,
-            'retry_handler' => null,
-            'retry_payload' => null,
-        ]);
-        $this->queueIncident((string) Str::uuid(), RecoveryStatus::Resolved, [
-            'resolved_at' => now(),
-        ]);
-        $this->queueIncident((string) Str::uuid(), RecoveryStatus::RecoveryPending, ['retry_count' => 1]);
-
-        $response = $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('super-admin.recovery.index'));
-
-        $response->assertOk();
-        $metrics = $response->viewData('metrics');
-
-        $this->assertSame(6, $metrics['total']);
-        $this->assertSame(3, $metrics['open'], 'Open incidents are Failed, Recovery Failed, and Recovery Pending.');
-        $this->assertSame(1, $metrics['recovered']);
-        $this->assertSame(1, $metrics['resolved']);
-        $this->assertSame(1, $metrics['recovery_failed']);
-        $this->assertSame(1, $metrics['awaiting_worker']);
-        $this->assertSame(6, $metrics['new_last_24h']);
-
-        // Three attempts failed, spread across two incidents.
-        $this->assertSame(3, $metrics['failed_attempts']);
-        $this->assertSame(5, SystemRecoveryAttempt::count());
-
-        // The recovered incident contributes once to the numerator even though it
-        // consumed three attempts, and the denominator is incidents with a verdict.
-        $this->assertSame(50, $metrics['success_rate']);
-        $this->assertLessThanOrEqual(100, $metrics['success_rate']);
-    }
-
-    public function test_an_empty_recovery_center_reports_no_incidents_and_no_rate(): void
-    {
-        $superAdmin = $this->superAdmin();
-
-        $response = $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('super-admin.recovery.index'));
-
-        $response->assertOk();
-        $response->assertSee('No incidents recorded');
-
-        $metrics = $response->viewData('metrics');
-
-        $this->assertSame(0, $metrics['total']);
-        $this->assertSame(0, $metrics['open']);
-        $this->assertSame(0, $metrics['recovered']);
-        $this->assertSame(0, $metrics['failed_attempts']);
-        $this->assertNull($metrics['success_rate'], 'With no verdict recorded there is no rate to report.');
-    }
-
-    /**
-     * @param  array<int, RecoveryAttemptOutcome>  $outcomes
-     */
-    private function writeAttempts(SystemRecoveryRecord $record, array $outcomes): void
-    {
-        foreach ($outcomes as $index => $outcome) {
-            SystemRecoveryAttempt::create([
-                'system_recovery_record_id' => $record->getKey(),
-                'attempt_number' => $index + 1,
-                'outcome' => $outcome,
-                'handler' => $record->retry_handler,
-                'message' => 'Recorded attempt outcome.',
-                'duration_ms' => 12,
-            ]);
+        foreach ([
+            'super-admin.recovery.index',
+            'super-admin.recovery.health',
+            'super-admin.recovery.rebuild-cache',
+            'super-admin.recovery.show',
+            'super-admin.recovery.retry',
+            'super-admin.recovery.resolve',
+        ] as $routeName) {
+            $this->assertFalse(Route::has($routeName));
         }
-    }
 
-    // ---------------------------------------------------------------------
-    // Presentation and health
-    // ---------------------------------------------------------------------
-
-    public function test_recovery_center_renders_both_the_desktop_table_and_the_card_stream(): void
-    {
         $superAdmin = $this->superAdmin();
-
-        $record = SystemRecoveryRecord::create([
-            'error_id' => 'REC-TEST-999',
-            'module' => 'Procurement',
-            'failure_type' => RecoveryFailureType::Database,
-            'operation' => 'purchase_order',
-            'error_summary' => 'Deadlock encountered during PO confirmation',
-            'status' => RecoveryStatus::NotRecoverable,
-            'is_retryable' => false,
-        ]);
-
-        $response = $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('super-admin.recovery.index'));
-
-        $response->assertOk();
-        $response->assertSee('REC-TEST-999');
-        $response->assertSee('Procurement');
-        $response->assertSee('purchase_order');
-        $response->assertSee('Deadlock encountered during PO confirmation');
-        $response->assertSee('hidden lg:block', false);
-        $response->assertSee('block lg:hidden', false);
-        $response->assertSee('Database transaction');
-        $response->assertSee(route('super-admin.recovery.show', $record), false);
-    }
-
-    public function test_the_recovery_center_filters_incidents_by_status_and_keyword(): void
-    {
-        $superAdmin = $this->superAdmin();
-
-        $this->queueIncident('a0f2a1d3-6e49-4b28-8a71-3c9d2e5f7a16', RecoveryStatus::Failed);
-        SystemRecoveryRecord::create([
-            'error_id' => 'REC-FILTER-777',
-            'module' => 'Reports',
-            'failure_type' => RecoveryFailureType::Export,
-            'operation' => 'report_export',
-            'error_summary' => 'Register export ran out of memory',
-            'status' => RecoveryStatus::NotRecoverable,
-            'is_retryable' => false,
-        ]);
-
-        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('super-admin.recovery.index', ['status' => RecoveryStatus::NotRecoverable->value]))
-            ->assertOk()
-            ->assertSee('REC-FILTER-777')
-            ->assertDontSee('a0f2a1d3-6e49-4b28-8a71-3c9d2e5f7a16');
-
-        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('super-admin.recovery.index', ['search' => 'REC-FILTER-777']))
-            ->assertOk()
-            ->assertSee('REC-FILTER-777')
-            ->assertDontSee('a0f2a1d3-6e49-4b28-8a71-3c9d2e5f7a16');
-    }
-
-    public function test_super_administrator_can_view_system_health_diagnostics(): void
-    {
-        $superAdmin = $this->superAdmin();
-
-        $response = $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('super-admin.recovery.health'));
-
-        $response->assertOk();
-        $response->assertSee('System Health Diagnostics');
-        $response->assertSee('Database engine');
-        $response->assertSee('Queue and background pipeline');
-        $response->assertSee('Storage');
-        $response->assertSee('Application cache');
-        $response->assertSee('Local backups');
-        $response->assertSee('Back to Incidents');
-        $response->assertSee('Re-run Diagnostics');
-        $response->assertSee('lg:col-span-2');
-        $response->assertSee('lg:col-span-3');
-        $response->assertSee('Evaluated');
-    }
-
-    public function test_super_admin_can_rebuild_cache_and_the_action_is_audited(): void
-    {
-        $superAdmin = $this->superAdmin();
-
-        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->post(route('super-admin.recovery.rebuild-cache'))
-            ->assertRedirect()
-            ->assertSessionHas('success');
-
-        $auditLog = AuditLog::where('action', AuditAction::SystemHealthMaintenance)->first();
-
-        $this->assertNotNull($auditLog);
-        $this->assertSame($superAdmin->id, $auditLog->user_id);
-    }
-
-    public function test_system_health_service_reports_healthy_components(): void
-    {
-        $diagnostics = app(SystemHealthService::class)->runFullDiagnostics();
-
-        $this->assertArrayHasKey('overall_status', $diagnostics);
-        $this->assertArrayHasKey('database', $diagnostics);
-        $this->assertArrayHasKey('queue', $diagnostics);
-        $this->assertArrayHasKey('storage', $diagnostics);
-        $this->assertArrayHasKey('cache', $diagnostics);
-
-        $this->assertSame('healthy', $diagnostics['database']['status']);
-        $this->assertSame('healthy', $diagnostics['storage']['status']);
-        $this->assertSame('healthy', $diagnostics['cache']['status']);
-    }
-
-    public function test_super_admin_dashboard_shows_an_alert_while_incidents_are_open(): void
-    {
-        $superAdmin = $this->superAdmin();
-
         $this->queueIncident((string) Str::uuid(), RecoveryStatus::Failed);
 
-        $response = $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('super-admin.dashboard'));
-
-        $response->assertOk();
-        $response->assertSee('data-recovery-incident-card', false);
-        $response->assertSee('System incidents');
-        $response->assertSee('Recovery review required');
-        $response->assertSee(route('super-admin.recovery.index'), false);
-    }
-
-    /**
-     * The diagnostics block reads optional keys, so an incident recorded without
-     * them — or with none at all — must still render rather than error.
-     */
-    public function test_the_incident_detail_page_renders_when_diagnostics_are_incomplete(): void
-    {
-        $superAdmin = $this->superAdmin();
-        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD);
-
-        $withoutDetails = SystemRecoveryRecord::create([
-            'error_id' => 'REC-NODETAIL-001',
-            'module' => 'Reports',
-            'failure_type' => RecoveryFailureType::Export,
-            'operation' => 'report_export',
-            'error_summary' => 'The register export ended without a captured source location.',
-            'status' => RecoveryStatus::NotRecoverable,
-            'is_retryable' => false,
-            'technical_details' => null,
-        ]);
-
-        $this->get(route('super-admin.recovery.show', $withoutDetails))
+        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.dashboard'))
             ->assertOk()
-            ->assertSee('Original failure')
-            ->assertSee('Not identified');
-
-        // A file with no line number must not render a dangling separator.
-        $partialDetails = SystemRecoveryRecord::create([
-            'error_id' => 'REC-PARTIAL-002',
-            'module' => 'Inventory',
-            'failure_type' => RecoveryFailureType::Database,
-            'operation' => 'stock_movement',
-            'error_summary' => 'A deadlock aborted the movement.',
-            'status' => RecoveryStatus::NotRecoverable,
-            'is_retryable' => false,
-            'technical_details' => [
-                'message' => 'A deadlock aborted the movement.',
-                'file' => 'app/Services/Inventory/StockMovementService.php',
-            ],
-        ]);
-
-        $this->get(route('super-admin.recovery.show', $partialDetails))
-            ->assertOk()
-            ->assertSee('app/Services/Inventory/StockMovementService.php')
-            ->assertDontSee('StockMovementService.php:</');
+            ->assertDontSee('data-recovery-incident-card', false)
+            ->assertDontSee('System incidents')
+            ->assertDontSee('Recovery Center')
+            ->assertDontSee('Health Telemetry');
     }
 
     // ---------------------------------------------------------------------
@@ -1183,6 +799,8 @@ class ErrorRecoveryTest extends TestCase
         $response->assertSee('REC-TEST-SAFE-500');
         $response->assertDontSee('SQLSTATE');
         $response->assertDontSee('PDOException');
+        $response->assertDontSee('Recovery Center');
+        $response->assertDontSee('/super-admin/recovery', false);
     }
 
     public function test_safe_operation_json_request_returns_safe_json_payload(): void

@@ -18,9 +18,12 @@ use App\Models\User;
 use App\Services\Analytics\BottleneckAnalysisService;
 use App\Services\Analytics\SupplierScoringService;
 use App\Services\Import\ImportStagingService;
+use App\Services\Recovery\SmartRetryService;
+use App\Support\AuthenticationContext;
 use Database\Seeders\ErrorRecoveryDemoSeeder;
 use Database\Seeders\OperationalMetricsDemoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -110,6 +113,27 @@ class RecoveryAndMetricsSeedingTest extends TestCase
         // The Audit Trail is append-only and records what people did. The seeder
         // seeds incidents, so it deliberately writes nothing there.
         $this->assertSame(0, AuditLog::where('module', 'System Recovery')->count());
+    }
+
+    public function test_seeded_queue_incident_retries_through_a_real_worker_to_recovered(): void
+    {
+        $this->seed(ErrorRecoveryDemoSeeder::class);
+        $record = SystemRecoveryRecord::where('error_id', 'REC-2026-QUE-002')->firstOrFail();
+
+        $this->actingAs($this->superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD);
+        app(SmartRetryService::class)->retry($record, $this->superAdmin);
+
+        Artisan::call('queue:work', [
+            'connection' => 'database',
+            '--queue' => 'notifications',
+            '--once' => true,
+            '--tries' => 1,
+        ]);
+
+        $record->refresh();
+        $this->assertSame(RecoveryStatus::Recovered, $record->status);
+        $this->assertSame('succeeded', $record->last_attempt_outcome->value);
+        $this->assertSame(0, DB::table('failed_jobs')->where('uuid', $record->reference_id)->count());
     }
 
     private function createItem(string $name = 'Paracetamol', string $sku = 'MED-PARA-500'): InventoryItem
@@ -227,6 +251,13 @@ class RecoveryAndMetricsSeedingTest extends TestCase
         $inspectionReportCount = DB::table('inspection_acceptance_reports')->count();
         $adjustmentCount = InventoryAdjustment::count();
 
+        $importIncident = SystemRecoveryRecord::where('error_id', 'REC-2026-IMP-001')->firstOrFail();
+        $importIncident->forceFill([
+            'status' => RecoveryStatus::Retrying,
+            'retry_count' => 1,
+            'last_retried_at' => now(),
+        ])->save();
+
         // Second run
         $this->seed(ErrorRecoveryDemoSeeder::class);
         $this->seed(OperationalMetricsDemoSeeder::class);
@@ -241,51 +272,8 @@ class RecoveryAndMetricsSeedingTest extends TestCase
         $this->assertSame($goodsReceiptCount, DB::table('goods_receipt_notes')->count());
         $this->assertSame($inspectionReportCount, DB::table('inspection_acceptance_reports')->count());
         $this->assertSame($adjustmentCount, InventoryAdjustment::count());
+        $this->assertSame(RecoveryStatus::Retrying, $importIncident->fresh()->status);
+        $this->assertSame(1, $importIncident->fresh()->retry_count);
     }
 
-    public function test_recovery_center_dashboard_displays_seeded_metrics(): void
-    {
-        $this->seed(ErrorRecoveryDemoSeeder::class);
-
-        $response = $this->actingAs($this->superAdmin, 'super_admin')
-            ->get(route('super-admin.recovery.index'));
-
-        $response->assertOk();
-
-        // Incidents across the whole status vocabulary are listed.
-        $response->assertSee('REC-2026-IMP-001');
-        $response->assertSee('REC-2026-TXN-006');
-        $response->assertSee('REC-2026-EXP-008');
-
-        // Their real attributes, not just their IDs.
-        $response->assertSee('Data import');
-        $response->assertSee('data_import');
-        $response->assertSee('PDEA-2026-08');
-        $response->assertSee('Connection could not be established with host smtp.hospital.local:587');
-        $response->assertSee('Deadlock found when trying to get lock');
-
-        // The detail page carries the traceability fields the list omits.
-        $this->actingAs($this->superAdmin, 'super_admin')
-            ->get(route('super-admin.recovery.show', SystemRecoveryRecord::where('error_id', 'REC-2026-QUE-002')->firstOrFail()))
-            ->assertOk()
-            ->assertSee('SendQueuedNotifications')
-            ->assertSee('550e8400-e29b-41d4-a716-446655440000')
-            ->assertSee('System / Automated');
-
-        // The summary tiles are computed from those records. Attempts never inflate
-        // the incident counts: four seeded attempts belong to three incidents.
-        $metrics = $response->viewData('metrics');
-
-        $this->assertSame(8, $metrics['total']);
-        $this->assertSame(4, $metrics['open']);
-        $this->assertSame(1, $metrics['recovered']);
-        $this->assertSame(1, $metrics['resolved']);
-        $this->assertSame(1, $metrics['recovery_failed']);
-        $this->assertSame(1, $metrics['awaiting_worker']);
-        $this->assertSame(2, $metrics['failed_attempts']);
-        $this->assertSame(4, SystemRecoveryAttempt::count());
-
-        // One recovered and one recovery-failed incident have a verdict: 1 of 2.
-        $this->assertSame(50, $metrics['success_rate']);
-    }
 }

@@ -7,6 +7,7 @@ use App\Enums\RecoveryFailureType;
 use App\Enums\RecoveryRetryHandler;
 use App\Enums\RecoveryStatus;
 use App\Enums\UserRole;
+use App\Jobs\VerifyRecoveryQueue;
 use App\Models\SystemRecoveryAttempt;
 use App\Models\SystemRecoveryRecord;
 use App\Models\User;
@@ -55,7 +56,7 @@ class ErrorRecoveryDemoSeeder extends Seeder
         );
 
         foreach ($incidents as $incident) {
-            SystemRecoveryRecord::updateOrCreate(
+            SystemRecoveryRecord::firstOrCreate(
                 ['error_id' => $incident['error_id']],
                 $incident
             );
@@ -70,23 +71,29 @@ class ErrorRecoveryDemoSeeder extends Seeder
      */
     private function seedFailedJob(string $uuid): void
     {
-        DB::table('failed_jobs')->updateOrInsert(
-            ['uuid' => $uuid],
-            [
-                'connection' => 'database',
-                'queue' => 'notifications',
-                'payload' => json_encode([
-                    'uuid' => $uuid,
-                    'displayName' => 'Illuminate\\Notifications\\SendQueuedNotifications',
-                    'job' => 'Illuminate\\Queue\\CallQueuedHandler@go',
-                    'maxTries' => 3,
-                    'timeout' => 60,
-                    'data' => ['commandName' => 'Illuminate\\Notifications\\SendQueuedNotifications'],
-                ], JSON_THROW_ON_ERROR),
-                'exception' => "Symfony\\Component\\Mailer\\Exception\\TransportException: Connection could not be established with host smtp.hospital.local:587\nStack trace:\n#0 /var/www/vendor/symfony/mailer/Transport/Smtp/Stream/AbstractStream.php(128): stream_socket_client()\n#1 /var/www/vendor/laravel/framework/src/Illuminate/Queue/CallQueuedHandler.php(120): Illuminate\\Notifications\\SendQueuedNotifications->handle()",
-                'failed_at' => now()->subHours(6),
-            ]
+        if (DB::table('failed_jobs')->where('uuid', $uuid)->exists()
+            || SystemRecoveryRecord::where('reference_id', $uuid)->where('status', RecoveryStatus::Recovered)->exists()) {
+            return;
+        }
+
+        $jobId = app('queue')->connection('database')->pushOn('notifications', new VerifyRecoveryQueue);
+        $payload = json_decode(
+            (string) DB::table('jobs')->where('id', $jobId)->value('payload'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR
         );
+        DB::table('jobs')->where('id', $jobId)->delete();
+        $payload['uuid'] = $uuid;
+
+        DB::table('failed_jobs')->insertOrIgnore([
+            'connection' => 'database',
+            'queue' => 'notifications',
+            'uuid' => $uuid,
+            'payload' => json_encode($payload, JSON_THROW_ON_ERROR),
+            'exception' => 'RuntimeException: The queue worker stopped before the recovery verification job completed.',
+            'failed_at' => now()->subHours(6),
+        ]);
     }
 
     /**
@@ -148,12 +155,12 @@ class ErrorRecoveryDemoSeeder extends Seeder
                 'module' => 'Queue',
                 'failure_type' => RecoveryFailureType::QueueJob,
                 'operation' => 'queue_job',
-                'error_summary' => 'Connection could not be established with host smtp.hospital.local:587',
-                'affected_resource' => 'SendQueuedNotifications',
+                'error_summary' => 'The queue worker stopped before the recovery verification job completed',
+                'affected_resource' => 'VerifyRecoveryQueue',
                 'reference_id' => $failedJobUuid,
-                'exception_class' => 'Symfony\Component\Mailer\Exception\TransportException',
+                'exception_class' => 'RuntimeException',
                 'technical_details' => [
-                    'message' => 'Connection could not be established with host smtp.hospital.local:587',
+                    'message' => 'The queue worker stopped before the recovery verification job completed',
                     'context' => ['connection' => 'database', 'queue' => 'notifications'],
                     'method' => 'CLI',
                 ],

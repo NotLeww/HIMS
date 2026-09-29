@@ -43,8 +43,8 @@ class DropdownNavigationTest extends TestCase
         $response->assertSee('Documents &amp; Logistics', false);
         $response->assertSee('Administration');
 
-        // Check submodules inside dropdowns
-        $response->assertSee('Recovery Center');
+        $response->assertDontSee('Recovery Center');
+        $response->assertDontSee('Health Telemetry');
     }
 
     public function test_sidebar_coordinates_exclusive_accordion_state(): void

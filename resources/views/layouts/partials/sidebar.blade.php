@@ -42,7 +42,7 @@
         $initialOpenDropdown = null;
         if (request()->routeIs(
             'admin.users.*', 'admin.permissions', 'admin.audit-logs.*', 'admin.privacy.*',
-            'admin.archive.*', 'super-admin.recovery.*'
+            'admin.archive.*'
         )) {
             $initialOpenDropdown = 'administration';
         }
@@ -157,11 +157,11 @@
         @endcanany
 
         {{-- 6. Administration & Governance (Major Tab Dropdown) --}}
-        @canany([\App\Enums\Permission::ManageUsers->value, \App\Enums\Permission::ViewAuditTrail->value, \App\Enums\Permission::ManageSystemRecovery->value, \App\Enums\Permission::ManagePrivacyCompliance->value, \App\Enums\Permission::ViewArchive->value])
+        @canany([\App\Enums\Permission::ManageUsers->value, \App\Enums\Permission::ViewAuditTrail->value, \App\Enums\Permission::ManagePrivacyCompliance->value, \App\Enums\Permission::ViewArchive->value])
             @php
                 $isAdminActive = request()->routeIs(
                     'admin.users.*', 'admin.permissions', 'admin.audit-logs.*', 'admin.privacy.*',
-                    'admin.archive.*', 'super-admin.recovery.*'
+                    'admin.archive.*'
                 );
             @endphp
             <x-ui.nav-dropdown
@@ -197,14 +197,6 @@
                     </x-ui.nav-item>
                 @endcan
 
-                @can(\App\Enums\Permission::ManageSystemRecovery->value)
-                    <x-ui.nav-item sub :href="route('super-admin.recovery.index')" :active="request()->routeIs('super-admin.recovery.index', 'super-admin.recovery.show')">
-                        Recovery Center
-                    </x-ui.nav-item>
-                    <x-ui.nav-item sub :href="route('super-admin.recovery.health')" :active="request()->routeIs('super-admin.recovery.health')">
-                        Health Telemetry
-                    </x-ui.nav-item>
-                @endcan
             </x-ui.nav-dropdown>
         @endcanany
     </nav>

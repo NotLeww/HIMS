@@ -76,6 +76,13 @@ class SmartRetryService
                 throw new RecoveryNotRetryableException('This incident no longer exists.');
             }
 
+            // The append-only ledger is authoritative if a demo seed or an
+            // interrupted request left the cached counter behind.
+            $locked->retry_count = max(
+                $locked->retry_count,
+                (int) $locked->attempts()->max('attempt_number')
+            );
+
             if (! $locked->canRetry()) {
                 throw new RecoveryNotRetryableException(
                     $locked->retryBlockedReason() ?? 'This incident cannot be retried in its current state.'

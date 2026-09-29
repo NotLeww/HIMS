@@ -198,7 +198,7 @@ class NotificationSystemTest extends TestCase
         $superAdmin = User::factory()->superAdministrator()->create();
         $admin = User::factory()->administrator()->create();
 
-        $record = app(SafeExecutionService::class)->recordFailure(
+        app(SafeExecutionService::class)->recordFailure(
             new RuntimeException('Sensitive internal failure detail'),
             'procurement',
             'commit_purchase_order',
@@ -206,8 +206,8 @@ class NotificationSystemTest extends TestCase
 
         $notification = $superAdmin->fresh()->notifications()->sole();
         $this->assertSame(NotificationPriority::Critical->value, $notification->data['priority']);
-        $this->assertSame(NotificationDestination::RecoveryRecord->value, $notification->data['destination']);
-        $this->assertSame(['record' => $record->id], $notification->data['route_parameters']);
+        $this->assertSame(NotificationDestination::Dashboard->value, $notification->data['destination']);
+        $this->assertSame([], $notification->data['route_parameters']);
         $this->assertStringNotContainsString('Sensitive internal failure detail', $notification->data['message']);
         $this->assertSame(0, $admin->fresh()->notifications()->count());
     }

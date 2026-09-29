@@ -45,26 +45,8 @@
         x-init="start()"
         @dashboard-refresh.window="refresh()"
     >
-    @php
-        $pendingRecoveryCount = 0;
-    @endphp
-    @can(\App\Enums\Permission::ManageSystemRecovery->value)
-        @php
-            try {
-                if (\Illuminate\Support\Facades\Schema::hasTable('system_recovery_records')) {
-                    $pendingRecoveryCount = \App\Models\SystemRecoveryRecord::open()->count();
-                }
-            } catch (\Throwable) {
-                $pendingRecoveryCount = 0;
-            }
-        @endphp
-    @endcan
-
     {{-- Key figures: Standardized 3-Zone Operational KPI Cards --}}
-    <div @class([
-        'grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4 xl:gap-4',
-        'xl:grid-cols-5' => $pendingRecoveryCount > 0,
-    ])>
+    <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4 xl:gap-4">
         {{-- 1. Tracked items --}}
         <a href="{{ route('inventory.items') }}" x-ref="trackedItemsTile"
            class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-primary-400 dark:hover:border-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 transition-all duration-150">
@@ -154,30 +136,6 @@
         </a>
         @endcan
 
-        {{-- 5. System incidents --}}
-        @can(\App\Enums\Permission::ManageSystemRecovery->value)
-            @if ($pendingRecoveryCount > 0)
-                <a href="{{ route('super-admin.recovery.index') }}" data-recovery-incident-card
-                   class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-amber-400 dark:hover:border-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 transition-all duration-150 col-span-1 sm:col-span-2 lg:col-span-1">
-                    {{-- Zone 1: Header --}}
-                    <div class="flex items-center justify-between gap-2">
-                        <p class="text-xs sm:text-sm font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">System incidents</p>
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-950/80 dark:text-amber-300 ring-1 ring-amber-200 dark:ring-amber-800/50 group-hover:scale-105 transition-transform duration-150">
-                            <x-ui.icon name="exclamation-triangle" class="h-5 w-5" />
-                        </span>
-                    </div>
-                    {{-- Zone 2: Value --}}
-                    <div class="mt-3 flex items-baseline gap-1.5">
-                        <span class="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight tabular-nums text-amber-600 dark:text-amber-400" data-stat-value>{{ number_format($pendingRecoveryCount) }}</span>
-                        <span class="text-sm sm:text-base font-bold text-amber-600/80 dark:text-amber-400/80">pending</span>
-                    </div>
-                    {{-- Zone 3: Footer --}}
-                    <div class="mt-3.5 flex items-center border-t border-neutral-100 pt-2.5 dark:border-neutral-800/80">
-                        <span class="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-300 truncate" data-stat-hint>Recovery review required</span>
-                    </div>
-                </a>
-            @endif
-        @endcan
     </div>
     @can(\App\Enums\Permission::ViewReports->value)
         @php
