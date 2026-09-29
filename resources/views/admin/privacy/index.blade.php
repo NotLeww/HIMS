@@ -82,39 +82,39 @@
     </div>
 
     {{-- Navigation Tabs --}}
-    <div class="mb-6 border-b border-neutral-200 dark:border-neutral-800">
-        <nav class="flex space-x-6 overflow-x-auto" aria-label="Privacy Tabs">
+    <div class="mb-6">
+        <nav class="flex flex-wrap items-center gap-2 border-b border-neutral-200 pb-4 dark:border-neutral-800" aria-label="Privacy Tabs">
             <a
                 href="{{ route('admin.privacy.index', ['tab' => 'posture']) }}"
-                class="whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition {{ $activeTab === 'posture' ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400' : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 dark:text-neutral-400 dark:hover:text-neutral-300' }}"
+                class="inline-flex items-center whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 {{ $activeTab === 'posture' ? 'bg-primary-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700' }}"
             >
                 Security Posture ({{ $posture['passed_count'] }}/{{ $posture['total_controls'] }})
             </a>
 
             <a
                 href="{{ route('admin.privacy.index', ['tab' => 'ropa']) }}"
-                class="whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition {{ $activeTab === 'ropa' ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400' : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 dark:text-neutral-400 dark:hover:text-neutral-300' }}"
+                class="inline-flex items-center whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 {{ $activeTab === 'ropa' ? 'bg-primary-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700' }}"
             >
                 Processing Register (ROPA)
             </a>
 
             <a
                 href="{{ route('admin.privacy.index', ['tab' => 'classification']) }}"
-                class="whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition {{ $activeTab === 'classification' ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400' : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 dark:text-neutral-400 dark:hover:text-neutral-300' }}"
+                class="inline-flex items-center whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 {{ $activeTab === 'classification' ? 'bg-primary-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700' }}"
             >
                 Data Classification
             </a>
 
             <a
                 href="{{ route('admin.privacy.index', ['tab' => 'consent']) }}"
-                class="whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition {{ $activeTab === 'consent' ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400' : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 dark:text-neutral-400 dark:hover:text-neutral-300' }}"
+                class="inline-flex items-center whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 {{ $activeTab === 'consent' ? 'bg-primary-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700' }}"
             >
                 Consent Management
             </a>
 
             <a
                 href="{{ route('admin.privacy.index', ['tab' => 'dsr']) }}"
-                class="whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition {{ $activeTab === 'dsr' ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400' : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 dark:text-neutral-400 dark:hover:text-neutral-300' }}"
+                class="inline-flex items-center whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 {{ $activeTab === 'dsr' ? 'bg-primary-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700' }}"
             >
                 Data Subject Requests
                 @if ($openDsrCount > 0)
@@ -126,7 +126,7 @@
 
             <a
                 href="{{ route('admin.privacy.index', ['tab' => 'incidents']) }}"
-                class="whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition {{ $activeTab === 'incidents' ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400' : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 dark:text-neutral-400 dark:hover:text-neutral-300' }}"
+                class="inline-flex items-center whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 {{ $activeTab === 'incidents' ? 'bg-primary-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700' }}"
             >
                 Security Incidents
                 @if ($openIncidentsCount > 0)
@@ -138,7 +138,7 @@
 
             <a
                 href="{{ route('admin.privacy.index', ['tab' => 'retention']) }}"
-                class="whitespace-nowrap pb-3 text-sm font-medium border-b-2 transition {{ $activeTab === 'retention' ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400' : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 dark:text-neutral-400 dark:hover:text-neutral-300' }}"
+                class="inline-flex items-center whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 {{ $activeTab === 'retention' ? 'bg-primary-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700' }}"
             >
                 Retention &amp; Lifecycle
             </a>
