@@ -95,7 +95,7 @@ class InventoryItemController extends Controller implements HasMiddleware
                 });
             })
             ->latest('id')
-            ->paginate(10)
+            ->paginate(20)
             ->withQueryString();
 
         $eligibleSuppliers = $canManageItems

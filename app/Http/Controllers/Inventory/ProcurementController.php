@@ -167,9 +167,9 @@ class ProcurementController extends Controller implements HasMiddleware
                 ->whereNotNull('delivery_date')
                 ->whereDate('delivery_date', '<', today()));
 
-        $poPerPage = $request->integer('po_per_page', 10);
+        $poPerPage = $request->integer('po_per_page', 5);
         if (! in_array($poPerPage, [3, 5, 10, 25, 50], true)) {
-            $poPerPage = 10;
+            $poPerPage = 5;
         }
 
         $purchaseOrders = $purchaseOrderQuery

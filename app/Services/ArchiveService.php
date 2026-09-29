@@ -390,7 +390,7 @@ class ArchiveService
     /**
      * Get archived records with server-side pagination, record-type filtering, search, and date filters.
      */
-    public function getArchivedRecords(array $filters, int $perPage = 10): LengthAwarePaginator
+    public function getArchivedRecords(array $filters, int $perPage = 15): LengthAwarePaginator
     {
         $type = $filters['type'] ?? 'all';
         $search = trim((string) ($filters['search'] ?? ''));

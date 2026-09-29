@@ -81,7 +81,7 @@ class StockMovementController extends Controller implements HasMiddleware
             })
             ->latest('moved_at')
             ->latest('id')
-            ->paginate(10)
+            ->paginate(20)
             ->withQueryString();
 
         $items = InventoryItem::orderBy('name')->get();

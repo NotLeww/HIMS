@@ -37,7 +37,7 @@ class ArchiveController extends Controller implements HasMiddleware
     public function index(Request $request): View
     {
         $filters = $request->only(['type', 'search', 'archive_date_from', 'archive_date_to', 'archived_by']);
-        $records = $this->archiveService->getArchivedRecords($filters, 10);
+        $records = $this->archiveService->getArchivedRecords($filters, 15);
         $counts = $this->archiveService->getArchiveCounts();
 
         $archivedByUsers = User::query()

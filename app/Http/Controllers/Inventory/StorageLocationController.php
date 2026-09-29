@@ -55,8 +55,7 @@ class StorageLocationController extends Controller implements HasMiddleware
             })
             ->orderBy('sort_sequence')
             ->orderBy('code')
-            ->paginate(10)
-            ->withQueryString();
+            ->get();
         $parentLocations = StorageLocation::active()->whereNotIn('type', ['bin', 'department'])->orderBy('code')->get();
 
         return view('inventory.storage_locations.index', compact('locations', 'parentLocations'));

@@ -163,7 +163,7 @@ class LogisticsController extends Controller implements HasMiddleware
             $query->where('status', $status);
         }
 
-        $documents = $query->latest()->paginate(10)->withQueryString();
+        $documents = $query->latest()->paginate(15)->withQueryString();
 
         $purchaseOrders = PurchaseOrder::latest()->take(50)->get(['id', 'po_number', 'supplier_id']);
         $goodsReceiptNotes = GoodsReceiptNote::latest()->take(50)->get(['id', 'grn_number', 'dr_number', 'sales_invoice_number']);
@@ -338,7 +338,7 @@ class LogisticsController extends Controller implements HasMiddleware
             $query->where('is_cold_chain', (bool) $request->input('cold_chain'));
         }
 
-        $shipments = $query->latest()->paginate(10)->withQueryString();
+        $shipments = $query->latest()->paginate(15)->withQueryString();
 
         $openPurchaseOrders = PurchaseOrder::with('supplier:id,name,address,contact_person,phone')
             ->whereNotIn('status', ['received', 'cancelled', 'rejected'])
@@ -458,7 +458,7 @@ class LogisticsController extends Controller implements HasMiddleware
             $query->where('status', $status);
         }
 
-        $iars = $query->latest()->paginate(10)->withQueryString();
+        $iars = $query->latest()->paginate(15)->withQueryString();
 
         // Receipts without an IAR
         $unreportedReceipts = GoodsReceiptNote::whereDoesntHave('inspectionAcceptanceReport')
@@ -663,7 +663,7 @@ class LogisticsController extends Controller implements HasMiddleware
             });
         }
 
-        $logs = $query->latest('transferred_at')->paginate(10)->withQueryString();
+        $logs = $query->latest('transferred_at')->paginate(25)->withQueryString();
 
         return view('inventory.logistics.chain_of_custody', compact('logs'));
     }

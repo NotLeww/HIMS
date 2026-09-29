@@ -55,7 +55,7 @@ class MaterialRequisitionController extends Controller implements HasMiddleware
                         ->orWhere('name', 'like', $term)));
             })
             ->latest()
-            ->paginate(10)
+            ->paginate(15)
             ->withQueryString();
 
         $items = InventoryItem::active()->orderBy('name')->get();

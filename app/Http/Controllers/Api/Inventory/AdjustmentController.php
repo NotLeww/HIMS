@@ -30,7 +30,7 @@ class AdjustmentController extends Controller implements HasMiddleware
     {
         $adjustments = InventoryAdjustment::with(['item', 'location', 'batch', 'requestedBy', 'approvedBy', 'secondApprovedBy'])
             ->latest()
-            ->paginate(10);
+            ->paginate(25);
 
         return response()->json($adjustments);
     }

@@ -34,7 +34,7 @@ class CycleCountController extends Controller implements HasMiddleware
     {
         $cycleCounts = CycleCountDoc::with(['assignedCounter', 'approvedBy', 'location'])
             ->latest()
-            ->paginate(10)
+            ->paginate(15)
             ->withQueryString();
 
         $locations = StorageLocation::where('status', 'active')->orderBy('name')->get();

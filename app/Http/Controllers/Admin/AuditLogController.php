@@ -121,7 +121,7 @@ class AuditLogController extends Controller implements HasMiddleware
 
         $logs = $isPrint
             ? $logsQuery->get()
-            : $logsQuery->paginate(10)->withQueryString();
+            : $logsQuery->paginate(25)->withQueryString();
 
         return view('admin.audit-logs.index', [
             'logs' => $logs,

@@ -27,7 +27,7 @@ class SupplierQuoteController extends Controller implements HasMiddleware
 
     public function index(Request $request)
     {
-        $perPage = (int) $request->query('per_page', 10);
+        $perPage = (int) $request->query('per_page', 15);
         $items = SupplierQuote::with(['supplier', 'procurementRequest'])->paginate(min(max($perPage, 1), 100));
 
         return SupplierQuoteResource::collection($items);

@@ -52,7 +52,7 @@ class ProcessReviewController extends Controller implements HasMiddleware
             });
         }
 
-        $reviews = $query->latest()->paginate(10)->withQueryString();
+        $reviews = $query->latest()->paginate(12)->withQueryString();
 
         $stats = [
             'total_reviews' => KpiProcessReview::count(),
@@ -218,7 +218,7 @@ class ProcessReviewController extends Controller implements HasMiddleware
             $query->where('edition_year', $request->integer('edition_year'));
         }
 
-        $referencePrices = $query->orderBy('drug_name')->paginate(10)->withQueryString();
+        $referencePrices = $query->orderBy('drug_name')->paginate(20)->withQueryString();
         $years = DpriReferencePrice::select('edition_year')->distinct()->orderByDesc('edition_year')->pluck('edition_year');
 
         return view('reviews.dpri_index', compact('referencePrices', 'years'));

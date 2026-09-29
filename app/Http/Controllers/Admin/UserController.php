@@ -59,7 +59,7 @@ class UserController extends Controller implements HasMiddleware
                 fn ($q) => $q->where('status', '!=', UserStatus::Archived->value)
             )
             ->orderBy('name')
-            ->paginate(10)
+            ->paginate(15)
             ->withQueryString();
 
         $countRow = User::query()

@@ -424,7 +424,7 @@
 
             {{-- ======================================================== TAB 1: Enterprise S2P Workspace --}}
             @canany(['view_procurement_sensitive_data', 'create_requisition', 'manage_sourcing', 'issue_purchase_order', 'manage_procurement'])
-            <div x-show="activeTab === 'enterprise_s2p'" class="space-y-6">
+            <div x-show="activeTab === 'enterprise_s2p'" x-cloak class="space-y-6">
                 @can('create_requisition')
                 {{-- Department Requisition Intake with Synchronous Budget Soft Commitment --}}
                 <div class="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm"
@@ -700,7 +700,7 @@
 
             {{-- ======================================================== TAB 2: Sourcing Events & RFQs --}}
             @canany(['view_procurement_sensitive_data', 'manage_sourcing', 'evaluate_bids'])
-            <div x-show="activeTab === 'sourcing_rfqs'" class="space-y-6">
+            <div x-show="activeTab === 'sourcing_rfqs'" x-cloak class="space-y-6">
                 @can('manage_sourcing')
                 {{-- Create RFQ Package Card --}}
                 <div class="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
@@ -902,7 +902,7 @@
 
             {{-- ======================================================== TAB 3: Comparative Evaluation & Landed Cost Matrix --}}
             @canany(['view_procurement_sensitive_data', 'evaluate_bids', 'award_procurement'])
-            <div x-show="activeTab === 'evaluations'" class="space-y-6">
+            <div x-show="activeTab === 'evaluations'" x-cloak class="space-y-6">
                 <div class="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/90 p-6 shadow-sm">
                     <div class="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-4">
                         <div>
@@ -1000,7 +1000,7 @@
 
             {{-- ======================================================== TAB 4: Delegation of Authority (DOA) Hub --}}
             @can('approve_purchase_order')
-            <div x-show="activeTab === 'doa_approvals'" class="space-y-6">
+            <div x-show="activeTab === 'doa_approvals'" x-cloak class="space-y-6">
                 <div class="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
                     <div class="flex items-center justify-between border-b border-neutral-100 pb-4">
                         <div>
@@ -1390,7 +1390,7 @@
                                     </select>
                                     <div class="flex gap-1.5">
                                         <x-ui.button type="submit" size="sm">Apply</x-ui.button>
-                                        @if($poFilters['poSearch'] !== '' || $poFilters['poStatus'] !== '' || $poFilters['poDate'] !== '' || $supplierFilter || $poPerPage !== 10)
+                                        @if($poFilters['poSearch'] !== '' || $poFilters['poStatus'] !== '' || $poFilters['poDate'] !== '' || $supplierFilter || $poPerPage !== 5)
                                             <x-ui.button variant="ghost" size="sm" :href="route('inventory.purchases').'#purchase-orders'">Clear</x-ui.button>
                                         @endif
                                     </div>
@@ -2014,6 +2014,7 @@
             @endphp
             <div
                 x-show="activeTab === 'legacy_canvass'"
+                x-cloak
                 x-data="{
                     canvassStep: {{ $initialCanvassStep }},
                     hasExistingRequests: {{ $requests->isNotEmpty() ? 'true' : 'false' }},
@@ -2490,7 +2491,7 @@
 
             {{-- ======================================================== TAB 7: Procurement Audit Trail --}}
             @can('view_audit_trail')
-            <div x-show="activeTab === 'audit_trail'" class="space-y-6">
+            <div x-show="activeTab === 'audit_trail'" x-cloak class="space-y-6">
                 <div class="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/90 p-6 shadow-sm">
                     <h3 class="text-lg font-bold text-neutral-900 dark:text-neutral-100">Append-Only Procurement Audit Ledger</h3>
                     <p class="text-sm text-neutral-500 dark:text-neutral-400">Immutable chronological record of procurement events, state transitions, and user attribution.</p>

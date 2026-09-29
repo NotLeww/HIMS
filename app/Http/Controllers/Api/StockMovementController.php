@@ -27,7 +27,7 @@ class StockMovementController extends Controller implements HasMiddleware
 
     public function index(Request $request)
     {
-        $perPage = (int) $request->query('per_page', 10);
+        $perPage = (int) $request->query('per_page', 15);
 
         // Unordered pagination put the oldest movements on page 1, so a newly
         // recorded movement appeared to vanish. Newest first, id breaking

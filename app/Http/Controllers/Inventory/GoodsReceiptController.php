@@ -43,7 +43,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
             || auth()->user()->hasPermission(Permission::ReceivePurchaseOrder), 403);
         $goodsReceipts = GoodsReceiptNote::with(['purchaseOrder', 'supplier', 'receivedBy', 'lines.item'])
             ->latest('received_at')
-            ->paginate(10)
+            ->paginate(15)
             ->withQueryString();
 
         // Open purchase orders available for dock receiving
@@ -183,7 +183,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
         $inspections = QualityInspection::with(['grnLine.goodsReceiptNote.supplier', 'item', 'batch'])
             ->whereIn('inspection_status', ['pending_sample', 'partially_disposed'])
             ->latest('inspection_date')
-            ->paginate(10)
+            ->paginate(15)
             ->withQueryString();
 
         $storageLocations = StorageLocation::active()

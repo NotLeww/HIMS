@@ -63,19 +63,16 @@ class PrivacyGovernanceController extends Controller implements HasMiddleware
 
         $privacyRequests = PrivacyRequest::with(['user', 'resolvedBy'])
             ->latest()
-            ->paginate(10, ['*'], 'dsr_page')
-            ->withQueryString();
+            ->paginate(15, ['*'], 'dsr_page');
 
         $securityIncidents = SecurityIncident::with(['reportedBy', 'assignedTo'])
             ->latest()
-            ->paginate(10, ['*'], 'incident_page')
-            ->withQueryString();
+            ->paginate(15, ['*'], 'incident_page');
 
         $consentStats = $this->consentService->getConsentAuditStats();
         $recentConsents = UserConsent::with('user:id,name,email,role')
             ->latest('id')
-            ->paginate(10, ['*'], 'consent_page')
-            ->withQueryString();
+            ->paginate(20, ['*'], 'consent_page');
 
         $openDsrCount = PrivacyRequest::whereIn('status', ['pending', 'in_review'])->count();
         $openIncidentsCount = SecurityIncident::whereIn('status', ['reported', 'investigating', 'contained'])->count();

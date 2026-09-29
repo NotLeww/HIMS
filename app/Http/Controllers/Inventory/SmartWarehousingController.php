@@ -105,7 +105,7 @@ class SmartWarehousingController extends Controller implements HasMiddleware
             });
         }
 
-        $locations = $query->paginate(10)->withQueryString();
+        $locations = $query->paginate(25)->withQueryString();
         $locations->getCollection()->transform(function ($loc) {
             $loc->setAttribute('pending_inbound_count', $loc->pendingInboundCount());
 
@@ -144,7 +144,7 @@ class SmartWarehousingController extends Controller implements HasMiddleware
             });
         }
 
-        $perPage = min(100, max(5, (int) $request->input('per_page', 10)));
+        $perPage = min(100, max(5, (int) $request->input('per_page', 15)));
         $paginated = $query->paginate($perPage);
 
         $items = $paginated->getCollection()->map(function (ItemStockLevel $stockLevel) {

@@ -1619,14 +1619,14 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
             'status' => 'active',
         ]);
 
-        // Create 14 purchase orders to test standard 10 per page pagination
-        for ($i = 1; $i <= 14; $i++) {
+        // Create 8 purchase orders (matching user scenario)
+        for ($i = 1; $i <= 8; $i++) {
             $poNum = sprintf('PO-PAGINATED-%03d', $i);
             $po = PurchaseOrder::create([
                 'po_number' => $poNum,
                 'supplier_id' => $supplier->id,
                 'status' => 'approved',
-                'requested_at' => Carbon::now()->subMinutes(20 - $i),
+                'requested_at' => Carbon::now()->subMinutes(10 - $i),
                 'total_amount' => 1000 * $i,
             ]);
 
@@ -1644,18 +1644,18 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
             ]);
         }
 
-        // Page 1 with default 10 per page
+        // Page 1 with default 5 per page
         $resPage1 = $this->actingAs($this->manager)
             ->get(route('inventory.purchases'));
 
         $resPage1->assertOk();
         $resPage1->assertSee('Purchase Order Pipeline');
-        $resPage1->assertSee('(14)');
-        $resPage1->assertSee('Showing 1–10 of 14');
+        $resPage1->assertSee('(8)');
+        $resPage1->assertSee('Showing 1–5 of 8');
 
-        // Verify latest 10 orders are visible on page 1 (PO-014 down to PO-005)
-        $resPage1->assertSee('PO-PAGINATED-014');
-        $resPage1->assertSee('PO-PAGINATED-005');
+        // Verify latest 5 orders are visible on page 1 (PO-008 down to PO-004)
+        $resPage1->assertSee('PO-PAGINATED-008');
+        $resPage1->assertSee('PO-PAGINATED-004');
         // Older orders are paginated to page 2
         $resPage1->assertDontSee('PO-PAGINATED-001');
 
@@ -1664,16 +1664,16 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
             ->get(route('inventory.purchases', ['po_page' => 2]));
 
         $resPage2->assertOk();
-        $resPage2->assertSee('Showing 11–14 of 14');
+        $resPage2->assertSee('Showing 6–8 of 8');
         $resPage2->assertSee('PO-PAGINATED-001');
-        $resPage2->assertDontSee('PO-PAGINATED-014');
+        $resPage2->assertDontSee('PO-PAGINATED-008');
 
-        // Custom per_page = 25 displays all 14 on single page
+        // Custom per_page = 10 displays all 8 on single page
         $resAll = $this->actingAs($this->manager)
-            ->get(route('inventory.purchases', ['po_per_page' => 25]));
+            ->get(route('inventory.purchases', ['po_per_page' => 10]));
 
         $resAll->assertOk();
-        $resAll->assertSee('PO-PAGINATED-014');
+        $resAll->assertSee('PO-PAGINATED-008');
         $resAll->assertSee('PO-PAGINATED-001');
     }
 }

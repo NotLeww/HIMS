@@ -138,7 +138,7 @@ class SupplierController extends Controller implements HasMiddleware
             ->when($request->query('performance') === 'available', fn ($query) => $query->whereHas('purchaseOrders'))
             ->when($request->query('performance') === 'none', fn ($query) => $query->whereDoesntHave('purchaseOrders'))
             ->orderBy($sort, $direction)
-            ->paginate(10)
+            ->paginate(15)
             ->withQueryString();
 
         $selectedId = $request->integer('supplier') ?: $suppliers->first()?->id;

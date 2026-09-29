@@ -20,8 +20,9 @@ class InventoryItemsCatalogTest extends TestCase
     {
         $manager = User::factory()->inventoryManager()->create();
 
-        // Up to the standard page size so all items appear on the initial page
-        foreach (range(1, 10) as $index) {
+        // More rows than the API's default page size so a truncated refetch
+        // would be visible.
+        foreach (range(1, 20) as $index) {
             InventoryItem::create([
                 'name' => "Catalog Item {$index}",
                 'sku' => "CAT-{$index}",
@@ -36,7 +37,7 @@ class InventoryItemsCatalogTest extends TestCase
 
         $response->assertOk();
 
-        foreach (range(1, 10) as $index) {
+        foreach (range(1, 20) as $index) {
             $response->assertSee("Catalog Item {$index}");
         }
 
@@ -253,11 +254,11 @@ class InventoryItemsCatalogTest extends TestCase
         $response->assertDontSee('CAT-COTTON');
     }
 
-    public function test_catalog_paginates_records_at_ten_items_per_page(): void
+    public function test_catalog_paginates_records_at_twenty_items_per_page(): void
     {
         $manager = User::factory()->inventoryManager()->create();
 
-        // Create 35 items so there are 4 pages (10 + 10 + 10 + 5)
+        // Create 35 items so there are 2 full pages (20 + 15)
         for ($i = 1; $i <= 35; $i++) {
             InventoryItem::create([
                 'name' => sprintf('Batch Item %02d', $i),
@@ -274,27 +275,25 @@ class InventoryItemsCatalogTest extends TestCase
         $page1Response->assertOk();
         $page1Response->assertSee('Showing');
         $page1Response->assertSee('1');
-        $page1Response->assertSee('10');
+        $page1Response->assertSee('20');
         $page1Response->assertSee('35');
         $page1Response->assertSee('items');
 
-        // Check latest 10 items are on page 1 (Batch Item 35 down to 26)
+        // Check latest 20 items are on page 1 (Batch Item 35 down to 16)
         $page1Response->assertSee('Batch Item 35');
-        $page1Response->assertSee('Batch Item 26');
-        $page1Response->assertDontSee('Batch Item 25');
+        $page1Response->assertSee('Batch Item 16');
+        $page1Response->assertDontSee('Batch Item 15');
         $page1Response->assertDontSee('Batch Item 01');
 
         // Page 2
         $page2Response = $this->actingAs($manager)->get(route('inventory.items', ['page' => 2]));
         $page2Response->assertOk();
         $page2Response->assertSee('Showing');
-        $page2Response->assertSee('11');
-        $page2Response->assertSee('20');
+        $page2Response->assertSee('21');
         $page2Response->assertSee('35');
-        $page2Response->assertSee('Batch Item 25');
-        $page2Response->assertSee('Batch Item 16');
+        $page2Response->assertSee('Batch Item 15');
+        $page2Response->assertSee('Batch Item 01');
         $page2Response->assertDontSee('Batch Item 35');
-        $page2Response->assertDontSee('Batch Item 15');
     }
 
     public function test_catalog_pagination_preserves_query_string_filters(): void
@@ -331,7 +330,7 @@ class InventoryItemsCatalogTest extends TestCase
         $response->assertSee('25 matching items');
         $response->assertSee('Showing');
         $response->assertSee('1');
-        $response->assertSee('10');
+        $response->assertSee('20');
         $response->assertSee('25');
 
         // Next page link should contain search query string
@@ -343,8 +342,7 @@ class InventoryItemsCatalogTest extends TestCase
         $page2 = $this->actingAs($manager)->get(route('inventory.items', ['search' => 'Antibiotic', 'page' => 2]));
         $page2->assertOk();
         $page2->assertSee('Showing');
-        $page2->assertSee('11');
-        $page2->assertSee('20');
+        $page2->assertSee('21');
         $page2->assertSee('25');
         $page2->assertDontSee('Bandage Roll');
     }
