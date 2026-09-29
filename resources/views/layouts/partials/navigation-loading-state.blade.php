@@ -15,13 +15,6 @@
             const shouldShowOverlay = settings.showOverlay !== false;
 
             if (shouldShowOverlay) {
-                try {
-                    window.sessionStorage.setItem(storageKey, '1');
-                } catch {
-                    // The current document can still keep its overlay visible.
-                }
-
-                document.documentElement.classList.add('hims-navigation-pending');
                 const overlay = document.querySelector('[data-hims-loading-overlay]');
                 const message = overlay?.querySelector('[data-hims-loading-message]');
                 if (message) message.textContent = settings.message || 'Loading page...';

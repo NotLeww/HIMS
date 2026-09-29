@@ -1651,6 +1651,13 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
         $resPage1->assertOk();
         $resPage1->assertSee('Purchase Order Pipeline');
         $resPage1->assertSee('(8)');
+        $resPage1->assertSee('data-hims-purchase-order-pagination', false);
+        $resPage1->assertSee('Loading purchase orders...');
+        $resPage1->assertSee("new CustomEvent('hims-loading-start'", false);
+        $resPage1->assertSee("new CustomEvent('hims-loading-stop'", false);
+        $resPage1->assertSee('loadPurchaseOrderPage(link.href)', false);
+        $resPage1->assertSee('pipeline.replaceWith(replacement)', false);
+        $resPage1->assertSee('window.history.pushState', false);
         $resPage1->assertSee('Showing 1–5 of 8');
 
         // Verify latest 5 orders are visible on page 1 (PO-008 down to PO-004)

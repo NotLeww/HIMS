@@ -55,7 +55,11 @@
         ];
     @endphp
 
-    <div x-data="procurementWorkspace({{ Js::from($procurementWorkspaceConfig) }})" class="space-y-6">
+    <div
+        x-data="procurementWorkspace({{ Js::from($procurementWorkspaceConfig) }})"
+        x-effect="if (activeTab === 'legacy_canvass') $dispatch('hims-load-legacy-procurement')"
+        class="space-y-6"
+    >
 
 
             @if($errors->any())
@@ -1339,7 +1343,7 @@
                         </section>
                     @endcan
 
-                    <section id="purchase-orders" class="order-1 min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm lg:order-2 dark:border-neutral-800 dark:bg-neutral-900" aria-labelledby="purchase-order-pipeline-heading">
+                    <section id="purchase-orders" data-hims-purchase-order-pagination class="order-1 min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm lg:order-2 dark:border-neutral-800 dark:bg-neutral-900" aria-labelledby="purchase-order-pipeline-heading">
                         <header class="border-b border-neutral-200 bg-neutral-50/50 px-4 py-3.5 dark:border-neutral-800 dark:bg-neutral-900/60">
                             <div class="flex flex-wrap items-center justify-between gap-3">
                                 <div class="flex items-center gap-2.5">
@@ -2754,11 +2758,73 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('hims-load-legacy-procurement', () => {
             loadDemandPlansFromApi();
             loadProcurementRequestsFromApi();
             loadSupplierQuotesFromApi();
             loadItemsAndSuppliersForForm();
+        }, { once: true });
+
+        let purchaseOrderPaginationPending = false;
+        let purchaseOrderPaginationHistory = false;
+
+        async function loadPurchaseOrderPage(url, pushHistory = true) {
+            const pipeline = document.querySelector('[data-hims-purchase-order-pagination]');
+            if (!pipeline || purchaseOrderPaginationPending) return;
+
+            purchaseOrderPaginationPending = true;
+            pipeline.setAttribute('aria-busy', 'true');
+            document.dispatchEvent(new CustomEvent('hims-loading-start', {
+                detail: { message: 'Loading purchase orders...' }
+            }));
+
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept': 'text/html',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-Session-Activity': 'passive'
+                    }
+                });
+                if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+
+                const documentFragment = new DOMParser().parseFromString(await response.text(), 'text/html');
+                const replacement = documentFragment.querySelector('[data-hims-purchase-order-pagination]');
+                if (!replacement) throw new Error('Purchase order pipeline was not returned.');
+
+                pipeline.replaceWith(replacement);
+                if (pushHistory) {
+                    window.history.pushState({ himsPurchaseOrderPage: true }, '', url);
+                    purchaseOrderPaginationHistory = true;
+                }
+                replacement.scrollIntoView({ block: 'start' });
+            } catch (error) {
+                window.location.assign(url);
+            } finally {
+                purchaseOrderPaginationPending = false;
+                pipeline.removeAttribute('aria-busy');
+                document.dispatchEvent(new CustomEvent('hims-loading-stop'));
+            }
+        }
+
+        document.addEventListener('click', (event) => {
+            const link = event.target instanceof Element
+                ? event.target.closest('[data-hims-purchase-order-pagination] nav a[href]')
+                : null;
+            if (!(link instanceof HTMLAnchorElement)
+                || event.button !== 0
+                || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            loadPurchaseOrderPage(link.href);
+        }, true);
+
+        window.addEventListener('popstate', () => {
+            if (purchaseOrderPaginationHistory
+                && window.location.pathname === '{{ route('inventory.purchases', absolute: false) }}') {
+                loadPurchaseOrderPage(window.location.href, false);
+            }
         });
     </script>
 </x-app-layout>

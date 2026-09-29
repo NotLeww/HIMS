@@ -123,10 +123,20 @@ class LoadingIndicatorTest extends TestCase
 
         $this->assertStringContainsString("document.addEventListener('DOMContentLoaded', revealDestination, { once: true })", $script);
         $this->assertStringNotContainsString("window.addEventListener('load', revealDestination", $script);
-        $this->assertStringContainsString("window.sessionStorage.setItem(navigationStorageKey, '1')", $script);
-        $this->assertStringContainsString('rememberPageTransition({ coverCurrentPage: false })', $script);
+        $this->assertStringNotContainsString("window.sessionStorage.setItem(navigationStorageKey, '1')", $script);
+        $this->assertStringNotContainsString('rememberPageTransition', $script);
         $this->assertStringNotContainsString('navigationWatchdog', $script);
         $this->assertStringNotContainsString("window.addEventListener('pagehide', reset)", $script);
+    }
+
+    public function test_navigation_loader_keeps_the_current_page_visible_behind_the_backdrop(): void
+    {
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString(
+            '@apply absolute inset-0 bg-neutral-950/35 backdrop-blur-[2px];',
+            $styles,
+        );
     }
 
     public function test_account_settings_forms_have_accessible_specific_loading_states(): void
@@ -204,7 +214,10 @@ class LoadingIndicatorTest extends TestCase
             ->assertOk()
             ->assertSee('id="purchase-orders"', false)
             ->assertDontSee('purchase-orders-api-status')
-            ->assertSee("'X-Session-Activity': 'passive'", false);
+            ->assertSee("'X-Session-Activity': 'passive'", false)
+            ->assertSee("x-effect=\"if (activeTab === 'legacy_canvass') \$dispatch('hims-load-legacy-procurement')\"", false)
+            ->assertSee("document.addEventListener('hims-load-legacy-procurement'", false)
+            ->assertDontSee("document.addEventListener('DOMContentLoaded', () => {", false);
 
         // Supplier Management is now server-rendered because its compliance
         // and authorization state cannot be safely reconstructed by the old

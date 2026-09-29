@@ -1661,19 +1661,6 @@ const startLoadingIndicators = () => {
 
     const continueAfterPaint = (callback) => window.requestAnimationFrame(callback);
 
-    const rememberPageTransition = ({ coverCurrentPage = true } = {}) => {
-        pageTransitionPending = true;
-        if (coverCurrentPage) {
-            document.documentElement.classList.add('hims-navigation-pending');
-        }
-
-        try {
-            window.sessionStorage.setItem(navigationStorageKey, '1');
-        } catch {
-            // The current document can still keep its overlay visible.
-        }
-    };
-
     const forgetPageTransition = () => {
         pageTransitionPending = false;
         document.documentElement.classList.remove('hims-navigation-pending');
@@ -1752,7 +1739,7 @@ const startLoadingIndicators = () => {
     };
 
     if (document.documentElement.classList.contains('hims-navigation-pending')) {
-        rememberPageTransition();
+        pageTransitionPending = true;
         showOverlay('Loading page...');
 
         const revealDestination = () => continueAfterPaint(finishDestinationLoad);
@@ -1842,7 +1829,7 @@ const startLoadingIndicators = () => {
             showOverlay('Processing request...');
         }
 
-        rememberPageTransition({ coverCurrentPage: false });
+        pageTransitionPending = true;
 
         if (!form.isConnected) {
             reset();
@@ -1953,7 +1940,7 @@ const startLoadingIndicators = () => {
         event.preventDefault();
         if (pageTransitionPending) return;
 
-        rememberPageTransition();
+        pageTransitionPending = true;
         link.setAttribute('aria-busy', 'true');
         link.setAttribute('data-hims-navigation-active', '');
         showOverlay('Loading page...');
@@ -1979,7 +1966,7 @@ const startLoadingIndicators = () => {
         if (pageTransitionPending) return;
 
         if (shouldShowOverlay) {
-            rememberPageTransition();
+            pageTransitionPending = true;
             showOverlay(message);
         } else {
             pageTransitionPending = true;
