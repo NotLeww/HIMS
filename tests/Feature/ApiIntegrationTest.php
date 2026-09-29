@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Models\InventoryItem;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Sanctum;
 use RuntimeException;
@@ -102,6 +103,9 @@ class ApiIntegrationTest extends TestCase
 
     public function test_unexpected_json_failure_is_redacted(): void
     {
+        $logPath = storage_path('logs/laravel.log');
+        $logOffset = is_file($logPath) ? filesize($logPath) : 0;
+
         Route::middleware('api')->get('/_test/api-integration/crash', function () {
             throw new RuntimeException('SQLSTATE failure in C:\\private\\hims with a synthetic credential');
         });
@@ -115,5 +119,23 @@ class ApiIntegrationTest extends TestCase
         $response->assertDontSee('SQLSTATE')
             ->assertDontSee('C:\\private\\hims')
             ->assertDontSee('synthetic credential');
+
+        Log::error('Synthetic structured context probe.', [
+            'password' => 'never-log-this-password',
+            'nested' => ['api_token' => 'never-log-this-token'],
+        ]);
+
+        clearstatcache(true, $logPath);
+        $newLogContent = is_file($logPath)
+            ? (string) file_get_contents($logPath, false, null, $logOffset)
+            : '';
+
+        $this->assertStringContainsString('Unhandled exception.', $newLogContent);
+        $this->assertStringContainsString(RuntimeException::class, $newLogContent);
+        $this->assertStringNotContainsString('synthetic credential', $newLogContent);
+        $this->assertStringNotContainsString('C:\\private\\hims', $newLogContent);
+        $this->assertStringNotContainsString('never-log-this-password', $newLogContent);
+        $this->assertStringNotContainsString('never-log-this-token', $newLogContent);
+        $this->assertStringContainsString('[REDACTED]', $newLogContent);
     }
 }

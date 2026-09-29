@@ -289,7 +289,9 @@ class SafeExecutionService
                 outcome: 'failure'
             );
         } catch (Throwable $auditException) {
-            Log::error('Failed to write audit log for recovery record: ' . $auditException->getMessage());
+            Log::error('Failed to write audit log for recovery record.', [
+                'exception' => $auditException,
+            ]);
         }
 
         try {
