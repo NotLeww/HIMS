@@ -1195,6 +1195,33 @@ class DocumentTrackingAndLogisticsTest extends TestCase
         $response->assertSee("validateFormat: 'sscc'", false);
     }
 
+    public function test_logistics_dashboard_opens_recent_shipment_details_in_a_modal(): void
+    {
+        extract($this->createSetup());
+
+        $shipment = Shipment::create([
+            'shipment_number' => 'SHP-2026-MODAL-01',
+            'supplier_id' => $supplier->id,
+            'pickup_location_name' => 'Supplier Distribution Center',
+            'carrier_name' => 'Modal Freight Express',
+            'tracking_number' => 'TRK-MODAL-01',
+            'destination_facility' => 'Main Receiving Dock',
+            'dispatch_date' => now()->subDay(),
+            'estimated_delivery_date' => now()->addDay(),
+            'status' => 'in_transit',
+            'is_cold_chain' => false,
+        ]);
+
+        $response = $this->actingAs($buyer)->get(route('inventory.logistics'));
+
+        $response->assertOk()
+            ->assertSee('Details')
+            ->assertSee("shipment-details-{$shipment->id}", false)
+            ->assertSee('Modal Freight Express')
+            ->assertSee('Supplier Distribution Center')
+            ->assertDontSee(route('inventory.logistics.shipments', ['search' => $shipment->shipment_number]), false);
+    }
+
     public function test_chain_of_custody_page_renders_space_efficient_full_width_layout(): void
     {
         extract($this->createSetup());

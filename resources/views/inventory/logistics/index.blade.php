@@ -194,9 +194,9 @@
                                             <x-ui.badge :status="$shipment->status" />
                                         </td>
                                         <td class="px-3.5 py-3.5 sm:px-4 text-right whitespace-nowrap">
-                                            <a href="{{ route('inventory.logistics.shipments', ['search' => $shipment->shipment_number]) }}" class="inline-flex items-center rounded-lg border border-neutral-300 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-700 shadow-2xs hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-750 transition">
-                                                Manage
-                                            </a>
+                                            <button type="button" x-data x-on:click="$dispatch('open-modal', 'shipment-details-{{ $shipment->id }}')" class="inline-flex items-center rounded-lg border border-neutral-300 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-700 shadow-2xs hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-750 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
+                                                Details
+                                            </button>
                                         </td>
                                     </tr>
                                 @empty
@@ -210,6 +210,76 @@
                         </table>
                     </div>
                 </div>
+
+                @foreach($recentShipments as $shipment)
+                    <x-ui.modal name="shipment-details-{{ $shipment->id }}" title="Shipment Details — {{ $shipment->shipment_number }}" maxWidth="2xl">
+                        <div class="space-y-5 text-sm">
+                            <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-700 dark:bg-neutral-800/60">
+                                <div class="min-w-0">
+                                    <p class="font-mono text-base font-bold text-neutral-900 dark:text-neutral-100">{{ $shipment->shipment_number }}</p>
+                                    <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ $shipment->purchaseOrder ? 'PO '.$shipment->purchaseOrder->po_number : 'Direct inbound shipment' }}</p>
+                                </div>
+                                <x-ui.badge :status="$shipment->status" />
+                            </div>
+
+                            <dl class="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                                <div>
+                                    <dt class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Supplier</dt>
+                                    <dd class="mt-1 font-medium text-neutral-900 dark:text-neutral-100">{{ $shipment->supplier->name ?? 'Not recorded' }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Carrier / Tracking</dt>
+                                    <dd class="mt-1 font-medium text-neutral-900 dark:text-neutral-100">{{ $shipment->carrier_name }}</dd>
+                                    <dd class="mt-0.5 break-words font-mono text-xs text-neutral-500 dark:text-neutral-400">{{ $shipment->tracking_number ?? $shipment->waybill_number ?? 'Not recorded' }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Pickup</dt>
+                                    <dd class="mt-1 break-words text-neutral-800 dark:text-neutral-200">{{ $shipment->pickup_location_name ?? $shipment->origin_address ?? 'Not recorded' }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Destination</dt>
+                                    <dd class="mt-1 break-words text-neutral-800 dark:text-neutral-200">{{ $shipment->destination_facility }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Delivery Schedule</dt>
+                                    <dd class="mt-1 text-neutral-800 dark:text-neutral-200">Dispatch: {{ $shipment->dispatch_date?->format('M d, Y') ?? 'Not recorded' }}</dd>
+                                    <dd class="mt-0.5 text-neutral-800 dark:text-neutral-200">Expected: {{ $shipment->estimated_delivery_date?->format('M d, Y') ?? 'Not recorded' }}</dd>
+                                    @if($shipment->actual_delivery_date)
+                                        <dd class="mt-0.5 text-emerald-700 dark:text-emerald-400">Actual: {{ $shipment->actual_delivery_date->format('M d, Y') }}</dd>
+                                    @endif
+                                </div>
+                                <div>
+                                    <dt class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Cold Chain</dt>
+                                    <dd class="mt-1 text-neutral-800 dark:text-neutral-200">{{ $shipment->is_cold_chain ? 'Required' : 'Ambient shipment' }}</dd>
+                                    @if($shipment->is_cold_chain)
+                                        <dd class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Logger: {{ $shipment->temp_logger_serial ?? 'Not recorded' }}</dd>
+                                        @if($shipment->temp_min !== null && $shipment->temp_max !== null)
+                                            <dd class="mt-0.5 text-xs font-semibold {{ $shipment->temp_excursion ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-400' }}">{{ number_format($shipment->temp_min, 1) }}°C – {{ number_format($shipment->temp_max, 1) }}°C{{ $shipment->temp_excursion ? ' · Excursion detected' : '' }}</dd>
+                                        @endif
+                                    @endif
+                                </div>
+                                <div>
+                                    <dt class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">GS1 SSCC</dt>
+                                    <dd class="mt-1 break-all font-mono text-neutral-800 dark:text-neutral-200">{{ $shipment->sscc ?? 'Not recorded' }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Driver / Vehicle</dt>
+                                    <dd class="mt-1 text-neutral-800 dark:text-neutral-200">{{ $shipment->driver_name ?? 'Not recorded' }}</dd>
+                                    @if($shipment->vehicle_plate_number)
+                                        <dd class="mt-0.5 font-mono text-xs text-neutral-500 dark:text-neutral-400">{{ $shipment->vehicle_plate_number }}</dd>
+                                    @endif
+                                </div>
+                            </dl>
+
+                            @if($shipment->notes)
+                                <div class="border-t border-neutral-200 pt-4 dark:border-neutral-800">
+                                    <p class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Notes</p>
+                                    <p class="mt-1 break-words text-neutral-800 dark:text-neutral-200">{{ $shipment->notes }}</p>
+                                </div>
+                            @endif
+                        </div>
+                    </x-ui.modal>
+                @endforeach
 
                 {{-- COA GAM Appendix 50 Inspection & Acceptance Reports --}}
                 <div class="rounded-xl border border-neutral-200 bg-white shadow-xs dark:border-neutral-800 dark:bg-neutral-900 overflow-hidden">

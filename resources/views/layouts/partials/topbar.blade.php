@@ -27,7 +27,7 @@
         class="relative flex-1 min-w-0 max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg"
         x-data="himsGlobalSearch({
             endpoint: @js(route('global-search')),
-            initialQuery: @js(request('search', ''))
+            initialQuery: @js(request()->routeIs('inventory.items') ? request('search', '') : '')
         })"
         x-on:click.outside="close()"
         x-on:keydown.escape.stop="close()"
