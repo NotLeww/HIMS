@@ -1,12 +1,17 @@
 <x-app-layout full-width>
     @php($accountCreatedSuccess = session()->pull('account_created_success'))
+    @php($openCreateUserModal = request()->routeIs('admin.users.create') || (old('form_context') === 'create_user' && $errors->any()))
+
+    @if ($openCreateUserModal)
+        <div x-data x-init="$nextTick(() => $dispatch('open-modal', 'create-user-modal'))"></div>
+    @endif
 
     <x-ui.page-header
         title="User Management"
         :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'User Management' => null]">
         <x-slot:actions>
             <x-ui.button variant="secondary" :href="route('admin.permissions')" icon="shield-check">Access Control</x-ui.button>
-            <x-ui.button :href="route('admin.users.create')" icon="plus">Add User</x-ui.button>
+            <x-ui.button type="button" icon="plus" x-data x-on:click="$dispatch('open-modal', 'create-user-modal')">Add User</x-ui.button>
         </x-slot:actions>
     </x-ui.page-header>
 
@@ -16,7 +21,7 @@
         </x-ui.alert>
     @endif
 
-    @if ($errors->any())
+    @if ($errors->any() && old('form_context') !== 'create_user')
         <x-ui.alert variant="danger" title="That change was not applied">
             <ul class="space-y-0.5 list-disc list-inside">
                 @foreach ($errors->all() as $error)
@@ -392,6 +397,34 @@
             </x-slot:footer>
         @endif
     </x-ui.card>
+
+    <x-ui.modal name="create-user-modal" title="Add User" maxWidth="6xl">
+        <form method="POST" action="{{ route('admin.users.store') }}" class="space-y-5" autocomplete="off"
+              @if (auth()->user()?->isSuperAdministrator())
+                  data-super-admin-password="create"
+              @else
+                  data-confirm-title="Create staff user"
+                  data-confirm-message="Are you sure you want to create this user account and issue an initial temporary password?"
+                  data-confirm-label="Create User"
+              @endif>
+            @csrf
+            <input type="hidden" name="form_context" value="create_user">
+
+            <p class="text-sm text-neutral-600 dark:text-neutral-300">Fields marked with an asterisk are required.</p>
+
+            @include('admin.users.partials.form', ['user' => null, 'roles' => $createRoles])
+
+            <div class="flex flex-col gap-3 border-t border-neutral-200 pt-4 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-xs text-neutral-500 dark:text-neutral-400">
+                    Employee accounts are provisioned for hospital operations. Activity is recorded in accordance with the <a href="{{ route('privacy.notice', ['return' => url()->current()]) }}" target="_blank" rel="opener" class="text-primary-600 underline hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">Privacy Notice</a>.
+                </p>
+                <div class="flex w-full shrink-0 flex-col-reverse justify-end gap-2 sm:w-auto sm:flex-row sm:items-center">
+                    <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'create-user-modal')">Cancel</x-ui.button>
+                    <x-ui.button type="submit" icon="plus" data-loading-text="Creating account...">Create Account</x-ui.button>
+                </div>
+            </div>
+        </form>
+    </x-ui.modal>
 
     {{-- Role Permissions Interactive Modal --}}
     <x-ui.modal name="role-permissions-modal" title="Role Permissions Reference" maxWidth="2xl">

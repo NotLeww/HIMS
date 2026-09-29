@@ -150,8 +150,9 @@ class SuperAdminProvisioningTest extends TestCase
 
         $this->actingAs($administrator)->get(route('admin.users.create'))
             ->assertOk()
-            ->assertDontSee('value="administrator"', false)
-            ->assertDontSee('value="super_administrator"', false);
+            ->assertViewHas('createRoles', fn ($roles) => ! collect($roles)->contains(
+                fn (UserRole $role) => $role->isAdministrator()
+            ));
     }
 
     public function test_normal_admin_cannot_create_admin_or_super_admin_by_direct_request(): void

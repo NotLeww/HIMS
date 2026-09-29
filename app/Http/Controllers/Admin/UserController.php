@@ -75,7 +75,9 @@ class UserController extends Controller implements HasMiddleware
         return view('admin.users.index', [
             'users' => $users,
             'roles' => UserRole::options(),
+            'createRoles' => $this->accounts->assignableRoles($request->user()),
             'statuses' => UserStatus::options(),
+            'departments' => UserDepartment::options(),
             'filters' => $request->only(['search', 'role', 'status']),
             'counts' => [
                 'total' => (int) $countRow->total_count,
@@ -93,10 +95,7 @@ class UserController extends Controller implements HasMiddleware
 
     public function create(): View
     {
-        return view('admin.users.create', [
-            'roles' => $this->accounts->assignableRoles(request()->user()),
-            'departments' => UserDepartment::options(),
-        ]);
+        return $this->index(request());
     }
 
     public function store(StoreUserRequest $request): RedirectResponse

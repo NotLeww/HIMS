@@ -862,6 +862,34 @@ class UserManagementTest extends TestCase
             ->assertSee('value="'.$staff->role->value.'"', false);
     }
 
+    public function test_add_user_uses_a_modal_and_reopens_after_validation_failure(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSee("\$dispatch('open-modal', 'create-user-modal')", false)
+            ->assertSee('create-user-modal')
+            ->assertSee('action="'.route('admin.users.store').'"', false);
+
+        $this->get(route('admin.users.create'))
+            ->assertOk()
+            ->assertSee("\$nextTick(() => \$dispatch('open-modal', 'create-user-modal'))", false);
+
+        $this->from(route('admin.users.index'))->post(route('admin.users.store'), [
+            'form_context' => 'create_user',
+            'surname' => 'Modal',
+            'email' => 'modal.user@djnrmhs.test',
+        ])->assertRedirect(route('admin.users.index'))
+            ->assertSessionHasErrors(['first_name', 'password', 'role', 'department', 'phone']);
+
+        $this->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSee("\$nextTick(() => \$dispatch('open-modal', 'create-user-modal'))", false)
+            ->assertSee('value="Modal"', false)
+            ->assertSee('value="modal.user@djnrmhs.test"', false);
+    }
+
     public function test_editing_updates_each_name_part_and_the_complete_name(): void
     {
         $admin = $this->admin();
