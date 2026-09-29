@@ -12,7 +12,6 @@
         --iar-soft: #f9fafb;
         --iar-accent: #1e40af;
         width: 216mm;
-        min-height: 279mm;
         margin: 0 auto;
         padding: 9mm 11mm 11mm;
         background: #ffffff;

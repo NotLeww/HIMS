@@ -40,9 +40,11 @@
                 </div>
             @endif
 
+            <div class="grid items-start gap-4 print:block 2xl:grid-cols-[216mm_minmax(18rem,23rem)] 2xl:justify-center">
+            <div class="contents print:contents 2xl:order-2 2xl:block 2xl:space-y-4">
             {{-- Action Banner for Inspectors & Custodians --}}
-            <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm flex flex-wrap items-center justify-between gap-4 print:hidden">
-                <div class="flex items-center gap-3">
+            <div class="order-1 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm flex flex-wrap items-center justify-between gap-4 print:hidden 2xl:flex-col 2xl:items-stretch">
+                <div class="flex items-center gap-3 2xl:flex-col 2xl:items-start">
                     <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-neutral-100 text-neutral-700">
                         <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
                     </div>
@@ -54,7 +56,7 @@
                     </div>
                 </div>
 
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 2xl:flex-col 2xl:items-stretch">
                     {{-- Technical Inspection Button --}}
                     @can(\App\Enums\Permission::PerformTechnicalInspection->value)
                         @if($iar->status === 'pending_inspection')
@@ -81,13 +83,10 @@
                 </div>
             </div>
 
-            {{-- FORMAL COA GAM VOLUME II APPENDIX 50 DOCUMENT CANVAS --}}
-            @include('inventory.logistics.partials.iar_document')
-
             {{-- Linked Supporting Documents & Chain of Custody (Screen Only) --}}
-            <div class="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden space-y-4">
+            <div class="order-3 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm print:hidden space-y-4">
                 <h3 class="text-sm font-bold text-neutral-900">Archived Supporting Records & Chain of Custody</h3>
-                <div class="grid gap-3 md:grid-cols-2">
+                <div class="grid gap-3 md:grid-cols-2 2xl:grid-cols-1">
                     <div class="rounded-lg border border-neutral-100 bg-neutral-50 p-3">
                         <div class="text-xs font-bold text-neutral-700">Delivery Receipts & Commercial Invoices</div>
                         <ul class="mt-2 space-y-1 text-xs">
@@ -116,6 +115,13 @@
                         </ul>
                     </div>
                 </div>
+            </div>
+            </div>
+
+            {{-- FORMAL COA GAM VOLUME II APPENDIX 50 DOCUMENT CANVAS --}}
+            <div class="order-2 min-w-0 2xl:order-1">
+                @include('inventory.logistics.partials.iar_document')
+            </div>
             </div>
 
             {{-- Perform Technical Inspection Modal --}}
