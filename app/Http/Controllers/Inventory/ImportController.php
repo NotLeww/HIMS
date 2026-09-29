@@ -91,6 +91,8 @@ class ImportController extends Controller implements HasMiddleware
             $target = 'items';
         }
 
+        $this->authorizeTarget($request->user(), $target);
+
         $format = strtolower($request->input('format', 'csv'));
 
         return match ($format) {

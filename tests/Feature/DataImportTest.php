@@ -48,6 +48,10 @@ class DataImportTest extends TestCase
         $user = $this->viewer();
         $file = UploadedFile::fake()->createWithContent('items.csv', "sku,name\nBLOCKED-01,Blocked Item\n");
 
+        $this->actingAs($user)
+            ->get('/inventory/import/template?target=items&format=csv')
+            ->assertForbidden();
+
         $this->actingAs($user)->postJson('/inventory/import/preview', [
             'file' => $file,
             'target' => 'items',

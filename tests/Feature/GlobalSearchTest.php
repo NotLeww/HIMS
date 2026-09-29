@@ -6,12 +6,14 @@ use App\Enums\DocumentType;
 use App\Enums\UserRole;
 use App\Enums\WarehouseTaskStatus;
 use App\Models\BarcodeAlias;
+use App\Models\CostCenter;
 use App\Models\CycleCountDoc;
 use App\Models\GoodsReceiptNote;
 use App\Models\InventoryItem;
 use App\Models\LogisticsDocument;
 use App\Models\MaterialRequisition;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseRequest;
 use App\Models\Shipment;
 use App\Models\StockTransfer;
 use App\Models\StorageLocation;
@@ -105,6 +107,86 @@ class GlobalSearchTest extends TestCase
 
         $adminResponse->assertJsonPath('categories.0.items.0.title', $targetUser->name)
             ->assertJsonPath('categories.0.items.0.url', route('admin.users.show', $targetUser));
+    }
+
+    public function test_search_hides_sensitive_supplier_and_procurement_data_without_permission(): void
+    {
+        $viewer = User::factory()->role(UserRole::Viewer)->create();
+        $manager = User::factory()->role(UserRole::InventoryManager)->create();
+        $costCenter = CostCenter::create([
+            'name' => 'Restricted Cost Center',
+            'code' => 'CC-SEARCH',
+            'department' => 'Procurement',
+            'is_active' => true,
+        ]);
+        $supplier = Supplier::create([
+            'name' => 'Restricted Search Supplier',
+            'contact_person' => 'Private Contact Name',
+            'phone' => '+63 917 555 4321',
+            'status' => 'active',
+        ]);
+        PurchaseOrder::create([
+            'po_number' => 'PO-SEARCH-RESTRICTED',
+            'supplier_id' => $supplier->id,
+            'ors_burs_number' => 'ORS-PRIVATE-2026',
+            'total_amount' => 987654.32,
+            'status' => 'approved',
+        ]);
+        PurchaseRequest::create([
+            'pr_number' => 'PR-SEARCH-RESTRICTED',
+            'title' => 'Restricted Purchase Request',
+            'total_estimated_amount' => 765432.10,
+            'requester_id' => $manager->id,
+            'cost_center_id' => $costCenter->id,
+            'status' => 'draft',
+        ]);
+
+        $this->actingAs($viewer)
+            ->getJson(route('global-search', ['query' => 'Restricted Search']))
+            ->assertOk()
+            ->assertDontSee('Private Contact Name')
+            ->assertDontSee('+63 917 555 4321');
+
+        $this->actingAs($viewer)
+            ->getJson(route('global-search', ['query' => 'PO-SEARCH-RESTRICTED']))
+            ->assertOk()
+            ->assertDontSee('987,654.32');
+
+        $this->actingAs($viewer)
+            ->getJson(route('global-search', ['query' => 'PR-SEARCH-RESTRICTED']))
+            ->assertOk()
+            ->assertDontSee('765,432.10');
+
+        $this->actingAs($viewer)
+            ->getJson(route('global-search', ['query' => 'Private Contact Name']))
+            ->assertOk()
+            ->assertJsonPath('total_results', 0);
+
+        $this->actingAs($viewer)
+            ->getJson(route('global-search', ['query' => 'ORS-PRIVATE-2026']))
+            ->assertOk()
+            ->assertJsonPath('total_results', 0);
+
+        $this->actingAs($manager)
+            ->getJson(route('global-search', ['query' => 'Private Contact Name']))
+            ->assertOk()
+            ->assertSee('Private Contact Name')
+            ->assertSee('+63 917 555 4321');
+
+        $this->actingAs($manager)
+            ->getJson(route('global-search', ['query' => 'PO-SEARCH-RESTRICTED']))
+            ->assertOk()
+            ->assertSee('987,654.32');
+
+        $this->actingAs($manager)
+            ->getJson(route('global-search', ['query' => 'ORS-PRIVATE-2026']))
+            ->assertOk()
+            ->assertSee('PO-SEARCH-RESTRICTED');
+
+        $this->actingAs($manager)
+            ->getJson(route('global-search', ['query' => 'PR-SEARCH-RESTRICTED']))
+            ->assertOk()
+            ->assertSee('765,432.10');
     }
 
     public function test_search_finds_suppliers_purchase_orders_and_requisitions(): void

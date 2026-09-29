@@ -90,7 +90,7 @@ class GlobalSearchService
 
         // 3. Purchase Orders
         if ($user->can(Permission::ViewProcurement->value)) {
-            $category = $this->searchPurchaseOrders($term, $limit);
+            $category = $this->searchPurchaseOrders($user, $term, $limit);
             if (! empty($category['items'])) {
                 $categories[] = $category;
                 $totalResults += count($category['items']);
@@ -281,11 +281,12 @@ class GlobalSearchService
             ->where('status', '!=', SupplierStatus::Archived->value)
             ->where(function ($q) use ($term, $canSensitive): void {
                 $q->where('name', 'like', "%{$term}%")
-                    ->orWhere('trade_name', 'like', "%{$term}%")
-                    ->orWhere('contact_person', 'like', "%{$term}%");
+                    ->orWhere('trade_name', 'like', "%{$term}%");
 
                 if ($canSensitive) {
-                    $q->orWhere('tax_number', 'like', "%{$term}%")
+                    $q->orWhere('contact_person', 'like', "%{$term}%")
+                        ->orWhere('phone', 'like', "%{$term}%")
+                        ->orWhere('tax_number', 'like', "%{$term}%")
                         ->orWhere('email', 'like', "%{$term}%");
                 }
             });
@@ -293,15 +294,15 @@ class GlobalSearchService
         $total = (clone $query)->count();
         $records = $query->orderBy('name')->take($limit)->get();
 
-        $items = $records->map(function (Supplier $supplier): array {
+        $items = $records->map(function (Supplier $supplier) use ($canSensitive): array {
             $subtitleParts = [];
             if ($supplier->trade_name && $supplier->trade_name !== $supplier->name) {
                 $subtitleParts[] = $supplier->trade_name;
             }
-            if ($supplier->contact_person) {
+            if ($canSensitive && $supplier->contact_person) {
                 $subtitleParts[] = "Contact: {$supplier->contact_person}";
             }
-            if ($supplier->phone) {
+            if ($canSensitive && $supplier->phone) {
                 $subtitleParts[] = $supplier->phone;
             }
 
@@ -339,25 +340,30 @@ class GlobalSearchService
     /**
      * Search Purchase Orders by PO Number, ORS/BURS Number, or Supplier Name.
      */
-    protected function searchPurchaseOrders(string $term, int $limit): array
+    protected function searchPurchaseOrders(User $user, string $term, int $limit): array
     {
+        $canSensitive = $user->can(Permission::ViewProcurementSensitiveData->value);
+
         $query = PurchaseOrder::query()
             ->with('supplier')
-            ->where(function ($q) use ($term): void {
+            ->where(function ($q) use ($term, $canSensitive): void {
                 $q->where('po_number', 'like', "%{$term}%")
-                    ->orWhere('ors_burs_number', 'like', "%{$term}%")
                     ->orWhereHas('supplier', fn ($sq) => $sq->where('name', 'like', "%{$term}%"));
+
+                if ($canSensitive) {
+                    $q->orWhere('ors_burs_number', 'like', "%{$term}%");
+                }
             });
 
         $total = (clone $query)->count();
         $records = $query->latest('requested_at')->latest('id')->take($limit)->get();
 
-        $items = $records->map(function (PurchaseOrder $po): array {
+        $items = $records->map(function (PurchaseOrder $po) use ($canSensitive): array {
             $subtitleParts = [];
             if ($po->supplier?->name) {
                 $subtitleParts[] = $po->supplier->name;
             }
-            if ($po->total_amount) {
+            if ($canSensitive && $po->total_amount) {
                 $subtitleParts[] = '₱'.number_format((float) $po->total_amount, 2);
             }
             if ($po->delivery_date) {
@@ -402,6 +408,7 @@ class GlobalSearchService
     {
         $canViewInventory = $user->can(Permission::ViewInventory->value);
         $canViewProcurement = $user->can(Permission::ViewProcurement->value);
+        $canViewProcurementSensitiveData = $user->can(Permission::ViewProcurementSensitiveData->value);
 
         if (! $canViewInventory && ! $canViewProcurement) {
             return null;
@@ -468,7 +475,7 @@ class GlobalSearchService
                 if ($pr->title) {
                     $subtitleParts[] = Str::limit($pr->title, 40);
                 }
-                if ($pr->total_estimated_amount) {
+                if ($canViewProcurementSensitiveData && $pr->total_estimated_amount) {
                     $subtitleParts[] = 'Est: ₱'.number_format((float) $pr->total_estimated_amount, 2);
                 }
 
