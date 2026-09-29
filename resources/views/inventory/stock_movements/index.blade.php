@@ -819,93 +819,74 @@
         @endif
         @endif
 
-        {{-- MOVEMENT HISTORY (WITH DYNAMIC FILTERS & VERTICAL SCROLLBAR) --}}
-        <x-ui.card :padding="false"
-                   x-data="{
-                       historySearch: @js((string) request('search', '')),
-                       historyType: '',
-                       historyLocation: '',
-                       totalRows: {{ $movements->count() }},
-                       init() {
-                           this.$nextTick(() => this.applyHistoryFilters());
-                       },
-                       movementMatches(entry, search, type, location) {
-                           if (type && entry.historyType !== type) return false;
-                           if (location && entry.historyFrom !== location && entry.historyTo !== location) return false;
-                           if (search) {
-                               const haystack = `${entry.historyItem} ${entry.historyRemarks} ${entry.historyFrom} ${entry.historyTo} ${entry.historyUser}`.toLowerCase();
-                               if (!haystack.includes(search)) return false;
-                           }
-                           return true;
-                       },
-                       applyHistoryFilters() {
-                           const search = (this.$refs.historySearch?.value || '').toLowerCase().trim();
-                           const type = this.$refs.historyType?.value || '';
-                           const location = this.$refs.historyLocation?.value || '';
-                           const hasActiveFilter = !!(search || type || location);
-
-                           this.$root.querySelectorAll('[data-history-row]').forEach((row) => {
-                               row.hidden = hasActiveFilter && !this.movementMatches(row.dataset, search, type, location);
-                           });
-                       }
-                   }">
+        {{-- MOVEMENT HISTORY --}}
+        @php
+            $historyFiltered = request()->filled('search')
+                || request()->filled('movement_type')
+                || request()->filled('location_id');
+        @endphp
+        <x-ui.card id="movement-history" :padding="false">
             <x-slot:header>
                 <div>
                     <h2 class="text-sm font-semibold text-neutral-900 truncate">Movement History</h2>
                     <p class="mt-0.5 text-xs text-neutral-500">
-                        {{ $movements->count() }} recorded
+                        {{ number_format($movements->total()) }} {{ $historyFiltered ? 'matching' : 'recorded' }}
                     </p>
                 </div>
             </x-slot:header>
 
             <x-slot:actions>
-                {{-- Quick Filter Toolbar --}}
-                <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <form method="GET" action="{{ route('inventory.stock-movements') }}" class="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                     {{-- Search Filter --}}
                     <div class="relative flex-1 sm:w-48 min-w-[150px]">
+                        <label for="movement-history-search" class="sr-only">Search movement history</label>
                         <input type="text"
-                               x-ref="historySearch"
-                               x-model="historySearch"
-                               @input="$nextTick(() => applyHistoryFilters())"
+                               id="movement-history-search"
+                               name="search"
+                               value="{{ request('search') }}"
                                placeholder="Search movements..."
-                               class="w-full rounded-lg border border-neutral-300 py-1.5 pl-8 pr-7 text-xs text-neutral-800 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 shadow-2xs" />
+                               class="w-full rounded-lg border border-neutral-300 bg-white py-1.5 pl-8 pr-3 text-xs text-neutral-800 shadow-2xs placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200" />
                         <svg class="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-neutral-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
-                        <button x-show="historySearch"
-                                @click="historySearch = ''; $nextTick(() => applyHistoryFilters())"
-                                type="button"
-                                class="absolute right-2 top-2 text-neutral-400 hover:text-neutral-600">
-                            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                        </button>
                     </div>
 
                     {{-- Movement Type Filter --}}
                     <div class="w-full sm:w-40">
-                        <select x-model="historyType"
-                                x-ref="historyType"
-                                @change="$nextTick(() => applyHistoryFilters())"
-                                class="w-full rounded-lg border border-neutral-300 py-1.5 px-2 text-xs text-neutral-700 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 shadow-2xs">
+                        <label for="movement-history-type" class="sr-only">Filter by movement type</label>
+                        <select id="movement-history-type"
+                                name="movement_type"
+                                class="w-full rounded-lg border border-neutral-300 bg-white py-1.5 pl-2.5 pr-8 text-xs text-neutral-700 shadow-2xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
                             <option value="">All Movement Types</option>
                             @foreach (\App\Enums\MovementType::cases() as $type)
-                                <option value="{{ $type->value }}">{{ $type->label() }}</option>
+                                <option value="{{ $type->value }}" @selected(request('movement_type') === $type->value)>{{ $type->label() }}</option>
                             @endforeach
                         </select>
                     </div>
 
                     {{-- Location Filter --}}
                     <div class="w-full sm:w-36">
-                        <select x-model="historyLocation"
-                                x-ref="historyLocation"
-                                @change="$nextTick(() => applyHistoryFilters())"
-                                class="w-full rounded-lg border border-neutral-300 py-1.5 px-2 text-xs text-neutral-700 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 shadow-2xs">
+                        <label for="movement-history-location" class="sr-only">Filter by location</label>
+                        <select id="movement-history-location"
+                                name="location_id"
+                                class="w-full rounded-lg border border-neutral-300 bg-white py-1.5 pl-2.5 pr-8 text-xs text-neutral-700 shadow-2xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
                             <option value="">All Locations</option>
                             @foreach ($locations as $loc)
-                                <option value="{{ $loc->name }}">{{ $loc->name }}</option>
+                                <option value="{{ $loc->id }}" @selected((string) request('location_id') === (string) $loc->id)>{{ $loc->name }}</option>
                             @endforeach
                         </select>
                     </div>
-                </div>
+
+                    <button type="submit" class="inline-flex min-h-8 items-center justify-center rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">
+                        Apply
+                    </button>
+
+                    @if ($historyFiltered)
+                        <a href="{{ route('inventory.stock-movements') }}#movement-history" class="inline-flex min-h-8 items-center justify-center rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700">
+                            Clear
+                        </a>
+                    @endif
+                </form>
             </x-slot:actions>
 
             @if ($movements->isEmpty())
@@ -913,12 +894,12 @@
                     <svg class="mx-auto h-8 w-8 text-neutral-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                     </svg>
-                    <p class="text-sm font-semibold text-neutral-800">No movements yet</p>
-                    <p class="text-xs text-neutral-400 mt-0.5">Recorded stock in, stock out and transfers will appear here.</p>
+                    <p class="text-sm font-semibold text-neutral-800 dark:text-neutral-200">{{ $historyFiltered ? 'No matching movements' : 'No movements yet' }}</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{{ $historyFiltered ? 'Try changing or clearing the active filters.' : 'Recorded stock in, stock out and transfers will appear here.' }}</p>
                 </div>
             @else
-                {{-- Desktop & Tablet View (Proportional Columns with Sticky Header & Viewport-Fitting Scroll) --}}
-                <div class="hidden md:block w-full overflow-y-auto max-h-[calc(100vh-23.5rem)] min-h-[220px] divide-y divide-neutral-200">
+                {{-- Desktop & Tablet View --}}
+                <div class="hidden w-full md:block">
                     <table class="w-full table-fixed divide-y divide-neutral-200 text-xs">
                         <thead class="sticky top-0 z-10 bg-neutral-50 text-neutral-600 font-semibold border-b border-neutral-200 shadow-2xs">
                             <tr>
@@ -938,14 +919,7 @@
                                         $destinationName = $movement->reference->name ?? class_basename($movement->reference);
                                     }
                                 @endphp
-                                <tr data-history-row
-                                    data-history-type="{{ $movement->movement_type->value }}"
-                                    data-history-from="{{ $movement->fromLocation?->name ?? '' }}"
-                                    data-history-to="{{ $destinationName ?? '' }}"
-                                    data-history-item="{{ ($movement->item?->name ?? '').' '.($movement->item?->sku ?? '') }}"
-                                    data-history-remarks="{{ $movement->remarks ?? '' }}"
-                                    data-history-user="{{ $movement->user?->name ?? '' }}"
-                                    class="hover:bg-neutral-50/70 transition-colors">
+                                <tr class="hover:bg-neutral-50/70 transition-colors dark:hover:bg-neutral-800/50">
                                     {{-- Item & Movement Type --}}
                                     <td class="px-4 py-2.5 align-top">
                                         <div class="min-w-0">
@@ -1027,8 +1001,8 @@
                     </table>
                 </div>
 
-                {{-- Mobile Feed View (Fluid Cards with Viewport-Fitting Scroll) --}}
-                <div class="block md:hidden overflow-y-auto max-h-[calc(100vh-25rem)] min-h-[220px] divide-y divide-neutral-100">
+                {{-- Mobile Feed View --}}
+                <div class="block divide-y divide-neutral-100 dark:divide-neutral-800 md:hidden">
                     @foreach ($movements as $movement)
                         @php
                             $destinationName = null;
@@ -1038,14 +1012,7 @@
                                 $destinationName = $movement->reference->name ?? class_basename($movement->reference);
                             }
                         @endphp
-                        <div data-history-row
-                             data-history-type="{{ $movement->movement_type->value }}"
-                             data-history-from="{{ $movement->fromLocation?->name ?? '' }}"
-                             data-history-to="{{ $destinationName ?? '' }}"
-                             data-history-item="{{ ($movement->item?->name ?? '').' '.($movement->item?->sku ?? '') }}"
-                             data-history-remarks="{{ $movement->remarks ?? '' }}"
-                             data-history-user="{{ $movement->user?->name ?? '' }}"
-                             class="p-4 space-y-2 hover:bg-neutral-50/70 transition-colors">
+                        <div class="p-4 space-y-2 hover:bg-neutral-50/70 transition-colors dark:hover:bg-neutral-800/50">
                             <div class="flex items-start justify-between gap-2">
                                 <div class="min-w-0">
                                     <h4 class="font-semibold text-neutral-900 text-xs truncate" title="{{ $movement->item?->name }}">
@@ -1096,6 +1063,12 @@
                         </div>
                     @endforeach
                 </div>
+
+                @if ($movements->hasPages())
+                    <div class="border-t border-neutral-200 px-4 py-3 dark:border-neutral-800 sm:px-5">
+                        {{ $movements->fragment('movement-history')->onEachSide(1)->links() }}
+                    </div>
+                @endif
             @endif
         </x-ui.card>
 

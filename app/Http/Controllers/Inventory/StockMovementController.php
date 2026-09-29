@@ -16,6 +16,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -41,15 +42,47 @@ class StockMovementController extends Controller implements HasMiddleware
 
     public function __construct(private readonly InventoryAutomationService $automationService) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'movement_type' => ['nullable', Rule::enum(MovementType::class)],
+            'location_id' => ['nullable', 'integer', 'exists:storage_locations,id'],
+        ]);
+
         // A transfer writes its source and destination rows inside one
         // transaction, so moved_at ties are common; id breaks the tie and keeps
         // the newest movement at the top.
         $movements = StockMovement::with(['item', 'batch', 'fromLocation', 'toLocation', 'user', 'reference'])
+            ->when($filters['search'] ?? null, function ($query, string $search) {
+                $query->where(function ($query) use ($search) {
+                    $like = '%'.trim($search).'%';
+
+                    $query->where('remarks', 'like', $like)
+                        ->orWhereHas('item', fn ($query) => $query
+                            ->where('name', 'like', $like)
+                            ->orWhere('sku', 'like', $like))
+                        ->orWhereHas('fromLocation', fn ($query) => $query->where('name', 'like', $like))
+                        ->orWhereHas('toLocation', fn ($query) => $query->where('name', 'like', $like))
+                        ->orWhereHas('user', fn ($query) => $query->where('name', 'like', $like))
+                        ->orWhereHasMorph('reference', [StorageLocation::class, Supplier::class], fn ($query) => $query->where('name', 'like', $like));
+                });
+            })
+            ->when($filters['movement_type'] ?? null, fn ($query, string $type) => $query->where('movement_type', $type))
+            ->when($filters['location_id'] ?? null, function ($query, int $locationId) {
+                $query->where(function ($query) use ($locationId) {
+                    $query->where('from_location_id', $locationId)
+                        ->orWhere('to_location_id', $locationId)
+                        ->orWhere(function ($query) use ($locationId) {
+                            $query->where('reference_type', StorageLocation::class)
+                                ->where('reference_id', $locationId);
+                        });
+                });
+            })
             ->latest('moved_at')
             ->latest('id')
-            ->get();
+            ->paginate(20)
+            ->withQueryString();
 
         $items = InventoryItem::orderBy('name')->get();
         $locations = StorageLocation::orderBy('name')->get();
@@ -78,7 +111,7 @@ class StockMovementController extends Controller implements HasMiddleware
 
         $transferStockLevels = ItemStockLevel::query()
             ->where('quantity', '>', 0)
-            ->select('item_id', 'storage_location_id', \Illuminate\Support\Facades\DB::raw('SUM(quantity) as available_qty'))
+            ->select('item_id', 'storage_location_id', DB::raw('SUM(quantity) as available_qty'))
             ->groupBy('item_id', 'storage_location_id')
             ->get();
 
@@ -93,6 +126,7 @@ class StockMovementController extends Controller implements HasMiddleware
             foreach ($levels as $lvl) {
                 $locStocks[$lvl->storage_location_id] = (int) $lvl->quantity;
             }
+
             return [$item->id => [
                 'id' => $item->id,
                 'name' => $item->name,

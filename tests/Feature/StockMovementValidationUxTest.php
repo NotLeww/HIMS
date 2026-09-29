@@ -7,7 +7,6 @@ use App\Models\InventoryItem;
 use App\Models\ItemStockLevel;
 use App\Models\StockMovement;
 use App\Models\StorageLocation;
-use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -243,7 +242,7 @@ class StockMovementValidationUxTest extends TestCase
         $response->assertSee('max="999999"', false);
     }
 
-    public function test_movement_history_renders_filter_toolbar_and_scrollable_container(): void
+    public function test_movement_history_renders_filter_toolbar_and_table(): void
     {
         [$item, $location] = $this->createStockedItem(15, 'vial');
         $user = User::factory()->warehouseStaff()->create();
@@ -270,28 +269,61 @@ class StockMovementValidationUxTest extends TestCase
         $response->assertSee('Initial delivery intake');
     }
 
-    public function test_movement_history_rows_remain_visible_until_a_filter_is_active(): void
+    public function test_movement_history_filters_and_paginates_on_the_server(): void
     {
         [$item, $location] = $this->createStockedItem(15, 'vial');
+        [$matchingItem, $matchingLocation] = $this->createStockedItem(15, 'box');
         $user = User::factory()->warehouseStaff()->create();
 
-        StockMovement::create([
-            'item_id' => $item->id,
-            'movement_type' => MovementType::StockIn,
-            'quantity' => 15,
-            'to_location_id' => $location->id,
-            'user_id' => $user->id,
-            'moved_at' => now(),
-            'remarks' => "Nurse's intake\nverified",
-        ]);
+        foreach (range(1, 22) as $index) {
+            StockMovement::create([
+                'item_id' => $item->id,
+                'movement_type' => MovementType::StockIn,
+                'quantity' => 1,
+                'to_location_id' => $location->id,
+                'user_id' => $user->id,
+                'moved_at' => now()->subMinutes($index),
+                'remarks' => "Routine intake {$index}",
+            ]);
+        }
+
+        foreach (range(1, 21) as $index) {
+            StockMovement::create([
+                'item_id' => $matchingItem->id,
+                'movement_type' => MovementType::StockOut,
+                'quantity' => 2,
+                'from_location_id' => $matchingLocation->id,
+                'user_id' => $user->id,
+                'moved_at' => now()->addMinutes($index),
+                'remarks' => "Emergency theatre release {$index}",
+            ]);
+        }
 
         $response = $this->actingAs($user)->get(route('inventory.stock-movements'));
 
         $response->assertOk();
-        $response->assertSee('this.$nextTick(() => this.applyHistoryFilters())', false);
-        $response->assertSee('data-history-row', false);
-        $response->assertSee('data-history-type="stock_in"', false);
-        $response->assertSee('data-history-remarks="Nurse&#039;s intake', false);
-        $response->assertDontSee('x-show="!isFiltered || movementMatches($el.dataset)"', false);
+        $this->assertSame(43, $response->viewData('movements')->total());
+        $this->assertSame(20, $response->viewData('movements')->count());
+        $this->assertSame(3, $response->viewData('movements')->lastPage());
+
+        $filtered = $this->actingAs($user)->get(route('inventory.stock-movements', [
+            'search' => 'Emergency theatre',
+            'movement_type' => MovementType::StockOut->value,
+            'location_id' => $matchingLocation->id,
+        ]));
+
+        $filtered->assertOk();
+        $filteredMovements = $filtered->viewData('movements');
+        $this->assertSame(21, $filteredMovements->total());
+        $this->assertSame(2, $filteredMovements->lastPage());
+        $filtered->assertSee('Emergency theatre release 21');
+        $filtered->assertDontSee('Routine intake 1');
+        $filtered->assertSee('value="stock_out" selected', false);
+        $filtered->assertSee('value="'.$matchingLocation->id.'" selected', false);
+
+        parse_str(parse_url($filteredMovements->url(2), PHP_URL_QUERY), $nextPageQuery);
+        $this->assertSame('Emergency theatre', $nextPageQuery['search']);
+        $this->assertSame(MovementType::StockOut->value, $nextPageQuery['movement_type']);
+        $this->assertSame((string) $matchingLocation->id, $nextPageQuery['location_id']);
     }
 }
