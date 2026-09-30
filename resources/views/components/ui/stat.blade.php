@@ -47,16 +47,18 @@
             .($href ? ' focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500' : ''),
     ]) }}
 >
-    <div class="flex items-center justify-between gap-2">
-        <p class="min-w-0 text-xs font-bold uppercase tracking-wider sm:text-sm {{ $tones[$tone]['label'] }}">{{ $label }}</p>
-        @if ($icon)
-            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 {{ $tones[$tone]['icon'] }}">
-                <x-ui.icon :name="$icon" class="h-5 w-5" />
-            </span>
-        @endif
-    </div>
+    <div>
+        <div class="flex items-center justify-between gap-2">
+            <p class="min-w-0 text-xs font-bold uppercase tracking-wider sm:text-sm {{ $tones[$tone]['label'] }}">{{ $label }}</p>
+            @if ($icon)
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 {{ $tones[$tone]['icon'] }}">
+                    <x-ui.icon :name="$icon" class="h-5 w-5" />
+                </span>
+            @endif
+        </div>
 
-    <p class="mt-3 text-3xl font-black tracking-tight tabular-nums sm:text-4xl lg:text-5xl {{ $tones[$tone]['value'] }}">{{ $value }}</p>
+        <p class="mt-3 text-3xl font-black tracking-tight tabular-nums sm:text-4xl lg:text-5xl {{ $tones[$tone]['value'] }}">{{ $value }}</p>
+    </div>
 
     @if ($hint)
         <div class="mt-3.5 flex items-center border-t border-neutral-100 pt-2.5 dark:border-neutral-800/80">
