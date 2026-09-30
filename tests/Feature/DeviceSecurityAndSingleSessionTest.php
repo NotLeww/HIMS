@@ -204,6 +204,35 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
         $this->assertSame(LoginApprovalRequest::STATUS_CANCELLED, $approval->fresh()->status);
     }
 
+    public function test_status_polling_does_not_throttle_cancelling_the_request(): void
+    {
+        $user = User::factory()->create();
+        $challengeToken = Str::random(64);
+        $approval = LoginApprovalRequest::create([
+            'user_id' => $user->id,
+            'guard' => 'web',
+            'challenge_token_hash' => hash('sha256', $challengeToken),
+            'status' => LoginApprovalRequest::STATUS_PENDING,
+            'requested_at' => now(),
+            'expires_at' => now()->addMinutes(5),
+        ]);
+        $session = [
+            DeviceSecurityService::approvalChallengeSessionKey($approval) => hash('sha256', $challengeToken),
+        ];
+
+        for ($poll = 0; $poll < 10; $poll++) {
+            $this->withSession($session)
+                ->getJson(route('auth.device-approval.status', $approval))
+                ->assertOk();
+        }
+
+        $this->withSession($session)
+            ->post(route('auth.device-approval.cancel', $approval))
+            ->assertRedirect(route('login'));
+
+        $this->assertSame(LoginApprovalRequest::STATUS_CANCELLED, $approval->fresh()->status);
+    }
+
     /**
      * 3 & 4 & 5 & 6. Device A approves Device B -> Device B becomes authenticated -> Device A immediately loses access across tabs.
      */

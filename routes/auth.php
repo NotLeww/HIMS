@@ -27,11 +27,11 @@ Route::get('session/expired', [AuthenticatedSessionController::class, 'expired']
 // can approve, trust, or deny a pending sign-in request.
 Route::get('device-approval/{approvalRequest}/email/{decision}', [DeviceApprovalController::class, 'reviewEmailDecision'])
     ->where('decision', 'approve-once|approve-trust|deny')
-    ->middleware(['signed', 'throttle:20,1'])
+    ->middleware(['signed', 'throttle:20,1,device-approval-email-review:'])
     ->name('auth.device-approval.email.review');
 Route::post('device-approval/{approvalRequest}/email/{decision}', [DeviceApprovalController::class, 'confirmEmailDecision'])
     ->where('decision', 'approve-once|approve-trust|deny')
-    ->middleware(['signed', 'throttle:10,1'])
+    ->middleware(['signed', 'throttle:10,1,device-approval-email-confirm:'])
     ->name('auth.device-approval.email.confirm');
 
 Route::middleware(['guest:web', 'guest:admin', 'guest:super_admin'])->group(function () {
@@ -109,32 +109,32 @@ Route::middleware(['guest:web', 'guest:admin', 'guest:super_admin'])->group(func
     Route::get('device-approval/{approvalRequest}/waiting', [DeviceApprovalController::class, 'waiting'])
         ->name('auth.device-approval.waiting');
     Route::get('device-approval/{approvalRequest}/status', [DeviceApprovalController::class, 'status'])
-        ->middleware('throttle:30,1')
+        ->middleware('throttle:30,1,device-approval-status:')
         ->name('auth.device-approval.status');
     Route::post('device-approval/{approvalRequest}/claim', [DeviceApprovalController::class, 'claim'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,device-approval-claim:')
         ->name('auth.device-approval.claim');
     Route::get('device-approval/{approvalRequest}/cancel', [DeviceApprovalController::class, 'confirmCancellation'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,device-approval-cancel-review:')
         ->name('auth.device-approval.cancel-confirmation');
     Route::post('device-approval/{approvalRequest}/cancel', [DeviceApprovalController::class, 'cancel'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,device-approval-cancel:')
         ->name('auth.device-approval.cancel');
     Route::post('device-approval/{approvalRequest}/resend-email', [DeviceApprovalController::class, 'resendEmailOtp'])
-        ->middleware('throttle:3,1')
+        ->middleware('throttle:3,1,device-approval-resend:')
         ->name('auth.device-approval.resend-email');
 });
 
 Route::middleware('auth:web,admin,super_admin')->group(function () {
     // In-app device approval actions by authenticated Device A
     Route::get('device-approvals/pending', [DeviceApprovalController::class, 'checkPending'])
-        ->middleware('throttle:30,1')
+        ->middleware('throttle:30,1,device-approvals-pending:')
         ->name('auth.device-approvals.pending');
     Route::post('device-approvals/{approvalRequest}/approve', [DeviceApprovalController::class, 'approve'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,device-approvals-approve:')
         ->name('auth.device-approvals.approve');
     Route::post('device-approvals/{approvalRequest}/reject', [DeviceApprovalController::class, 'reject'])
-        ->middleware('throttle:10,1')
+        ->middleware('throttle:10,1,device-approvals-reject:')
         ->name('auth.device-approvals.reject');
 
     // Meaningful browser interaction is synchronized here. The global
