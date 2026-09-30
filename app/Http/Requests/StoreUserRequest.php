@@ -27,9 +27,9 @@ class StoreUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'surname' => ['required', 'string', 'max:80'],
-            'first_name' => ['required', 'string', 'max:80'],
-            'middle_name' => ['nullable', 'string', 'max:80'],
+            'surname' => ['required', 'string', 'max:80', 'regex:/^\p{L}+(?: \p{L}+)*$/u'],
+            'first_name' => ['required', 'string', 'max:80', 'regex:/^\p{L}+(?: \p{L}+)*$/u'],
+            'middle_name' => ['nullable', 'string', 'max:80', 'regex:/^\p{L}+(?: \p{L}+)*$/u'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'confirmed', new PasswordStandard],
             'role' => [
@@ -69,6 +69,9 @@ class StoreUserRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'surname.regex' => 'Surname may only contain letters and single spaces between words.',
+            'first_name.regex' => 'First name may only contain letters and single spaces between words.',
+            'middle_name.regex' => 'Middle name may only contain letters and single spaces between words.',
             'role.required' => 'Pick the role this account should have.',
             'role.in' => 'You are not authorized to assign that role.',
             'department.required' => 'Pick the department this employee belongs to.',

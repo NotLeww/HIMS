@@ -371,6 +371,54 @@ class UserManagementTest extends TestCase
         $this->assertSame('09171234567', $created->phone);
     }
 
+    public function test_name_parts_reject_numbers_and_special_characters_when_creating_or_updating_an_account(): void
+    {
+        $admin = $this->admin();
+        $invalidNames = [
+            'surname' => 'Reyes2',
+            'first_name' => 'Ana!',
+            'middle_name' => 'Marie-Jane',
+        ];
+
+        foreach ($invalidNames as $field => $value) {
+            $this->actingAs($admin)->post('/admin/users', array_merge([
+                'surname' => 'Reyes',
+                'first_name' => 'Ana',
+                'middle_name' => 'Marie',
+                'email' => "invalid-{$field}@djnrmhs.test",
+                'password' => 'Password123!',
+                'password_confirmation' => 'Password123!',
+                'role' => UserRole::Viewer->value,
+                'department' => 'Central Supply',
+                'phone' => '09171234567',
+            ], [$field => $value]))->assertSessionHasErrors($field);
+        }
+
+        $staff = User::factory()->warehouseStaff()->create([
+            'surname' => 'Reyes',
+            'first_name' => 'Ana',
+            'middle_name' => 'Marie',
+        ]);
+
+        foreach ($invalidNames as $field => $value) {
+            $this->actingAs($admin)->put("/admin/users/{$staff->id}", array_merge([
+                'surname' => 'Reyes',
+                'first_name' => 'Ana',
+                'middle_name' => 'Marie',
+                'email' => $staff->email,
+                'role' => $staff->role->value,
+                'status' => $staff->status->value,
+                'department' => $staff->department,
+                'phone' => $staff->phone,
+            ], [$field => $value]))->assertSessionHasErrors($field);
+        }
+
+        $staff->refresh();
+        $this->assertSame('Reyes', $staff->surname);
+        $this->assertSame('Ana', $staff->first_name);
+        $this->assertSame('Marie', $staff->middle_name);
+    }
+
     public function test_a_missing_phone_number_prevents_user_creation(): void
     {
         $admin = $this->admin();
@@ -873,7 +921,9 @@ class UserManagementTest extends TestCase
         $admin = $this->admin();
         $staff = User::factory()->create();
 
-        $this->actingAs($admin)->get('/admin/users/create')
+        $createResponse = $this->actingAs($admin)->get('/admin/users/create');
+
+        $createResponse
             ->assertStatus(200)
             ->assertSee('name="surname"', false)
             ->assertSee('name="first_name"', false)
@@ -889,14 +939,25 @@ class UserManagementTest extends TestCase
             ->assertSee('pattern="09[0-9]{9}"', false)
             ->assertSee('placeholder="09XXXXXXXXX"', false)
             ->assertDontSee('name="name"', false);
+        $createContent = $createResponse->getContent();
+        $createNameFieldCount = collect(['surname', 'first_name', 'middle_name'])
+            ->sum(fn (string $field): int => substr_count($createContent, 'name="'.$field.'"'));
+        $this->assertSame($createNameFieldCount, substr_count($createContent, 'data-name-part-input='));
+        $createResponse->assertSee('x-on:input="sanitizeNamePart($event)"', false);
 
-        $this->actingAs($admin)->get("/admin/users/{$staff->id}/edit")
+        $editResponse = $this->actingAs($admin)->get("/admin/users/{$staff->id}/edit");
+
+        $editResponse
             ->assertStatus(200)
             ->assertSee('value="'.e($staff->surname).'"', false)
             ->assertSee('value="'.e($staff->first_name).'"', false)
             ->assertSee('value="'.e($staff->employee_id).'"', false)
             ->assertSee('value="'.e($staff->department).'" selected', false)
             ->assertSee('value="'.$staff->role->value.'"', false);
+        $editContent = $editResponse->getContent();
+        $editNameFieldCount = collect(['surname', 'first_name', 'middle_name'])
+            ->sum(fn (string $field): int => substr_count($editContent, 'name="'.$field.'"'));
+        $this->assertSame($editNameFieldCount, substr_count($editContent, 'data-name-part-input='));
     }
 
     public function test_add_user_uses_a_modal_and_reopens_after_validation_failure(): void

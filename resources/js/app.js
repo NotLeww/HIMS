@@ -1081,6 +1081,7 @@ const startSuperAdminPasswordConfirmation = () => {
         }
 
         isVerifying = true;
+        input.disabled = true;
         cancelButton.disabled = true;
         confirmButton.disabled = true;
         confirmButton.setAttribute('aria-busy', 'true');
@@ -1112,6 +1113,7 @@ const startSuperAdminPasswordConfirmation = () => {
                 errorEl.textContent = message;
                 errorEl.classList.remove('hidden');
                 isVerifying = false;
+                input.disabled = false;
                 cancelButton.disabled = false;
                 confirmButton.disabled = false;
                 confirmButton.removeAttribute('aria-busy');
@@ -1146,13 +1148,13 @@ const startSuperAdminPasswordConfirmation = () => {
             }
             passInput.value = password;
 
-            dialog.close();
-            pendingAction = null;
-            resetModal();
+            resetButtonLoading(confirmButton);
+            setButtonLoading(confirmButton, loadingLabelFor(submitter, targetForm));
 
-            window.queueMicrotask(() => {
+            window.requestAnimationFrame(() => {
                 if (!targetForm.isConnected) {
                     superAdminPasswordVerifiedForms.delete(targetForm);
+                    closeModal({ restoreFocus: false });
                     return;
                 }
                 try {
@@ -1162,6 +1164,7 @@ const startSuperAdminPasswordConfirmation = () => {
                         targetForm.requestSubmit();
                     } catch {
                         superAdminPasswordVerifiedForms.delete(targetForm);
+                        closeModal({ restoreFocus: false });
                     }
                 }
             });
@@ -1169,6 +1172,7 @@ const startSuperAdminPasswordConfirmation = () => {
             errorEl.textContent = 'Unable to verify password. Please check your connection and try again.';
             errorEl.classList.remove('hidden');
             isVerifying = false;
+            input.disabled = false;
             cancelButton.disabled = false;
             confirmButton.disabled = false;
             confirmButton.removeAttribute('aria-busy');
@@ -1178,14 +1182,17 @@ const startSuperAdminPasswordConfirmation = () => {
     };
 
     form.addEventListener('submit', handlePasswordSubmit);
-    cancelButton.addEventListener('click', () => closeModal());
+    cancelButton.addEventListener('click', () => {
+        if (!isVerifying) closeModal();
+    });
     dialog.addEventListener('cancel', (e) => {
         e.preventDefault();
-        closeModal();
+        if (!isVerifying) closeModal();
     });
     dialog.addEventListener('click', (e) => {
-        if (e.target === dialog) closeModal();
+        if (e.target === dialog && !isVerifying) closeModal();
     });
+    window.addEventListener('pageshow', () => closeModal({ restoreFocus: false }));
 
     // Capture-phase listener for forms that directly require password confirmation (Create & Edit)
     document.addEventListener('submit', (event) => {

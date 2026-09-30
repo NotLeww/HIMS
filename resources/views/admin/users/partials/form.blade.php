@@ -49,6 +49,12 @@
     password: '',
     passwordConfirmation: '',
     permissionSearch: '',
+    sanitizeNamePart(event) {
+        event.target.value = event.target.value
+            .replace(/[^\p{L} ]/gu, '')
+            .replace(/ {2,}/g, ' ')
+            .replace(/^ +/, '');
+    },
     get detail() { return this.roles[this.role] ?? null },
     visibleGroups() {
         if (!this.detail?.groups) return [];
@@ -71,7 +77,12 @@
                 :value="$nameComponents['surname']"
                 required
                 autocomplete="off"
-                placeholder="e.g. Dela Cruz" />
+                maxlength="80"
+                data-name-part-input
+                x-on:input="sanitizeNamePart($event)"
+                x-on:blur="$el.value = $el.value.trim()"
+                placeholder="e.g. Dela Cruz"
+                hint="Letters and spaces only." />
 
             <x-ui.field
                 name="first_name"
@@ -79,15 +90,24 @@
                 :value="$nameComponents['first_name']"
                 required
                 autocomplete="off"
-                placeholder="e.g. Juan" />
+                maxlength="80"
+                data-name-part-input
+                x-on:input="sanitizeNamePart($event)"
+                x-on:blur="$el.value = $el.value.trim()"
+                placeholder="e.g. Juan"
+                hint="Letters and spaces only." />
 
             <x-ui.field
                 name="middle_name"
                 label="Middle Name"
                 :value="$nameComponents['middle_name']"
                 autocomplete="off"
+                maxlength="80"
+                data-name-part-input
+                x-on:input="sanitizeNamePart($event)"
+                x-on:blur="$el.value = $el.value.trim()"
                 placeholder="e.g. Santos"
-                hint="Optional." />
+                hint="Optional. Letters and spaces only." />
         </div>
 
         <x-ui.field

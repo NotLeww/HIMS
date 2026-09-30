@@ -37,9 +37,9 @@ class UpdateUserRequest extends FormRequest
         $departments = array_keys(UserDepartment::optionsIncluding($this->route('user')?->department));
 
         return [
-            'surname' => ['required', 'string', 'max:80'],
-            'first_name' => ['required', 'string', 'max:80'],
-            'middle_name' => ['nullable', 'string', 'max:80'],
+            'surname' => ['required', 'string', 'max:80', 'regex:/^\p{L}+(?: \p{L}+)*$/u'],
+            'first_name' => ['required', 'string', 'max:80', 'regex:/^\p{L}+(?: \p{L}+)*$/u'],
+            'middle_name' => ['nullable', 'string', 'max:80', 'regex:/^\p{L}+(?: \p{L}+)*$/u'],
             'email' => [
                 'required', 'string', 'lowercase', 'email', 'max:255',
                 Rule::unique('users', 'email')->ignore($userId),
@@ -83,6 +83,9 @@ class UpdateUserRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'surname.regex' => 'Surname may only contain letters and single spaces between words.',
+            'first_name.regex' => 'First name may only contain letters and single spaces between words.',
+            'middle_name.regex' => 'Middle name may only contain letters and single spaces between words.',
             'role.required' => 'Pick the role this account should have.',
             'role.in' => 'You are not authorized to assign that role.',
             'department.required' => 'Pick the department this employee belongs to.',

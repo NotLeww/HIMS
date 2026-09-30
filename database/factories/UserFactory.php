@@ -30,8 +30,11 @@ class UserFactory extends Factory
      */
     public function definition(): array
     {
+        $firstName = preg_replace('/[^\p{L}]/u', '', fake()->firstName()) ?: 'Test';
+        $lastName = preg_replace('/[^\p{L}]/u', '', fake()->lastName()) ?: 'User';
+
         return [
-            'name' => fake()->name(),
+            'name' => "{$firstName} {$lastName}",
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
