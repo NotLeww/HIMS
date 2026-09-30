@@ -73,7 +73,11 @@ class SessionManagementTest extends TestCase
 
         $this->assertFileExists($soundPath);
         $this->assertGreaterThan(0, filesize($soundPath));
-        $this->assertSame('ID3', file_get_contents($soundPath, false, null, 0, 3));
+        $header = file_get_contents($soundPath, false, null, 0, 3);
+        $this->assertTrue(
+            str_starts_with($header, 'ID3')
+            || (ord($header[0]) === 0xFF && (ord($header[1]) & 0xE0) === 0xE0),
+        );
     }
 
     public function test_login_starts_the_inactivity_clock(): void

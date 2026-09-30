@@ -79,7 +79,12 @@ class ScreenReaderAccessibilityTest extends TestCase
         $this->assertIsString($toasts);
         $this->assertStringContainsString('aria-live="polite"', $toasts);
         $this->assertStringContainsString("['error', 'danger'].includes(toast.type) ? 'alert' : 'status'", $toasts);
+        $this->assertStringContainsString('data-important-notification-audio', $toasts);
         $this->assertSame(1, substr_count($toasts, 'aria-live='));
+
+        $app = file_get_contents(resource_path('js/app.js'));
+        $this->assertIsString($app);
+        $this->assertStringContainsString("['warning', 'error', 'danger'].includes(type)", $app);
 
         $this->assertIsString($devicePrompt);
         $this->assertStringContainsString('aria-labelledby="device-approval-title"', $devicePrompt);

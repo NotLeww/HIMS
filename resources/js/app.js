@@ -757,7 +757,7 @@ const startDecisionConfirmations = () => {
 
     const decisionFor = (form, submitter = null) => {
         if (form.matches('[data-confirm-sms-mfa]')) {
-            const enabled = form.querySelector('input[name="sms_mfa_enabled"][type="checkbox"]')?.checked ?? false;
+            const enabled = form.querySelector('input[name="sms_mfa_enabled"]')?.value === '1';
             const originallyEnabled = form.dataset.originalSmsMfa === '1';
 
             if (enabled === originallyEnabled) return null;
@@ -773,7 +773,7 @@ const startDecisionConfirmations = () => {
         }
 
         if (form.matches('[data-confirm-mfa]')) {
-            const enabled = form.querySelector('input[name="mfa_enabled"][type="checkbox"]')?.checked ?? false;
+            const enabled = form.querySelector('input[name="mfa_enabled"]')?.value === '1';
             const originallyEnabled = form.dataset.originalMfa === '1';
 
             if (enabled === originallyEnabled) return null;
@@ -5012,8 +5012,26 @@ Alpine.data('himsToastNotifications', (initialToasts = []) => ({
             isPaused: false,
         };
 
+        this.playImportantSound(toast.type);
         this.startTimer(toast);
         this.toasts.push(toast);
+    },
+
+    playImportantSound(type) {
+        if (!['warning', 'error', 'danger'].includes(type)) return;
+
+        const audio = document.querySelector('[data-important-notification-audio]');
+        if (!(audio instanceof HTMLAudioElement)) return;
+
+        audio.pause();
+
+        try {
+            audio.currentTime = 0;
+            const playback = audio.play();
+            playback?.catch(() => {});
+        } catch {
+            // The visual notification remains available when autoplay is blocked.
+        }
     },
 
     startTimer(toast) {

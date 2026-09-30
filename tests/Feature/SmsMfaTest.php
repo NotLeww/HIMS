@@ -132,6 +132,8 @@ class SmsMfaTest extends TestCase
         $this->get(route('profile.edit'))
             ->assertOk()
             ->assertSeeInOrder(['SMS Authentication', 'aria-label="Configure SMS Authentication"', 'aria-checked="false"', 'Setup required'], false)
+            ->assertSee('name="sms_mfa_enabled" value="1"', false)
+            ->assertDontSee('type="checkbox" name="sms_mfa_enabled"', false)
             ->assertSee('A valid registered mobile number is required.');
 
         $this->patch(route('profile.sms-mfa.update'), [
@@ -159,6 +161,8 @@ class SmsMfaTest extends TestCase
         $this->get(route('profile.edit'))
             ->assertOk()
             ->assertSeeInOrder(['SMS Authentication', 'aria-label="Configure SMS Authentication"', 'aria-checked="true"'], false)
+            ->assertSee('name="sms_mfa_enabled" value="0"', false)
+            ->assertDontSee('type="checkbox" name="sms_mfa_enabled"', false)
             ->assertSee('data-original-sms-mfa="1"', false);
 
         $this->patch(route('profile.sms-mfa.update'), [

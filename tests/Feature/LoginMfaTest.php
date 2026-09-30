@@ -27,6 +27,8 @@ class LoginMfaTest extends TestCase
             ->get(route('profile.edit'))
             ->assertOk()
             ->assertSeeInOrder(['Email Multi-Factor Authentication', 'aria-label="Configure Email Multi-Factor Authentication"', 'aria-checked="false"'], false)
+            ->assertSee('name="mfa_enabled" value="1"', false)
+            ->assertDontSee('type="checkbox" name="mfa_enabled"', false)
             ->assertSee('data-original-mfa="0"', false);
 
         $this->patch(route('profile.mfa.update'), [
@@ -41,6 +43,8 @@ class LoginMfaTest extends TestCase
             ->assertOk()
             ->assertSee('Multi-Factor Authentication')
             ->assertSeeInOrder(['Email Multi-Factor Authentication', 'aria-label="Configure Email Multi-Factor Authentication"', 'aria-checked="true"'], false)
+            ->assertSee('name="mfa_enabled" value="0"', false)
+            ->assertDontSee('type="checkbox" name="mfa_enabled"', false)
             ->assertSee('data-original-mfa="1"', false);
 
         $this->patch(route('profile.mfa.update'), [

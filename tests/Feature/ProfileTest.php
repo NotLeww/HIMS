@@ -27,6 +27,7 @@ class ProfileTest extends TestCase
             ->assertOk()
             ->assertSee('Session Timeout Reminder')
             ->assertSee('name="session_timeout_reminder_enabled"', false)
+            ->assertDontSee('type="checkbox" name="session_timeout_reminder_enabled"', false)
             ->assertSee('Last Name')
             ->assertSee('First Name')
             ->assertSee('Middle Name')
@@ -112,6 +113,7 @@ class ProfileTest extends TestCase
             ->assertOk()
             ->assertSee('Session timeout reminders are now OFF. Automatic logout remains active.')
             ->assertSeeInOrder(['Session Timeout Reminder', 'aria-label="Configure Session Timeout Reminder"', 'aria-checked="false"'], false)
+            ->assertSee('name="session_timeout_reminder_enabled" value="1"', false)
             ->assertSee('data-session-warning-enabled="false"', false)
             ->assertSee('preload="none"', false);
 
@@ -125,7 +127,8 @@ class ProfileTest extends TestCase
 
         $this->get(route('profile.edit'))
             ->assertOk()
-            ->assertSeeInOrder(['Session Timeout Reminder', 'aria-label="Configure Session Timeout Reminder"', 'aria-checked="true"'], false);
+            ->assertSeeInOrder(['Session Timeout Reminder', 'aria-label="Configure Session Timeout Reminder"', 'aria-checked="true"'], false)
+            ->assertSee('name="session_timeout_reminder_enabled" value="0"', false);
     }
 
     public function test_invalid_session_timeout_reminder_value_is_rejected(): void

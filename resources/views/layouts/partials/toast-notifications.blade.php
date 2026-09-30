@@ -43,6 +43,13 @@
     aria-live="polite"
     aria-relevant="additions text"
 >
+    <audio
+        data-important-notification-audio
+        src="{{ asset('audio/session_sound.mp3') }}"
+        preload="auto"
+        hidden
+    ></audio>
+
     <template x-for="toast in toasts" :key="toast.id">
         <div
             x-show="toast.visible"
