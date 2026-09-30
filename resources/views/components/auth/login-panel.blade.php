@@ -27,16 +27,16 @@
     }
 @endphp
 
-<div class="{{ $isSuperAdmin ? 'space-y-6' : 'space-y-8' }}">
+<div class="{{ $isSuperAdmin ? 'space-y-7' : 'space-y-8' }}">
     @if ($isSuperAdmin)
         <header class="animate-fade-up [animation-delay:320ms]">
             <div>
                 @if ($badge)
-                    <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-warning-700 dark:text-warning-400">{{ $badge }}</p>
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">{{ $badge }}</p>
                 @endif
                 <h1 class="{{ $badge ? 'mt-2' : '' }} text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl dark:text-neutral-100">{{ $heading }}</h1>
-                <p class="mt-3 max-w-sm text-sm leading-6 text-neutral-600 dark:text-neutral-400">{{ $description }}</p>
             </div>
+            <p class="mt-3 max-w-sm text-sm leading-6 text-neutral-600 dark:text-neutral-400">{{ $description }}</p>
         </header>
     @elseif ($isAdmin)
         <header class="animate-fade-up [animation-delay:320ms]">
@@ -182,7 +182,7 @@
             </div>
             <x-input-error id="login-password-error" :messages="$errors->get('password')" class="mt-2 text-danger-600" />
 
-            <div class="mt-2">
+            <div class="mt-2 {{ $isSuperAdmin ? 'flex justify-end' : '' }}">
                 <a
                     class="rounded text-xs font-medium text-primary-700 transition-colors hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-100 dark:text-primary-400 dark:hover:text-primary-300 dark:focus-visible:ring-offset-neutral-900"
                     href="{{ $forgotPasswordUrl }}"

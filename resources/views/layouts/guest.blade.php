@@ -61,7 +61,7 @@
                 @endif
             </div>
 
-            <div class="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 sm:px-8 lg:px-10">
+            <div class="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 sm:px-8 lg:px-10">
                 <header class="flex animate-fade-in items-center justify-between border-b py-5 {{ $isThemeAwarePortal ? 'border-neutral-200 dark:border-neutral-800' : 'border-white/10' }}">
                     <a href="{{ url('/') }}" class="group flex items-center gap-3 rounded-lg focus-visible:ring-offset-2 {{ $isThemeAwarePortal ? 'focus-visible:ring-offset-neutral-50 dark:focus-visible:ring-offset-neutral-950' : 'focus-visible:ring-offset-neutral-950' }}">
                         <img src="{{ asset('img/hims-logo.png') }}" alt="" class="hims-keep-light h-10 w-10 rounded-lg bg-white object-cover ring-1 ring-inset ring-white/20 transition duration-300 group-hover:scale-105 group-hover:ring-primary-300/40" />
@@ -93,7 +93,7 @@
                     </div>
                 </header>
 
-                <main id="main-content" tabindex="-1" class="grid min-w-0 grid-cols-[minmax(0,1fr)] flex-1 items-center gap-10 py-8 lg:grid-cols-[minmax(0,1fr)_28rem] lg:gap-16 lg:py-12">
+                <main id="main-content" tabindex="-1" class="grid min-w-0 grid-cols-[minmax(0,1fr)] flex-1 items-center gap-10 py-8 lg:grid-cols-[minmax(0,1fr)_29rem] lg:gap-14 lg:py-12 xl:gap-20">
                     <section class="hidden max-w-xl lg:block">
                         @if ($isSuperAdminPortal)
                             <h1 class="animate-fade-up text-balance text-4xl font-semibold leading-tight tracking-tight text-neutral-900 [animation-delay:240ms] dark:text-neutral-100 xl:text-5xl">
@@ -103,15 +103,15 @@
                                 Control administrative boundaries, protect privileged access, and maintain accountability across HIMS.
                             </p>
                             <div class="mt-8 grid max-w-lg grid-cols-3 gap-3 animate-fade-up [animation-delay:460ms]">
-                                <div class="border-l-2 border-warning-600/60 pl-3 dark:border-warning-500/60">
+                                <div class="border-l-2 border-neutral-400/60 pl-3 dark:border-neutral-600">
                                     <p class="text-xs font-semibold text-neutral-800 dark:text-neutral-100">Access governance</p>
                                     <p class="mt-1 text-[11px] leading-4 text-neutral-500 dark:text-neutral-400">System roles</p>
                                 </div>
-                                <div class="border-l-2 border-warning-600/40 pl-3 dark:border-warning-500/40">
+                                <div class="border-l-2 border-neutral-400/45 pl-3 dark:border-neutral-600/80">
                                     <p class="text-xs font-semibold text-neutral-800 dark:text-neutral-100">Security control</p>
                                     <p class="mt-1 text-[11px] leading-4 text-neutral-500 dark:text-neutral-400">Protected settings</p>
                                 </div>
-                                <div class="border-l-2 border-warning-600/25 pl-3 dark:border-warning-500/25">
+                                <div class="border-l-2 border-neutral-400/30 pl-3 dark:border-neutral-600/60">
                                     <p class="text-xs font-semibold text-neutral-800 dark:text-neutral-100">Audit oversight</p>
                                     <p class="mt-1 text-[11px] leading-4 text-neutral-500 dark:text-neutral-400">Accountability</p>
                                 </div>
@@ -151,8 +151,8 @@
                         @endif
                     </section>
 
-                    <div class="mx-auto min-w-0 w-full max-w-[min(28rem,100%)] animate-fade-in-scale overflow-hidden rounded-xl border {{ $isThemeAwarePortal ? 'border-neutral-200 dark:border-neutral-800' : 'border-primary-200 dark:border-primary-300/30' }} {{ $isThemeAwarePortal ? 'bg-neutral-100/95 dark:bg-neutral-900' : 'bg-neutral-50/95 dark:bg-neutral-900' }} shadow-lg shadow-neutral-900/10 backdrop-blur-xs [animation-delay:200ms] dark:shadow-xl dark:shadow-black/35">
-                        <div class="p-6 sm:p-8">
+                    <div class="mx-auto min-w-0 w-full max-w-[min(29rem,100%)] animate-fade-in-scale overflow-hidden rounded-xl border {{ $isThemeAwarePortal ? 'border-neutral-200 bg-neutral-100/95 dark:border-neutral-700 dark:bg-neutral-900/95' : 'border-primary-200 bg-neutral-50/95 dark:border-primary-300/30 dark:bg-neutral-900' }} shadow-lg shadow-neutral-900/10 backdrop-blur-xs [animation-delay:200ms] dark:shadow-xl dark:shadow-black/35">
+                        <div class="{{ $isSuperAdminPortal ? 'p-7 sm:p-9' : 'p-6 sm:p-8' }}">
                             {{ $slot }}
                         </div>
                     </div>
