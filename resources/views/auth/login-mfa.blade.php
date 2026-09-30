@@ -27,6 +27,10 @@
 
             init() {
                 if (!this.isAuthenticator) return;
+                if (this.isExpired) {
+                    this.endSession();
+                    return;
+                }
                 this.tick();
                 this.timer = setInterval(() => this.tick(), 1000);
 
@@ -71,6 +75,7 @@
                         this.announce('Verification session has expired. Please sign in again.');
                         this.announcedExpired = true;
                     }
+                    this.endSession();
                 } else if (remaining <= this.warningThreshold) {
                     this.isWarning = true;
                     if (!this.announcedWarning) {
@@ -92,6 +97,10 @@
             get progressPercent() {
                 if (this.isExpired || this.totalDuration <= 0) return 0;
                 return Math.max(0, Math.min(100, Math.round((this.remainingSeconds / this.totalDuration) * 100)));
+            },
+
+            get progressColor() {
+                return `hsl(${Math.round(this.progressPercent * 1.2)} 72% 45%)`;
             },
 
             announce(message) {
@@ -174,10 +183,6 @@
         }"
     >
         <header>
-            <div class="mb-4 inline-flex items-center gap-2 rounded-full border border-primary-100 bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700 dark:border-primary-800 dark:bg-primary-950 dark:text-primary-300">
-                <x-ui.icon name="shield-check" class="h-3.5 w-3.5" />
-                {{ $panel->label() }} login security
-            </div>
             <h1 class="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
                 @if ($method === \App\Services\LoginMfaService::METHOD_AUTHENTICATOR_RECOVERY)
                     Reconfigure Authenticator App
@@ -209,23 +214,18 @@
             <div x-ref="liveRegion" class="sr-only" aria-live="polite" aria-atomic="true"></div>
         @endif
 
-        {{-- Authenticator Dedicated 2-Minute Session Countdown & Warning State --}}
+        {{-- Authenticator Dedicated 2-Minute Session Countdown --}}
         @if ($isAuthenticator)
-            {{-- 1. Normal State (> 30s) and Warning State (<= 30s) --}}
             <div
                 x-show="!isExpired"
                 x-cloak
-                class="overflow-hidden rounded-xl border transition-colors duration-300"
-                :class="isWarning
-                    ? 'border-warning-300 dark:border-warning-700/80 bg-warning-50/80 dark:bg-warning-950/40 shadow-xs'
-                    : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/90 shadow-2xs'"
+                class="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xs dark:border-neutral-800 dark:bg-neutral-900/90"
             >
                 {{-- Progress Bar indicator --}}
                 <div class="h-1.5 w-full bg-neutral-100 dark:bg-neutral-800/80">
                     <div
                         class="h-full transition-[width,background-color] duration-1000 ease-linear"
-                        :class="isWarning ? 'bg-warning-500 dark:bg-warning-400' : 'bg-primary-600 dark:bg-primary-500'"
-                        :style="'width: ' + progressPercent + '%'"
+                        :style="{ width: progressPercent + '%', backgroundColor: progressColor }"
                         role="progressbar"
                         :aria-valuenow="remainingSeconds"
                         aria-valuemin="0"
@@ -235,8 +235,7 @@
                 </div>
 
                 <div class="p-4 sm:p-4.5">
-                    {{-- Normal inline timer layout (> 30s) --}}
-                    <div x-show="!isWarning" class="flex items-center justify-between gap-3">
+                    <div class="flex items-center justify-between gap-3">
                         <div class="flex items-center gap-2.5 min-w-0">
                             <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300" aria-hidden="true">
                                 <x-ui.icon name="clock" class="h-4 w-4" />
@@ -256,34 +255,7 @@
                         </span>
                     </div>
 
-                    {{-- Warning prompt layout (<= 30s) --}}
-                    <div x-show="isWarning" class="space-y-3.5">
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="flex items-start gap-2.5 min-w-0">
-                                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning-100 dark:bg-warning-900/60 text-warning-700 dark:text-warning-300" aria-hidden="true">
-                                    <x-ui.icon name="exclamation-triangle" class="h-5 w-5" />
-                                </span>
-                                <div class="min-w-0">
-                                    <h2 class="text-sm font-semibold text-warning-900 dark:text-warning-200">
-                                        Verification session expiring soon
-                                    </h2>
-                                    <p class="mt-0.5 text-xs text-neutral-600 dark:text-neutral-400">
-                                        For your security, this MFA attempt will expire unless extended.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <span
-                                class="font-mono text-2xl sm:text-3xl font-bold tracking-tight tabular-nums text-warning-700 dark:text-warning-400"
-                                x-text="formattedTime"
-                                aria-hidden="true"
-                            >
-                                {{ sprintf('%02d:%02d', (int) floor($remainingSeconds / 60), $remainingSeconds % 60) }}
-                            </span>
-                        </div>
-
-                        {{-- Action buttons for session continuation --}}
-                        <div class="border-t border-warning-200/80 dark:border-warning-800/60 pt-3">
+                    <div x-show="isWarning" x-cloak class="mt-3 border-t border-neutral-200 pt-3 dark:border-neutral-700">
                             <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
                                 <button
                                     type="button"
@@ -307,44 +279,10 @@
                             </div>
 
                             <p x-show="extensionError" x-text="extensionError" class="mt-2 text-xs font-medium text-danger-600 dark:text-danger-400" role="alert"></p>
-                        </div>
                     </div>
                 </div>
             </div>
 
-            {{-- 2. Expired State (at 00:00 or server expired) --}}
-            <div
-                x-show="isExpired"
-                x-cloak
-                class="rounded-xl border border-warning-200 bg-warning-50 p-4 dark:border-neutral-800 dark:bg-neutral-900/90"
-            >
-                <div class="flex items-start gap-3">
-                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning-100 text-warning-700 dark:bg-warning-950/60 dark:text-warning-300" aria-hidden="true">
-                        <x-ui.icon name="exclamation-triangle" class="h-5 w-5" />
-                    </span>
-                    <div class="min-w-0 flex-1">
-                        <h2 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                            Verification session expired
-                        </h2>
-                        <p class="mt-1 text-xs leading-5 text-neutral-600 dark:text-neutral-400">
-                            Your 2-minute verification window has elapsed. For your security, this attempt has been ended and the code input is disabled.
-                        </p>
-                        <div class="mt-3.5">
-                            <a
-                                href="{{ $loginUrl }}"
-                                @click.prevent="endSession"
-                                :class="{ 'opacity-50 pointer-events-none': isEnding }"
-                                class="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3.5 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-neutral-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 dark:bg-primary-600 dark:hover:bg-primary-500"
-                            >
-                                <x-ui.icon name="arrow-left" class="h-3.5 w-3.5" x-show="!isEnding" />
-                                <x-ui.icon name="arrow-path" class="h-3.5 w-3.5 animate-spin" x-show="isEnding" x-cloak />
-                                <span x-show="!isEnding">Return to login and sign in again</span>
-                                <span x-show="isEnding" x-cloak>Returning to login...</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
         @else
             {{-- Non-Authenticator Expired Alert (Email / SMS) --}}
             @if ($expired)
@@ -455,12 +393,7 @@
         <div
             x-show="!isAuthenticator || !isExpired"
             @style(['display: none' => ($isAuthenticator && ($expired || $remainingSeconds <= 0))])
-            class="space-y-4"
         >
-            <p class="border-t border-neutral-200 pt-5 text-xs leading-5 text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
-                Never share this code. HIMS support will not ask you for it.
-            </p>
-
             <a class="inline-flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300" href="{{ route($panel->loginRoute()) }}">
                 <x-ui.icon name="chevron-left" class="h-4 w-4" />
                 Return to {{ $panel->label() }} login

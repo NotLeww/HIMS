@@ -125,6 +125,10 @@ class VerificationStateFlowTest extends TestCase
 
         // 1. Authenticator heading
         $response->assertSee('Authenticator Verification');
+        $response->assertSee('backgroundColor: progressColor', false);
+        $response->assertDontSee('login security');
+        $response->assertDontSee('Verification session expiring soon');
+        $response->assertDontSee('Never share this code');
 
         // 2. Verify mutually exclusive button states and disabled until complete
         $response->assertSee("x-bind:disabled=\"state !== 'ready'", false);

@@ -425,7 +425,7 @@ class AuthenticatorMfaTimeoutTest extends TestCase
     }
 
     #[DataProvider('panelProvider')]
-    public function test_expired_mfa_screen_shows_only_return_to_login_and_hides_redundant_panel_link(
+    public function test_expired_mfa_screen_automatically_ends_session_without_return_buttons(
         UserRole $role,
         string $guard,
         string $loginRoute,
@@ -452,13 +452,15 @@ class AuthenticatorMfaTimeoutTest extends TestCase
         $panelLabel = AuthenticationPanel::forGuard($guard)->label();
         $activePage->assertSee('Return to '.$panelLabel.' login');
 
-        // 2. Fast forward to EXPIRED:
+        // 2. Fast forward to EXPIRED: the client ends the session automatically.
         Carbon::setTestNow($startTime->copy()->addSeconds(125));
 
         $expiredPage = $this->get(route($mfaRoute));
         $expiredPage->assertOk();
-        $expiredPage->assertSee('Verification session expired');
-        $expiredPage->assertSee('Return to login and sign in again');
+        $expiredPage->assertSee('if (this.isExpired)', false);
+        $expiredPage->assertSee('this.endSession();', false);
+        $expiredPage->assertDontSee('Verification session expired');
+        $expiredPage->assertDontSee('Return to login and sign in again');
 
         // The separate return link is hidden via display: none
         $content = $expiredPage->getContent();
