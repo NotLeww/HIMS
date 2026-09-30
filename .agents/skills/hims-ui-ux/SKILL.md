@@ -1,19 +1,30 @@
 ---
 name: hims-ui-ux
-description: Applies HIMS-specific UI implementation rules for Blade, Tailwind CSS, Alpine.js, shared components, layouts, themes, permissions, and interaction contracts. Use when adding, changing, reviewing, or testing HIMS pages, forms, tables, modals, dashboards, workflows, or other interfaces; pair with UI UX Pro Max when broader design guidance is useful.
+description: Applies HIMS-specific UI implementation and design-consistency rules for Blade, Tailwind CSS, Alpine.js, shared components, layouts, themes, permissions, and interaction contracts. Use when adding, changing, reviewing, polishing, or testing any HIMS page, form, table, modal, dashboard, workflow, or frontend behavior. Always use it together with `ui-ux-pro-max` and `impeccable`; HIMS rules remain the repository-specific source of truth.
 ---
 
 # HIMS UI/UX
 
 Use this skill as the project-specific implementation layer for HIMS interfaces. It defines what must remain consistent with this repository; it is not a general UI/UX handbook.
 
-## Skill Selection and Precedence
+## Mandatory Companion Stack
 
-- Use `ui-ux-pro-max` when it provides stronger general guidance for visual hierarchy, interaction design, accessibility techniques, responsive composition, typography, color, or design exploration.
-- Use this skill for HIMS-specific architecture, components, layouts, themes, workflows, and interaction contracts.
-- When both apply, combine them without repeating their instructions. Let `ui-ux-pro-max` guide general design quality and this skill guide repository implementation.
-- Intentional HIMS requirements take precedence over conflicting generic guidance.
-- Add the relevant HIMS security, database, audit, Laravel, or testing skill when the interface touches those domains. This skill does not replace server-side validation or authorization.
+For every HIMS UI/UX task, load and apply all three skills. This is the default workflow, not an optional enhancement:
+
+1. `hims-ui-ux` owns HIMS architecture, persistent visual identity, component contracts, operational density, themes, workflows, and repository-specific invariants. Read [references/design-consistency.md](references/design-consistency.md) in full before reviewing or editing HIMS UI.
+2. `ui-ux-pro-max` supplies general design intelligence, UX/accessibility guidance, and Laravel/Tailwind implementation guidance. Follow its query contract using the smallest applicable search: design-system search for a new or system-wide direction, or one focused domain/stack search for a local concern.
+3. `impeccable` supplies product context, surface mode, craft floor, and bounded visual QA. Run its context command once per session, load the applicable playbook, and read its craft-floor reference immediately before a UI edit.
+
+Do not skip either companion because a task appears small; apply only the portions relevant to the requested surface. Do not let companion guidance silently redesign an established HIMS surface during a focused change.
+
+Apply precedence in this order:
+
+1. The user's explicit brief and verified product/domain behavior.
+2. HIMS repository truth and the design invariants in this skill.
+3. Existing surface identity and shared component contracts.
+4. Applicable `impeccable` and `ui-ux-pro-max` recommendations.
+
+When general guidance conflicts with an intentional HIMS convention, preserve the HIMS convention unless the user explicitly requests a redesign. Add the relevant HIMS security, database, audit, Laravel, or testing skill when the interface touches those domains. This skill does not replace server-side validation or authorization.
 
 ## Current HIMS Baseline
 
