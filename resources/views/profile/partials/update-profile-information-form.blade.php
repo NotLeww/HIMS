@@ -2,7 +2,7 @@
     @php($nameComponents = $user->nameComponents())
 
     <x-ui.card :padding="false">
-        <div class="p-4 sm:p-5">
+        <div class="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
             <div class="flex min-w-0 items-center gap-3">
                 <button type="button" x-data x-on:click="$dispatch('open-modal', 'update-profile-picture')"
                         class="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
@@ -15,7 +15,7 @@
                     <p class="break-all text-xs text-neutral-600 dark:text-neutral-300">{{ $user->email }}</p>
                 </div>
             </div>
-            <div class="mt-4 flex flex-wrap gap-2">
+            <div class="flex shrink-0 flex-wrap gap-2">
                 <x-ui.button type="button" size="sm" x-data x-on:click="$dispatch('open-modal', 'edit-profile')">{{ __('Edit profile') }}</x-ui.button>
                 <x-ui.button type="button" size="sm" variant="secondary" x-data x-on:click="$dispatch('open-modal', 'update-profile-picture')">
                     {{ $user->hasAvatar() ? __('Change photo') : __('Upload photo') }}

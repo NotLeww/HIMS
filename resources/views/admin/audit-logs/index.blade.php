@@ -13,10 +13,6 @@
         $printUrl = route('admin.audit-logs.index', [...request()->except(['page', 'print']), 'print' => 1]);
     @endphp
 
-    <div class="mb-4 flex justify-end print:hidden">
-        <x-ui.button variant="secondary" icon="printer" :href="$printUrl" target="_blank" rel="noopener">Print filtered trail</x-ui.button>
-    </div>
-
     <section class="hidden print:block print-context" aria-label="Printed audit trail context">
         <h1>Audit Trail</h1>
         <p>Generated {{ now()->format('M d, Y, g:i:s A') }} {{ config('app.timezone') }} &middot; {{ number_format($recordCount) }} records</p>
@@ -32,12 +28,15 @@
 
     @if (! $isPrint)
     <div x-data="{ open: @js($hasActiveFilters) }" class="relative z-20 print:hidden">
-        <x-ui.card
-            title="Find Activity"
-            subtitle="Use controlled filters for known values and search for descriptive activity."
-            :padding="false"
-            class="relative z-20 !overflow-visible">
+    @endif
+    <x-ui.card
+        class="audit-logs-table audit-print-table relative z-20 !overflow-visible [&_.hims-table-scroll]:overflow-x-hidden [&_.hims-table-scroll]:[scrollbar-width:none] [&_.hims-table-scroll::-webkit-scrollbar]:hidden"
+        title="Activity"
+        :subtitle="$recordCount.' '.\Illuminate\Support\Str::plural('record', $recordCount).' - '.config('app.timezone').' (PHT)'"
+        :padding="false">
+        @if (! $isPrint)
             <x-slot:actions>
+                <x-ui.button variant="secondary" icon="printer" :href="$printUrl" target="_blank" rel="noopener">Print filtered trail</x-ui.button>
                 <button
                     type="button"
                     x-on:click="open = !open"
@@ -66,7 +65,7 @@
                 x-transition:leave="transition ease-in duration-150"
                 x-transition:leave-start="opacity-100 translate-y-0"
                 x-transition:leave-end="opacity-0 -translate-y-1"
-                class="p-4 sm:p-5"
+                class="border-b border-neutral-200 p-4 dark:border-neutral-800 sm:p-5"
             >
                 <form id="audit-log-filters" method="GET" action="{{ route('admin.audit-logs.index') }}"
                       class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:items-end">
@@ -223,15 +222,7 @@
                     </div>
                 </form>
             </div>
-        </x-ui.card>
-    </div>
-    @endif
-
-    <x-ui.card
-        class="audit-logs-table audit-print-table [&_.hims-table-scroll]:overflow-x-hidden [&_.hims-table-scroll]:[scrollbar-width:none] [&_.hims-table-scroll::-webkit-scrollbar]:hidden"
-        title="Activity"
-        :subtitle="$recordCount.' '.\Illuminate\Support\Str::plural('record', $recordCount).' - '.config('app.timezone').' (PHT)'"
-        :padding="false">
+        @endif
         <x-ui.table class="audit-logs-table" aria-label="Audit trail entries">
             <x-ui.table.head>
                 <x-ui.table.th>Performed By</x-ui.table.th>
@@ -347,6 +338,9 @@
             </x-slot:footer>
         @endif
     </x-ui.card>
+    @if (! $isPrint)
+    </div>
+    @endif
 
     @if (! $isPrint)
     @foreach ($logs as $log)

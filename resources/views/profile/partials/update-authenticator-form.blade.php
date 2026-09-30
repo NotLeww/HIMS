@@ -170,16 +170,13 @@
             <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ __('Authenticator App') }}</h3>
             <p class="mt-0.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300">{{ __('Use a standards-compatible authenticator app for secure sign-in.') }}</p>
         </div>
-        <div class="flex shrink-0 items-center gap-2">
-            <span x-show="recoveryRequired" x-cloak><x-ui.badge status="action_required" dot>Repair required</x-ui.badge></span>
-            <span x-show="!recoveryRequired && enabled" x-cloak><x-ui.badge status="active" dot>Enabled</x-ui.badge></span>
-            <span x-show="!recoveryRequired && !enabled && showSetup" x-cloak><x-ui.badge status="pending" dot>Verification pending</x-ui.badge></span>
-            <span x-show="!recoveryRequired && !enabled && !showSetup" x-cloak><x-ui.badge status="inactive" dot>Disabled</x-ui.badge></span>
-
-            <x-ui.button type="button" size="sm" variant="secondary" x-show="recoveryRequired" x-cloak @click="openPasswordModal()">Reconfigure</x-ui.button>
-            <x-ui.button type="button" size="sm" variant="secondary" x-show="!recoveryRequired && enabled" x-cloak @click="$dispatch('open-modal', 'manage-authenticator')">Manage</x-ui.button>
-            <x-ui.button type="button" size="sm" variant="secondary" x-show="!recoveryRequired && !enabled && !showSetup" x-cloak @click="openPasswordModal()">Configure</x-ui.button>
-        </div>
+        <x-ui.switch
+            :checked="$authenticatorRecoveryRequired || $user->authenticatorMfaEnabled()"
+            label="Configure Authenticator App"
+            x-bind:aria-checked="recoveryRequired || enabled"
+            x-bind:class="recoveryRequired ? '!border-warning-600 !bg-warning-600' : ''"
+            x-on:click="if (!showSetup) { recoveryRequired || !enabled ? openPasswordModal() : $dispatch('open-modal', 'manage-authenticator') }"
+        />
     </div>
 
     {{-- Server-rendered success (e.g. from disable flow or page reload) dispatched to global toast HUD --}}
@@ -207,7 +204,7 @@
                 data-confirm-title="Disable authenticator app?"
                 autocomplete="off"
                 data-confirm-message="This removes authenticator verification from future sign-ins. Your password and current authenticator code will be verified first."
-                data-confirm-label="Disable authenticator"
+                data-confirm-label="Yes, Disable It"
             >
                 @csrf
                 @method('delete')

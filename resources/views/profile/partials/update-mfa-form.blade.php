@@ -6,10 +6,12 @@
             <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ __('Email Multi-Factor Authentication') }}</h3>
             <p class="mt-0.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300">{{ __('Require a one-time email code after your password is accepted.') }}</p>
         </div>
-        <div class="flex shrink-0 items-center gap-2">
-            <x-ui.badge :status="$user->mfa_enabled ? 'active' : 'inactive'" dot>{{ $user->mfa_enabled ? 'Enabled' : 'Disabled' }}</x-ui.badge>
-            <x-ui.button type="button" size="sm" variant="secondary" x-on:click="$dispatch('open-modal', 'configure-email-mfa')">{{ $user->mfa_enabled ? __('Manage') : __('Configure') }}</x-ui.button>
-        </div>
+        <x-ui.switch
+            :checked="$user->mfa_enabled"
+            label="Configure Email Multi-Factor Authentication"
+            x-bind:aria-checked="original"
+            x-on:click="$dispatch('open-modal', 'configure-email-mfa')"
+        />
     </div>
 
     <div x-data @if ($errors->hasAny(['mfa_enabled', 'current_password'])) x-init="$nextTick(() => $dispatch('open-modal', 'configure-email-mfa'))" @endif>

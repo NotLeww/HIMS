@@ -100,7 +100,8 @@ class SupplierManagementTest extends TestCase
         $this->actingAs($manager)->get('/inventory/suppliers')
             ->assertOk()
             ->assertSee('Supplier directory')
-            ->assertSee('Not eligible');
+            ->assertSee('Not eligible')
+            ->assertSee("window.himsNavigate(this.href, { message: 'Loading supplier...' });", false);
 
         $this->actingAs($manager)->get("/inventory/suppliers/{$supplier->id}")
             ->assertOk()

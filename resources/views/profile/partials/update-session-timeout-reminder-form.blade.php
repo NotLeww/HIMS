@@ -5,10 +5,12 @@
             <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ __('Session Timeout Reminder') }}</h3>
             <p class="mt-0.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300">{{ __('Warn before an inactive session expires.') }}</p>
         </div>
-        <div class="flex shrink-0 items-center gap-2">
-            <x-ui.badge :status="$user->session_timeout_reminder_enabled ? 'active' : 'inactive'" dot>{{ $user->session_timeout_reminder_enabled ? 'Enabled' : 'Disabled' }}</x-ui.badge>
-            <x-ui.button type="button" size="sm" variant="secondary" x-on:click="$dispatch('open-modal', 'configure-session-reminder')">{{ $user->session_timeout_reminder_enabled ? __('Manage') : __('Configure') }}</x-ui.button>
-        </div>
+        <x-ui.switch
+            :checked="$user->session_timeout_reminder_enabled"
+            label="Configure Session Timeout Reminder"
+            x-bind:aria-checked="original"
+            x-on:click="$dispatch('open-modal', 'configure-session-reminder')"
+        />
     </div>
 
     <div x-data @if ($errors->has('session_timeout_reminder_enabled')) x-init="$nextTick(() => $dispatch('open-modal', 'configure-session-reminder'))" @endif>

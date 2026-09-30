@@ -19,20 +19,16 @@
                         {{ __('Mandatory statutory governance governing healthcare account access and inventory chain-of-custody under RA 10173.') }}
                     </p>
                 </div>
-                <div class="shrink-0 flex items-center gap-2">
-                    @if ($consentSummary['policy']['is_current'] ?? false)
-                        <x-ui.badge status="active" dot>
-                            {{ __('Active (:version)', ['version' => $consentSummary['policy']['version']]) }}
-                        </x-ui.badge>
-                    @else
+                @if (!($consentSummary['policy']['is_current'] ?? false))
+                    <div class="shrink-0 flex items-center gap-2">
                         <x-ui.badge status="action_required" dot>
                             {{ __('Renewal Required') }}
                         </x-ui.badge>
                         <a href="{{ route('consent.privacy-policy') }}" class="text-xs font-semibold text-primary-600 hover:text-primary-700 underline">
                             {{ __('Review & Acknowledge') }}
                         </a>
-                    @endif
-                </div>
+                    </div>
+                @endif
             </div>
 
             <div class="flex items-center justify-between pt-1 text-[11px] text-neutral-500 border-t border-neutral-200/60 dark:border-neutral-700/60">
@@ -65,13 +61,6 @@
                     <p class="mt-0.5 text-xs text-neutral-600 dark:text-neutral-300">
                         {{ __('Allows HIMS to record device-reported coordinates during signed-in sessions to verify authorized facility access in the security audit trail.') }}
                     </p>
-                </div>
-                <div class="shrink-0">
-                    @if ($consentSummary['optional_location']['is_active'] ?? false)
-                        <x-ui.badge status="active" dot>{{ __('Opted In') }}</x-ui.badge>
-                    @else
-                        <x-ui.badge status="inactive" dot>{{ __('Opted Out') }}</x-ui.badge>
-                    @endif
                 </div>
             </div>
 

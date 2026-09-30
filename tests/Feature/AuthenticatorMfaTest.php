@@ -60,7 +60,7 @@ class AuthenticatorMfaTest extends TestCase
 
         $this->get(route('profile.edit'))
             ->assertOk()
-            ->assertSee('Verification pending')
+            ->assertSeeInOrder(['aria-label="Configure Authenticator App"', 'aria-checked="false"'], false)
             ->assertSee('showSetup: true', false)
             ->assertSee('Scan this QR code using your authenticator app.')
             ->assertSee('data:image/svg+xml;base64,', false)
@@ -100,7 +100,7 @@ class AuthenticatorMfaTest extends TestCase
 
         $this->get(route('profile.edit'))
             ->assertOk()
-            ->assertSee('Enabled')
+            ->assertSeeInOrder(['aria-label="Configure Authenticator App"', 'aria-checked="true"'], false)
             ->assertSee('showSetup: false', false);
     }
 
@@ -302,7 +302,7 @@ class AuthenticatorMfaTest extends TestCase
 
         $this->get(route('profile.edit'))
             ->assertOk()
-            ->assertSee('Disabled')
+            ->assertSeeInOrder(['aria-label="Configure Authenticator App"', 'aria-checked="false"'], false)
             ->assertSee('showSetup: false', false);
 
         $this->post(route('logout'));
@@ -417,9 +417,9 @@ class AuthenticatorMfaTest extends TestCase
 
         $this->get(route('profile.edit'))
             ->assertOk()
-            ->assertSee('Repair required')
+            ->assertSeeInOrder(['aria-label="Configure Authenticator App"', 'aria-checked="true"'], false)
             ->assertSee('recoveryRequired: true', false)
-            ->assertSee('Reconfigure');
+            ->assertSee('Your saved authenticator setup cannot be verified.');
 
         $this->delete(route('profile.authenticator.disable'), [
             'current_password' => 'password',

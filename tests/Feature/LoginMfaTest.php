@@ -26,7 +26,7 @@ class LoginMfaTest extends TestCase
         $this->actingAs($admin, AuthenticationContext::ADMIN_GUARD)
             ->get(route('profile.edit'))
             ->assertOk()
-            ->assertSeeInOrder(['Email Multi-Factor Authentication', 'Disabled', 'Configure'])
+            ->assertSeeInOrder(['Email Multi-Factor Authentication', 'aria-label="Configure Email Multi-Factor Authentication"', 'aria-checked="false"'], false)
             ->assertSee('data-original-mfa="0"', false);
 
         $this->patch(route('profile.mfa.update'), [
@@ -40,7 +40,7 @@ class LoginMfaTest extends TestCase
         $this->get(route('profile.edit'))
             ->assertOk()
             ->assertSee('Multi-Factor Authentication')
-            ->assertSeeInOrder(['Email Multi-Factor Authentication', 'Enabled', 'Manage'])
+            ->assertSeeInOrder(['Email Multi-Factor Authentication', 'aria-label="Configure Email Multi-Factor Authentication"', 'aria-checked="true"'], false)
             ->assertSee('data-original-mfa="1"', false);
 
         $this->patch(route('profile.mfa.update'), [
@@ -52,7 +52,7 @@ class LoginMfaTest extends TestCase
 
         $this->get(route('profile.edit'))
             ->assertOk()
-            ->assertSeeInOrder(['Email Multi-Factor Authentication', 'Disabled', 'Configure'])
+            ->assertSeeInOrder(['Email Multi-Factor Authentication', 'aria-label="Configure Email Multi-Factor Authentication"', 'aria-checked="false"'], false)
             ->assertSee('data-original-mfa="0"', false);
 
         $superAdmin = User::factory()->superAdministrator()->create();
@@ -101,7 +101,7 @@ class LoginMfaTest extends TestCase
         $this->get(route('profile.edit'))
             ->assertOk()
             ->assertSee('x-init="$nextTick(() => $dispatch(\'open-modal\', \'configure-email-mfa\'))"', false)
-            ->assertSeeInOrder(['Email Multi-Factor Authentication', 'Disabled', 'Configure'])
+            ->assertSeeInOrder(['Email Multi-Factor Authentication', 'aria-label="Configure Email Multi-Factor Authentication"', 'aria-checked="false"'], false)
             ->assertSee('data-original-mfa="0"', false);
     }
 

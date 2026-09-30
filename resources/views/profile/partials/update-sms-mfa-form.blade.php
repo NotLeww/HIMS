@@ -7,17 +7,15 @@
             <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">SMS Authentication</h3>
             <p class="mt-0.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300">Require a one-time SMS code during sign-in.</p>
         </div>
-        <div class="flex shrink-0 items-center gap-2">
-            @if ($smsMobileRequired)
-                <x-ui.badge status="action_required" dot>Setup required</x-ui.badge>
-            @else
-                <x-ui.badge :status="$user->sms_mfa_enabled ? 'active' : 'inactive'" dot>{{ $user->sms_mfa_enabled ? 'Enabled' : 'Disabled' }}</x-ui.badge>
-            @endif
-            <x-ui.button type="button" size="sm" variant="secondary" x-on:click="$dispatch('open-modal', 'configure-sms-mfa')">{{ $user->sms_mfa_enabled ? __('Manage') : __('Configure') }}</x-ui.button>
-        </div>
+        <x-ui.switch
+            :checked="$user->sms_mfa_enabled"
+            label="Configure SMS Authentication"
+            x-bind:aria-checked="original"
+            x-on:click="$dispatch('open-modal', 'configure-sms-mfa')"
+        />
     </div>
     @if ($smsMobileRequired)
-        <p class="mt-2 text-xs leading-5 text-danger-700 dark:text-danger-300">A valid registered mobile number is required. Ask an administrator to update your contact number.</p>
+        <p class="mt-2 text-xs leading-5 text-danger-700 dark:text-danger-300">Setup required: A valid registered mobile number is required. Ask an administrator to update your contact number.</p>
     @endif
 
     <div x-data @if ($errors->smsMfa->any()) x-init="$nextTick(() => $dispatch('open-modal', 'configure-sms-mfa'))" @endif>

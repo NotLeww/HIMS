@@ -188,6 +188,7 @@
                                             :href="route('inventory.suppliers.show', $supplier)"
                                             icon="eye"
                                             class="shrink-0 whitespace-nowrap text-xs shadow-2xs"
+                                            onclick="event.stopPropagation(); if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); window.himsNavigate(this.href, { message: 'Loading supplier...' }); }"
                                         >
                                             View
                                         </x-ui.button>

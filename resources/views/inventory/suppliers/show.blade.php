@@ -1,7 +1,6 @@
 <x-app-layout>
     @php
         $accreditation = $supplier->effectiveAccreditationStatus();
-        $compliance = $supplier->complianceState();
         $activeProducts = $supplier->supplierProducts->where('is_active', true);
 
         // The Lifecycle card only earns its place when at least one decision
@@ -50,9 +49,6 @@
         </x-slot:media>
         <x-slot:actions>
             <x-ui.button variant="secondary" :href="route('inventory.suppliers')" icon="arrow-left">Back to Suppliers</x-ui.button>
-            <x-ui.badge :status="$supplier->status->value" dot>{{ $supplier->status->label() }}</x-ui.badge>
-            <x-ui.badge :status="$accreditation->value" dot>{{ $accreditation->label() }}</x-ui.badge>
-            <x-ui.badge :status="$compliance">{{ str($compliance)->headline() }}</x-ui.badge>
         </x-slot:actions>
     </x-ui.page-header>
 
@@ -99,17 +95,17 @@
                 history.replaceState(null, '', '#' + next);
             },
         }">
-        <div class="rounded-lg border border-neutral-200 bg-white px-3 py-2 shadow-sm">
-            <nav class="flex flex-wrap items-center gap-1.5" aria-label="Supplier profile sections">
+        <div>
+            <nav class="flex flex-wrap items-center gap-2" aria-label="Supplier profile sections">
                 @foreach ($profileSections as $anchor => $label)
                     <button
                         type="button"
                         x-on:click="go('{{ $anchor }}')"
                         :aria-current="tab === '{{ $anchor }}' ? 'true' : null"
                         :class="tab === '{{ $anchor }}'
-                            ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold'
-                            : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent'"
-                        class="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition-colors">
+                            ? 'border-primary-600 bg-primary-600 text-white font-semibold shadow-sm'
+                            : 'border-neutral-200 bg-neutral-100 text-neutral-700 hover:bg-neutral-200 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700'"
+                        class="inline-flex min-h-10 items-center gap-2 rounded-lg border px-3.5 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900">
                         <x-ui.icon :name="$sectionIcons[$anchor] ?? 'document-text'" class="w-4 h-4" />
                         <span>{{ $label }}</span>
                     </button>

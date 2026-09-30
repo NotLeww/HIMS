@@ -356,7 +356,9 @@ class ConsentManagementTest extends TestCase
         $response->assertSee('High-Accuracy Audit Geolocation');
         $response->assertSee('View Consent History & Audit Evidence');
         $response->assertSee(config('privacy.policy_version', 'v1.0'));
-        $response->assertSee('Active ('.config('privacy.policy_version', 'v1.0').')');
+        $response->assertSee('Active since');
+        $response->assertDontSee('Active ('.config('privacy.policy_version', 'v1.0').')');
+        $response->assertDontSee('Opted In');
     }
 
     public function test_consent_confirmation_page_has_accessible_markup(): void
