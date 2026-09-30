@@ -3,6 +3,12 @@
 use Illuminate\Support\Str;
 use Pdo\Mysql;
 
+$mysqlSslCa = env('MYSQL_ATTR_SSL_CA');
+
+if ($mysqlSslCa && ! preg_match('/^(?:[A-Za-z]:[\\\\\/]|[\\\\\/]{1,2})/', $mysqlSslCa)) {
+    $mysqlSslCa = base_path($mysqlSslCa);
+}
+
 return [
 
     /*
@@ -63,7 +69,7 @@ return [
             'engine' => null,
             'timezone' => env('DB_TIMEZONE', '+08:00'),
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
+                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => $mysqlSslCa,
                 PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => env('MYSQL_ATTR_SSL_VERIFY_SERVER_CERT', false),
                 PDO::ATTR_TIMEOUT => (int) env('DB_TIMEOUT', 5),
             ], fn ($value) => $value !== null) : [],
@@ -86,7 +92,7 @@ return [
             'engine' => null,
             'timezone' => env('DB_TIMEZONE', '+08:00'),
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
+                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => $mysqlSslCa,
             ]) : [],
         ],
 
