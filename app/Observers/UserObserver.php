@@ -7,6 +7,7 @@ use App\Enums\NotificationDestination;
 use App\Enums\NotificationPriority;
 use App\Models\User;
 use App\Services\AuditLogger;
+use App\Services\DeviceSecurity\DeviceSecurityService;
 use App\Services\HimsNotificationService;
 use Illuminate\Support\Str;
 
@@ -29,6 +30,7 @@ class UserObserver
 
     public function __construct(
         private readonly AuditLogger $audit,
+        private readonly DeviceSecurityService $deviceSecurity,
         private readonly HimsNotificationService $notifications,
     ) {}
 
@@ -52,6 +54,10 @@ class UserObserver
 
     public function updated(User $user): void
     {
+        if ($user->wasChanged('status') && ! $user->isActive()) {
+            $this->deviceSecurity->revokeAllAccess($user);
+        }
+
         $actor = auth()->user();
 
         if (! $actor instanceof User) {

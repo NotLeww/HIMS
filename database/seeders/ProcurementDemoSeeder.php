@@ -20,13 +20,11 @@ use App\Models\InventoryItem;
 use App\Models\ProcurementCategory;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
-use App\Models\PurchaseOrderRevision;
 use App\Models\PurchaseRequest;
 use App\Models\PurchaseRequestLine;
 use App\Models\QuoteLineItem;
 use App\Models\RfqLineItem;
 use App\Models\RfqSupplierInvitation;
-use App\Models\SourcingEvaluation;
 use App\Models\SourcingRfq;
 use App\Models\Supplier;
 use App\Models\SupplierQuote;
@@ -37,8 +35,12 @@ use Illuminate\Support\Str;
 
 class ProcurementDemoSeeder extends Seeder
 {
+    use DemoEnvironmentOnly;
+
     public function run(): void
     {
+        $this->assertDemoEnvironment();
+
         $admin = User::where('role', UserRole::Administrator)->first() ?? User::factory()->administrator()->create();
         $manager = User::where('role', UserRole::InventoryManager)->first() ?? User::factory()->inventoryManager()->create();
 

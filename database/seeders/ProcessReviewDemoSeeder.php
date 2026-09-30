@@ -8,8 +8,12 @@ use Illuminate\Database\Seeder;
 
 class ProcessReviewDemoSeeder extends Seeder
 {
+    use DemoEnvironmentOnly;
+
     public function run(): void
     {
+        $this->assertDemoEnvironment();
+
         $dpriPrices = [
             [
                 'pndf_code' => 'PNDF-AMOX-500',

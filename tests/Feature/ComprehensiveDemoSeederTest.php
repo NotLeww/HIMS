@@ -19,7 +19,21 @@ use App\Models\SystemRecoveryRecord;
 use App\Models\User;
 use App\Models\WarehouseTask;
 use Database\Seeders\ComprehensiveDemoSeeder;
+use Database\Seeders\DemandForecastDemoSeeder;
+use Database\Seeders\DemoUserSeeder;
+use Database\Seeders\ErrorRecoveryDemoSeeder;
+use Database\Seeders\InventoryDemoSeeder;
+use Database\Seeders\LogisticsDemoSeeder;
+use Database\Seeders\OperationalMetricsDemoSeeder;
+use Database\Seeders\ProcessReviewDemoSeeder;
+use Database\Seeders\ProcurementDemoSeeder;
+use Database\Seeders\SmartWarehousingDemoSeeder;
+use Database\Seeders\SupplierManagementDemoSeeder;
+use Database\Seeders\SupplierReviewEvidenceDemoSeeder;
+use Database\Seeders\SupplierScorecardDemoSeeder;
+use Database\Seeders\SupplyChainTurnaroundDemoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use RuntimeException;
 use Tests\Concerns\ConfiguresAccountProvisioning;
 use Tests\TestCase;
 
@@ -84,6 +98,40 @@ class ComprehensiveDemoSeederTest extends TestCase
         $this->assertSame($counts, $this->representativeCounts());
         $this->assertSame('archived', $reviewedDocument->fresh()->status);
         $this->assertSame('Preserve workflow state during reseeding.', $reviewedDocument->fresh()->verification_notes);
+    }
+
+    public function test_every_demo_seeder_refuses_non_development_environments(): void
+    {
+        $this->app->detectEnvironment(fn (): string => 'staging');
+
+        $seeders = [
+            ComprehensiveDemoSeeder::class,
+            DemandForecastDemoSeeder::class,
+            DemoUserSeeder::class,
+            ErrorRecoveryDemoSeeder::class,
+            InventoryDemoSeeder::class,
+            LogisticsDemoSeeder::class,
+            OperationalMetricsDemoSeeder::class,
+            ProcessReviewDemoSeeder::class,
+            ProcurementDemoSeeder::class,
+            SmartWarehousingDemoSeeder::class,
+            SupplierManagementDemoSeeder::class,
+            SupplierReviewEvidenceDemoSeeder::class,
+            SupplierScorecardDemoSeeder::class,
+            SupplyChainTurnaroundDemoSeeder::class,
+        ];
+
+        foreach ($seeders as $seeder) {
+            try {
+                $this->app->make($seeder)->run();
+                $this->fail("{$seeder} accepted demonstration data outside local/testing.");
+            } catch (RuntimeException $exception) {
+                $this->assertSame(
+                    'Demonstration data is only available in local and testing environments.',
+                    $exception->getMessage(),
+                );
+            }
+        }
     }
 
     /** @return array<string, int> */

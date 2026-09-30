@@ -11,10 +11,14 @@ use Illuminate\Support\Facades\DB;
 
 class SupplierManagementDemoSeeder extends Seeder
 {
+    use DemoEnvironmentOnly;
+
     public const IDENTITY_KEY = 'tax:245731680000';
 
     public function run(): void
     {
+        $this->assertDemoEnvironment();
+
         if (Supplier::procurementEligible()->exists()) {
             $this->command?->info('A procurement-eligible supplier already exists; no supplier demo data was added.');
 

@@ -3,15 +3,14 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use RuntimeException;
 
 class ComprehensiveDemoSeeder extends Seeder
 {
+    use DemoEnvironmentOnly;
+
     public function run(): void
     {
-        if (app()->environment('production')) {
-            throw new RuntimeException('Comprehensive demonstration data is disabled in production.');
-        }
+        $this->assertDemoEnvironment();
 
         $this->call([
             SuperAdminSeeder::class,

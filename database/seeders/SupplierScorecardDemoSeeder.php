@@ -9,10 +9,14 @@ use Illuminate\Database\Seeder;
 
 class SupplierScorecardDemoSeeder extends Seeder
 {
+    use DemoEnvironmentOnly;
+
     public function __construct(private readonly SupplierScoringService $supplierScorer) {}
 
     public function run(): void
     {
+        $this->assertDemoEnvironment();
+
         $this->call(SupplierReviewEvidenceDemoSeeder::class);
 
         KpiProcessReview::query()

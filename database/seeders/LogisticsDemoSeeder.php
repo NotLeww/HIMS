@@ -24,8 +24,12 @@ use RuntimeException;
 
 class LogisticsDemoSeeder extends Seeder
 {
+    use DemoEnvironmentOnly;
+
     public function run(): void
     {
+        $this->assertDemoEnvironment();
+
         // 1. Ensure realistic users exist
         $inventoryManager = User::active()->role(UserRole::InventoryManager)->oldest('id')->first();
         $warehouseStaff = User::active()->role(UserRole::WarehouseStaff)->oldest('id')->first();

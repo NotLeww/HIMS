@@ -25,8 +25,12 @@ use Illuminate\Support\Facades\Storage;
 
 class OperationalMetricsDemoSeeder extends Seeder
 {
+    use DemoEnvironmentOnly;
+
     public function run(): void
     {
+        $this->assertDemoEnvironment();
+
         $superAdmin = User::active()->role(UserRole::SuperAdministrator)->oldest('id')->first();
         $admin = User::active()->role(UserRole::Administrator)->oldest('id')->first();
         $inventoryManager = User::active()->role(UserRole::InventoryManager)->oldest('id')->first();

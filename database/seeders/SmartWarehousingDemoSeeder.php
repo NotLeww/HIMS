@@ -11,21 +11,19 @@ use App\Models\ItemStockLevel;
 use App\Models\PdeaDangerousDrugsRegister;
 use App\Models\StockMovement;
 use App\Models\StorageLocation;
-use App\Models\SurgicalConsignmentBillOnly;
 use App\Models\User;
 use App\Services\InventoryAutomationService;
 use App\Services\Warehouse\WarehouseTaskService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 class SmartWarehousingDemoSeeder extends Seeder
 {
+    use DemoEnvironmentOnly;
+
     public function run(): void
     {
-        if (app()->environment('production')) {
-            throw new RuntimeException('Smart warehousing demonstration data is disabled in production.');
-        }
+        $this->assertDemoEnvironment();
 
         DB::transaction(function (): void {
             $user = User::query()->first() ?? User::factory()->inventoryManager()->create();

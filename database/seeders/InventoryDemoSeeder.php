@@ -15,6 +15,8 @@ use Illuminate\Database\Seeder;
 
 class InventoryDemoSeeder extends Seeder
 {
+    use DemoEnvironmentOnly;
+
     /**
      * The consumption history spans this many days back. Kept inside the
      * forecast's default 90-day analysis window, with a couple of days of
@@ -26,6 +28,8 @@ class InventoryDemoSeeder extends Seeder
 
     public function run(): void
     {
+        $this->assertDemoEnvironment();
+
         if (InventoryItem::query()->where('sku', 'PPE-MASK-N95')->exists()) {
             $this->command?->line('Preserved existing inventory demonstration data.');
 

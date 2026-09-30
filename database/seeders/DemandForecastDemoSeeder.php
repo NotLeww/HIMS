@@ -12,19 +12,18 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 class DemandForecastDemoSeeder extends Seeder
 {
+    use DemoEnvironmentOnly;
+
     private const DEMO_SKU_PREFIX = 'FCAST-';
 
     private const EXPECTED_ITEMS = 12;
 
     public function run(): void
     {
-        if (app()->environment('production')) {
-            throw new RuntimeException('Demand forecasting demonstration data is disabled in production.');
-        }
+        $this->assertDemoEnvironment();
 
         if (InventoryItem::query()->where('sku', self::DEMO_SKU_PREFIX.'MASK-3PLY')->exists()) {
             $count = InventoryItem::query()->where('sku', 'like', self::DEMO_SKU_PREFIX.'%')->count();

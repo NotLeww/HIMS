@@ -14,7 +14,6 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use RuntimeException;
 
 /**
  * Sample recovery incidents for demonstration and local development.
@@ -30,11 +29,11 @@ use RuntimeException;
  */
 class ErrorRecoveryDemoSeeder extends Seeder
 {
+    use DemoEnvironmentOnly;
+
     public function run(): void
     {
-        if (app()->environment('production')) {
-            throw new RuntimeException('Recovery Center demonstration incidents are disabled in production.');
-        }
+        $this->assertDemoEnvironment();
 
         $superAdmin = User::active()->role(UserRole::SuperAdministrator)->oldest('id')->first();
         $inventoryManager = User::active()->role(UserRole::InventoryManager)->oldest('id')->first();

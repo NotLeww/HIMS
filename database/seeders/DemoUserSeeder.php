@@ -13,8 +13,12 @@ use Illuminate\Validation\Rule;
 
 class DemoUserSeeder extends Seeder
 {
+    use DemoEnvironmentOnly;
+
     public function run(): void
     {
+        $this->assertDemoEnvironment();
+
         $accounts = config('account_provisioning.demo_accounts', []);
 
         if (! is_array($accounts) || $accounts === []) {

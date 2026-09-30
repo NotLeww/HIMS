@@ -817,7 +817,12 @@ class DeviceSecurityService
         return LoginApprovalRequest::query()
             ->where('user_id', $user->id)
             ->where('status', LoginApprovalRequest::STATUS_PENDING)
-            ->update(['status' => LoginApprovalRequest::STATUS_CANCELLED]);
+            ->update([
+                'status' => LoginApprovalRequest::STATUS_CANCELLED,
+                'claim_token_hash' => null,
+                'email_otp_hash' => null,
+                'email_otp_expires_at' => null,
+            ]);
     }
 
     /**
@@ -895,5 +900,15 @@ class DeviceSecurityService
                 ->whereNull('revoked_at')
                 ->update(['revoked_at' => now()]);
         }
+    }
+
+    /**
+     * Revoke every authentication path when an account loses active status.
+     */
+    public function revokeAllAccess(User $user): void
+    {
+        $this->handlePasswordChanged($user);
+        $user->tokens()->delete();
+        $user->forceFill(['remember_token' => null])->saveQuietly();
     }
 }

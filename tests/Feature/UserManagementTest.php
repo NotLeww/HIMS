@@ -9,11 +9,14 @@ use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\AuditLog;
 use App\Models\InventoryItem;
+use App\Models\KpiProcessReview;
 use App\Models\StockMovement;
 use App\Models\User;
+use App\Models\UserActiveSession;
 use App\Services\UserAccountService;
 use App\Support\AuthenticationContext;
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -133,12 +136,25 @@ class UserManagementTest extends TestCase
         $staff = User::factory()->warehouseStaff()->create();
 
         $this->actingAs($staff)->get('/dashboard')->assertStatus(200);
+        UserActiveSession::updateOrCreate(
+            ['user_id' => $staff->id],
+            [
+                'guard' => 'web',
+                'session_id' => 'active-before-deactivation',
+                'last_active_at' => now(),
+            ],
+        );
+        $staff->createToken('active-before-deactivation');
+        $staff->forceFill(['remember_token' => 'remember-before-deactivation'])->saveQuietly();
 
         $this->actingAs($admin)
             ->from('/admin/users')
             ->patch("/admin/users/{$staff->id}/status")
             ->assertRedirect('/admin/users');
 
+        $this->assertDatabaseMissing('user_active_sessions', ['user_id' => $staff->id]);
+        $this->assertDatabaseMissing('personal_access_tokens', ['tokenable_id' => $staff->id]);
+        $this->assertNull($staff->fresh()->remember_token);
         $this->actingAs($staff->fresh())->get('/dashboard')->assertRedirect('/login');
         $this->assertGuest();
     }
@@ -676,6 +692,27 @@ class UserManagementTest extends TestCase
             ->assertStatus(405);
 
         $this->assertDatabaseHas('users', ['id' => $staff->id]);
+    }
+
+    public function test_the_database_refuses_to_delete_an_evaluator_with_process_review_history(): void
+    {
+        $staff = User::factory()->inventoryManager()->create();
+        $review = KpiProcessReview::create([
+            'review_number' => 'REV-RETENTION-001',
+            'title' => 'Retention Test Review',
+            'period_start' => now()->subMonth()->toDateString(),
+            'period_end' => now()->toDateString(),
+            'evaluator_id' => $staff->id,
+            'status' => 'draft',
+        ]);
+
+        try {
+            $staff->delete();
+            $this->fail('The database must preserve users referenced by process review history.');
+        } catch (QueryException) {
+            $this->assertDatabaseHas('users', ['id' => $staff->id]);
+            $this->assertDatabaseHas('kpi_process_reviews', ['id' => $review->id]);
+        }
     }
 
     // ------------------------------------------------------------- lockout guards

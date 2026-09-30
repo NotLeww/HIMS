@@ -29,10 +29,14 @@ use RuntimeException;
 
 class SupplyChainTurnaroundDemoSeeder extends Seeder
 {
+    use DemoEnvironmentOnly;
+
     private const TRANSACTIONS_PER_REVIEW = 6;
 
     public function run(): void
     {
+        $this->assertDemoEnvironment();
+
         $reviews = KpiProcessReview::query()
             ->whereIn('review_number', ['REV-2026-Q3', 'REV-2026-Q4'])
             ->orderBy('period_start')

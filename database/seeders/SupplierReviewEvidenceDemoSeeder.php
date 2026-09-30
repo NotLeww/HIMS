@@ -14,10 +14,14 @@ use RuntimeException;
 
 class SupplierReviewEvidenceDemoSeeder extends Seeder
 {
+    use DemoEnvironmentOnly;
+
     private const ORDERS_PER_SUPPLIER = 3;
 
     public function run(): void
     {
+        $this->assertDemoEnvironment();
+
         $review = KpiProcessReview::query()
             ->where('status', 'approved')
             ->latest('period_end')
