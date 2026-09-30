@@ -32,14 +32,14 @@ class DashboardAiAssistantController extends Controller implements HasMiddleware
     }
 
     /**
-     * Authorize user access to AI Inventory Assistant.
+     * Authorize user access to the HIMS AI Assistant.
      */
     private function authorizeAssistantAccess(Request $request): User
     {
         $user = $request->user();
 
         if (! $user || (! $user->can(Permission::ViewInventory->value) && ! $user->can(Permission::ViewReports->value))) {
-            abort(403, 'Unauthorized. You do not have permission to access the HIMS Inventory Assistant.');
+            abort(403, 'Unauthorized. You do not have permission to access the HIMS AI Assistant.');
         }
 
         return $user;
@@ -134,7 +134,7 @@ class DashboardAiAssistantController extends Controller implements HasMiddleware
     }
 
     /**
-     * Process an AI Inventory Assistant chat prompt with grounded HIMS database context.
+     * Process a HIMS AI Assistant prompt with optional authorized system context.
      */
     public function chat(
         Request $request,
@@ -212,7 +212,7 @@ class DashboardAiAssistantController extends Controller implements HasMiddleware
 
             return response()->json([
                 'status' => 'error',
-                'message' => 'Your inventory inquiry could not be processed. Please try again. If the problem continues, contact system support.',
+                'message' => 'Your HIMS assistant request could not be processed. Please try again. If the problem continues, contact system support.',
             ], 500);
         }
 

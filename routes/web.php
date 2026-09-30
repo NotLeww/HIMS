@@ -55,7 +55,7 @@ Route::get('/dashboard', [InventoryController::class, 'index'])->middleware(['au
 // it authenticates with the session cookie the page already has.
 Route::get('/dashboard/live', [InventoryController::class, 'live'])->middleware(['auth:web,admin,super_admin', 'verified'])->name('dashboard.live');
 
-// Conversational HIMS AI Inventory Assistant.
+// Conversational HIMS AI Assistant.
 Route::post('/dashboard/ai-assistant', [DashboardAiAssistantController::class, 'chat'])
     ->middleware(['auth:web,admin,super_admin', 'verified', 'throttle:30,1'])
     ->name('dashboard.ai-assistant');

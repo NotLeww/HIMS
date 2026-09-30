@@ -47,7 +47,13 @@ class AiPromptProtectionService
                     return [
                         'blocked' => true,
                         'category' => $category,
-                        'response' => 'I cannot override HIMS security, disclose protected instructions or secrets, access data outside your permissions, or perform restricted actions. I can still help with an authorized HIMS inventory request.',
+                        'response' => match ($category) {
+                            'protected_instructions' => "I can't provide hidden system or developer instructions. I can explain the assistant's visible capabilities and safety boundaries instead.",
+                            'authorization_bypass' => "I can't bypass authentication, permissions, or other HIMS security controls. I can help you use an authorized workflow.",
+                            'secret_exfiltration' => "I can't provide credentials, secret keys, tokens, OTPs, or other protected authentication material. I can explain the applicable security policy without exposing secrets.",
+                            'unauthorized_data' => "I can't expose another user's private records or data outside your authorized scope. I can help with information your account is permitted to access.",
+                            'unauthorized_action' => "I can't perform or simulate a restricted administrator action. I can explain the authorized process and required permission.",
+                        },
                     ];
                 }
             }

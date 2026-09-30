@@ -17,6 +17,7 @@ class ConversationStateTracker
     public function __construct(
         private readonly ConversationalEntityTracker $entityTracker,
         private readonly HimsAiToolRegistry $tools,
+        private readonly ConversationalIntentResolver $intentResolver,
     ) {}
 
     /**
@@ -50,12 +51,14 @@ class ConversationStateTracker
         // Entity resolution for current query and history
         $entityResolution = $this->entityTracker->resolve($userQuery, $history);
         $focusItem = $entityResolution['focus_item'] ?? null;
-        if ($focusItem === null && ! empty($history)) {
-            $focusItem = $this->entityTracker->findMostRecentItemInHistory($history);
-        }
 
         // Semantic analysis of dialogue history
         $lastAssistantAction = $this->detectLastAssistantAction($lastAssistantMessage, $lastUserMessage);
+        if ($focusItem === null
+            && $lastAssistantAction === 'presented_item_dossier'
+            && $this->intentResolver->isConversationalContinue($userQuery)) {
+            $focusItem = $this->entityTracker->findMostRecentItemInHistory($history);
+        }
         $currentTopic = $this->detectCurrentTopic($lastAssistantAction, $lastAssistantMessage, $lastUserMessage, $focusItem);
         $currentModule = $this->resolveModuleFromTopic($currentTopic);
 
@@ -156,23 +159,23 @@ class ConversationStateTracker
         $normUser = Str::lower($userMsg ?? '');
         $normAsst = Str::lower($assistantMsg ?? '');
 
-        if (Str::contains($normUser . ' ' . $normAsst, ['expiry', 'expire', 'batch', 'fefo'])) {
+        if (Str::contains($normUser.' '.$normAsst, ['expiry', 'expire', 'batch', 'fefo'])) {
             return 'batches_and_expiry';
         }
 
-        if (Str::contains($normUser . ' ' . $normAsst, ['supplier', 'vendor', 'lead time'])) {
+        if (Str::contains($normUser.' '.$normAsst, ['supplier', 'vendor', 'lead time'])) {
             return 'suppliers';
         }
 
-        if (Str::contains($normUser . ' ' . $normAsst, ['purchase order', 'procurement', 'po number'])) {
+        if (Str::contains($normUser.' '.$normAsst, ['purchase order', 'procurement', 'po number'])) {
             return 'procurement';
         }
 
-        if (Str::contains($normUser . ' ' . $normAsst, ['delivery', 'shipment', 'delayed', 'carrier'])) {
+        if (Str::contains($normUser.' '.$normAsst, ['delivery', 'shipment', 'delayed', 'carrier'])) {
             return 'shipments';
         }
 
-        if (Str::contains($normUser . ' ' . $normAsst, ['location', 'storeroom', 'warehouse', 'cabinet'])) {
+        if (Str::contains($normUser.' '.$normAsst, ['location', 'storeroom', 'warehouse', 'cabinet'])) {
             return 'locations';
         }
 
@@ -198,18 +201,19 @@ class ConversationStateTracker
     /**
      * Detect conversation language (Tagalog, English, or Taglish).
      */
-    private function detectLanguage(string $query, ?string $lastUserMessage): string
+    public function detectLanguage(string $query, ?string $lastUserMessage = null): string
     {
-        $combined = Str::lower($query . ' ' . ($lastUserMessage ?? ''));
+        $combined = Str::lower($query.' '.($lastUserMessage ?? ''));
         $tagalogWords = [
             'ba', 'tayo', 'natin', 'namin', 'po', 'meron', 'mayroon', 'wala', 'walang',
             'paubos', 'kailangan', 'anong', 'ano', 'ilan', 'sino', 'kailan', 'saan',
             'nasaan', 'magkano', 'ikaw', 'bahala', 'sige', 'yung', 'nito', 'iyan', 'ito',
+            'kumanta', 'awit',
         ];
 
         $matches = 0;
         foreach ($tagalogWords as $w) {
-            if (preg_match('/\b' . preg_quote($w, '/') . '\b/i', $combined)) {
+            if (preg_match('/\b'.preg_quote($w, '/').'\b/i', $combined)) {
                 $matches++;
             }
         }

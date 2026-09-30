@@ -39,7 +39,7 @@ class AiPromptProtectionTest extends TestCase
             ->assertJsonPath('source', 'security_control');
 
         $reply = mb_strtolower((string) $response->json('reply'));
-        $this->assertStringContainsString('cannot override hims security', $reply);
+        $this->assertStringContainsString("i can't", $reply);
         $this->assertStringNotContainsString('test-api-key', $reply);
         Http::assertNothingSent();
 

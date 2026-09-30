@@ -186,7 +186,12 @@ class ConversationalEntityTracker
      */
     private function isPronounReference(string $q): bool
     {
-        return (bool) preg_match('/\b(it|this|that|its|the item|the medicine|this item|that item|this drug|that drug|the product|who supplied it|who supplies it|is it enough|how many of it|nun|niyon|niyan|nito|iyon|iyan|ito|yun|yon)\b/i', $q);
+        if (preg_match('/\b(?:the|this|that)\s+(?:item|medicine|drug|product)\b|\b(?:what about it|who supplied it|who supplies it|is it enough|how many of it|how much is it)\b/i', $q)) {
+            return true;
+        }
+
+        return (bool) preg_match('/\b(?:it|its|nun|niyon|niyan|nito|iyon|iyan|ito|yun|yon)\b/i', $q)
+            && preg_match('/\b(?:stock|status|supplier|vendor|order|available|quantity|expiry|expiration|batch|location|price|cost|lead time)\b/i', $q);
     }
 
     /**
@@ -442,7 +447,7 @@ class ConversationalEntityTracker
             '/\b(?:magkano|how much is|price of|unit cost of)\s+(?:ang|yung)?\s*(.+?)(?:\?|\.|$)/iu',
             // "tell me about...", "how many ... do we have"
             '/\b(?:tell me about|information on|details on|status of|status on|update on)\s+(.+?)(?:\?|\.|$)/iu',
-            '/\bhow many\s+(.+?)\s+(?:do we have|are left|in stock|are in warehouse|are in storage|in storage|available|on hand)\b/iu',
+            '/\bhow many\s+(.+?)\s+(?:do we have|are left|are available|in stock|are in warehouse|are in storage|in storage|available|on hand)\b/iu',
             '/\b(?:why is|why are)\s+(.+?)\s+(?:at high risk|considered high risk|considered low stock|high risk|low stock|low in stock|critical|at risk|failing|delayed|short)\b/iu',
             '/\b(?:what is|what\'s|check|show|get)\s+(?:the\s+)?(?:predicted\s+demand|stock|quantity|level|status|lead time|details|record|info|history)\s+(?:for|of|on)\s+(.+?)(?:\?|\.|$)/iu',
             '/\b(?:review|inspect|check)\s+(.+?)(?:\?|\.|$)/iu',
@@ -481,6 +486,12 @@ class ConversationalEntityTracker
 
         // Strip surrounding quotes
         $candidate = trim($candidate, " \t\n\r\0\x0B'\"");
+
+        // Aggregate Filipino/English subjects describe the whole inventory,
+        // not an item whose name should be searched in the catalog.
+        if (preg_match('/^(?:(?:tayo|natin|namin|kami|kayo)(?:\s+sa)?\s+)?(?:lahat|all|everything)(?:\s+(?:ng|the)\s+(?:items?|gamot|suppl(?:y|ies)|stock|inventory))?$/iu', $candidate)) {
+            return null;
+        }
 
         // Filter out action clauses and non-item descriptions
         if (preg_match('/\b(?:na need|na kailangan|kailangan|orderin|bilhin|iorder|irestock|paubos|ubos na|magkano|darating|parating|problema|issue|high[- ]risk|low[- ]stock|out[- ]of[- ]stock|expir(?:y|ed|ing)|malapit na)\b/iu', $candidate)) {

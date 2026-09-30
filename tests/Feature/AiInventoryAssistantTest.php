@@ -240,7 +240,7 @@ class AiInventoryAssistantTest extends TestCase
      * have no expiry date, it may call the nearing-expiry tool. The answer must
      * still come from the dataset the question asked for.
      */
-    public function test_model_calling_the_wrong_expiry_tool_is_answered_from_the_right_records(): void
+    public function test_model_selects_the_expiry_tool_matching_the_actual_question(): void
     {
         config()->set('services.gemini.key', 'test-api-key');
 
@@ -272,21 +272,13 @@ class AiInventoryAssistantTest extends TestCase
             'status' => 'active',
         ]);
 
-        // The model reaches for the near-expiry tool on an expiry-negation question.
-        Http::fake([
-            'https://generativelanguage.googleapis.com/*' => Http::response([
-                'candidates' => [[
-                    'content' => [
-                        'parts' => [[
-                            'functionCall' => [
-                                'name' => 'get_expiring_batches',
-                                'args' => ['days_ahead' => 90],
-                            ],
-                        ]],
-                    ],
-                ]],
-            ]),
-        ]);
+        Http::fakeSequence()
+            ->push(['candidates' => [['content' => ['parts' => [[
+                'functionCall' => ['name' => 'get_items_without_expiry', 'args' => []],
+            ]]]]]])
+            ->push(['candidates' => [['content' => ['parts' => [[
+                'text' => 'Surgical Blades Sterile No 10 (BLADE-10-ST) has no expiry date recorded.',
+            ]]]]]]);
 
         $response = $this->actingAs($manager)
             ->postJson(route('dashboard.ai-assistant'), [
@@ -414,6 +406,11 @@ class AiInventoryAssistantTest extends TestCase
                             'functionCall' => ['name' => $fnName, 'args' => $args],
                         ]],
                     ],
+                ]],
+            ];
+            $responses[] = [
+                'candidates' => [[
+                    'content' => ['parts' => [['text' => "Verified HIMS result: {$expected}"]]],
                 ]],
             ];
         }

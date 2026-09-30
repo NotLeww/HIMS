@@ -25,6 +25,7 @@ use App\Services\DemandForecastService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 /**
  * Secure, role-aware database query and calculation tool registry for HIMS AI.
@@ -1037,14 +1038,26 @@ class HimsAiToolRegistry
             return collect();
         }
 
+        $terms = array_values(array_unique(array_filter(
+            array_map(fn (string $word): string => Str::singular($word), preg_split('/[^\pL\pN-]+/u', $term) ?: []),
+            fn (string $word): bool => mb_strlen($word) >= 2,
+        )));
+        if ($terms === []) {
+            return collect();
+        }
+
         return InventoryItem::query()
             ->with(['category', 'supplier', 'batches', 'stockLevels.storageLocation'])
-            ->where(function ($b) use ($term) {
-                $b->where('name', 'LIKE', "%{$term}%")
-                    ->orWhere('sku', 'LIKE', "%{$term}%")
-                    ->orWhere('barcode_value', 'LIKE', "%{$term}%")
-                    ->orWhere('generic_name', 'LIKE', "%{$term}%")
-                    ->orWhere('brand_name', 'LIKE', "%{$term}%");
+            ->where(function ($query) use ($terms) {
+                foreach ($terms as $term) {
+                    $query->where(function ($fields) use ($term) {
+                        $fields->where('name', 'LIKE', "%{$term}%")
+                            ->orWhere('sku', 'LIKE', "%{$term}%")
+                            ->orWhere('barcode_value', 'LIKE', "%{$term}%")
+                            ->orWhere('generic_name', 'LIKE', "%{$term}%")
+                            ->orWhere('brand_name', 'LIKE', "%{$term}%");
+                    });
+                }
             })
             ->take($limit)
             ->get();
@@ -1443,7 +1456,7 @@ class HimsAiToolRegistry
                 'description' => 'Retrieve batches that are expired (0 days remaining or expiry_date is in the past) and still have remaining stock. Use when the user asks about "expired na", "already expired", "may expired stock", or "past expiry". Do NOT use this for active items with 1-90 days remaining or items without expiry.',
                 'parameters' => [
                     'type' => 'OBJECT',
-                    'properties' => [],
+                    'properties' => (object) [],
                 ],
             ],
             [
@@ -1479,7 +1492,7 @@ class HimsAiToolRegistry
             [
                 'name' => 'get_inventory_valuation',
                 'description' => 'Get total hospital inventory monetary valuation and category breakdown (financial role required).',
-                'parameters' => ['type' => 'OBJECT', 'properties' => []],
+                'parameters' => ['type' => 'OBJECT', 'properties' => (object) []],
             ],
             [
                 'name' => 'get_demand_forecast',
@@ -1495,7 +1508,7 @@ class HimsAiToolRegistry
             [
                 'name' => 'get_daily_summary',
                 'description' => 'Retrieve today comprehensive inventory summary (movements, alerts, receipts, stockouts). Use only when the user asks for an overview, summary, status, or dashboard, not for a specific question.',
-                'parameters' => ['type' => 'OBJECT', 'properties' => []],
+                'parameters' => ['type' => 'OBJECT', 'properties' => (object) []],
             ],
             [
                 'name' => 'get_recent_audit_activity',
@@ -1510,7 +1523,7 @@ class HimsAiToolRegistry
             [
                 'name' => 'get_system_recovery_status',
                 'description' => 'Retrieve open system recovery records and failure diagnostics (system recovery permission required).',
-                'parameters' => ['type' => 'OBJECT', 'properties' => []],
+                'parameters' => ['type' => 'OBJECT', 'properties' => (object) []],
             ],
             [
                 'name' => 'get_storage_locations',
@@ -1535,12 +1548,12 @@ class HimsAiToolRegistry
             [
                 'name' => 'get_receiving_records',
                 'description' => 'Retrieve Goods Receipt Notes (GRN) and Inspection Acceptance Reports (IAR).',
-                'parameters' => ['type' => 'OBJECT', 'properties' => []],
+                'parameters' => ['type' => 'OBJECT', 'properties' => (object) []],
             ],
             [
                 'name' => 'get_chain_of_custody_records',
                 'description' => 'Retrieve chain of custody logs for regulated items, narcotics, or high-value medical supplies.',
-                'parameters' => ['type' => 'OBJECT', 'properties' => []],
+                'parameters' => ['type' => 'OBJECT', 'properties' => (object) []],
             ],
             [
                 'name' => 'get_user_management_info',
@@ -1555,7 +1568,7 @@ class HimsAiToolRegistry
             [
                 'name' => 'get_reports_catalog',
                 'description' => 'List available reports and analytical exports in HIMS.',
-                'parameters' => ['type' => 'OBJECT', 'properties' => []],
+                'parameters' => ['type' => 'OBJECT', 'properties' => (object) []],
             ],
         ];
     }

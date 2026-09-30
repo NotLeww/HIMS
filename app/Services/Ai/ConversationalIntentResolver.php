@@ -920,7 +920,14 @@ class ConversationalIntentResolver
         }
 
         // Jokes / creative writing / poems
-        if (preg_match('/\b(?:joke|jokes|magbiro|biro|magpatawa|poem|tula|kanta|song|sing|write a poem|tell me a joke|write a story|tell a story)\b/i', $normalized) === 1) {
+        if (preg_match('/\b(?:joke|jokes|magbiro|biro|magpatawa|poem|tula|kanta|kumanta|awit|lyrics|song|sing|kuwento|write a poem|tell me a joke|write a story|tell a story)\b/i', $normalized) === 1) {
+            return true;
+        }
+
+        // General translation requests are outside HIMS unless the phrase
+        // itself names a registered HIMS capability or workflow term.
+        if (preg_match('/\b(?:translate|translation|english\s+(?:ng|of)|tagalog\s+(?:ng|of)|ano(?:ng|\s+ang)?\s+english|what\s+is\s+.+\s+in\s+english)\b/iu', $normalized) === 1
+            && ! HimsCapabilityRegistry::isHimsScope($normalized)) {
             return true;
         }
 
@@ -1222,7 +1229,7 @@ class ConversationalIntentResolver
     private function containsPhrase(string $normalized, string $phrase): bool
     {
         return $normalized !== ''
-            && preg_match('/\b' . preg_quote($phrase, '/') . '\b/u', $normalized) === 1;
+            && preg_match('/\b'.preg_quote($phrase, '/').'\b/u', $normalized) === 1;
     }
 
     /**
