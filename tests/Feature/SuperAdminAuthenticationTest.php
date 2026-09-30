@@ -171,11 +171,13 @@ class SuperAdminAuthenticationTest extends TestCase
         $this->login($superAdmin);
         $this->app['auth']->forgetGuards();
 
-        $this->get(route('admin.users.create'))
+        $createPage = $this->get(route('admin.users.create'))
             ->assertOk()
             ->assertSee('Create Account')
-            ->assertSee('value="administrator"', false)
-            ->assertDontSee('value="super_administrator"', false);
+            ->assertSee('value="administrator"', false);
+
+        $createPage->assertViewHas('createRoles', fn (array $roles): bool => in_array(UserRole::Administrator, $roles, true)
+            && ! in_array(UserRole::SuperAdministrator, $roles, true));
 
         $this->post(route('admin.users.store'), [
             'surname' => 'Administrator',

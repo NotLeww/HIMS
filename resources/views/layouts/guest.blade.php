@@ -3,9 +3,15 @@
     // title="..." passed by a page arrives as a plain attribute.
     $pageTitle = trim((string) $attributes->get('title'));
     $portal = (string) $attributes->get('portal', 'staff');
+    $isStaffPortal = $portal === 'staff';
     $isAdminPortal = $portal === 'admin';
     $isSuperAdminPortal = $portal === 'super-admin';
     $isThemeAwarePortal = $isSuperAdminPortal || $portal === 'staff';
+    $portalCardClass = match (true) {
+        $isStaffPortal => 'border-neutral-200/90 bg-neutral-100/95 dark:bg-neutral-900 shadow-xl shadow-neutral-900/5 ring-1 ring-neutral-950/5 backdrop-blur-md dark:border-neutral-800 dark:shadow-black/50',
+        $isSuperAdminPortal => 'border-neutral-200/90 bg-white/95 shadow-xl shadow-neutral-900/5 ring-1 ring-neutral-950/5 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/95 dark:shadow-black/50',
+        default => 'border-primary-200 bg-neutral-50/95 dark:border-primary-300/30 dark:bg-neutral-900',
+    };
 @endphp
 
 <!DOCTYPE html>
@@ -171,7 +177,7 @@
                         @endif
                     </section>
 
-                    <div class="mx-auto min-w-0 w-full max-w-[min(29rem,100%)] animate-fade-in-scale overflow-hidden rounded-2xl border {{ $isThemeAwarePortal ? 'border-neutral-200/90 bg-white/95 shadow-xl shadow-neutral-900/5 ring-1 ring-neutral-950/5 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/95 dark:shadow-black/50' : 'border-primary-200 bg-neutral-50/95 dark:border-primary-300/30 dark:bg-neutral-900' }} [animation-delay:200ms]">
+                    <div class="mx-auto min-w-0 w-full max-w-[min(29rem,100%)] animate-fade-in-scale overflow-hidden rounded-2xl border {{ $portalCardClass }} [animation-delay:200ms]">
                         <div class="{{ $isSuperAdminPortal ? 'p-7 sm:p-9' : 'p-6 sm:p-8' }}">
                             {{ $slot }}
                         </div>
