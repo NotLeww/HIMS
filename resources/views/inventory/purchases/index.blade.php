@@ -7,7 +7,13 @@
     </x-slot>
 
     @php
-        $defaultTab = 'orders_revisions';
+        $defaultTab = match (true) {
+            request()->has('request_page') => 'enterprise_s2p',
+            request()->has('rfq_page') => request('tab') === 'evaluations' ? 'evaluations' : 'sourcing_rfqs',
+            request()->has('approval_page') => 'doa_approvals',
+            request()->has('audit_page') => 'audit_trail',
+            default => 'orders_revisions',
+        };
         $canIssuePurchaseOrder = auth()->user()?->can(\App\Enums\Permission::IssuePurchaseOrder->value) ?? false;
         $canViewSupplierLocation = auth()->user()?->canAny([
             \App\Enums\Permission::ViewSupplierSensitiveData->value,
@@ -188,7 +194,7 @@
                         @canany([\App\Enums\Permission::GenerateForecasts->value, \App\Enums\Permission::ViewReports->value, 'view_procurement_sensitive_data', 'manage_sourcing', 'evaluate_bids', 'award_procurement'])
                             <optgroup label="Strategic Sourcing">
                                 @canany(['view_procurement_sensitive_data', 'manage_sourcing', 'evaluate_bids'])
-                                    <option value="sourcing_rfqs" :selected="activeTab === 'sourcing_rfqs'">Sourcing Events &amp; RFQs ({{ $rfqs->count() }})</option>
+                                    <option value="sourcing_rfqs" :selected="activeTab === 'sourcing_rfqs'">Sourcing Events &amp; RFQs ({{ $rfqs->total() }})</option>
                                 @endcanany
                                 @canany(['view_procurement_sensitive_data', 'evaluate_bids', 'award_procurement'])
                                     <option value="evaluations" :selected="activeTab === 'evaluations'">Comparative Evaluation &amp; Landed Cost Matrix</option>
@@ -299,8 +305,8 @@
                             >
                                 <x-ui.icon name="globe-alt" class="h-4 w-4 text-blue-600 dark:text-blue-400" />
                                 <span>Strategic Sourcing</span>
-                                @if($rfqs->count() > 0)
-                                    <span class="rounded-full bg-blue-100 dark:bg-blue-950/70 px-1.5 py-0.2 text-[10px] font-bold text-blue-800 dark:text-blue-300">{{ $rfqs->count() }}</span>
+                                @if($rfqs->total() > 0)
+                                    <span class="rounded-full bg-blue-100 dark:bg-blue-950/70 px-1.5 py-0.2 text-[10px] font-bold text-blue-800 dark:text-blue-300">{{ $rfqs->total() }}</span>
                                 @endif
                                 <span class="text-[10px] font-mono text-neutral-400 font-normal" x-text="activeTab === 'sourcing_rfqs' ? '(RFQs)' : (activeTab === 'evaluations' ? '(Evaluations)' : '')"></span>
                                 <x-ui.icon name="chevron-down" class="h-3.5 w-3.5 text-neutral-400 transition-transform duration-200" ::class="openDropdown === 'sourcing' ? 'rotate-180' : ''" />
@@ -326,7 +332,7 @@
                                     >
                                         <span class="flex items-center gap-2">
                                             <x-ui.icon name="document-duplicate" class="w-4 h-4 text-neutral-400" />
-                                            <span>Sourcing Events &amp; RFQs ({{ $rfqs->count() }})</span>
+                                            <span>Sourcing Events &amp; RFQs ({{ $rfqs->total() }})</span>
                                         </span>
                                         <span x-show="activeTab === 'sourcing_rfqs'" class="h-1.5 w-1.5 rounded-full bg-primary-600 dark:bg-primary-400"></span>
                                     </button>
@@ -605,7 +611,7 @@
                 <div class="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/90 p-6 shadow-sm">
                     <div class="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-4">
                         <div>
-                            <h3 class="text-base font-bold text-neutral-900 dark:text-neutral-100">Active Purchase Requests ({{ $enterpriseRequests->count() }})</h3>
+                            <h3 class="text-base font-bold text-neutral-900 dark:text-neutral-100">Active Purchase Requests ({{ $enterpriseRequests->total() }})</h3>
                             <p class="text-xs text-neutral-500 dark:text-neutral-400">Chronological ledger of departmental requisitions and soft encumbrances.</p>
                         </div>
                     </div>
@@ -698,6 +704,11 @@
                             </tbody>
                         </table>
                     </div>
+                    @if ($enterpriseRequests->hasPages())
+                        <div class="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+                            {{ $enterpriseRequests->appends(['tab' => 'enterprise_s2p'])->onEachSide(1)->links() }}
+                        </div>
+                    @endif
                 </div>
             </div>
             @endcanany
@@ -772,7 +783,7 @@
 
                 {{-- Published RFQs Table --}}
                 <div class="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/90 p-6 shadow-sm">
-                    <h3 class="text-base font-bold text-neutral-900 dark:text-neutral-100">Sourcing Events ({{ $rfqs->count() }})</h3>
+                    <h3 class="text-base font-bold text-neutral-900 dark:text-neutral-100">Sourcing Events ({{ $rfqs->total() }})</h3>
                     <div class="mt-4 overflow-x-auto">
                         <table class="w-full text-left text-sm text-neutral-700 dark:text-neutral-300">
                             <thead class="bg-neutral-50 dark:bg-neutral-800/80 text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
@@ -900,6 +911,11 @@
                             </tbody>
                         </table>
                     </div>
+                    @if ($rfqs->hasPages())
+                        <div class="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+                            {{ $rfqs->appends(['tab' => 'sourcing_rfqs'])->onEachSide(1)->links() }}
+                        </div>
+                    @endif
                 </div>
             </div>
             @endcanany
@@ -996,6 +1012,11 @@
                         <div class="mt-4 rounded-lg border border-dashed border-neutral-300 p-8 text-center text-neutral-500">
                             <p class="text-base font-medium">No active sourcing evaluation results available yet.</p>
                             <p class="text-xs mt-1">Go to the 'Sourcing Events &amp; RFQs' tab and click 'Run Evaluation Matrix' on an RFQ with submitted vendor quotes.</p>
+                        </div>
+                    @endif
+                    @if ($rfqs->hasPages())
+                        <div class="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+                            {{ $rfqs->appends(['tab' => 'evaluations'])->onEachSide(1)->links() }}
                         </div>
                     @endif
                 </div>
@@ -1169,6 +1190,11 @@
                             <p class="text-sm text-neutral-500 text-center py-6">No approval chains active.</p>
                         @endforelse
                     </div>
+                    @if ($approvalChains->hasPages())
+                        <div class="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+                            {{ $approvalChains->appends(['tab' => 'doa_approvals'])->onEachSide(1)->links() }}
+                        </div>
+                    @endif
                 </div>
             </div>
             @endcan
@@ -2534,6 +2560,11 @@
                             </tbody>
                         </table>
                     </div>
+                    @if ($procurementAuditLogs->hasPages())
+                        <div class="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+                            {{ $procurementAuditLogs->appends(['tab' => 'audit_trail'])->onEachSide(1)->links() }}
+                        </div>
+                    @endif
                 </div>
             </div>
             @endcan

@@ -100,8 +100,8 @@ class DemandForecastController extends Controller implements HasMiddleware
             'plans' => DemandPlan::with(['item', 'generatedBy'])
                 ->latest('generated_at')
                 ->latest('id')
-                ->limit(20)
-                ->get(),
+                ->paginate(10, ['*'], 'plan_page')
+                ->withQueryString(),
             'summary' => [
                 'items' => $forecasts->count(),
                 'needs_reorder' => $forecasts->where('needs_reorder', true)->count(),

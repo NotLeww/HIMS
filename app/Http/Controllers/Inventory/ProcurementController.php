@@ -111,12 +111,14 @@ class ProcurementController extends Controller implements HasMiddleware
         // Enterprise Purchase Requests
         $enterpriseRequests = PurchaseRequest::with(['requester', 'costCenter', 'lines.item'])
             ->latest('id')
-            ->get();
+            ->paginate(10, ['*'], 'request_page')
+            ->withQueryString();
 
         // Sourcing RFQs
         $rfqs = SourcingRfq::with(['lines.item', 'quotes.supplier', 'quotes.lines', 'invitations.supplier', 'evaluations.quote.supplier'])
             ->latest('id')
-            ->get();
+            ->paginate(10, ['*'], 'rfq_page')
+            ->withQueryString();
 
         // Active Cost Centers
         $costCenters = CostCenter::with('budgets')->where('is_active', true)->get();
@@ -125,7 +127,10 @@ class ProcurementController extends Controller implements HasMiddleware
         $categories = ProcurementCategory::where('is_active', true)->orderBy('name')->get();
 
         // Pending & Active Approval Chains
-        $approvalChains = ApprovalChain::with(['steps.approver', 'purchaseOrder.lines.item', 'purchaseOrder.supplier'])->latest('id')->get();
+        $approvalChains = ApprovalChain::with(['steps.approver', 'purchaseOrder.lines.item', 'purchaseOrder.supplier'])
+            ->latest('id')
+            ->paginate(10, ['*'], 'approval_page')
+            ->withQueryString();
 
         $closedStatuses = ['received', 'fulfilled', 'cancelled', 'rejected', 'amended'];
         $poMetricRow = PurchaseOrder::query()
@@ -188,8 +193,8 @@ class ProcurementController extends Controller implements HasMiddleware
         // Procurement Audit Logs
         $procurementAuditLogs = ProcurementAuditLog::with('user')
             ->latest('id')
-            ->take(30)
-            ->get();
+            ->paginate(15, ['*'], 'audit_page')
+            ->withQueryString();
 
         return view('inventory.purchases.index', compact(
             'items',

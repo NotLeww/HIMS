@@ -237,6 +237,11 @@
                     </div></x-ui.table.td>
                 </x-ui.table.row>@empty<x-ui.table.empty colspan="7" title="No storage locations" message="Configure the real warehouse hierarchy before creating physical tasks." />@endforelse</tbody>
             </x-ui.table>
+            @if ($locations->hasPages())
+                <div class="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+                    {{ $locations->onEachSide(1)->links() }}
+                </div>
+            @endif
         </x-ui.card>
 
         {{-- Step 1: Deactivation Reason Modal (Super Admin only) --}}

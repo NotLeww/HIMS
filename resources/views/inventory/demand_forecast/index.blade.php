@@ -9,6 +9,7 @@
     @endphp
 
     <div x-data="demandForecastDashboard({{ Js::from($dashboardForecastConfig) }})"
+         x-init="@if(request()->has('plan_page')) activeTab = 'plans' @endif"
          class="space-y-3 sm:space-y-3.5">
 
         {{-- PAGE HEADER WITH ACTIONS --}}
@@ -710,7 +711,7 @@
                             :class="activeTab === 'plans' ? 'bg-white text-primary-700 shadow-2xs dark:bg-neutral-800 dark:text-primary-300' : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'">
                         <x-ui.icon name="document-text" class="h-4 w-4" />
                         <span>Saved Plans</span>
-                        <span class="rounded-full bg-neutral-200/80 px-2 py-0.5 text-xs font-bold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300">{{ $plans->count() }}</span>
+                        <span class="rounded-full bg-neutral-200/80 px-2 py-0.5 text-xs font-bold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300">{{ $plans->total() }}</span>
                     </button>
                 </div>
 
@@ -842,7 +843,7 @@
             </div>
 
             {{-- TAB 3: SAVED PROCUREMENT PLANS TABLE --}}
-            <div x-show="activeTab === 'plans'" class="overflow-x-auto max-h-96 overflow-y-auto">
+            <div x-show="activeTab === 'plans'" class="overflow-x-auto">
                 <x-ui.table>
                     <x-ui.table.head>
                         <x-ui.table.th>Plan No.</x-ui.table.th>
@@ -876,6 +877,11 @@
                         @endforelse
                     </tbody>
                 </x-ui.table>
+                @if ($plans->hasPages())
+                    <div class="border-t border-neutral-200 px-4 py-3 dark:border-neutral-800">
+                        {{ $plans->onEachSide(1)->links() }}
+                    </div>
+                @endif
             </div>
         </div>
 

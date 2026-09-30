@@ -45,8 +45,14 @@ class ScheduledReportController extends Controller implements HasMiddleware
             ->values();
 
         return view('inventory.reports.schedules', [
-            'schedules' => ScheduledReport::with(['recipient', 'creator'])->latest()->get(),
-            'executions' => ScheduledReportExecution::with(['scheduledReport', 'recipient'])->latest()->limit(50)->get(),
+            'schedules' => ScheduledReport::with(['recipient', 'creator'])
+                ->latest()
+                ->paginate(10, ['*'], 'schedule_page')
+                ->withQueryString(),
+            'executions' => ScheduledReportExecution::with(['scheduledReport', 'recipient'])
+                ->latest()
+                ->paginate(15, ['*'], 'execution_page')
+                ->withQueryString(),
             'editing' => $editing,
             'recipients' => $recipients,
             'reportTypes' => InventoryReportService::REPORT_TYPES,

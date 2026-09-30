@@ -210,6 +210,11 @@
                         @endforelse
                     </tbody>
                 </x-ui.table>
+                @if ($schedules->hasPages())
+                    <div class="border-t border-neutral-200 px-4 py-3 dark:border-neutral-800">
+                        {{ $schedules->onEachSide(1)->links() }}
+                    </div>
+                @endif
             </x-ui.card>
 
             <x-ui.card title="Execution history and email log" subtitle="Accepted means the configured mailer accepted the message; it does not prove final inbox delivery." :padding="false">
@@ -246,6 +251,11 @@
                         @endforelse
                     </tbody>
                 </x-ui.table>
+                @if ($executions->hasPages())
+                    <div class="border-t border-neutral-200 px-4 py-3 dark:border-neutral-800">
+                        {{ $executions->onEachSide(1)->links() }}
+                    </div>
+                @endif
             </x-ui.card>
         </div>
     </div>
