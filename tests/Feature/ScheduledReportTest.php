@@ -37,6 +37,8 @@ class ScheduledReportTest extends TestCase
         $this->actingAs($manager)->get(route('inventory.reports.schedules'))
             ->assertOk()
             ->assertSee('Scheduled Reports')
+            ->assertSee('Create Schedule')
+            ->assertSee('schedule-form-modal')
             ->assertSee('Execution history and email log');
 
         $this->actingAs($manager)->post(route('inventory.reports.schedules.store'), $this->payload($manager, [
@@ -185,6 +187,12 @@ class ScheduledReportTest extends TestCase
         $manager = User::factory()->inventoryManager()->create();
         $schedule = $this->schedule($manager);
         $execution = $this->execution($schedule, $manager, ['status' => 'sent', 'mail_status' => 'accepted']);
+
+        $this->actingAs($manager)
+            ->get(route('inventory.reports.schedules', ['edit' => $schedule->id]))
+            ->assertOk()
+            ->assertSee('Edit scheduled report')
+            ->assertSee('schedule-form-modal');
 
         $this->actingAs($manager)->patch(route('inventory.reports.schedules.update', $schedule), $this->payload($manager, [
             'frequency' => 'monthly',

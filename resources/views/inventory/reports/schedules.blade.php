@@ -6,6 +6,7 @@
             : route('inventory.reports.schedules.store');
         $selectedReportType = old('report_type', $editing?->report_type ?? 'stock_status');
         $selectedFrequency = old('frequency', $editing?->frequency ?? 'daily');
+        $creating = request()->boolean('create');
     @endphp
 
     <x-ui.page-header
@@ -27,10 +28,14 @@
         <x-ui.alert variant="danger" title="Review the schedule details" :message="$errors->first()" />
     @endif
 
-    <div class="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(20rem,0.75fr)_minmax(0,2fr)]">
-        <x-ui.card
+    <div class="min-w-0 space-y-4">
+        @if ($editing || $creating || $errors->any())
+            <div x-data x-init="$nextTick(() => $dispatch('open-modal', 'schedule-form-modal'))"></div>
+        @endif
+        <x-ui.modal
+            name="schedule-form-modal"
             :title="$editing ? 'Edit scheduled report' : 'Create scheduled report'"
-            subtitle="Times use the HIMS application timezone (Asia/Manila)."
+            maxWidth="3xl"
         >
             <form method="POST" action="{{ $formAction }}"
                   data-loading-text="{{ $editing ? 'Saving...' : 'Creating...' }}"
@@ -140,19 +145,25 @@
                     </div>
                 </div>
 
-                <div class="flex flex-wrap gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
-                    <x-ui.button type="submit" icon="calendar" data-loading-text="{{ $editing ? 'Saving...' : 'Creating...' }}">
-                        {{ $editing ? 'Save Schedule' : 'Create Schedule' }}
-                    </x-ui.button>
+                <div class="flex flex-wrap justify-end gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
                     @if ($editing)
                         <x-ui.button variant="secondary" :href="route('inventory.reports.schedules')">Cancel</x-ui.button>
                     @endif
+                    <x-ui.button type="submit" icon="calendar" data-loading-text="{{ $editing ? 'Saving...' : 'Creating...' }}">
+                        {{ $editing ? 'Save Schedule' : 'Create Schedule' }}
+                    </x-ui.button>
                 </div>
             </form>
-        </x-ui.card>
+        </x-ui.modal>
 
-        <div class="min-w-0 space-y-4">
-            <x-ui.card title="Schedules" subtitle="Only active schedules with a future next run are picked up by the server scheduler." :padding="false">
+        <x-ui.card title="Schedules" subtitle="Only active schedules with a future next run are picked up by the server scheduler." :padding="false">
+                <x-slot:actions>
+                    @if ($editing)
+                        <x-ui.button icon="plus" :href="route('inventory.reports.schedules', ['create' => 1])">Create Schedule</x-ui.button>
+                    @else
+                        <x-ui.button type="button" icon="plus" x-data x-on:click="$dispatch('open-modal', 'schedule-form-modal')">Create Schedule</x-ui.button>
+                    @endif
+                </x-slot:actions>
                 <x-ui.table :stickyHeader="false">
                     <x-ui.table.head>
                         <x-ui.table.th>Report</x-ui.table.th>
@@ -206,7 +217,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty colspan="6" icon="calendar" title="No scheduled reports" message="Create the first schedule using the form." />
+                            <x-ui.table.empty colspan="6" icon="calendar" title="No scheduled reports" message="Use Create Schedule to add the first automated report." />
                         @endforelse
                     </tbody>
                 </x-ui.table>
@@ -257,6 +268,5 @@
                     </div>
                 @endif
             </x-ui.card>
-        </div>
     </div>
 </x-app-layout>
