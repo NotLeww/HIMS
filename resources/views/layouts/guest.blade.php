@@ -6,9 +6,9 @@
     $isStaffPortal = $portal === 'staff';
     $isAdminPortal = $portal === 'admin';
     $isSuperAdminPortal = $portal === 'super-admin';
-    $isThemeAwarePortal = $isSuperAdminPortal || $portal === 'staff';
+    $isThemeAwarePortal = $isStaffPortal || $isAdminPortal || $isSuperAdminPortal;
     $portalCardClass = match (true) {
-        $isStaffPortal => 'border-neutral-200/90 bg-neutral-100/95 dark:bg-neutral-900 shadow-xl shadow-neutral-900/5 ring-1 ring-neutral-950/5 backdrop-blur-md dark:border-neutral-800 dark:shadow-black/50',
+        $isStaffPortal || $isAdminPortal => 'border-neutral-200/90 bg-neutral-100/95 dark:bg-neutral-900 shadow-xl shadow-neutral-900/5 ring-1 ring-neutral-950/5 backdrop-blur-md dark:border-neutral-800 dark:shadow-black/50',
         $isSuperAdminPortal => 'border-neutral-200/90 bg-white/95 shadow-xl shadow-neutral-900/5 ring-1 ring-neutral-950/5 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/95 dark:shadow-black/50',
         default => 'border-primary-200 bg-neutral-50/95 dark:border-primary-300/30 dark:bg-neutral-900',
     };
@@ -52,13 +52,6 @@
                     <img src="{{ asset('img/landingpage.jpg') }}" alt="" class="h-full w-full object-cover object-center animate-slow-zoom will-change-transform opacity-30 dark:opacity-20" />
                     <div class="absolute inset-0 bg-gradient-to-r from-neutral-50 via-neutral-50/92 to-neutral-50/75 dark:from-neutral-950 dark:via-neutral-950/90 dark:to-neutral-950/70"></div>
                     <div class="absolute inset-0 bg-gradient-to-b from-neutral-50/80 via-transparent to-neutral-50 dark:from-neutral-950/80 dark:via-transparent dark:to-neutral-950"></div>
-                @elseif ($isAdminPortal)
-                    <img src="{{ asset('img/landingpage.jpg') }}" alt="" class="h-full w-full object-cover object-center animate-slow-zoom will-change-transform opacity-25" />
-                    <div class="absolute inset-0 bg-primary-950/80"></div>
-                    <div class="absolute inset-0 bg-gradient-to-r from-primary-950 via-primary-950/90 to-neutral-950/70"></div>
-                    <div class="absolute inset-0 bg-gradient-to-b from-neutral-950/40 via-transparent to-neutral-950/85"></div>
-                    <div class="absolute -left-24 top-20 h-80 w-80 animate-float-slow rounded-full bg-primary-500/25 blur-3xl will-change-transform"></div>
-                    <div class="absolute right-12 top-1/3 h-72 w-72 animate-drift-slow rounded-full bg-primary-300/15 blur-3xl will-change-transform"></div>
                 @else
                     <img src="{{ asset('img/landingpage.jpg') }}" alt="" class="h-full w-full object-cover object-center animate-slow-zoom will-change-transform opacity-20" />
                     <div class="absolute inset-0 bg-neutral-950/75"></div>
@@ -125,28 +118,28 @@
                                 </div>
                             </div>
                         @elseif ($isAdminPortal)
-                            <p class="inline-flex animate-fade-up items-center gap-2 rounded-full border border-primary-300/25 bg-primary-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.14em] text-primary-200 [animation-delay:120ms]">
+                            <p class="inline-flex animate-fade-up items-center gap-2 rounded-md border border-neutral-200 bg-neutral-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300 [animation-delay:120ms]">
                                 <x-ui.icon name="users" class="h-3.5 w-3.5" />
                                 HIMS administration
                             </p>
-                            <h1 class="mt-5 animate-fade-up text-balance text-4xl font-extrabold leading-tight tracking-tight text-white [animation-delay:240ms] xl:text-5xl">
+                            <h1 class="mt-4 animate-fade-up text-balance text-4xl font-extrabold leading-tight tracking-tight text-neutral-950 [animation-delay:240ms] dark:text-neutral-50 xl:text-5xl">
                                 Keep hospital operations organized and accountable.
                             </h1>
-                            <p class="mt-4 max-w-lg animate-fade-up text-base leading-7 text-primary-100/85 [animation-delay:360ms]">
+                            <p class="mt-4 max-w-lg animate-fade-up text-base leading-7 text-neutral-600 [animation-delay:360ms] dark:text-neutral-400">
                                 Manage authorized users and operational workflows from a focused administration workspace.
                             </p>
                             <div class="mt-8 grid max-w-lg grid-cols-3 gap-3 animate-fade-up [animation-delay:460ms]">
-                                <div class="rounded-lg border border-white/10 bg-white/5 p-3 backdrop-blur-sm">
-                                    <x-ui.icon name="users" class="h-4 w-4 text-primary-300" />
-                                    <p class="mt-2 text-xs font-semibold text-white">User access</p>
+                                <div class="rounded-lg border border-neutral-200 bg-white/70 p-3 dark:border-neutral-800 dark:bg-neutral-900/70">
+                                    <x-ui.icon name="users" class="h-4 w-4 text-primary-600 dark:text-primary-300" />
+                                    <p class="mt-2 text-xs font-semibold text-neutral-900 dark:text-neutral-100">User access</p>
                                 </div>
-                                <div class="rounded-lg border border-white/10 bg-white/5 p-3 backdrop-blur-sm">
-                                    <x-ui.icon name="clipboard-document-list" class="h-4 w-4 text-primary-300" />
-                                    <p class="mt-2 text-xs font-semibold text-white">Operations</p>
+                                <div class="rounded-lg border border-neutral-200 bg-white/70 p-3 dark:border-neutral-800 dark:bg-neutral-900/70">
+                                    <x-ui.icon name="clipboard-document-list" class="h-4 w-4 text-primary-600 dark:text-primary-300" />
+                                    <p class="mt-2 text-xs font-semibold text-neutral-900 dark:text-neutral-100">Operations</p>
                                 </div>
-                                <div class="rounded-lg border border-white/10 bg-white/5 p-3 backdrop-blur-sm">
-                                    <x-ui.icon name="document-text" class="h-4 w-4 text-primary-300" />
-                                    <p class="mt-2 text-xs font-semibold text-white">Audit records</p>
+                                <div class="rounded-lg border border-neutral-200 bg-white/70 p-3 dark:border-neutral-800 dark:bg-neutral-900/70">
+                                    <x-ui.icon name="document-text" class="h-4 w-4 text-primary-600 dark:text-primary-300" />
+                                    <p class="mt-2 text-xs font-semibold text-neutral-900 dark:text-neutral-100">Audit records</p>
                                 </div>
                             </div>
                         @else
