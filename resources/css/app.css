@@ -145,6 +145,12 @@
             box-shadow: none !important;
         }
 
+        .audit-print-table .hims-table-scroll {
+            max-height: none !important;
+            overflow: visible !important;
+            contain: none !important;
+        }
+
         .audit-print-table .audit-print-col-actor { width: 16%; }
         .audit-print-table .audit-print-col-action { width: 15%; }
         .audit-print-table .audit-print-col-module { width: 11%; }
@@ -157,7 +163,7 @@
         }
 
         .audit-print-table tr {
-            break-inside: avoid-page;
+            break-inside: avoid;
             page-break-inside: avoid;
         }
 

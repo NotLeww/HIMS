@@ -119,6 +119,29 @@ class AuditLogController extends Controller implements HasMiddleware
             ->latest('created_at')
             ->latest('id');
 
+        if ($isPrint) {
+            $logsQuery
+                ->select([
+                    'id',
+                    'user_id',
+                    'actor_name',
+                    'actor_employee_id',
+                    'actor_role',
+                    'action',
+                    'event_category',
+                    'module',
+                    'target_id',
+                    'target_name',
+                    'description',
+                    'outcome',
+                    'source',
+                    'occurred_at_utc',
+                    'created_at',
+                    'display_timezone',
+                ])
+                ->with('actor:id,name');
+        }
+
         $logs = $isPrint
             ? $logsQuery->get()
             : $logsQuery->paginate(25)->withQueryString();

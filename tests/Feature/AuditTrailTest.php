@@ -85,6 +85,8 @@ class AuditTrailTest extends TestCase
             ->assertSee('audit-print-col-description', false)
             ->assertSee('size: A4 landscape', false)
             ->assertSee('window.print()', false)
+            ->assertSee('window.location.replace', false)
+            ->assertSee('Back to Audit Trail')
             ->assertDontSee('audit-log-filters', false)
             ->assertDontSee('Pagination Navigation');
 

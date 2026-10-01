@@ -13,7 +13,15 @@
         $hasActiveFilters = $activeFilterCount > 0;
         $recordCount = $isPrint ? $logs->count() : $logs->total();
         $printUrl = route(\App\Support\AuthenticationContext::auditLogRoute(), [...request()->except(['page', 'print']), 'print' => 1]);
+        $returnUrl = route(\App\Support\AuthenticationContext::auditLogRoute(), request()->except(['page', 'print']));
     @endphp
+
+    @if ($isPrint)
+        <div class="print:hidden flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-white px-4 py-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <p class="text-sm text-neutral-600 dark:text-neutral-300">Print preview closed? Return to the interactive Audit Trail.</p>
+            <x-ui.button variant="secondary" icon="arrow-left" :href="$returnUrl">Back to Audit Trail</x-ui.button>
+        </div>
+    @endif
 
     <section class="hidden print:block print-context" aria-label="Printed audit trail context">
         <p class="print-context__system">{{ config('app.name', 'Hospital Inventory Management System') }}</p>
@@ -39,7 +47,7 @@
         :padding="false">
         @if (! $isPrint)
             <x-slot:actions>
-                <x-ui.button variant="secondary" icon="printer" :href="$printUrl" target="_blank" rel="noopener">Print filtered trail</x-ui.button>
+                <x-ui.button variant="secondary" icon="printer" :href="$printUrl">Print filtered trail</x-ui.button>
                 <button
                     type="button"
                     x-on:click="open = !open"
@@ -489,7 +497,13 @@
 
     @if ($isPrint)
         <script>
-            window.addEventListener('load', () => window.print(), { once: true });
+            const returnToAuditTrail = () => window.location.replace(@js($returnUrl));
+
+            window.addEventListener('afterprint', returnToAuditTrail, { once: true });
+            window.addEventListener('DOMContentLoaded', () => {
+                window.print();
+                window.setTimeout(returnToAuditTrail, 0);
+            }, { once: true });
         </script>
     @endif
 </x-app-layout>
