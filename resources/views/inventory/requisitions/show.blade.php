@@ -2,14 +2,12 @@
     <div class="space-y-6" x-data="{
         issueModalOpen: false,
         ackModalOpen: false,
-        rejectModalOpen: false,
-        cancelModalOpen: false
+        rejectModalOpen: false
     }"
     @open-issue-modal.window="issueModalOpen = true"
     @open-ack-modal.window="ackModalOpen = true"
     @open-reject-modal.window="rejectModalOpen = true"
-    @open-cancel-modal.window="cancelModalOpen = true"
-    @keydown.escape.window="issueModalOpen = false; ackModalOpen = false; rejectModalOpen = false; cancelModalOpen = false;"
+    @keydown.escape.window="issueModalOpen = false; ackModalOpen = false; rejectModalOpen = false;"
     >
         {{-- Header with Action Buttons --}}
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-neutral-200 pb-5">
@@ -51,9 +49,16 @@
 
                 {{-- Cancel Action --}}
                 @if(in_array($requisition->status, ['submitted', 'pending_approval'], true) && auth()->id() === $requisition->requesting_user_id && auth()->user()->can(\App\Enums\Permission::CreateRequisition->value))
-                    <button type="button" @click="cancelModalOpen = true" class="inline-flex items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-50 transition">
-                        Cancel Requisition
-                    </button>
+                    <form action="{{ route('inventory.requisitions.cancel', $requisition) }}" method="POST"
+                          data-confirm-title="Cancel store requisition"
+                          data-confirm-message="Are you sure you want to cancel Requisition #{{ $requisition->requisition_number }}? This operation cannot be undone."
+                          data-confirm-label="Cancel Requisition"
+                          data-confirm-variant="danger">
+                        @csrf
+                        <button type="submit" data-loading-text="Cancelling..." class="inline-flex items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3.5 py-2 text-sm font-medium text-neutral-700 shadow-sm hover:bg-neutral-50 transition">
+                            Cancel Requisition
+                        </button>
+                    </form>
                 @endif
 
                 {{-- Issue Action Button --}}
@@ -86,16 +91,6 @@
                 @endif
             </div>
         </div>
-
-            {{-- Flash Alerts --}}
-            @if(session('success'))
-                <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 flex items-center justify-between shadow-sm">
-                    <div class="flex items-center gap-2">
-                        <svg class="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                        <span class="font-medium">{{ session('success') }}</span>
-                    </div>
-                </div>
-            @endif
 
             @if($errors->any())
                 <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 shadow-sm">
@@ -553,57 +548,5 @@
 
         @endcan
 
-        {{-- CANCEL REQUISITION MODAL --}}
-        @if(in_array($requisition->status, ['submitted', 'pending_approval'], true) && auth()->id() === $requisition->requesting_user_id && auth()->user()->can(\App\Enums\Permission::CreateRequisition->value))
-        <div x-show="cancelModalOpen" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;"
-             x-transition:enter="transition ease-out duration-200"
-             x-transition:enter-start="opacity-0"
-             x-transition:enter-end="opacity-100"
-             x-transition:leave="transition ease-in duration-150"
-             x-transition:leave-start="opacity-100"
-             x-transition:leave-end="opacity-0">
-            <div class="flex min-h-screen items-center justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                <div class="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs transition-opacity" @click="cancelModalOpen = false"></div>
-
-                <div class="inline-block w-full max-w-lg transform overflow-hidden rounded-2xl bg-white text-left align-bottom shadow-2xl transition-all sm:my-8 sm:align-middle">
-                    <form action="{{ route('inventory.requisitions.cancel', $requisition) }}" method="POST"
-                          data-confirm-title="Cancel store requisition"
-                          data-confirm-message="Are you sure you want to cancel Requisition #{{ $requisition->requisition_number }}? This operation cannot be undone."
-                          data-confirm-label="Cancel Requisition"
-                          data-confirm-variant="danger">
-                        @csrf
-                        <div class="bg-white px-6 pt-6 pb-4">
-                            <div class="flex items-center gap-3">
-                                <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600">
-                                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </div>
-                                <div>
-                                    <h3 class="text-lg font-bold text-neutral-900">Cancel Store Requisition</h3>
-                                    <p class="text-xs text-neutral-500">Withdraw this requisition before it is approved.</p>
-                                </div>
-                            </div>
-
-                            <div class="mt-4">
-                                <label class="block text-xs font-semibold uppercase tracking-wider text-neutral-700">Reason for Cancellation</label>
-                                <textarea name="cancellation_reason" rows="3" placeholder="Case cancelled / duplicate request."
-                                          class="mt-1 block w-full rounded-lg border-neutral-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 text-sm"></textarea>
-                            </div>
-                        </div>
-
-                        <div class="bg-neutral-50 px-6 py-3 flex items-center justify-end gap-3 border-t border-neutral-200">
-                            <button type="button" @click="cancelModalOpen = false" class="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50">
-                                Keep Requisition
-                            </button>
-                            <button type="submit" class="rounded-lg bg-neutral-800 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-neutral-900">
-                                Confirm Cancellation
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-        @endif
     </div>
 </x-app-layout>

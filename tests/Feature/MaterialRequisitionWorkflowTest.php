@@ -319,12 +319,26 @@ class MaterialRequisitionWorkflowTest extends TestCase
         ]);
 
         $requisition = MaterialRequisition::first();
+        $this->actingAs($requester)
+            ->get(route('inventory.requisitions.show', $requisition))
+            ->assertOk()
+            ->assertSee('action="'.route('inventory.requisitions.cancel', $requisition).'"', false)
+            ->assertSee('data-confirm-title="Cancel store requisition"', false)
+            ->assertDontSee('cancelModalOpen', false);
+
         $response = $this->actingAs($requester)->post(route('inventory.requisitions.cancel', $requisition), [
             'cancellation_reason' => 'Patient transferred to another hospital, medication no longer required.',
         ]);
 
         $response->assertRedirect(route('inventory.requisitions.index'));
         $response->assertSessionHas('success');
+
+        $index = $this->actingAs($requester)->get(route('inventory.requisitions.index'));
+        $message = "Requisition {$requisition->requisition_number} cancelled.";
+
+        $index->assertOk()
+            ->assertSee('himsToastNotifications', false);
+        $this->assertSame(1, substr_count($index->getContent(), $message));
 
         $requisition->refresh();
 

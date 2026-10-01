@@ -314,16 +314,6 @@
         {{-- Consolidated Inventory Workflow Navigation --}}
         @include('inventory.partials.workflow_nav')
 
-            {{-- Flash Alerts --}}
-            @if(session('success'))
-                <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 flex items-center justify-between shadow-sm">
-                    <div class="flex items-center gap-2">
-                        <svg class="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                        <span class="font-medium">{{ session('success') }}</span>
-                    </div>
-                </div>
-            @endif
-
             <div class="rounded-xl border border-primary-200 bg-primary-50 p-4 text-sm text-primary-900 shadow-sm">
                 <div class="flex items-start gap-3">
                     <svg class="mt-0.5 h-5 w-5 shrink-0 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
