@@ -15,6 +15,9 @@
         'first_name' => null,
         'middle_name' => null,
     ];
+    $rolePermissionsModalName = $isEdit
+        ? 'edit-user-role-permissions-'.$user->getKey()
+        : 'form-role-permissions-modal';
     $roleDescriptions = collect($roles)->mapWithKeys(function ($role) {
         $grouped = [];
         foreach ($role->permissions() as $permission) {
@@ -76,14 +79,14 @@
                 variant="secondary"
                 size="sm"
                 icon="shield-check"
-                x-on:click="$dispatch('open-modal', 'form-role-permissions-modal')">
+                x-on:click="$dispatch('open-modal', '{{ $rolePermissionsModalName }}')">
                 View Role Permissions
             </x-ui.button>
         </div>
     @endif
 
-    <div class="grid gap-4 md:grid-cols-2">
-        <div class="grid gap-4 sm:grid-cols-2 md:col-span-2 lg:grid-cols-3">
+    <div class="grid gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-12">
+        <div class="grid gap-x-4 gap-y-3 sm:grid-cols-2 md:col-span-2 lg:grid-cols-3 xl:col-span-12">
             <x-ui.field
                 name="surname"
                 label="Surname"
@@ -94,8 +97,7 @@
                 data-name-part-input
                 x-on:input="sanitizeNamePart($event)"
                 x-on:blur="$el.value = $el.value.trim()"
-                placeholder="e.g. Dela Cruz"
-                hint="Letters and spaces only." />
+                placeholder="e.g. Dela Cruz" />
 
             <x-ui.field
                 name="first_name"
@@ -107,8 +109,7 @@
                 data-name-part-input
                 x-on:input="sanitizeNamePart($event)"
                 x-on:blur="$el.value = $el.value.trim()"
-                placeholder="e.g. Juan"
-                hint="Letters and spaces only." />
+                placeholder="e.g. Juan" />
 
             <x-ui.field
                 name="middle_name"
@@ -119,60 +120,63 @@
                 data-name-part-input
                 x-on:input="sanitizeNamePart($event)"
                 x-on:blur="$el.value = $el.value.trim()"
-                placeholder="e.g. Santos"
-                hint="Optional. Letters and spaces only." />
+                placeholder="Optional" />
         </div>
 
-        <x-ui.field
-            name="email"
-            label="Email"
-            type="email"
-            :value="$user?->email"
-            required
-            autocomplete="off"
-            placeholder="e.g. maria.cruz@djnrmhs.gov.ph"
-            hint="Used to sign in. Must be unique." />
+        <div class="min-w-0 md:col-span-2 xl:col-span-6">
+            <x-ui.field
+                name="email"
+                label="Email"
+                type="email"
+                :value="$user?->email"
+                required
+                autocomplete="off"
+                placeholder="e.g. maria.cruz@djnrmhs.gov.ph" />
+        </div>
 
-        <x-ui.field
-            name="employee_id"
-            label="Employee ID"
-            :value="$user?->employee_id ?? 'Generated automatically after creation'"
-            disabled
-            hint="Assigned automatically by the system and cannot be changed." />
+        <div class="min-w-0 xl:col-span-3">
+            <x-ui.field
+                name="phone"
+                label="Contact Number"
+                type="tel"
+                :value="$user?->phone"
+                required
+                inputmode="numeric"
+                autocomplete="off"
+                minlength="11"
+                maxlength="11"
+                pattern="09[0-9]{9}"
+                title="Enter exactly 11 digits beginning with 09."
+                x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '').slice(0, 11)"
+                placeholder="09XXXXXXXXX" />
+        </div>
 
-        <x-ui.field
-            name="department"
-            label="Department"
-            type="select"
-            :value="$user?->department"
-            :options="$departments"
-            placeholder="Select a department"
-            required />
+        <div class="min-w-0 xl:col-span-3">
+            <x-ui.field
+                name="employee_id"
+                label="Employee ID"
+                :value="$user?->employee_id ?? 'Generated automatically after creation'"
+                disabled />
+        </div>
 
-        <x-ui.field
-            name="phone"
-            label="Contact Number"
-            type="tel"
-            :value="$user?->phone"
-            required
-            inputmode="numeric"
-            autocomplete="off"
-            minlength="11"
-            maxlength="11"
-            pattern="09[0-9]{9}"
-            title="Enter exactly 11 digits beginning with 09."
-            x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '').slice(0, 11)"
-            placeholder="09XXXXXXXXX"
-            hint="Exactly 11 digits beginning with 09." />
+        <div class="min-w-0 xl:col-span-3">
+            <x-ui.field
+                name="department"
+                label="Department"
+                type="select"
+                :value="$user?->department"
+                :options="$departments"
+                placeholder="Select a department"
+                required />
+        </div>
 
-        <div>
+        <div class="min-w-0 {{ $isEdit ? 'xl:col-span-4' : 'xl:col-span-9' }}">
             <x-ui.field
                 name="role"
                 label="Role"
                 type="select"
                 required
-                x-model="role"
-                hint="Decides every screen and action this account can reach.">
+                x-model="role">
                 @foreach ($roles as $roleOption)
                     <option value="{{ $roleOption->value }}"
                             @selected(old('role', $user?->role?->value) === $roleOption->value)>
@@ -181,53 +185,60 @@
                 @endforeach
             </x-ui.field>
             <div class="mt-1.5 flex items-center justify-between" x-show="detail" x-cloak>
-                <span class="text-xs text-neutral-500 dark:text-neutral-400 font-mono"
+                <span class="text-xs text-neutral-500 dark:text-neutral-400">Controls system access</span>
+                <span class="text-xs text-neutral-500 dark:text-neutral-400 tabular-nums"
                       x-text="detail ? `${detail.total_count} permissions` : ''"></span>
             </div>
         </div>
 
         @if ($isEdit)
             @if ($user->isArchived() || $user->isPendingActivation())
-                <div>
+                <div class="min-w-0 xl:col-span-5">
                     <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">Status</label>
-                    <div class="flex items-center gap-2 p-2.5 rounded-md bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs">
-                        <x-ui.badge :status="$user->status->value">{{ $user->status->label() }}</x-ui.badge>
-                        <span class="text-neutral-500 dark:text-neutral-400">
-                            {{ $user->isArchived() ? 'Archived accounts must be restored through the Archive workspace.' : 'Only the user can activate this account by verifying an OTP and creating a password.' }}
+                    <div class="flex min-h-10 items-center justify-between gap-3 rounded-md border border-neutral-200 bg-neutral-100 px-3 py-2 text-xs dark:border-neutral-700 dark:bg-neutral-800">
+                        <x-ui.badge class="shrink-0" :status="$user->status->value">{{ $user->status->label() }}</x-ui.badge>
+                        <span class="min-w-0 text-right leading-snug text-neutral-500 dark:text-neutral-400">
+                            {{ $user->isArchived() ? 'Restore through the Archive workspace.' : 'OTP verification and password setup required.' }}
                         </span>
                     </div>
                     <input type="hidden" name="status" value="{{ $user->status->value }}">
                 </div>
             @else
-                <x-ui.field
-                    name="status"
-                    label="Status"
-                    type="select"
-                    required
-                    :value="$user->status->value"
-                    :options="\App\Enums\UserStatus::options()"
-                    hint="Inactive accounts are signed out and cannot sign back in." />
+                <div class="min-w-0 xl:col-span-5">
+                    <x-ui.field
+                        name="status"
+                        label="Status"
+                        type="select"
+                        required
+                        :value="$user->status->value"
+                        :options="\App\Enums\UserStatus::options()"
+                        hint="Inactive accounts are signed out and cannot sign back in." />
+                </div>
             @endif
         @endif
 
         @if ($isEdit && ! $user->isPendingActivation())
-            <x-ui.field
-                name="password"
-                label="New Password"
-                type="password"
-                autocomplete="new-password"
-                minlength="8"
-                pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9\s]).{8,}"
-                title="{{ \App\Rules\PasswordStandard::REQUIREMENTS }}"
-                x-model="password"
-                hint="Leave blank to keep the current password." />
+            <div class="min-w-0 md:col-span-1 xl:col-span-6">
+                <x-ui.field
+                    name="password"
+                    label="New Password"
+                    type="password"
+                    autocomplete="new-password"
+                    minlength="8"
+                    pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9\s]).{8,}"
+                    title="{{ \App\Rules\PasswordStandard::REQUIREMENTS }}"
+                    x-model="password"
+                    hint="Leave blank to keep the current password." />
+            </div>
 
-            <x-ui.field
-                name="password_confirmation"
-                label="Confirm Password"
-                type="password"
-                autocomplete="new-password"
-                x-model="passwordConfirmation" />
+            <div class="min-w-0 md:col-span-1 xl:col-span-6">
+                <x-ui.field
+                    name="password_confirmation"
+                    label="Confirm Password"
+                    type="password"
+                    autocomplete="new-password"
+                    x-model="passwordConfirmation" />
+            </div>
         @endif
 
     </div>
@@ -239,7 +250,7 @@
     @endif
 
     {{-- Role Permissions Detail Modal --}}
-    <x-ui.modal name="form-role-permissions-modal" title="Role permissions" maxWidth="3xl">
+    <x-ui.modal :name="$rolePermissionsModalName" title="Role permissions" maxWidth="3xl">
         <x-slot:header>
             <div class="flex items-center gap-3">
                 <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400">
@@ -311,7 +322,7 @@
                 <span class="text-xs text-neutral-500 dark:text-neutral-400 hidden sm:inline">
                     Permissions shown are limited to the selected role.
                 </span>
-                <x-ui.button type="button" variant="secondary" size="sm" x-on:click="$dispatch('close-modal', 'form-role-permissions-modal')">
+                <x-ui.button type="button" variant="secondary" size="sm" x-on:click="$dispatch('close-modal', '{{ $rolePermissionsModalName }}')">
                     Close
                 </x-ui.button>
             </div>

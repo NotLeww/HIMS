@@ -8,6 +8,7 @@ use App\Enums\MovementType;
 use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Models\AccountActivationChallenge;
 use App\Models\AuditLog;
 use App\Models\InventoryItem;
 use App\Models\KpiProcessReview;
@@ -742,6 +743,56 @@ class UserManagementTest extends TestCase
         Notification::assertSentToTimes($staff, VerifyEmail::class, 6);
     }
 
+    public function test_pending_invitation_can_be_cancelled_and_its_challenge_is_invalidated(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+        ]);
+        AccountActivationChallenge::create([
+            'user_id' => $pending->id,
+            'channel' => 'email',
+            'otp_hash' => Hash::make('123456'),
+            'expires_at' => now()->addMinutes(5),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSee(route('admin.users.cancel-invitation', $pending), escape: false)
+            ->assertSee('Cancel Invitation');
+
+        $this
+            ->from('/admin/users')
+            ->patch(route('admin.users.cancel-invitation', $pending))
+            ->assertRedirect('/admin/users')
+            ->assertSessionHas('success', "{$pending->name}'s invitation was cancelled.");
+
+        $this->assertSame(UserStatus::Inactive, $pending->fresh()->status);
+        $this->assertDatabaseMissing('account_activation_challenges', ['user_id' => $pending->id]);
+
+        $log = AuditLog::where('action', AuditAction::UpdatedUser->value)->latest('id')->firstOrFail();
+        $this->assertSame(UserStatus::PendingActivation->value, $log->old_values['status']);
+        $this->assertSame(UserStatus::Inactive->value, $log->new_values['status']);
+
+        $this->patch(route('admin.users.cancel-invitation', $pending))
+            ->assertSessionHasErrors('status');
+
+        $this->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSee('Re-invite');
+
+        $this->from('/admin/users')
+            ->patch(route('admin.users.toggle-status', $pending))
+            ->assertRedirect('/admin/users')
+            ->assertSessionHas('success', "A new activation invitation was sent to {$pending->email}.");
+
+        $this->assertSame(UserStatus::PendingActivation, $pending->fresh()->status);
+        Notification::assertSentTo($pending, AccountCreated::class);
+    }
+
     public function test_an_invalid_phone_number_cannot_update_a_user(): void
     {
         $admin = $this->admin();
@@ -760,6 +811,11 @@ class UserManagementTest extends TestCase
             ->assertSessionHasErrors('phone');
 
         $this->assertSame('09123456789', $staff->fresh()->phone);
+
+        $this->get("/admin/users/{$staff->id}/edit")
+            ->assertOk()
+            ->assertSee("\$nextTick(() => \$dispatch('open-modal', 'edit-user-modal'))", false)
+            ->assertSee('value="+639123456789"', false);
     }
 
     // ------------------------------------------------------------------ status
@@ -1048,6 +1104,9 @@ class UserManagementTest extends TestCase
 
         $editResponse
             ->assertStatus(200)
+            ->assertSee("\$nextTick(() => \$dispatch('open-modal', 'edit-user-modal'))", false)
+            ->assertSee('aria-modal="true"', false)
+            ->assertSee('action="'.route('admin.users.update', $staff).'"', false)
             ->assertSee('value="'.e($staff->surname).'"', false)
             ->assertSee('value="'.e($staff->first_name).'"', false)
             ->assertSee('value="'.e($staff->employee_id).'"', false)
@@ -1056,6 +1115,7 @@ class UserManagementTest extends TestCase
         $editContent = $editResponse->getContent();
         $editNameFieldCount = collect(['surname', 'first_name', 'middle_name'])
             ->sum(fn (string $field): int => substr_count($editContent, 'name="'.$field.'"'));
+        $this->assertSame(3, $editNameFieldCount);
         $this->assertSame($editNameFieldCount, substr_count($editContent, 'data-name-part-input='));
     }
 

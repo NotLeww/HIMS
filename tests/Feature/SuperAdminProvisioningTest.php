@@ -346,11 +346,14 @@ class SuperAdminProvisioningTest extends TestCase
             'is_protected' => false,
         ]);
 
-        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('super-admin.users.edit', $superAdmin))
-            ->assertOk()
-            ->assertSee('value="super_administrator"', false)
-            ->assertDontSee('value="administrator"', false);
+        $response = $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.users.edit', $superAdmin));
+
+        $response->assertOk();
+        $this->assertMatchesRegularExpression(
+            '/<option value="super_administrator"\s+selected>/',
+            $response->getContent(),
+        );
 
         $payload = $this->validUpdatePayload($superAdmin, UserRole::SuperAdministrator);
         $payload['phone'] = '09179999999';

@@ -2,6 +2,7 @@
     'name',
     'title' => null,
     'maxWidth' => 'lg',
+    'closeUrl' => null,
 ])
 
 @php
@@ -27,10 +28,17 @@
     Closes on Escape and on backdrop click.
 --}}
 <div
-    x-data="{ open: false }"
+    x-data="{
+        open: false,
+        closeUrl: {{ \Illuminate\Support\Js::from($closeUrl) }},
+        close() {
+            this.open = false;
+            if (this.closeUrl) window.location.assign(this.closeUrl);
+        },
+    }"
     x-on:open-modal.window="if ($event.detail === '{{ $name }}') { open = true }"
     x-on:close-modal.window="if ($event.detail === '{{ $name }}') { open = false }"
-    x-on:keydown.escape.window="open = false"
+    x-on:keydown.escape.window="if (open) close()"
     x-show="open"
     x-cloak
     class="fixed inset-0 z-50 flex min-h-full items-center justify-center overflow-y-auto p-4 sm:p-6"
@@ -41,7 +49,7 @@
     <div
         x-show="open"
         x-transition.opacity
-        x-on:click="open = false"
+        x-on:click="close()"
         class="fixed inset-0 bg-neutral-900/60 dark:bg-black/70 backdrop-blur-xs"
         aria-hidden="true"
     ></div>
@@ -59,7 +67,7 @@
                     <h2 id="{{ $titleId }}" class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ $title }}</h2>
                 @endisset
 
-                <button type="button" x-on:click="open = false"
+                <button type="button" x-on:click="close()"
                         class="p-1 -m-1 rounded text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800
                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
                     <span class="sr-only">Close</span>

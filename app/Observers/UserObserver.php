@@ -74,9 +74,10 @@ class UserObserver
         if ($changedFields !== []) {
             $oldValues = [];
             $newValues = [];
+            $previousValues = $user->getPrevious();
 
             foreach ($changedFields as $field) {
-                $oldValues[$field] = $user->getRawOriginal($field);
+                $oldValues[$field] = $previousValues[$field] ?? null;
                 $newValues[$field] = $user->getAttributes()[$field] ?? null;
             }
 

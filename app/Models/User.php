@@ -321,6 +321,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->status->isPendingActivation();
     }
 
+    public function requiresActivation(): bool
+    {
+        return blank($this->getAuthPassword());
+    }
+
     public function authenticatorMfaEnabled(): bool
     {
         return $this->authenticator_enabled_at !== null

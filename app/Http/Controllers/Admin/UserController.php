@@ -128,11 +128,10 @@ class UserController extends Controller implements HasMiddleware
     {
         abort_unless($this->accounts->canManage(request()->user(), $user), 403);
 
-        return view('admin.users.edit', [
-            'user' => $user,
-            'roles' => $this->accounts->assignableRoles(request()->user(), $user),
-            'statuses' => UserStatus::options(),
-            'departments' => UserDepartment::optionsIncluding($user->department),
+        return $this->index(request())->with([
+            'editUser' => $user,
+            'editRoles' => $this->accounts->assignableRoles(request()->user(), $user),
+            'editDepartments' => UserDepartment::optionsIncluding($user->department),
         ]);
     }
 
@@ -187,6 +186,15 @@ class UserController extends Controller implements HasMiddleware
 
         $updated = $this->accounts->toggleStatus($user, $request->user());
 
+        if ($updated->isPendingActivation()) {
+            $updated->notify(new AccountCreated);
+
+            return back()->with('success', sprintf(
+                'A new activation invitation was sent to %s.',
+                $updated->email,
+            ));
+        }
+
         return redirect()
             ->back()
             ->with('success', sprintf(
@@ -194,6 +202,15 @@ class UserController extends Controller implements HasMiddleware
                 $updated->name,
                 $updated->status->label()
             ));
+    }
+
+    public function cancelInvitation(Request $request, User $user): RedirectResponse
+    {
+        abort_unless($this->accounts->canManage($request->user(), $user), 403);
+
+        $cancelled = $this->accounts->cancelInvitation($user, $request->user());
+
+        return back()->with('success', sprintf("%s's invitation was cancelled.", $cancelled->name));
     }
 
     public function unlock(Request $request, User $user): RedirectResponse

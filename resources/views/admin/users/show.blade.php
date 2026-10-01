@@ -33,6 +33,18 @@
                             </x-ui.button>
                         </form>
                     @endif
+                    @if ($user->isPendingActivation())
+                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.cancel-invitation'), $user) }}"
+                              data-confirm-title="Cancel invitation?"
+                              data-confirm-message="This will invalidate the activation code and mark the account as inactive."
+                              data-confirm-label="Cancel Invitation">
+                            @csrf
+                            @method('PATCH')
+                            <x-ui.button type="submit" variant="danger" data-loading-text="Cancelling invitation...">
+                                Cancel Invitation
+                            </x-ui.button>
+                        </form>
+                    @endif
                     @unless ($user->is(auth()->user()))
                         @if ($user->isArchived())
                             @can(\App\Enums\Permission::ManageArchive->value)
@@ -51,18 +63,19 @@
                                 </form>
                             @endcan
                         @elseif (! $user->isPendingActivation())
+                            @php($willReinvite = ! $user->isActive() && $user->requiresActivation())
                             <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.toggle-status'), $user) }}"
-                                  data-confirm-title="Confirm account status change"
-                                  data-confirm-message="Are you sure you want to {{ $user->isActive() ? 'deactivate' : 'reactivate' }} this user?"
-                                  data-confirm-label="{{ $user->isActive() ? 'Deactivate' : 'Reactivate' }}"
+                                  data-confirm-title="{{ $willReinvite ? 'Re-invite user?' : 'Confirm account status change' }}"
+                                  data-confirm-message="{{ $willReinvite ? 'This will return the account to Pending Activation and send a new invitation.' : 'Are you sure you want to '.($user->isActive() ? 'deactivate' : 'reactivate').' this user?' }}"
+                                  data-confirm-label="{{ $willReinvite ? 'Re-invite' : ($user->isActive() ? 'Deactivate' : 'Reactivate') }}"
                                   @if (auth()->user()?->isSuperAdministrator() && $user->isActive()) data-super-admin-deactivate="true" @endif>
                                 @csrf
                                 @method('PATCH')
                                 <x-ui.button
                                     type="submit"
-                                    data-loading-text="Updating account..."
+                                    data-loading-text="{{ $willReinvite ? 'Sending invitation...' : 'Updating account...' }}"
                                     :variant="$user->isActive() ? 'secondary' : 'primary'">
-                                    {{ $user->isActive() ? 'Deactivate' : 'Reactivate' }}
+                                    {{ $willReinvite ? 'Re-invite' : ($user->isActive() ? 'Deactivate' : 'Reactivate') }}
                                 </x-ui.button>
                             </form>
 

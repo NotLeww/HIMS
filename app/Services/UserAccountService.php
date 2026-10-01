@@ -208,7 +208,8 @@ class UserAccountService
     }
 
     /**
-     * Flip an account between active and inactive.
+     * Flip an account between active and inactive, or restart activation when
+     * a cancelled invitation left the account without a password.
      */
     public function toggleStatus(User $user, User $actor): User
     {
@@ -236,12 +237,35 @@ class UserAccountService
 
                 $user->status = UserStatus::Inactive;
             } else {
-                $user->status = UserStatus::Active;
+                $user->status = $user->requiresActivation()
+                    ? UserStatus::PendingActivation
+                    : UserStatus::Active;
             }
 
             $user->save();
 
             return $user;
+        });
+    }
+
+    public function cancelInvitation(User $user, User $actor): User
+    {
+        return DB::transaction(function () use ($user, $actor): User {
+            $lockedUser = User::query()->lockForUpdate()->findOrFail($user->getKey());
+
+            $this->assertCanManage($actor, $lockedUser);
+
+            if (! $lockedUser->isPendingActivation()) {
+                throw ValidationException::withMessages([
+                    'status' => ['Only pending invitations can be cancelled.'],
+                ]);
+            }
+
+            $lockedUser->accountActivationChallenge()->delete();
+            $lockedUser->status = UserStatus::Inactive;
+            $lockedUser->save();
+
+            return $lockedUser;
         });
     }
 

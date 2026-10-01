@@ -1,8 +1,13 @@
 <x-app-layout full-width>
     @php($openCreateUserModal = request()->routeIs('admin.users.create', 'super-admin.users.create') || (old('form_context') === 'create_user' && $errors->any()))
+    @php($openEditUserModal = isset($editUser))
 
     @if ($openCreateUserModal)
         <div x-data x-init="$nextTick(() => $dispatch('open-modal', 'create-user-modal'))"></div>
+    @endif
+
+    @if ($openEditUserModal)
+        <div x-data x-init="$nextTick(() => $dispatch('open-modal', 'edit-user-modal'))"></div>
     @endif
 
     <x-ui.page-header
@@ -14,7 +19,7 @@
         </x-slot:actions>
     </x-ui.page-header>
 
-    @if ($errors->any() && old('form_context') !== 'create_user')
+    @if ($errors->any() && old('form_context') !== 'create_user' && ! $openEditUserModal)
         <x-ui.alert variant="danger" title="That change was not applied">
             <ul class="space-y-0.5 list-disc list-inside">
                 @foreach ($errors->all() as $error)
@@ -154,6 +159,19 @@
                                 </form>
                             @endif
 
+                            @if ($account->isPendingActivation())
+                                <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.cancel-invitation'), $account) }}"
+                                      data-confirm-title="Cancel invitation?"
+                                      data-confirm-message="This will invalidate the activation code and mark the account as inactive."
+                                      data-confirm-label="Cancel Invitation">
+                                    @csrf
+                                    @method('PATCH')
+                                    <x-ui.button type="submit" variant="danger" size="sm" data-loading-text="Cancelling invitation...">
+                                        Cancel Invitation
+                                    </x-ui.button>
+                                </form>
+                            @endif
+
                             @if (in_array($account->getKey(), $unlockableAccountIds, true))
                                 <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.unlock'), $account) }}"
                                       data-confirm-title="Unlock account?"
@@ -171,19 +189,20 @@
                             @endif
 
                             @unless ($account->is(auth()->user()) || $account->isPendingActivation())
+                                @php($willReinvite = ! $account->isActive() && $account->requiresActivation())
                                 <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.toggle-status'), $account) }}"
-                                      data-confirm-title="Confirm account status change"
-                                      data-confirm-message="Are you sure you want to {{ $account->isActive() ? 'deactivate' : 'reactivate' }} this user?"
-                                      data-confirm-label="{{ $account->isActive() ? 'Deactivate' : 'Reactivate' }}"
+                                      data-confirm-title="{{ $willReinvite ? 'Re-invite user?' : 'Confirm account status change' }}"
+                                      data-confirm-message="{{ $willReinvite ? 'This will return the account to Pending Activation and send a new invitation.' : 'Are you sure you want to '.($account->isActive() ? 'deactivate' : 'reactivate').' this user?' }}"
+                                      data-confirm-label="{{ $willReinvite ? 'Re-invite' : ($account->isActive() ? 'Deactivate' : 'Reactivate') }}"
                                       @if (auth()->user()?->isSuperAdministrator() && $account->isActive()) data-super-admin-deactivate="true" @endif>
                                     @csrf
                                     @method('PATCH')
                                     <x-ui.button
                                         type="submit"
                                         size="sm"
-                                        data-loading-text="Updating account..."
+                                        data-loading-text="{{ $willReinvite ? 'Sending invitation...' : 'Updating account...' }}"
                                         :variant="$account->isActive() ? 'secondary' : 'primary'">
-                                        {{ $account->isActive() ? 'Deactivate' : 'Reactivate' }}
+                                        {{ $willReinvite ? 'Re-invite' : ($account->isActive() ? 'Deactivate' : 'Reactivate') }}
                                     </x-ui.button>
                                 </form>
 
@@ -323,6 +342,24 @@
                                             </form>
                                         @endunless
 
+                                        @if ($account->isPendingActivation())
+                                            <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.cancel-invitation'), $account) }}"
+                                                  data-confirm-title="Cancel invitation?"
+                                                  data-confirm-message="This will invalidate the activation code and mark the account as inactive."
+                                                  data-confirm-label="Cancel Invitation">
+                                                @csrf
+                                                @method('PATCH')
+                                                <x-ui.button
+                                                    type="submit"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    class="px-2 py-1 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                                                    data-loading-text="Cancelling...">
+                                                    Cancel
+                                                </x-ui.button>
+                                            </form>
+                                        @endif
+
                                         @if (in_array($account->getKey(), $unlockableAccountIds, true))
                                             <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.unlock'), $account) }}"
                                                   data-confirm-title="Unlock account?"
@@ -343,10 +380,11 @@
                                         {{-- Deactivating yourself is refused by the service;
                                              hide the impossible action here as well. --}}
                                         @unless ($account->is(auth()->user()) || $account->isPendingActivation())
+                                            @php($willReinvite = ! $account->isActive() && $account->requiresActivation())
                                             <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.toggle-status'), $account) }}"
-                                                  data-confirm-title="Confirm account status change"
-                                                  data-confirm-message="Are you sure you want to {{ $account->isActive() ? 'deactivate' : 'reactivate' }} this user?"
-                                                  data-confirm-label="{{ $account->isActive() ? 'Deactivate' : 'Reactivate' }}"
+                                                  data-confirm-title="{{ $willReinvite ? 'Re-invite user?' : 'Confirm account status change' }}"
+                                                  data-confirm-message="{{ $willReinvite ? 'This will return the account to Pending Activation and send a new invitation.' : 'Are you sure you want to '.($account->isActive() ? 'deactivate' : 'reactivate').' this user?' }}"
+                                                  data-confirm-label="{{ $willReinvite ? 'Re-invite' : ($account->isActive() ? 'Deactivate' : 'Reactivate') }}"
                                                   @if (auth()->user()?->isSuperAdministrator() && $account->isActive()) data-super-admin-deactivate="true" @endif>
                                                 @csrf
                                                 @method('PATCH')
@@ -354,9 +392,9 @@
                                                     type="submit"
                                                     size="sm"
                                                     class="px-2 py-1"
-                                                    data-loading-text="Updating account..."
+                                                    data-loading-text="{{ $willReinvite ? 'Sending invitation...' : 'Updating account...' }}"
                                                     :variant="$account->isActive() ? 'secondary' : 'primary'">
-                                                    {{ $account->isActive() ? 'Deactivate' : 'Reactivate' }}
+                                                    {{ $willReinvite ? 'Re-invite' : ($account->isActive() ? 'Deactivate' : 'Reactivate') }}
                                                 </x-ui.button>
                                             </form>
 
@@ -411,33 +449,109 @@
         @endif
     </x-ui.card>
 
-    <x-ui.modal name="create-user-modal" title="Add User" maxWidth="6xl">
-        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.store')) }}" class="space-y-5" autocomplete="off"
-              @if (auth()->user()?->isSuperAdministrator())
-                  data-super-admin-password="create"
-              @else
-                  data-confirm-title="Create staff user"
-                  data-confirm-message="Create this account as Pending Activation? The user will verify a code and create their own password."
-                  data-confirm-label="Create User"
-              @endif>
-            @csrf
-            <input type="hidden" name="form_context" value="create_user">
+    @unless ($openEditUserModal)
+        <x-ui.modal name="create-user-modal" title="Add User" maxWidth="6xl">
+            <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.store')) }}" class="space-y-5" autocomplete="off"
+                  @if (auth()->user()?->isSuperAdministrator())
+                      data-super-admin-password="create"
+                  @else
+                      data-confirm-title="Create staff user"
+                      data-confirm-message="Create this account as Pending Activation? The user will verify a code and create their own password."
+                      data-confirm-label="Create User"
+                  @endif>
+                @csrf
+                <input type="hidden" name="form_context" value="create_user">
 
-            <p class="text-sm text-neutral-600 dark:text-neutral-300">Fields marked with an asterisk are required.</p>
+                <p class="text-sm text-neutral-600 dark:text-neutral-300">Fields marked with an asterisk are required.</p>
 
-            @include('admin.users.partials.form', ['user' => null, 'roles' => $createRoles])
+                @include('admin.users.partials.form', ['user' => null, 'roles' => $createRoles])
 
-            <div class="flex flex-col gap-3 border-t border-neutral-200 pt-4 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between">
-                <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                    Employee accounts are provisioned for hospital operations. Activity is recorded in accordance with the <a href="{{ route('privacy.notice', ['return' => url()->current()]) }}" target="_blank" rel="opener" class="text-primary-600 underline hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">Privacy Notice</a>.
-                </p>
-                <div class="flex w-full shrink-0 flex-col-reverse justify-end gap-2 sm:w-auto sm:flex-row sm:items-center">
-                    <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'create-user-modal')">Cancel</x-ui.button>
-                    <x-ui.button type="submit" icon="plus" data-loading-text="Creating account...">Create Account</x-ui.button>
+                <div class="flex flex-col gap-3 border-t border-neutral-200 pt-4 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between">
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400">
+                        Employee accounts are provisioned for hospital operations. Activity is recorded in accordance with the <a href="{{ route('privacy.notice', ['return' => url()->current()]) }}" target="_blank" rel="opener" class="text-primary-600 underline hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">Privacy Notice</a>.
+                    </p>
+                    <div class="flex w-full shrink-0 flex-col-reverse justify-end gap-2 sm:w-auto sm:flex-row sm:items-center">
+                        <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'create-user-modal')">Cancel</x-ui.button>
+                        <x-ui.button type="submit" icon="plus" data-loading-text="Creating account...">Create Account</x-ui.button>
+                    </div>
                 </div>
-            </div>
-        </form>
-    </x-ui.modal>
+            </form>
+        </x-ui.modal>
+    @endunless
+
+    @if ($openEditUserModal)
+        @php($editRolePermissionsModalName = 'edit-user-role-permissions-'.$editUser->getKey())
+        <x-ui.modal
+            name="edit-user-modal"
+            title="Edit Account"
+            maxWidth="6xl"
+            :close-url="route(\App\Support\AuthenticationContext::administrationRoute('users.index'))">
+            <x-slot:header>
+                <div class="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="min-w-0">
+                        <h2 id="edit-user-modal-title" class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                            Edit Account
+                        </h2>
+                        <p class="mt-0.5 truncate text-xs text-neutral-500 dark:text-neutral-400">
+                            {{ $editUser->name }} · {{ $editUser->email }}
+                        </p>
+                    </div>
+                    <x-ui.button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        icon="shield-check"
+                        x-on:click="$dispatch('open-modal', '{{ $editRolePermissionsModalName }}')">
+                        View Role Permissions
+                    </x-ui.button>
+                </div>
+            </x-slot:header>
+
+            <form method="POST"
+                  action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.update'), $editUser) }}"
+                  class="space-y-4"
+                  autocomplete="off"
+                  @if (auth()->user()?->isSuperAdministrator())
+                      data-super-admin-password="edit"
+                  @else
+                      data-confirm-title="Confirm account changes"
+                      data-confirm-message="Are you sure you want to save these account changes?"
+                      data-confirm-label="Save Changes"
+                  @endif>
+                @csrf
+                @method('PUT')
+
+                @if ($errors->any())
+                    <x-ui.alert variant="danger" title="That change was not applied">
+                        <ul class="list-inside list-disc space-y-0.5">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </x-ui.alert>
+                @endif
+
+                @if ($editUser->is(auth()->user()))
+                    <x-ui.alert variant="warning" title="This is your own account">
+                        You cannot remove your own administrator access or deactivate yourself.
+                    </x-ui.alert>
+                @endif
+
+                @include('admin.users.partials.form', [
+                    'user' => $editUser,
+                    'roles' => $editRoles,
+                    'departments' => $editDepartments,
+                ])
+
+                <div class="flex flex-col-reverse gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-end">
+                    <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('users.index'))">
+                        Cancel
+                    </x-ui.button>
+                    <x-ui.button type="submit" data-loading-text="Saving changes...">Save Changes</x-ui.button>
+                </div>
+            </form>
+        </x-ui.modal>
+    @endif
 
     {{-- Role Permissions Interactive Modal --}}
     <x-ui.modal name="role-permissions-modal" title="Role Permissions Reference" maxWidth="2xl">
