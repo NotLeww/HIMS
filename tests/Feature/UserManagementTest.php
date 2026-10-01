@@ -627,7 +627,7 @@ class UserManagementTest extends TestCase
         $this->assertTrue(Hash::check('OriginalPass1!', $staff->password));
     }
 
-    public function test_a_supplied_password_on_edit_cannot_replace_the_old_one(): void
+    public function test_a_supplied_password_on_edit_replaces_the_old_one(): void
     {
         $admin = $this->admin();
         $staff = User::factory()->create(['password' => Hash::make('OriginalPass1!')]);
@@ -644,8 +644,8 @@ class UserManagementTest extends TestCase
         ])->assertRedirect('/admin/users');
 
         $staff->refresh();
-        $this->assertTrue(Hash::check('OriginalPass1!', $staff->password));
-        $this->assertFalse(Hash::check('BrandNewPass1!', $staff->password));
+        $this->assertFalse(Hash::check('OriginalPass1!', $staff->password));
+        $this->assertTrue(Hash::check('BrandNewPass1!', $staff->password));
     }
 
     public function test_changing_an_account_email_requires_verification_of_the_new_address(): void
@@ -1162,18 +1162,33 @@ class UserManagementTest extends TestCase
             ->assertSee('Runs the storeroom: items, procurement, forecasts.');
     }
 
-    public function test_user_create_and_edit_forms_do_not_expose_password_fields(): void
+    public function test_create_form_hides_password_fields_and_edit_form_shows_them(): void
     {
         $admin = $this->admin();
         $staff = User::factory()->create();
 
-        $createResponse = $this->actingAs($admin)->get('/admin/users/create');
-        $createResponse->assertStatus(200)
+        $this->actingAs($admin)->get('/admin/users/create')
+            ->assertStatus(200)
             ->assertDontSee('name="password"', false)
             ->assertDontSee('name="password_confirmation"', false);
 
-        $editResponse = $this->actingAs($admin)->get("/admin/users/{$staff->id}/edit");
-        $editResponse->assertStatus(200)
+        $this->actingAs($admin)->get("/admin/users/{$staff->id}/edit")
+            ->assertStatus(200)
+            ->assertSee('name="password"', false)
+            ->assertSee('name="password_confirmation"', false);
+    }
+
+    public function test_edit_form_hides_password_fields_for_pending_activation_accounts(): void
+    {
+        $admin = $this->admin();
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+            'email_verified_at' => null,
+        ]);
+
+        $this->actingAs($admin)->get("/admin/users/{$pending->id}/edit")
+            ->assertStatus(200)
             ->assertDontSee('name="password"', false)
             ->assertDontSee('name="password_confirmation"', false);
     }

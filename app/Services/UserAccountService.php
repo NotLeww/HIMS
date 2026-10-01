@@ -25,6 +25,7 @@ use Illuminate\Validation\ValidationException;
 class UserAccountService
 {
     public function __construct(
+        private readonly PasswordHistoryService $passwords,
         private readonly AuditLogger $audit,
         private readonly SmsOtpDelivery $sms,
     ) {}
@@ -177,6 +178,19 @@ class UserAccountService
             // Blank means "leave it alone" — the edit form does not echo the
             // existing password back, so an empty field is not a request to
             // clear it.
+            if (! empty($attributes['password']) && ! $user->isPendingActivation()) {
+                return $this->passwords->usePassword(
+                    $user,
+                    $attributes['password'],
+                    function (string $passwordHash) use ($user): User {
+                        $user->password = $passwordHash;
+                        $user->save();
+
+                        return $user;
+                    },
+                );
+            }
+
             $user->save();
 
             if (($emailChanged || $phoneChanged) && $user->isPendingActivation()) {

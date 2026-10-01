@@ -53,6 +53,12 @@ class AccountActivationTest extends TestCase
         $this->post(route('activation.verify.store'), ['otp' => $otp])
             ->assertRedirect(route('activation.password'));
 
+        $this->get(route('activation.password'))
+            ->assertOk()
+            ->assertSee('aria-controls="activation-password"', false)
+            ->assertSee('aria-controls="activation-password-confirmation"', false)
+            ->assertSee("showPassword ? 'Hide password' : 'Show password'", false);
+
         $this->post(route('activation.password.store'), [
             'password' => 'Activated2!Secure',
             'password_confirmation' => 'Activated2!Secure',

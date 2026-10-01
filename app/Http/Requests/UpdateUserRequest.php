@@ -7,6 +7,7 @@ use App\Enums\UserDepartment;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Rules\PasswordStandard;
 use App\Services\UserAccountService;
 use App\Support\SuperAdminPasswordConfirmation;
 use Illuminate\Foundation\Http\FormRequest;
@@ -51,6 +52,8 @@ class UpdateUserRequest extends FormRequest
             'status' => ['required', Rule::enum(UserStatus::class)],
             'department' => ['required', 'string', Rule::in($departments)],
             'phone' => ['bail', 'required', 'string', 'digits:11', 'regex:/^09[0-9]{9}$/'],
+            'password' => ['nullable', 'string', new PasswordStandard, 'confirmed'],
+            'password_confirmation' => ['nullable', 'string'],
             'current_password' => ['nullable', 'string'],
             'super_admin_confirmation_token' => ['nullable', 'string'],
         ];

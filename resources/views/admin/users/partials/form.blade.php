@@ -47,6 +47,8 @@
     role: '{{ old('role', $user?->role?->value ?? (collect($roles)->first()?->value ?? \App\Enums\UserRole::Viewer->value)) }}',
     roles: {{ \Illuminate\Support\Js::from($roleDescriptions) }},
     permissionSearch: '',
+    password: '',
+    passwordConfirmation: '',
     sanitizeNamePart(event) {
         event.target.value = event.target.value
             .replace(/[^\p{L} ]/gu, '')
@@ -208,7 +210,33 @@
             @endif
         @endif
 
+        @if ($isEdit && ! $user->isPendingActivation())
+            <x-ui.field
+                name="password"
+                label="New Password"
+                type="password"
+                autocomplete="new-password"
+                minlength="8"
+                pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9\s]).{8,}"
+                title="{{ \App\Rules\PasswordStandard::REQUIREMENTS }}"
+                x-model="password"
+                hint="Leave blank to keep the current password." />
+
+            <x-ui.field
+                name="password_confirmation"
+                label="Confirm Password"
+                type="password"
+                autocomplete="new-password"
+                x-model="passwordConfirmation" />
+        @endif
+
     </div>
+
+    @if ($isEdit && ! $user->isPendingActivation())
+        <div class="mt-4">
+            <x-auth.password-requirements />
+        </div>
+    @endif
 
     {{-- Role Permissions Detail Modal --}}
     <x-ui.modal name="form-role-permissions-modal" title="Role permissions" maxWidth="3xl">
