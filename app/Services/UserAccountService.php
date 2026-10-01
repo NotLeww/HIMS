@@ -23,7 +23,6 @@ use Illuminate\Validation\ValidationException;
 class UserAccountService
 {
     public function __construct(
-        private readonly PasswordHistoryService $passwords,
         private readonly AuditLogger $audit,
     ) {}
 
@@ -95,16 +94,16 @@ class UserAccountService
      */
     public function create(array $attributes, User $actor): User
     {
-        $user = $this->passwords->usePassword(null, $attributes['password'], function (string $passwordHash) use ($attributes, $actor): User {
+        return DB::transaction(function () use ($attributes, $actor): User {
             $role = UserRole::from($attributes['role']);
             $this->assertCanAssignRole($actor, $role);
 
             $user = new User([
                 ...$this->nameAttributes($attributes),
                 'email' => $attributes['email'],
-                'password' => $passwordHash,
+                'password' => null,
                 'role' => $role,
-                'status' => $attributes['status'] ?? UserStatus::Active->value,
+                'status' => UserStatus::PendingActivation,
                 'employee_id' => $this->nextEmployeeId(),
                 'department' => $attributes['department'],
                 'phone' => $attributes['phone'] ?? null,
@@ -114,10 +113,6 @@ class UserAccountService
 
             return $user;
         });
-
-        $user->sendEmailVerificationNotification();
-
-        return $user;
     }
 
     /**
@@ -129,8 +124,9 @@ class UserAccountService
     public function update(User $user, array $attributes, User $actor): User
     {
         $emailChanged = $attributes['email'] !== $user->email;
+        $phoneChanged = ($attributes['phone'] ?? null) !== $user->phone;
 
-        $user = DB::transaction(function () use ($user, $attributes, $actor, $emailChanged): User {
+        $user = DB::transaction(function () use ($user, $attributes, $actor, $emailChanged, $phoneChanged): User {
             $this->assertCanManage($actor, $user);
 
             $newRole = UserRole::from($attributes['role']);
@@ -173,25 +169,16 @@ class UserAccountService
             // Blank means "leave it alone" — the edit form does not echo the
             // existing password back, so an empty field is not a request to
             // clear it.
-            if (! empty($attributes['password'])) {
-                return $this->passwords->usePassword(
-                    $user,
-                    $attributes['password'],
-                    function (string $passwordHash) use ($user): User {
-                        $user->password = $passwordHash;
-                        $user->save();
-
-                        return $user;
-                    },
-                );
-            }
-
             $user->save();
+
+            if (($emailChanged || $phoneChanged) && $user->isPendingActivation()) {
+                $user->accountActivationChallenge()->delete();
+            }
 
             return $user;
         });
 
-        if ($emailChanged) {
+        if ($emailChanged && ! $user->isPendingActivation()) {
             $user->sendEmailVerificationNotification();
         }
 
@@ -209,6 +196,12 @@ class UserAccountService
             if ($user->isArchived()) {
                 throw ValidationException::withMessages([
                     'status' => ['Archived user accounts cannot be activated via status toggle. Use the Restore workflow in the Archive workspace.'],
+                ]);
+            }
+
+            if ($user->isPendingActivation()) {
+                throw ValidationException::withMessages([
+                    'status' => ['Pending accounts become active only after the user verifies an OTP and creates a password.'],
                 ]);
             }
 
@@ -276,20 +269,6 @@ class UserAccountService
 
             return $lockedUser;
         });
-    }
-
-    public function resetPassword(User $user, string $password): User
-    {
-        return $this->passwords->usePassword(
-            $user,
-            $password,
-            function (string $passwordHash) use ($user): User {
-                $user->password = $passwordHash;
-                $user->save();
-
-                return $user;
-            },
-        );
     }
 
     /**

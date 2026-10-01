@@ -1,8 +1,8 @@
 {{--
-    Shared by the create and edit screens. The only differences are whether a
-    password is required and whether the status field is offered, so the two
-    pages pass $user and everything else follows from it. Included rather than
-    made a component: it belongs to this module, not to the design system.
+    Shared by the create and edit screens. The edit screen also offers the
+    account status, so the two pages pass $user and everything else follows
+    from it. Included rather than made a component: it belongs to this module,
+    not to the design system.
 
     Alpine mirrors the role list so picking a role immediately shows what that
     role can do — assigning access blind is how people end up over-permissioned.
@@ -46,8 +46,6 @@
 <div x-data="{
     role: '{{ old('role', $user?->role?->value ?? (collect($roles)->first()?->value ?? \App\Enums\UserRole::Viewer->value)) }}',
     roles: {{ \Illuminate\Support\Js::from($roleDescriptions) }},
-    password: '',
-    passwordConfirmation: '',
     permissionSearch: '',
     sanitizeNamePart(event) {
         event.target.value = event.target.value
@@ -187,14 +185,16 @@
         </div>
 
         @if ($isEdit)
-            @if ($user->isArchived())
+            @if ($user->isArchived() || $user->isPendingActivation())
                 <div>
                     <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">Status</label>
                     <div class="flex items-center gap-2 p-2.5 rounded-md bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs">
-                        <x-ui.badge variant="neutral">Archived</x-ui.badge>
-                        <span class="text-neutral-500 dark:text-neutral-400">Archived accounts must be restored through the Archive workspace.</span>
+                        <x-ui.badge :status="$user->status->value">{{ $user->status->label() }}</x-ui.badge>
+                        <span class="text-neutral-500 dark:text-neutral-400">
+                            {{ $user->isArchived() ? 'Archived accounts must be restored through the Archive workspace.' : 'Only the user can activate this account by verifying an OTP and creating a password.' }}
+                        </span>
                     </div>
-                    <input type="hidden" name="status" value="archived">
+                    <input type="hidden" name="status" value="{{ $user->status->value }}">
                 </div>
             @else
                 <x-ui.field
@@ -208,29 +208,6 @@
             @endif
         @endif
 
-        <x-ui.field
-            name="password"
-            label="{{ $isEdit ? 'New Password' : 'Password' }}"
-            type="password"
-            :required="! $isEdit"
-            autocomplete="new-password"
-            minlength="8"
-            pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9\s]).{8,}"
-            title="{{ \App\Rules\PasswordStandard::REQUIREMENTS }}"
-            x-model="password"
-            hint="{{ $isEdit ? 'Leave blank to keep the current password. When changed, all requirements below apply.' : \App\Rules\PasswordStandard::REQUIREMENTS }}" />
-
-        <x-ui.field
-            name="password_confirmation"
-            label="Confirm Password"
-            type="password"
-            :required="! $isEdit"
-            autocomplete="new-password"
-            x-model="passwordConfirmation" />
-    </div>
-
-    <div class="mt-4">
-        <x-auth.password-requirements />
     </div>
 
     {{-- Role Permissions Detail Modal --}}

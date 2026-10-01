@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Http\Middleware\EnforceSessionInactivity;
 use App\Models\User;
 use App\Support\AuthenticationContext;
@@ -195,14 +196,12 @@ class SuperAdminAuthenticationTest extends TestCase
             'surname' => 'Administrator',
             'first_name' => 'Vera',
             'email' => 'vera.administrator@example.com',
-            'password' => 'Password123!',
-            'password_confirmation' => 'Password123!',
             'role' => UserRole::Administrator->value,
             'department' => 'Administration',
             'phone' => '09179876543',
             'current_password' => 'password',
         ])->assertSessionHasNoErrors()
-            ->assertSessionHas('account_created_success', 'Account created. A verification email was sent; access remains pending until the email is verified.')
+            ->assertSessionHas('account_created_success', 'Account created as Pending Activation. The user must activate it and create their own password from the login page.')
             ->assertRedirect(route('super-admin.users.index'));
 
         $this->assertDatabaseHas('users', [
@@ -212,21 +211,22 @@ class SuperAdminAuthenticationTest extends TestCase
 
         $created = User::query()->where('email', 'vera.administrator@example.com')->firstOrFail();
 
-        $this->assertNotSame('Password123!', $created->password);
-        $this->assertTrue(password_verify('Password123!', $created->password));
+        $this->assertSame(UserStatus::PendingActivation, $created->status);
+        $this->assertNull($created->password);
+        $this->assertNull($created->password_changed_at);
 
         $this->postJson(route('super-admin.session.activity'))->assertNoContent();
         $this->app['auth']->forgetGuards();
 
         $this->get(route('super-admin.users.index', ['search' => $created->email]))
             ->assertOk()
-            ->assertSee('Account created. A verification email was sent; access remains pending until the email is verified.')
+            ->assertSee('Account created as Pending Activation. The user must activate it and create their own password from the login page.')
             ->assertSee($created->name)
             ->assertSessionMissing('account_created_success');
 
         $this->get(route('super-admin.users.index', ['search' => $created->email]))
             ->assertOk()
-            ->assertDontSee('Account created. A verification email was sent; access remains pending until the email is verified.');
+            ->assertDontSee('Account created as Pending Activation. The user must activate it and create their own password from the login page.');
     }
 
     public function test_standard_admin_cannot_open_super_admin_administration_routes(): void

@@ -2,6 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Enums\SupplierAccreditationStatus;
+use App\Enums\SupplierStatus;
+use App\Models\InventoryItem;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Support\AuthenticationContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -84,7 +88,7 @@ class DecisionConfirmationTest extends TestCase
 
         $this->get(route('admin.users.create'))
             ->assertOk()
-            ->assertSee('Are you sure you want to create this user account and issue an initial temporary password?');
+            ->assertSee('Create this account as Pending Activation? The user will verify a code and create their own password.');
     }
 
     public function test_inventory_commits_that_change_stock_or_workflow_require_confirmation(): void
@@ -125,15 +129,15 @@ class DecisionConfirmationTest extends TestCase
     {
         $manager = User::factory()->inventoryManager()->create();
         $admin = User::factory()->administrator()->create();
-        $supplier = \App\Models\Supplier::create([
+        $supplier = Supplier::create([
             'name' => 'Acme Medical Supplies',
             'business_structure' => 'corporation',
             'address' => '100 Health Avenue, Manila',
             'email' => 'procurement@acme.example',
-            'status' => \App\Enums\SupplierStatus::Active,
-            'accreditation_status' => \App\Enums\SupplierAccreditationStatus::PendingReview,
+            'status' => SupplierStatus::Active,
+            'accreditation_status' => SupplierAccreditationStatus::PendingReview,
         ]);
-        \App\Models\InventoryItem::create([
+        InventoryItem::create([
             'name' => 'Syringes 5ml',
             'sku' => 'SYR-005',
             'unit' => 'box',

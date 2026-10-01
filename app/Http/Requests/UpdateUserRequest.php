@@ -7,7 +7,6 @@ use App\Enums\UserDepartment;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\User;
-use App\Rules\PasswordStandard;
 use App\Services\UserAccountService;
 use App\Support\SuperAdminPasswordConfirmation;
 use Illuminate\Foundation\Http\FormRequest;
@@ -44,8 +43,6 @@ class UpdateUserRequest extends FormRequest
                 'required', 'string', 'lowercase', 'email', 'max:255',
                 Rule::unique('users', 'email')->ignore($userId),
             ],
-            // Left blank on the edit form when the password is not changing.
-            'password' => ['nullable', 'string', 'confirmed', new PasswordStandard],
             'role' => [
                 'required',
                 Rule::enum(UserRole::class),
@@ -74,6 +71,15 @@ class UpdateUserRequest extends FormRequest
                     }
                 }
             }
+
+            $target = $this->route('user');
+            $phone = $this->input('phone');
+            if ($target instanceof User
+                && is_string($phone)
+                && preg_match('/^09[0-9]{9}$/D', $phone) === 1
+                && User::query()->wherePhoneNumber($phone)->whereKeyNot($target->getKey())->exists()) {
+                $validator->errors()->add('phone', 'This mobile phone number is already assigned to another account.');
+            }
         });
     }
 
@@ -93,7 +99,6 @@ class UpdateUserRequest extends FormRequest
             'phone.required' => 'Phone number is required.',
             'phone.digits' => 'Contact number must contain numbers only and exactly 11 digits.',
             'phone.regex' => 'Contact number must start with 09 and contain exactly 11 digits.',
-            'password.confirmed' => PasswordStandard::CONFIRMATION_MESSAGE,
         ];
     }
 

@@ -104,7 +104,9 @@ class User extends Authenticatable implements MustVerifyEmail
     protected static function booted(): void
     {
         static::saving(function (User $user): void {
-            if ($user->isDirty('password') && ! $user->isDirty('password_changed_at')) {
+            if ($user->isDirty('password')
+                && filled($user->getAttribute('password'))
+                && ! $user->isDirty('password_changed_at')) {
                 $user->password_changed_at = now();
             }
 
@@ -257,6 +259,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(DeviceLoginCooldown::class);
     }
 
+    public function accountActivationChallenge(): HasOne
+    {
+        return $this->hasOne(AccountActivationChallenge::class);
+    }
+
     /**
      * Whether this account's role grants an ability.
      *
@@ -302,6 +309,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isActive(): bool
     {
         return $this->status->isActive();
+    }
+
+    public function isPendingActivation(): bool
+    {
+        return $this->status->isPendingActivation();
     }
 
     public function authenticatorMfaEnabled(): bool

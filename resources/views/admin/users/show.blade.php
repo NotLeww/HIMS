@@ -25,14 +25,14 @@
                     <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('users.edit'), $user)" icon="pencil-square">
                         Edit
                     </x-ui.button>
-                    @unless ($user->hasVerifiedEmail())
+                    @if (! $user->isPendingActivation() && ! $user->hasVerifiedEmail())
                         <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.verification.send'), $user) }}">
                             @csrf
                             <x-ui.button type="submit" variant="secondary" data-loading-text="Sending activation email...">
                                 Resend Activation
                             </x-ui.button>
                         </form>
-                    @endunless
+                    @endif
                     @unless ($user->is(auth()->user()))
                         @if ($user->isArchived())
                             @can(\App\Enums\Permission::ManageArchive->value)
@@ -50,7 +50,7 @@
                                     </x-ui.button>
                                 </form>
                             @endcan
-                        @else
+                        @elseif (! $user->isPendingActivation())
                             <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.toggle-status'), $user) }}"
                                   data-confirm-title="Confirm account status change"
                                   data-confirm-message="Are you sure you want to {{ $user->isActive() ? 'deactivate' : 'reactivate' }} this user?"
@@ -149,11 +149,9 @@
                     <div class="flex items-start justify-between gap-3">
                         <dt class="text-neutral-500">Status</dt>
                         <dd>
-                            @unless ($user->hasVerifiedEmail())
-                                <x-ui.badge status="pending" dot>Pending Verification</x-ui.badge>
-                            @endunless
-                            @if ($user->hasVerifiedEmail() || ! $user->isActive())
-                                <x-ui.badge :status="$user->status->value" dot>{{ $user->status->label() }}</x-ui.badge>
+                            <x-ui.badge :status="$user->status->value" dot>{{ $user->status->label() }}</x-ui.badge>
+                            @if (! $user->isPendingActivation() && ! $user->hasVerifiedEmail())
+                                <x-ui.badge status="pending" dot>Pending Email Verification</x-ui.badge>
                             @endif
                             @if ($user->isTemporarilyLocked())
                                 <x-ui.badge variant="warning" class="mt-1">Temporarily Locked</x-ui.badge>

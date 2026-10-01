@@ -77,7 +77,7 @@ class UserController extends Controller implements HasMiddleware
             'users' => $users,
             'roles' => UserRole::options(),
             'createRoles' => $this->accounts->assignableRoles($request->user()),
-            'statuses' => UserStatus::options(),
+            'statuses' => UserStatus::filterOptions(),
             'departments' => UserDepartment::options(),
             'filters' => $request->only(['search', 'role', 'status']),
             'counts' => [
@@ -102,7 +102,7 @@ class UserController extends Controller implements HasMiddleware
     public function store(StoreUserRequest $request): RedirectResponse
     {
         $this->accounts->create($request->validated(), $request->user());
-        $request->session()->put('account_created_success', 'Account created. A verification email was sent; access remains pending until the email is verified.');
+        $request->session()->put('account_created_success', 'Account created as Pending Activation. The user must activate it and create their own password from the login page.');
 
         return redirect()
             ->route(AuthenticationContext::administrationRoute('users.index'));
@@ -210,6 +210,10 @@ class UserController extends Controller implements HasMiddleware
 
         if ($user->hasVerifiedEmail()) {
             return back()->with('success', sprintf('%s is already verified.', $user->name));
+        }
+
+        if ($user->isPendingActivation()) {
+            return back()->with('success', 'This account is pending activation. The user can request an email or SMS code from the login page.');
         }
 
         $user->sendEmailVerificationNotification();

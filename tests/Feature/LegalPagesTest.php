@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -9,6 +11,7 @@ use Tests\TestCase;
 class LegalPagesTest extends TestCase
 {
     use RefreshDatabase;
+
     public function test_privacy_notice_page_is_publicly_accessible(): void
     {
         $response = $this->get(route('privacy.notice'));
@@ -80,21 +83,17 @@ class LegalPagesTest extends TestCase
         $response->assertSee(route('terms'));
     }
 
-    public function test_registration_page_renders_privacy_and_terms_links(): void
+    public function test_registration_page_is_disabled(): void
     {
-        $response = $this->get(route('register'));
-
-        $response->assertOk();
-        $response->assertSee(route('privacy.notice'));
-        $response->assertSee(route('terms'));
+        $this->get('/register')->assertNotFound();
     }
 
     public function test_admin_user_create_page_renders_privacy_notice_reference(): void
     {
         /** @var User $admin */
         $admin = User::factory()->create([
-            'role' => \App\Enums\UserRole::Administrator,
-            'status' => \App\Enums\UserStatus::Active,
+            'role' => UserRole::Administrator,
+            'status' => UserStatus::Active,
         ]);
 
         $response = $this->actingAs($admin)->get(route('admin.users.create'));
@@ -102,15 +101,15 @@ class LegalPagesTest extends TestCase
         $response->assertOk();
         $response->assertSee(route('privacy.notice'));
         $response->assertSee('Privacy Notice');
-        $response->assertSee('return=' . urlencode(route('admin.users.create')));
+        $response->assertSee('return='.urlencode(route('admin.users.create')));
     }
 
     public function test_privacy_notice_shows_contextual_back_button_when_opened_from_user_creation(): void
     {
         /** @var User $admin */
         $admin = User::factory()->create([
-            'role' => \App\Enums\UserRole::Administrator,
-            'status' => \App\Enums\UserStatus::Active,
+            'role' => UserRole::Administrator,
+            'status' => UserStatus::Active,
         ]);
 
         $createUrl = route('admin.users.create');
@@ -128,8 +127,8 @@ class LegalPagesTest extends TestCase
     {
         /** @var User $admin */
         $admin = User::factory()->create([
-            'role' => \App\Enums\UserRole::Administrator,
-            'status' => \App\Enums\UserStatus::Active,
+            'role' => UserRole::Administrator,
+            'status' => UserStatus::Active,
         ]);
 
         $createUrl = route('admin.users.create');
@@ -156,8 +155,8 @@ class LegalPagesTest extends TestCase
     {
         /** @var User $staff */
         $staff = User::factory()->create([
-            'role' => \App\Enums\UserRole::WarehouseStaff,
-            'status' => \App\Enums\UserStatus::Active,
+            'role' => UserRole::WarehouseStaff,
+            'status' => UserStatus::Active,
         ]);
 
         $response = $this->actingAs($staff)->get(route('privacy.notice'));

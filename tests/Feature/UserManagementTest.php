@@ -187,8 +187,6 @@ class UserManagementTest extends TestCase
             'first_name' => 'Juan',
             'middle_name' => 'Santos',
             'email' => 'juan.delacruz@djnrmhs.test',
-            'password' => 'Password123!',
-            'password_confirmation' => 'Password123!',
             'role' => UserRole::InventoryManager->value,
             'employee_id' => 'EMP-9999', // A forged value must be ignored.
             'department' => 'Central Supply',
@@ -197,7 +195,7 @@ class UserManagementTest extends TestCase
 
         $response
             ->assertSessionHasNoErrors()
-            ->assertSessionHas('account_created_success', 'Account created. A verification email was sent; access remains pending until the email is verified.')
+            ->assertSessionHas('account_created_success', 'Account created as Pending Activation. The user must activate it and create their own password from the login page.')
             ->assertRedirect('/admin/users');
 
         $created = User::where('email', 'juan.delacruz@djnrmhs.test')->firstOrFail();
@@ -207,18 +205,16 @@ class UserManagementTest extends TestCase
         $this->assertSame('Santos', $created->middle_name);
         $this->assertSame('Juan Santos Dela Cruz', $created->name);
         $this->assertSame(UserRole::InventoryManager, $created->role);
-        $this->assertSame(UserStatus::Active, $created->status);
+        $this->assertSame(UserStatus::PendingActivation, $created->status);
         $this->assertSame('EMP-0001', $created->employee_id);
 
-        // Stored hashed by the model's 'hashed' cast, never in the clear.
-        $this->assertNotSame('Password123!', $created->password);
-        $this->assertTrue(Hash::check('Password123!', $created->password));
+        $this->assertNull($created->password);
 
         $this->assertNull($created->email_verified_at);
-        Notification::assertSentTo($created, VerifyEmail::class);
+        Notification::assertNothingSentTo($created);
 
         $this->actingAs($admin)->get('/admin/users')
-            ->assertSee('Account created. A verification email was sent; access remains pending until the email is verified.')
+            ->assertSee('Account created as Pending Activation. The user must activate it and create their own password from the login page.')
             ->assertSee('Juan Santos Dela Cruz')
             ->assertSee('09171234567')
             ->assertSeeInOrder([
@@ -226,7 +222,7 @@ class UserManagementTest extends TestCase
             ]);
 
         $this->actingAs($admin)->get('/admin/users')
-            ->assertDontSee('Account created. A verification email was sent; access remains pending until the email is verified.');
+            ->assertDontSee('Account created as Pending Activation. The user must activate it and create their own password from the login page.');
     }
 
     public function test_a_new_account_gets_exactly_its_role_permissions(): void
@@ -245,6 +241,9 @@ class UserManagementTest extends TestCase
         ])->assertRedirect('/admin/users');
 
         $pharmacy = User::where('email', 'cely@djnrmhs.test')->firstOrFail();
+
+        $this->assertFalse($pharmacy->hasPermission(Permission::ViewInventory));
+        $pharmacy->forceFill(['status' => UserStatus::Active, 'password' => Hash::make('Activated1!')])->save();
 
         // What the department actually does: read the shelf and dispense from it.
         $this->assertTrue($pharmacy->hasPermission(Permission::ViewInventory));
@@ -281,7 +280,7 @@ class UserManagementTest extends TestCase
             ->assertSessionDoesntHaveErrors('employee_id');
     }
 
-    public function test_mismatched_password_confirmation_is_rejected(): void
+    public function test_admin_supplied_password_fields_are_ignored(): void
     {
         $this->actingAs($this->admin())->post('/admin/users', [
             'surname' => 'Account',
@@ -292,10 +291,10 @@ class UserManagementTest extends TestCase
             'role' => UserRole::Viewer->value,
             'department' => 'Warehouse',
             'phone' => '09171234567',
-        ])->assertSessionHasErrors('password')
-            ->assertSessionMissing('account_created_success');
+        ])->assertSessionHasNoErrors()
+            ->assertSessionHas('account_created_success');
 
-        $this->assertDatabaseMissing('users', ['email' => 'typo@djnrmhs.test']);
+        $this->assertNull(User::query()->where('email', 'typo@djnrmhs.test')->firstOrFail()->password);
     }
 
     public function test_a_database_failure_does_not_create_an_account_or_show_success(): void
@@ -350,7 +349,7 @@ class UserManagementTest extends TestCase
 
         $this->actingAs($admin)->from('/admin/users/create')->post('/admin/users', [])
             ->assertRedirect('/admin/users/create')
-            ->assertSessionHasErrors(['surname', 'first_name', 'email', 'password', 'role', 'department', 'phone']);
+            ->assertSessionHasErrors(['surname', 'first_name', 'email', 'role', 'department', 'phone']);
 
         $this->assertSame($before, User::count());
 
@@ -390,7 +389,7 @@ class UserManagementTest extends TestCase
                 'password_confirmation' => 'Password123!',
                 'role' => UserRole::Viewer->value,
                 'department' => 'Central Supply',
-                'phone' => '09171234567',
+                'phone' => '09170000001',
             ], [$field => $value]))->assertSessionHasErrors($field);
         }
 
@@ -521,7 +520,7 @@ class UserManagementTest extends TestCase
                 'role' => UserRole::Viewer->value,
                 'department' => 'Records Management',
                 'employee_id' => 'EMP-9001',
-                'phone' => '09171234567',
+                'phone' => '0917123456'.$number,
             ])->assertRedirect('/admin/users');
 
             $this->assertDatabaseHas('users', [
@@ -600,7 +599,7 @@ class UserManagementTest extends TestCase
         $this->assertTrue(Hash::check('OriginalPass1!', $staff->password));
     }
 
-    public function test_a_supplied_password_on_edit_replaces_the_old_one(): void
+    public function test_a_supplied_password_on_edit_cannot_replace_the_old_one(): void
     {
         $admin = $this->admin();
         $staff = User::factory()->create(['password' => Hash::make('OriginalPass1!')]);
@@ -617,8 +616,8 @@ class UserManagementTest extends TestCase
         ])->assertRedirect('/admin/users');
 
         $staff->refresh();
-        $this->assertFalse(Hash::check('OriginalPass1!', $staff->password));
-        $this->assertTrue(Hash::check('BrandNewPass1!', $staff->password));
+        $this->assertTrue(Hash::check('OriginalPass1!', $staff->password));
+        $this->assertFalse(Hash::check('BrandNewPass1!', $staff->password));
     }
 
     public function test_changing_an_account_email_requires_verification_of_the_new_address(): void
@@ -670,7 +669,7 @@ class UserManagementTest extends TestCase
 
         $this->actingAs($admin)->get(route('admin.users.index'))
             ->assertOk()
-            ->assertSee('Pending Verification')
+            ->assertSee('Pending Email Verification')
             ->assertSee(route('admin.users.verification.send', $staff), escape: false);
 
         $this->post(route('admin.users.verification.send', $staff))
@@ -1031,7 +1030,7 @@ class UserManagementTest extends TestCase
             'surname' => 'Modal',
             'email' => 'modal.user@djnrmhs.test',
         ])->assertRedirect(route('admin.users.index'))
-            ->assertSessionHasErrors(['first_name', 'password', 'role', 'department', 'phone']);
+            ->assertSessionHasErrors(['first_name', 'role', 'department', 'phone']);
 
         $this->get(route('admin.users.index'))
             ->assertOk()
@@ -1116,25 +1115,19 @@ class UserManagementTest extends TestCase
             ->assertSee('Runs the storeroom: items, procurement, forecasts.');
     }
 
-    public function test_user_create_and_edit_forms_render_password_visibility_toggles(): void
+    public function test_user_create_and_edit_forms_do_not_expose_password_fields(): void
     {
         $admin = $this->admin();
         $staff = User::factory()->create();
 
         $createResponse = $this->actingAs($admin)->get('/admin/users/create');
         $createResponse->assertStatus(200)
-            ->assertSee('name="password"', false)
-            ->assertSee('name="password_confirmation"', false)
-            ->assertSee('showPassword = !showPassword', false)
-            ->assertSee("showPassword ? 'Hide password' : 'Show password'", false)
-            ->assertSee(':type="showPassword ? \'text\' : \'password\'"', false);
+            ->assertDontSee('name="password"', false)
+            ->assertDontSee('name="password_confirmation"', false);
 
         $editResponse = $this->actingAs($admin)->get("/admin/users/{$staff->id}/edit");
         $editResponse->assertStatus(200)
-            ->assertSee('name="password"', false)
-            ->assertSee('name="password_confirmation"', false)
-            ->assertSee('showPassword = !showPassword', false)
-            ->assertSee("showPassword ? 'Hide password' : 'Show password'", false)
-            ->assertSee(':type="showPassword ? \'text\' : \'password\'"', false);
+            ->assertDontSee('name="password"', false)
+            ->assertDontSee('name="password_confirmation"', false);
     }
 }

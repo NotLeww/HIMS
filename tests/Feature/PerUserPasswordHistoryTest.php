@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Enums\UserStatus;
+use App\Models\AccountActivationChallenge;
 use App\Models\PasswordHistory;
 use App\Models\User;
 use App\Notifications\PasswordResetOtp;
+use App\Services\AccountActivationService;
 use App\Services\PasswordHistoryService;
 use App\Support\AuthenticationContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -81,7 +83,7 @@ class PerUserPasswordHistoryTest extends TestCase
         ]);
     }
 
-    public function test_registration_and_user_management_can_use_another_accounts_password(): void
+    public function test_account_activation_can_use_another_accounts_password(): void
     {
         $formerUser = User::factory()->create([
             'password' => self::SHARED_PASSWORD,
@@ -89,27 +91,23 @@ class PerUserPasswordHistoryTest extends TestCase
         ]);
         $this->recordCurrentPassword($formerUser, now()->subYears(5));
 
-        $this->from(route('register'))->post(route('register'), [
-            'name' => 'New Registrant',
-            'email' => 'registrant@example.test',
-            'password' => self::SHARED_PASSWORD,
-            'password_confirmation' => self::SHARED_PASSWORD,
-            'privacy_consent' => '1',
-        ])->assertSessionHasNoErrors()
-            ->assertRedirect(route('login'));
+        $pending = User::factory()->create([
+            'email' => 'managed@example.test',
+            'password' => null,
+            'status' => UserStatus::PendingActivation,
+            'email_verified_at' => now(),
+        ]);
+        AccountActivationChallenge::query()->create([
+            'user_id' => $pending->id,
+            'channel' => 'email',
+            'verified_at' => now(),
+        ]);
 
-        $this->assertDatabaseHas('users', ['email' => 'registrant@example.test']);
+        $activated = app(AccountActivationService::class)->complete($pending, self::SHARED_PASSWORD);
 
-        $this->flushSession();
-
-        $admin = User::factory()->administrator()->create();
-        $this->actingAs($admin, AuthenticationContext::ADMIN_GUARD)
-            ->from(route('admin.users.create'))
-            ->post(route('admin.users.store'), $this->userPayload(self::SHARED_PASSWORD))
-            ->assertSessionHasNoErrors()
-            ->assertRedirect(route('admin.users.index'));
-
-        $this->assertDatabaseHas('users', ['email' => 'managed@example.test']);
+        $this->assertNotNull($activated);
+        $this->assertSame(UserStatus::Active, $activated->status);
+        $this->assertTrue(Hash::check(self::SHARED_PASSWORD, $activated->password));
     }
 
     public function test_password_reset_can_use_another_users_password(): void
@@ -216,33 +214,6 @@ class PerUserPasswordHistoryTest extends TestCase
         );
         $this->assertTrue($userAHistory->every(fn (PasswordHistory $history) => $history->user_id === $userA->id));
         $this->assertTrue($userBHistory->every(fn (PasswordHistory $history) => $history->user_id === $userB->id));
-    }
-
-    public function test_user_edit_shows_the_password_history_error_only_beside_the_password_field(): void
-    {
-        $admin = User::factory()->administrator()->create();
-        $user = User::factory()->warehouseStaff()->create(['password' => self::CURRENT_PASSWORD]);
-
-        $this->actingAs($admin, AuthenticationContext::ADMIN_GUARD)
-            ->from(route('admin.users.edit', $user))
-            ->put(route('admin.users.update', $user), [
-                ...$user->nameComponents(),
-                'email' => $user->email,
-                'role' => $user->role->value,
-                'status' => $user->status->value,
-                'department' => $user->department,
-                'phone' => $user->phone,
-                'password' => self::CURRENT_PASSWORD,
-                'password_confirmation' => self::CURRENT_PASSWORD,
-            ])->assertSessionHasErrors([
-                'password' => PasswordHistoryService::REJECTION_MESSAGE,
-            ]);
-
-        $page = $this->get(route('admin.users.edit', $user))->assertOk()
-            ->assertSee(PasswordHistoryService::REJECTION_MESSAGE)
-            ->assertDontSee('This account was not updated');
-
-        $this->assertSame(1, substr_count($page->getContent(), PasswordHistoryService::REJECTION_MESSAGE));
     }
 
     public function test_new_password_and_history_record_roll_back_together_on_failure(): void

@@ -177,12 +177,18 @@
             </div>
             <x-input-error id="login-password-error" :messages="$errors->get('password')" class="mt-2 text-danger-600" />
 
-            <div class="mt-2">
+            <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
                 <a
                     class="rounded text-xs font-medium text-primary-700 transition-colors hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-100 dark:text-primary-400 dark:hover:text-primary-300 dark:focus-visible:ring-offset-neutral-900"
                     href="{{ $forgotPasswordUrl }}"
                 >
                     {{ __('Forgot password?') }}
+                </a>
+                <a
+                    class="rounded text-xs font-medium text-primary-700 transition-colors hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-100 dark:text-primary-400 dark:hover:text-primary-300 dark:focus-visible:ring-offset-neutral-900"
+                    href="{{ route('activation.start') }}"
+                >
+                    {{ __('Activate account') }}
                 </a>
             </div>
         </div>

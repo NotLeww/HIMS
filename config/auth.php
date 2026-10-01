@@ -120,6 +120,13 @@ return [
         'resend_cooldown' => (int) env('AUTH_LOGIN_MFA_RESEND_COOLDOWN', 60),
     ],
 
+    'account_activation' => [
+        'otp_expire' => (int) env('AUTH_ACCOUNT_ACTIVATION_OTP_EXPIRE', 5),
+        'max_attempts' => (int) env('AUTH_ACCOUNT_ACTIVATION_MAX_ATTEMPTS', 5),
+        'resend_cooldown' => (int) env('AUTH_ACCOUNT_ACTIVATION_RESEND_COOLDOWN', 60),
+        'setup_expire' => (int) env('AUTH_ACCOUNT_ACTIVATION_SETUP_EXPIRE', 15),
+    ],
+
     'login_lockout' => [
         // Preserve the established policy: five failures, a mandatory wait,
         // then the next failure starts the progressive account lock.

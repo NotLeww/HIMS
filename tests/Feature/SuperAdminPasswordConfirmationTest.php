@@ -51,8 +51,6 @@ class SuperAdminPasswordConfirmationTest extends TestCase
             'first_name' => 'Juan',
             'middle_name' => 'Santos',
             'email' => $email,
-            'password' => 'Password123!',
-            'password_confirmation' => 'Password123!',
             'role' => UserRole::WarehouseStaff->value,
             'department' => 'Warehouse',
             'phone' => '09171234567',
@@ -185,7 +183,9 @@ class SuperAdminPasswordConfirmationTest extends TestCase
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('super-admin.users.index'));
 
-        $this->assertDatabaseHas('users', ['email' => 'confirmed.direct@example.com']);
+        $created = User::query()->where('email', 'confirmed.direct@example.com')->firstOrFail();
+        $this->assertTrue($created->isPendingActivation());
+        $this->assertNull($created->password);
     }
 
     public function test_super_admin_create_user_succeeds_with_confirmation_token_and_burns_token(): void
@@ -207,7 +207,9 @@ class SuperAdminPasswordConfirmationTest extends TestCase
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('super-admin.users.index'));
 
-        $this->assertDatabaseHas('users', ['email' => 'confirmed.token@example.com']);
+        $created = User::query()->where('email', 'confirmed.token@example.com')->firstOrFail();
+        $this->assertTrue($created->isPendingActivation());
+        $this->assertNull($created->password);
 
         // Token cannot be replayed for another creation
         $replayPayload = $this->validCreatePayload('replay@example.com');

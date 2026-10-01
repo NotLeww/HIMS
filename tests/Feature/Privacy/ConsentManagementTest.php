@@ -15,7 +15,7 @@ class ConsentManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_registration_rejects_missing_privacy_consent(): void
+    public function test_public_registration_is_disabled_without_creating_consent(): void
     {
         $response = $this->post('/register', [
             'name' => 'Dr. Maria Santos',
@@ -24,16 +24,14 @@ class ConsentManagementTest extends TestCase
             'password_confirmation' => 'HospitalSecure2026!',
         ]);
 
-        $response->assertSessionHasErrors('privacy_consent');
+        $response->assertNotFound();
         $this->assertGuest();
         $this->assertDatabaseMissing('users', ['email' => 'maria.santos@hospital.gov.ph']);
         $this->assertDatabaseCount('user_consents', 0);
     }
 
-    public function test_registration_succeeds_with_explicit_consent_and_creates_consent_record(): void
+    public function test_disabled_registration_cannot_create_consent_even_when_submitted(): void
     {
-        $currentVersion = config('privacy.policy_version', 'v1.0');
-
         $response = $this->post('/register', [
             'name' => 'Dr. Maria Santos',
             'email' => 'maria.santos@hospital.gov.ph',
@@ -42,31 +40,9 @@ class ConsentManagementTest extends TestCase
             'privacy_consent' => '1',
         ]);
 
-        $this->assertGuest();
-        $response->assertRedirect(route('login'));
-        $user = User::where('email', 'maria.santos@hospital.gov.ph')->firstOrFail();
-
-        $this->assertDatabaseHas('user_consents', [
-            'user_id' => $user->id,
-            'consent_type' => UserConsent::TYPE_PRIVACY_POLICY,
-            'policy_version' => $currentVersion,
-            'status' => UserConsent::STATUS_CONSENTED,
-            'source' => 'registration',
-        ]);
-
-        $consent = $user->consents()->first();
-        $this->assertNotNull($consent);
-        $this->assertNotNull($consent->consented_at);
-        $this->assertNull($consent->withdrawn_at);
-        $this->assertSame($currentVersion, $consent->policy_version);
-
-        // Verify audit log
-        $this->assertDatabaseHas('audit_logs', [
-            'user_id' => $user->id,
-            'action' => AuditAction::GrantedConsent->value,
-            'target_type' => UserConsent::class,
-            'target_id' => $consent->id,
-        ]);
+        $response->assertNotFound();
+        $this->assertDatabaseMissing('users', ['email' => 'maria.santos@hospital.gov.ph']);
+        $this->assertDatabaseCount('user_consents', 0);
     }
 
     public function test_unconsented_authenticated_user_is_redirected_to_consent_page(): void

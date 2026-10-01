@@ -13,6 +13,12 @@ enum AuditAction: string
     case ChangedPassword = 'changed_password';
     case ChangedMfa = 'changed_mfa';
     case SmsVerification = 'sms_verification';
+    case AccountActivationInitiated = 'account_activation_initiated';
+    case AccountActivationOtpRequested = 'account_activation_otp_requested';
+    case AccountActivationOtpVerified = 'account_activation_otp_verified';
+    case AccountActivationOtpFailed = 'account_activation_otp_failed';
+    case AccountActivationCompleted = 'account_activation_completed';
+    case AccountActivationRateLimited = 'account_activation_rate_limited';
     case TemporarilyLockedUser = 'temporarily_locked_user';
     case UnlockedUser = 'unlocked_user';
     case CreatedSupplier = 'created_supplier';
@@ -161,6 +167,12 @@ enum AuditAction: string
             self::ChangedPassword => 'Changed Password',
             self::ChangedMfa => 'Changed MFA',
             self::SmsVerification => 'SMS Verification',
+            self::AccountActivationInitiated => 'Account Activation Initiated',
+            self::AccountActivationOtpRequested => 'Activation OTP Requested',
+            self::AccountActivationOtpVerified => 'Activation OTP Verified',
+            self::AccountActivationOtpFailed => 'Activation OTP Verification Failed',
+            self::AccountActivationCompleted => 'Account Activation Completed',
+            self::AccountActivationRateLimited => 'Account Activation Rate Limited',
             self::TemporarilyLockedUser => 'Temporarily Locked User',
             self::UnlockedUser => 'Unlocked User',
             self::CreatedSupplier => 'Created Supplier',
@@ -309,6 +321,12 @@ enum AuditAction: string
                 self::ChangedPassword,
                 self::ChangedMfa,
                 self::SmsVerification,
+                self::AccountActivationInitiated,
+                self::AccountActivationOtpRequested,
+                self::AccountActivationOtpVerified,
+                self::AccountActivationOtpFailed,
+                self::AccountActivationCompleted,
+                self::AccountActivationRateLimited,
                 self::TemporarilyLockedUser,
                 self::UnlockedUser,
                 self::LoginApprovalRequested,

@@ -17,7 +17,7 @@
         'good' => 'success', 'sent' => 'success',
 
         // amber — needs attention, in flight
-        'low_stock' => 'warning', 'pending' => 'warning', 'submitted' => 'warning',
+        'low_stock' => 'warning', 'pending' => 'warning', 'pending_activation' => 'warning', 'submitted' => 'warning',
         'expiring_soon' => 'warning', 'partially_fulfilled' => 'warning',
         'acknowledged' => 'warning', 'under_review' => 'warning',
         'pending_review' => 'warning', 'action_required' => 'danger',

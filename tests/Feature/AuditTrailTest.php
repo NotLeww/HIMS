@@ -3,12 +3,16 @@
 namespace Tests\Feature;
 
 use App\Enums\AuditAction;
+use App\Enums\MovementType;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\AuditLog;
+use App\Models\InventoryItem;
+use App\Models\StorageLocation;
 use App\Models\User;
 use App\Services\AuditGeoIpLocator;
 use App\Services\AuditLogger;
+use App\Services\InventoryAutomationService;
 use App\Support\AuditBrowserLocation;
 use App\Support\AuthenticationContext;
 use Carbon\CarbonImmutable;
@@ -318,19 +322,13 @@ class AuditTrailTest extends TestCase
 
     public function test_password_changes_are_logged_without_password_values(): void
     {
-        $admin = $this->admin();
         $staff = User::factory()->warehouseStaff()->create(['name' => 'Pedro Santos']);
 
-        $this->actingAs($admin)->put("/admin/users/{$staff->id}", [
-            ...$staff->nameComponents(),
-            'email' => $staff->email,
-            'phone' => $staff->phone,
-            'department' => $staff->department,
-            'role' => $staff->role->value,
-            'status' => $staff->status->value,
+        $this->actingAs($staff, AuthenticationContext::WEB_GUARD)->put('/password', [
+            'current_password' => 'password',
             'password' => 'BrandNewPass1!',
             'password_confirmation' => 'BrandNewPass1!',
-        ])->assertRedirect('/admin/users');
+        ])->assertSessionHasNoErrors();
 
         $log = AuditLog::where('action', AuditAction::ChangedPassword->value)->firstOrFail();
 
@@ -908,9 +906,9 @@ class AuditTrailTest extends TestCase
     public function test_direct_stock_movement_issuance_records_audit_event(): void
     {
         $user = User::factory()->pharmacyStaff()->create();
-        $source = \App\Models\StorageLocation::create(['name' => 'Main Warehouse', 'code' => 'MWH-01', 'type' => 'warehouse', 'status' => 'active']);
-        $ward = \App\Models\StorageLocation::create(['name' => 'Emergency Ward', 'code' => 'ER-01', 'type' => 'department', 'status' => 'active']);
-        $item = \App\Models\InventoryItem::create([
+        $source = StorageLocation::create(['name' => 'Main Warehouse', 'code' => 'MWH-01', 'type' => 'warehouse', 'status' => 'active']);
+        $ward = StorageLocation::create(['name' => 'Emergency Ward', 'code' => 'ER-01', 'type' => 'department', 'status' => 'active']);
+        $item = InventoryItem::create([
             'name' => 'Surgical Gloves',
             'sku' => 'TEST-GLV-01',
             'quantity_on_hand' => 50,
@@ -920,9 +918,9 @@ class AuditTrailTest extends TestCase
         ]);
 
         // Put initial stock in source
-        app(\App\Services\InventoryAutomationService::class)->recordMovement([
+        app(InventoryAutomationService::class)->recordMovement([
             'item_id' => $item->id,
-            'movement_type' => \App\Enums\MovementType::StockIn,
+            'movement_type' => MovementType::StockIn,
             'quantity' => 50,
             'to_location_id' => $source->id,
             'remarks' => 'Initial stock for audit test.',
@@ -933,7 +931,7 @@ class AuditTrailTest extends TestCase
         $this->actingAs($user)
             ->post(route('inventory.stock-movements.store'), [
                 'item_id' => $item->id,
-                'movement_type' => \App\Enums\MovementType::Issuance->value,
+                'movement_type' => MovementType::Issuance->value,
                 'quantity' => 10,
                 'from_location_id' => $source->id,
                 'issued_to_location_id' => $ward->id,
@@ -943,15 +941,15 @@ class AuditTrailTest extends TestCase
 
         $movementLog = AuditLog::where('action', AuditAction::RecordedStockMovement->value)->firstOrFail();
         $this->assertSame($user->id, $movementLog->user_id);
-        $this->assertSame(\App\Enums\MovementType::Issuance->value, $movementLog->new_values['movement_type']);
+        $this->assertSame(MovementType::Issuance->value, $movementLog->new_values['movement_type']);
         $this->assertSame(10, $movementLog->new_values['quantity']);
     }
 
     public function test_routine_direct_stock_adjustment_records_posted_inventory_adjustment(): void
     {
         $user = User::factory()->inventoryManager()->create();
-        $location = \App\Models\StorageLocation::create(['name' => 'Storage Bay', 'code' => 'BAY-01', 'type' => 'shelf', 'status' => 'active']);
-        $item = \App\Models\InventoryItem::create([
+        $location = StorageLocation::create(['name' => 'Storage Bay', 'code' => 'BAY-01', 'type' => 'shelf', 'status' => 'active']);
+        $item = InventoryItem::create([
             'name' => 'Alcohol Swabs',
             'sku' => 'TEST-SWB-01',
             'quantity_on_hand' => 20,
@@ -961,9 +959,9 @@ class AuditTrailTest extends TestCase
         ]);
 
         // Put stock in location
-        app(\App\Services\InventoryAutomationService::class)->recordMovement([
+        app(InventoryAutomationService::class)->recordMovement([
             'item_id' => $item->id,
-            'movement_type' => \App\Enums\MovementType::StockIn,
+            'movement_type' => MovementType::StockIn,
             'quantity' => 20,
             'to_location_id' => $location->id,
             'remarks' => 'Initial stock for adjustment test.',

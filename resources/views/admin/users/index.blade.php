@@ -116,11 +116,9 @@
                         <x-ui.badge :variant="$account->isAdministrator() ? 'primary' : 'neutral'">
                             {{ $account->role->label() }}
                         </x-ui.badge>
-                        @unless ($account->hasVerifiedEmail())
-                            <x-ui.badge status="pending" dot>Pending Verification</x-ui.badge>
-                        @endunless
-                        @if ($account->hasVerifiedEmail() || ! $account->isActive())
-                            <x-ui.badge :status="$account->status->value" dot>{{ $account->status->label() }}</x-ui.badge>
+                        <x-ui.badge :status="$account->status->value" dot>{{ $account->status->label() }}</x-ui.badge>
+                        @if (! $account->isPendingActivation() && ! $account->hasVerifiedEmail())
+                            <x-ui.badge status="pending" dot>Pending Email Verification</x-ui.badge>
                         @endif
                         @if ($account->isTemporarilyLocked())
                             <x-ui.badge variant="warning">Temporarily Locked</x-ui.badge>
@@ -154,14 +152,14 @@
                                 Edit
                             </x-ui.button>
 
-                            @unless ($account->hasVerifiedEmail())
+                            @if (! $account->isPendingActivation() && ! $account->hasVerifiedEmail())
                                 <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.verification.send'), $account) }}">
                                     @csrf
                                     <x-ui.button type="submit" variant="secondary" size="sm" data-loading-text="Sending activation email...">
                                         Resend Activation
                                     </x-ui.button>
                                 </form>
-                            @endunless
+                            @endif
 
                             @if (in_array($account->getKey(), $unlockableAccountIds, true))
                                 <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.unlock'), $account) }}"
@@ -179,7 +177,7 @@
                                 </form>
                             @endif
 
-                            @unless ($account->is(auth()->user()))
+                            @unless ($account->is(auth()->user()) || $account->isPendingActivation())
                                 <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.toggle-status'), $account) }}"
                                       data-confirm-title="Confirm account status change"
                                       data-confirm-message="Are you sure you want to {{ $account->isActive() ? 'deactivate' : 'reactivate' }} this user?"
@@ -294,11 +292,9 @@
                             </x-ui.table.td>
 
                             <x-ui.table.td class="px-2.5 py-2 xl:px-3 xl:py-2.5">
-                                @unless ($account->hasVerifiedEmail())
-                                    <x-ui.badge status="pending" dot>Pending Verification</x-ui.badge>
-                                @endunless
-                                @if ($account->hasVerifiedEmail() || ! $account->isActive())
-                                    <x-ui.badge :status="$account->status->value" dot>{{ $account->status->label() }}</x-ui.badge>
+                                <x-ui.badge :status="$account->status->value" dot>{{ $account->status->label() }}</x-ui.badge>
+                                @if (! $account->isPendingActivation() && ! $account->hasVerifiedEmail())
+                                    <x-ui.badge status="pending" dot>Pending Email Verification</x-ui.badge>
                                 @endif
                                 @if ($account->isTemporarilyLocked())
                                     <x-ui.badge variant="warning" class="mt-1">Locked</x-ui.badge>
@@ -353,7 +349,7 @@
 
                                         {{-- Deactivating yourself is refused by the service;
                                              hide the impossible action here as well. --}}
-                                        @unless ($account->is(auth()->user()))
+                                        @unless ($account->is(auth()->user()) || $account->isPendingActivation())
                                             <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.toggle-status'), $account) }}"
                                                   data-confirm-title="Confirm account status change"
                                                   data-confirm-message="Are you sure you want to {{ $account->isActive() ? 'deactivate' : 'reactivate' }} this user?"
@@ -428,7 +424,7 @@
                   data-super-admin-password="create"
               @else
                   data-confirm-title="Create staff user"
-                  data-confirm-message="Are you sure you want to create this user account and issue an initial temporary password?"
+                  data-confirm-message="Create this account as Pending Activation? The user will verify a code and create their own password."
                   data-confirm-label="Create User"
               @endif>
             @csrf

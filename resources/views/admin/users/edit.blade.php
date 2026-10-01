@@ -18,7 +18,7 @@
         </x-ui.alert>
     @endif
 
-    <x-ui.card title="Account Details" subtitle="Leave the password fields blank to keep the current password.">
+    <x-ui.card title="Account Details" subtitle="Update the employee profile, role, and account status.">
         <x-slot:actions>
             <x-ui.button
                 type="button"

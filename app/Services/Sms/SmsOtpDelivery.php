@@ -47,4 +47,28 @@ class SmsOtpDelivery
             return self::FAILED;
         }
     }
+
+    public function sendActivation(User $user, #[\SensitiveParameter] string $otp, int $expiresInMinutes): string
+    {
+        $phone = (string) $user->phone;
+        if (! $this->available() || preg_match('/^09[0-9]{9}$/D', $phone) !== 1) {
+            return self::FAILED;
+        }
+
+        $key = 'account-activation:sms:'.$user->getKey();
+        if (RateLimiter::tooManyAttempts($key, 5)) {
+            return self::RATE_LIMITED;
+        }
+
+        RateLimiter::hit($key, 900);
+
+        try {
+            return $this->gateway->send(
+                $phone,
+                "HIMS activation code: {$otp}. Expires in {$expiresInMinutes} minutes. Never share this code.",
+            ) ? self::SENT : self::FAILED;
+        } catch (Throwable) {
+            return self::FAILED;
+        }
+    }
 }

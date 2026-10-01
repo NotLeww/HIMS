@@ -45,8 +45,6 @@ class SuperAdminProvisioningTest extends TestCase
             'surname' => 'Account',
             'first_name' => 'Test',
             'email' => $email,
-            'password' => 'Password123!',
-            'password_confirmation' => 'Password123!',
             'role' => $role->value,
             'department' => 'Administration',
             'phone' => '09171234567',
@@ -219,12 +217,22 @@ class SuperAdminProvisioningTest extends TestCase
             ->assertRedirect(route('super-admin.users.index'));
 
         $administrator = User::query()->where('email', $email)->firstOrFail();
+        $this->assertSame(UserStatus::PendingActivation, $administrator->status);
+        $this->assertNull($administrator->password);
+
         $payload = $this->validUpdatePayload($administrator, UserRole::Administrator);
         $payload['first_name'] = 'Updated';
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
             ->put(route('super-admin.users.update', $administrator), $payload)
             ->assertSessionHasNoErrors();
+
+        // Continue this management-boundary test from the state produced by
+        // the separately covered user-owned activation flow.
+        $administrator->forceFill([
+            'status' => UserStatus::Active,
+            'password' => Hash::make('ActivatedAdmin1!'),
+        ])->saveQuietly();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
             ->patch(route('super-admin.users.toggle-status', $administrator), [

@@ -54,7 +54,7 @@ class PasswordHistoryService
 
     public function hasBeenUsed(User $user, string $password): bool
     {
-        if (Hash::check($password, $user->getAuthPassword())) {
+        if (filled($user->getAuthPassword()) && Hash::check($password, $user->getAuthPassword())) {
             return true;
         }
 

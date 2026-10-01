@@ -1661,10 +1661,11 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
         $resPage1->assertSee('Showing 1–5 of 8');
 
         // Verify latest 5 orders are visible on page 1 (PO-008 down to PO-004)
-        $resPage1->assertSee('PO-PAGINATED-008');
-        $resPage1->assertSee('PO-PAGINATED-004');
+        $page1Orders = collect($resPage1->viewData('purchaseOrders')->items())->pluck('po_number');
+        $this->assertContains('PO-PAGINATED-008', $page1Orders);
+        $this->assertContains('PO-PAGINATED-004', $page1Orders);
         // Older orders are paginated to page 2
-        $resPage1->assertDontSee('PO-PAGINATED-001');
+        $this->assertNotContains('PO-PAGINATED-001', $page1Orders);
 
         // Page 2
         $resPage2 = $this->actingAs($this->manager)
@@ -1672,15 +1673,17 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
 
         $resPage2->assertOk();
         $resPage2->assertSee('Showing 6–8 of 8');
-        $resPage2->assertSee('PO-PAGINATED-001');
-        $resPage2->assertDontSee('PO-PAGINATED-008');
+        $page2Orders = collect($resPage2->viewData('purchaseOrders')->items())->pluck('po_number');
+        $this->assertContains('PO-PAGINATED-001', $page2Orders);
+        $this->assertNotContains('PO-PAGINATED-008', $page2Orders);
 
         // Custom per_page = 10 displays all 8 on single page
         $resAll = $this->actingAs($this->manager)
             ->get(route('inventory.purchases', ['po_per_page' => 10]));
 
         $resAll->assertOk();
-        $resAll->assertSee('PO-PAGINATED-008');
-        $resAll->assertSee('PO-PAGINATED-001');
+        $allOrders = collect($resAll->viewData('purchaseOrders')->items())->pluck('po_number');
+        $this->assertContains('PO-PAGINATED-008', $allOrders);
+        $this->assertContains('PO-PAGINATED-001', $allOrders);
     }
 }

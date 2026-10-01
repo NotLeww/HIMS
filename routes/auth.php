@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\AccountActivationController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\DeviceApprovalController;
@@ -11,7 +12,6 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\PasswordResetOtpController;
-use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Middleware\ValidateEmailVerificationSignature;
 use App\Support\AuthenticationPanel;
@@ -40,10 +40,22 @@ Route::get('verify-email/{id}/{hash}', VerifyEmailController::class)
     ->name('verification.verify');
 
 Route::middleware(['guest:web', 'guest:admin', 'guest:super_admin'])->group(function () {
-    Route::get('register', [RegisteredUserController::class, 'create'])
-        ->name('register');
-
-    Route::post('register', [RegisteredUserController::class, 'store']);
+    Route::get('activate-account', [AccountActivationController::class, 'start'])->name('activation.start');
+    Route::post('activate-account', [AccountActivationController::class, 'identify'])
+        ->middleware('throttle:6,1')
+        ->name('activation.identify');
+    Route::get('activate-account/method', [AccountActivationController::class, 'method'])->name('activation.method');
+    Route::post('activate-account/send', [AccountActivationController::class, 'send'])
+        ->middleware('throttle:10,15')
+        ->name('activation.send');
+    Route::get('activate-account/verify', [AccountActivationController::class, 'showVerify'])->name('activation.verify');
+    Route::post('activate-account/verify', [AccountActivationController::class, 'verify'])
+        ->middleware('throttle:10,1')
+        ->name('activation.verify.store');
+    Route::get('activate-account/password', [AccountActivationController::class, 'showPassword'])->name('activation.password');
+    Route::post('activate-account/password', [AccountActivationController::class, 'password'])
+        ->middleware('throttle:6,1')
+        ->name('activation.password.store');
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');
