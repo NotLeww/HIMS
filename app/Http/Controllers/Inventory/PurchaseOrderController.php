@@ -157,44 +157,27 @@ class PurchaseOrderController extends Controller implements HasMiddleware
      */
     public function approve(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
-        $user = $request->user();
-
-        // Segregation of duties: creators cannot approve their own order unless Super Administrator
-        if ($purchaseOrder->created_by_user_id === $user->id && ! $user->isSuperAdministrator()) {
-            return redirect()->route('inventory.purchases')
-                ->withErrors(['approval' => "Segregation of Duties Violation: Issuer cannot approve their own Purchase Order #{$purchaseOrder->po_number}."]);
-        }
-
-        $chain = $purchaseOrder->approvalChain;
+        $requiresDeliveryUpdate = $purchaseOrder->delivery_date?->lt(today()) ?? false;
+        $validated = $request->validate([
+            'approval_po_id' => ['nullable', 'integer', 'in:'.$purchaseOrder->id],
+            'revised_delivery_date' => [$requiresDeliveryUpdate ? 'required' : 'nullable', 'date', 'after:today'],
+            'delivery_date_change_reason' => [$requiresDeliveryUpdate ? 'required' : 'nullable', 'string', 'max:500'],
+        ], [
+            'revised_delivery_date.required' => 'Enter a new expected delivery date before approving this purchase order.',
+            'revised_delivery_date.after' => 'The revised delivery date must be after today.',
+            'delivery_date_change_reason.required' => 'Explain why the expected delivery date is being changed.',
+        ]);
 
         try {
-            if ($chain && $chain->status === 'pending') {
-                if ($user->isSuperAdministrator()) {
-                    // Super Administrator possesses ultimate executive DOA authority to clear pending approval steps
-                    while ($chain->currentPendingStep()) {
-                        $this->approvalEngine->approveStep($chain, $user, 'Executive approval authorized by Super Administrator.');
-                    }
-                } else {
-                    $this->approvalEngine->approveStep($chain, $user, 'Approved by Inventory Manager.');
-                }
-            } else {
-                // Direct or legacy order without approval chain
-                $oldStatus = $purchaseOrder->status;
-                $purchaseOrder->status = PurchaseOrderStatus::Approved->value;
-                $purchaseOrder->save();
-
-                $this->auditService->record(
-                    $user,
-                    'PurchaseOrder',
-                    $purchaseOrder->id,
-                    'approved_purchase_order',
-                    ['status' => $oldStatus],
-                    ['status' => PurchaseOrderStatus::Approved->value]
-                );
-            }
+            $approvedPurchaseOrder = $this->poConversionService->approvePurchaseOrder(
+                $purchaseOrder,
+                $request->user(),
+                $validated['revised_delivery_date'] ?? null,
+                $validated['delivery_date_change_reason'] ?? null,
+            );
 
             return redirect()->route('inventory.purchases')
-                ->with('success', "Purchase Order {$purchaseOrder->po_number} approved successfully.");
+                ->with('success', "Purchase Order {$approvedPurchaseOrder->po_number} approved successfully.");
         } catch (DomainException $e) {
             return redirect()->route('inventory.purchases')->withErrors(['approval' => $e->getMessage()]);
         }

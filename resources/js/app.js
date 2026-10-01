@@ -4869,6 +4869,7 @@ Alpine.data('procurementWorkspace', ({
     suppliers = [],
     supplierTerms = {},
     initial = {},
+    approvalCorrection = null,
 } = {}) => ({
     activeTab,
     items,
@@ -4882,6 +4883,15 @@ Alpine.data('procurementWorkspace', ({
     selectedPoCxml: '',
     selectedPoNumber: '',
     showCxmlModal: false,
+    approvalCorrection,
+    revisedDeliveryDate: String(approvalCorrection?.revised_delivery_date || ''),
+    deliveryDateChangeReason: String(approvalCorrection?.reason || ''),
+
+    init() {
+        if (this.approvalCorrection) {
+            this.$nextTick(() => this.$dispatch('open-modal', 'reschedule-po-delivery'));
+        }
+    },
 
     selectedItem() {
         return this.items.find((item) => String(item.id) === String(this.itemId)) || null;
@@ -4987,6 +4997,19 @@ Alpine.data('procurementWorkspace', ({
     openPurchaseOrderDetails(order) {
         this.selectedPo = order;
         this.$dispatch('open-modal', 'purchase-order-details');
+    },
+
+    openDeliveryApproval(order) {
+        this.approvalCorrection = {
+            id: order.id,
+            number: order.number,
+            approve_url: order.approve_url,
+            current_delivery_date: order.current_delivery_date,
+        };
+        this.revisedDeliveryDate = '';
+        this.deliveryDateChangeReason = '';
+        this.$dispatch('close-modal', 'purchase-order-details');
+        this.$nextTick(() => this.$dispatch('open-modal', 'reschedule-po-delivery'));
     },
 
     formatCurrency(value, currency = 'PHP') {

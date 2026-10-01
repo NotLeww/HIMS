@@ -14,6 +14,7 @@ use App\Models\Supplier;
 use App\Models\SupplierProduct;
 use App\Models\SupplierQuote;
 use App\Models\User;
+use Carbon\Carbon;
 use DomainException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -171,6 +172,89 @@ class POConversionService
                 ['status' => $oldStatus],
                 ['status' => PurchaseOrderStatus::Cancelled->value],
             );
+
+            return $po->fresh();
+        });
+    }
+
+    public function approvePurchaseOrder(
+        PurchaseOrder $purchaseOrder,
+        User $approver,
+        ?string $revisedDeliveryDate = null,
+        ?string $deliveryDateChangeReason = null,
+    ): PurchaseOrder {
+        return DB::transaction(function () use ($purchaseOrder, $approver, $revisedDeliveryDate, $deliveryDateChangeReason): PurchaseOrder {
+            $po = PurchaseOrder::query()->lockForUpdate()->findOrFail($purchaseOrder->id);
+
+            if ($po->created_by_user_id === $approver->id && ! $approver->isSuperAdministrator()) {
+                throw new DomainException("Segregation of Duties Violation: Issuer cannot approve their own Purchase Order #{$po->po_number}.");
+            }
+
+            if (! in_array($po->statusEnum(), [
+                PurchaseOrderStatus::Draft,
+                PurchaseOrderStatus::Submitted,
+                PurchaseOrderStatus::PendingApproval,
+            ], true)) {
+                throw new DomainException("Purchase Order {$po->po_number} is no longer awaiting approval.");
+            }
+
+            $decisionNotes = $approver->isSuperAdministrator()
+                ? 'Executive approval authorized by Super Administrator.'
+                : 'Approved by Inventory Manager.';
+
+            if ($po->delivery_date?->lt(today())) {
+                if (blank($revisedDeliveryDate) || blank($deliveryDateChangeReason)) {
+                    throw new DomainException('A new future delivery date and justification are required before this purchase order can be approved.');
+                }
+
+                $newDeliveryDate = Carbon::parse($revisedDeliveryDate)->startOfDay();
+                if ($newDeliveryDate->lte(today())) {
+                    throw new DomainException('The revised delivery date must be after today.');
+                }
+
+                $oldDeliveryDate = $po->delivery_date->toDateString();
+                $po->delivery_date = $newDeliveryDate;
+                $po->save();
+
+                $this->auditService->record(
+                    $approver,
+                    'PurchaseOrder',
+                    $po->id,
+                    AuditAction::AmendedPurchaseOrder->value,
+                    ['delivery_date' => $oldDeliveryDate],
+                    [
+                        'delivery_date' => $newDeliveryDate->toDateString(),
+                        'reason' => $deliveryDateChangeReason,
+                    ],
+                );
+
+                $decisionNotes .= " Delivery date revised from {$oldDeliveryDate} to {$newDeliveryDate->toDateString()}: {$deliveryDateChangeReason}";
+            }
+
+            $chain = $po->approvalChain;
+            if ($chain && $chain->status === 'pending') {
+                if ($approver->isSuperAdministrator()) {
+                    while ($chain->currentPendingStep()) {
+                        $this->approvalEngine->approveStep($chain, $approver, $decisionNotes);
+                        $chain->refresh();
+                    }
+                } else {
+                    $this->approvalEngine->approveStep($chain, $approver, $decisionNotes);
+                }
+            } else {
+                $oldStatus = $po->status;
+                $po->status = PurchaseOrderStatus::Approved->value;
+                $po->save();
+
+                $this->auditService->record(
+                    $approver,
+                    'PurchaseOrder',
+                    $po->id,
+                    AuditAction::ApprovedPurchaseOrder->value,
+                    ['status' => $oldStatus],
+                    ['status' => PurchaseOrderStatus::Approved->value],
+                );
+            }
 
             return $po->fresh();
         });

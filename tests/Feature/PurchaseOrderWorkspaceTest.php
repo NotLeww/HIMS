@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\CostCenter;
 use App\Models\CostCenterBudget;
 use App\Models\InventoryItem;
+use App\Models\ProcurementAuditLog;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
 use App\Models\Supplier;
@@ -119,6 +120,7 @@ class PurchaseOrderWorkspaceTest extends TestCase
             ->assertSee('PO-WORKSPACE-DETAIL')
             ->assertSee('purchase-order-details')
             ->assertSee('openPurchaseOrderDetails', false)
+            ->assertSee('border-success-300', false)
             ->assertSee('lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.65fr)]', false)
             ->assertDontSee('name="unit_cost"', false)
             ->assertDontSee('name="status"', false);
@@ -506,6 +508,81 @@ class PurchaseOrderWorkspaceTest extends TestCase
         $this->assertSame('approved', $po3->fresh()->status);
     }
 
+    public function test_lapsed_delivery_date_must_be_rescheduled_before_approval(): void
+    {
+        $this->travelTo(CarbonImmutable::create(2026, 10, 2, 9, 0, 0, 'Asia/Manila'));
+
+        $issuer = User::factory()->inventoryManager()->create();
+        $approver = User::factory()->inventoryManager()->create();
+        $item = $this->item();
+        $supplier = $this->supplier();
+        $costCenter = $this->costCenter();
+
+        $this->actingAs($issuer)->post('/inventory/purchases/orders', [
+            'supplier_id' => $supplier->id,
+            'item_id' => $item->id,
+            'cost_center_id' => $costCenter->id,
+            'quantity' => 2,
+            'delivery_date' => '2026-10-03',
+        ])->assertSessionHas('success');
+
+        $po = PurchaseOrder::firstOrFail();
+        $approveUrl = route('inventory.purchases.orders.approve', $po);
+        $this->travelTo(CarbonImmutable::create(2026, 10, 4, 9, 0, 0, 'Asia/Manila'));
+        $this->flushSession();
+
+        $this->actingAs($approver)
+            ->post(route('inventory.purchases.approval-chains.approve', $po->approvalChain))
+            ->assertSessionHasErrors('approval');
+        $this->assertSame('pending_approval', $po->fresh()->status);
+
+        $this->actingAs($approver)->get('/inventory/purchases')
+            ->assertOk()
+            ->assertSee('Update Delivery Date &amp; Approve', false)
+            ->assertSee('name="revised_delivery_date"', false)
+            ->assertSee('min="2026-10-05"', false);
+
+        $this->actingAs($approver)->post($approveUrl)
+            ->assertSessionHasErrors(['revised_delivery_date', 'delivery_date_change_reason']);
+        $this->assertSame('pending_approval', $po->fresh()->status);
+        $this->assertSame('2026-10-03', $po->fresh()->delivery_date?->toDateString());
+
+        $this->actingAs($approver)->post($approveUrl, [
+            'approval_po_id' => $po->id,
+            'revised_delivery_date' => '2026-10-04',
+            'delivery_date_change_reason' => 'Approval was completed after the original expected delivery date.',
+        ])->assertSessionHasErrors('revised_delivery_date');
+        $this->assertSame('pending_approval', $po->fresh()->status);
+
+        $this->actingAs($approver)->post($approveUrl, [
+            'approval_po_id' => $po->id,
+            'revised_delivery_date' => '2026-10-05',
+            'delivery_date_change_reason' => 'Approval was completed after the original expected delivery date.',
+        ])->assertSessionHas('success');
+
+        $po->refresh();
+        $this->assertSame('approved', $po->status);
+        $this->assertSame('2026-10-05', $po->delivery_date?->toDateString());
+
+        $dateAudit = ProcurementAuditLog::query()
+            ->where('entity_name', 'PurchaseOrder')
+            ->where('entity_id', $po->id)
+            ->where('action_type', 'amended_purchase_order')
+            ->firstOrFail();
+        $this->assertSame('2026-10-03', $dateAudit->old_values['delivery_date']);
+        $this->assertSame('2026-10-05', $dateAudit->new_values['delivery_date']);
+        $this->assertSame(
+            'Approval was completed after the original expected delivery date.',
+            $dateAudit->new_values['reason'],
+        );
+        $this->assertTrue(AuditLog::where('target_id', $po->id)
+            ->where('action', 'amended_purchase_order')->exists());
+
+        $this->actingAs($approver)->get('/inventory/purchases')
+            ->assertOk()
+            ->assertSee('Approval was completed after the original expected delivery date.');
+    }
+
     public function test_pipeline_rejection_releases_hard_encumbrance_and_records_audit(): void
     {
         $issuer = User::factory()->inventoryManager()->create();
@@ -635,7 +712,9 @@ class PurchaseOrderWorkspaceTest extends TestCase
 
         $cancelledMessage = "Purchase Order {$po->po_number} cancelled and reserved funds released.";
         $cancelledPage = $this->actingAs($issuer)->get('/inventory/purchases');
-        $cancelledPage->assertOk()->assertSee('himsToastNotifications', false);
+        $cancelledPage->assertOk()
+            ->assertSee('himsToastNotifications', false)
+            ->assertSee('border-danger-300', false);
         $this->assertSame(1, substr_count($cancelledPage->getContent(), $cancelledMessage));
 
         $po->refresh();

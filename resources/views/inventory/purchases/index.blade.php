@@ -19,6 +19,9 @@
             \App\Enums\Permission::ViewSupplierSensitiveData->value,
             \App\Enums\Permission::ViewLogisticsSensitiveData->value,
         ]) ?? false;
+        $approvalCorrectionPo = old('approval_po_id')
+            ? collect($purchaseOrders->items())->firstWhere('id', (int) old('approval_po_id'))
+            : null;
         $procurementWorkspaceConfig = [
             'activeTab' => $defaultTab,
             'items' => $canIssuePurchaseOrder ? $items->map(function ($item) use ($itemProcurementContext) {
@@ -58,6 +61,14 @@
                 'quantity' => old('quantity', 1),
                 'deliveryDate' => old('delivery_date'),
             ],
+            'approvalCorrection' => $approvalCorrectionPo ? [
+                'id' => $approvalCorrectionPo->id,
+                'number' => $approvalCorrectionPo->po_number,
+                'approve_url' => route('inventory.purchases.orders.approve', $approvalCorrectionPo),
+                'current_delivery_date' => $approvalCorrectionPo->delivery_date?->toDateString(),
+                'revised_delivery_date' => old('revised_delivery_date'),
+                'reason' => old('delivery_date_change_reason'),
+            ] : null,
         ];
     @endphp
 
@@ -1162,6 +1173,19 @@
                                 @if($chain->status === 'pending')
                                     @can('approve_purchase_order')
                                     <div class="mt-4 flex items-center justify-end gap-2 border-t border-neutral-100 pt-3">
+                                        @if($targetPo?->delivery_date?->lt(today()))
+                                            <x-ui.button
+                                                type="button"
+                                                size="sm"
+                                                icon="calendar"
+                                                x-on:click="openDeliveryApproval({{ Js::from([
+                                                    'id' => $targetPo->id,
+                                                    'number' => $targetPo->po_number,
+                                                    'approve_url' => route('inventory.purchases.orders.approve', $targetPo),
+                                                    'current_delivery_date' => $targetPo->delivery_date->format('M j, Y'),
+                                                ]) }})"
+                                            >Update Delivery Date &amp; Approve</x-ui.button>
+                                        @else
                                         <form method="POST" action="{{ route('inventory.purchases.approval-chains.approve', $chain) }}"
                                               data-confirm-title="Authorize procurement approval step"
                                               data-confirm-message="Are you sure you want to authorize this approval step for Chain #{{ $chain->id }} (₱{{ number_format($chain->total_commitment_amount, 2) }})?"
@@ -1171,6 +1195,7 @@
                                                 Authorize Step
                                             </button>
                                         </form>
+                                        @endif
                                         <form method="POST" action="{{ route('inventory.purchases.approval-chains.reject', $chain) }}"
                                               data-confirm-title="Reject procurement approval step"
                                               data-confirm-message="Are you sure you want to reject this approval chain? The procurement commitment will be halted."
@@ -1465,17 +1490,24 @@
                             </form>
                         </header>
 
-                        <div class="divide-y divide-neutral-200 dark:divide-neutral-800">
+                        <div class="space-y-2 p-2">
                             @forelse($purchaseOrders as $po)
                                 @php
                                     $statusEnum = \App\Enums\PurchaseOrderStatus::tryFrom((string) $po->status);
                                     $statusLabel = $statusEnum?->label() ?? \Illuminate\Support\Str::headline((string) $po->status);
                                     $statusVariant = match(true) {
                                         in_array($po->status, ['approved', 'received', 'fulfilled'], true) => 'success',
-                                        in_array($po->status, ['submitted', 'pending', 'pending_approval', 'acknowledged', 'partially_fulfilled', 'partially_received'], true) => 'warning',
-                                        in_array($po->status, ['cancelled', 'rejected'], true) => 'danger',
-                                        in_array($po->status, ['dispatched', 'issued'], true) => 'primary',
+                                        in_array($po->status, ['submitted', 'pending', 'pending_approval', 'acknowledged', 'under_inspection', 'partially_fulfilled', 'partially_received'], true) => 'warning',
+                                        in_array($po->status, ['cancelled', 'rejected', 'rejected_delivery'], true) => 'danger',
+                                        in_array($po->status, ['dispatched', 'issued', 'amended'], true) => 'primary',
                                         default => 'neutral',
+                                    };
+                                    $statusBorderClass = match($statusVariant) {
+                                        'success' => 'border-success-300 dark:border-emerald-700/80',
+                                        'warning' => 'border-warning-300 dark:border-amber-700/80',
+                                        'danger' => 'border-danger-300 dark:border-rose-700/80',
+                                        'primary' => 'border-primary-300 dark:border-primary-700/80',
+                                        default => 'border-neutral-200 dark:border-neutral-700',
                                     };
                                     $poLines = $po->lines->isNotEmpty() ? $po->lines : collect();
                                     $primaryItem = $poLines->first()?->item ?? $po->item;
@@ -1490,6 +1522,9 @@
                                     $canApprovePoPermission = $currentUser?->can(\App\Enums\Permission::ApprovePurchaseOrder->value) ?? false;
                                     $isPoPendingApproval = in_array($po->status, ['submitted', 'pending', 'pending_approval'], true)
                                         || ($po->approvalChain && $po->approvalChain->status === 'pending');
+                                    $requiresDeliveryReschedule = $isPoPendingApproval
+                                        && $po->delivery_date
+                                        && $po->delivery_date->lt(today());
                                     $canCancelThisPo = $currentUser?->can(\App\Enums\Permission::IssuePurchaseOrder->value)
                                         && $po->created_by_user_id === $currentUser->id
                                         && in_array($po->status, ['draft', 'submitted', 'pending_approval'], true);
@@ -1544,6 +1579,7 @@
                                         ]]) : collect());
 
                                     $poDetail = [
+                                        'id' => $po->id,
                                         'number' => $po->po_number,
                                         'version' => $po->version,
                                         'status' => $statusLabel,
@@ -1576,6 +1612,7 @@
                                             'role' => $step->required_role === 'inventory_manager' ? 'Inventory Manager (or Super Administrator)' : \Illuminate\Support\Str::headline($step->required_role),
                                             'status' => \Illuminate\Support\Str::headline($step->status->value ?? $step->status),
                                             'approver' => $step->approver?->name,
+                                            'notes' => $step->decision_notes,
                                         ])->values() ?? [],
                                         'lines' => $linesData,
                                         'shipments' => $po->shipments->sortByDesc('id')->map(fn ($shipment) => [
@@ -1593,6 +1630,8 @@
                                         ])->values(),
                                         'cxml' => $hasSensitivePermission ? $po->cxml_payload : null,
                                         'can_approve' => $canApproveThisPo,
+                                        'requires_delivery_reschedule' => $requiresDeliveryReschedule,
+                                        'current_delivery_date' => $po->delivery_date?->toDateString(),
                                         'approve_url' => route('inventory.purchases.orders.approve', $po),
                                         'reject_url' => route('inventory.purchases.orders.reject', $po),
                                         'can_receive' => $canReceiveThisPo
@@ -1603,7 +1642,7 @@
                                     $isNewPo = session('new_po_id') && (string) session('new_po_id') === (string) $po->id;
                                 @endphp
 
-                                <article class="p-4 transition-colors {{ $isNewPo ? 'bg-emerald-50/60 ring-1 ring-inset ring-emerald-300/80 rounded-lg dark:bg-emerald-950/40 dark:ring-emerald-500/50' : 'hover:bg-neutral-50/80 dark:hover:bg-neutral-800/50' }}" data-purchase-order-row>
+                                <article class="rounded-lg border p-4 transition-colors {{ $statusBorderClass }} {{ $isNewPo ? 'bg-emerald-50/60 ring-1 ring-inset ring-emerald-300/80 dark:bg-emerald-950/40 dark:ring-emerald-500/50' : 'hover:bg-neutral-50/80 dark:hover:bg-neutral-800/50' }}" data-purchase-order-row>
                                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                         <div class="min-w-0 space-y-1">
                                             <div class="flex flex-wrap items-center gap-2">
@@ -1760,6 +1799,11 @@
                                         </div>
                                         <div class="flex items-center gap-2">
                                             @if($canApproveThisPo)
+                                                @if($requiresDeliveryReschedule)
+                                                    <x-ui.button type="button" size="sm" icon="calendar" x-on:click="openDeliveryApproval({{ Js::from($poDetail) }})">
+                                                        Update Delivery Date &amp; Approve
+                                                    </x-ui.button>
+                                                @else
                                                 <form method="POST" action="{{ route('inventory.purchases.orders.approve', $po) }}"
                                                       data-confirm-title="Approve Purchase Order"
                                                       data-confirm-message="Are you sure you want to approve Purchase Order {{ $po->po_number }} for ₱{{ number_format($po->grandTotal(), 2) }}?"
@@ -1770,6 +1814,7 @@
                                                         Approve Order
                                                     </button>
                                                 </form>
+                                                @endif
                                             @endif
                                             @if($canCancelThisPo)
                                                 <form method="POST" action="{{ route('inventory.purchases.orders.cancel', $po) }}"
@@ -1998,7 +2043,13 @@
                                 <h4 class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Approval history</h4>
                                 <div class="mt-2 space-y-2">
                                     <template x-for="step in selectedPo.approval_steps" x-bind:key="step.number">
-                                        <div class="flex items-center justify-between rounded-md border border-neutral-200 dark:border-neutral-800 px-3 py-2 text-xs bg-neutral-50/50 dark:bg-neutral-800/40"><span class="text-neutral-700 dark:text-neutral-300" x-text="`Step ${step.number} · ${step.role}`"></span><span class="font-medium text-neutral-900 dark:text-neutral-100" x-text="`${step.status}${step.approver ? ` · ${step.approver}` : ''}`"></span></div>
+                                        <div class="rounded-md border border-neutral-200 bg-neutral-50/50 px-3 py-2 text-xs dark:border-neutral-800 dark:bg-neutral-800/40">
+                                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                                <span class="text-neutral-700 dark:text-neutral-300" x-text="`Step ${step.number} · ${step.role}`"></span>
+                                                <span class="font-medium text-neutral-900 dark:text-neutral-100" x-text="`${step.status}${step.approver ? ` · ${step.approver}` : ''}`"></span>
+                                            </div>
+                                            <p x-show="step.notes" class="mt-1.5 break-words border-t border-neutral-200 pt-1.5 leading-relaxed text-neutral-700 dark:border-neutral-700 dark:text-neutral-300" x-text="step.notes"></p>
+                                        </div>
                                     </template>
                                 </div>
                             </div>
@@ -2027,6 +2078,10 @@
                                 @can(\App\Enums\Permission::ApprovePurchaseOrder->value)
                                 <template x-if="selectedPo.can_approve">
                                     <div class="flex items-center gap-2">
+                                        <template x-if="selectedPo.requires_delivery_reschedule">
+                                            <x-ui.button type="button" size="sm" icon="calendar" x-on:click="openDeliveryApproval(selectedPo)">Update Delivery Date &amp; Approve</x-ui.button>
+                                        </template>
+                                        <template x-if="!selectedPo.requires_delivery_reschedule">
                                         <form method="POST" x-bind:action="selectedPo.approve_url" data-confirm-title="Approve Purchase Order" data-confirm-message="Are you sure you want to approve this purchase order?" data-confirm-label="Approve Order">
                                             @csrf
                                             <button type="submit" class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md border border-emerald-600 bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 hover:border-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
@@ -2034,6 +2089,7 @@
                                                 Approve Order
                                             </button>
                                         </form>
+                                        </template>
                                         <form method="POST" x-bind:action="selectedPo.reject_url" data-confirm-title="Reject Purchase Order" data-confirm-message="Are you sure you want to reject this purchase order? The commitment will be cancelled." data-confirm-label="Reject Order" data-confirm-variant="danger">
                                             @csrf
                                             <input type="hidden" name="rejection_reason" value="Rejected during order details review">
@@ -2054,6 +2110,47 @@
                         </template>
                     </x-slot>
                 </x-ui.modal>
+
+                @can(\App\Enums\Permission::ApprovePurchaseOrder->value)
+                    <x-ui.modal name="reschedule-po-delivery" title="Update delivery date and approve" maxWidth="md">
+                        <template x-if="approvalCorrection">
+                            <form method="POST" x-bind:action="approvalCorrection.approve_url" class="space-y-4">
+                                @csrf
+                                <input type="hidden" name="approval_po_id" x-bind:value="approvalCorrection.id">
+
+                                <div class="rounded-lg border border-warning-200 bg-warning-50 px-3 py-2.5 text-sm text-warning-900 dark:border-warning-800 dark:bg-warning-950/40 dark:text-warning-200">
+                                    <p class="font-semibold" x-text="`${approvalCorrection.number} has a lapsed delivery date.`"></p>
+                                    <p class="mt-1 text-xs leading-5">Original expected delivery: <span class="font-semibold tabular-nums" x-text="formatDate(approvalCorrection.current_delivery_date)"></span>. Set a realistic future date before approval.</p>
+                                </div>
+
+                                <x-ui.field
+                                    name="revised_delivery_date"
+                                    label="New expected delivery date"
+                                    type="date"
+                                    min="{{ today()->addDay()->toDateString() }}"
+                                    x-model="revisedDeliveryDate"
+                                    required
+                                    hint="Must be after today."
+                                />
+                                <x-ui.field
+                                    name="delivery_date_change_reason"
+                                    label="Reason for changing the delivery date"
+                                    type="textarea"
+                                    rows="3"
+                                    maxlength="500"
+                                    x-model="deliveryDateChangeReason"
+                                    required
+                                    hint="This justification is retained in the approval and audit history."
+                                />
+
+                                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                                    <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'reschedule-po-delivery')">Cancel</x-ui.button>
+                                    <x-ui.button type="submit" data-loading-text="Updating date and approving...">Update Date &amp; Approve</x-ui.button>
+                                </div>
+                            </form>
+                        </template>
+                    </x-ui.modal>
+                @endcan
             </div>
             {{-- ======================================================== TAB 6: Standard Canvassing --}}
             {{-- ======================================================== TAB 6: Standard Canvassing --}}

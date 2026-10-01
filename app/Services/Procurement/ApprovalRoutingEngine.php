@@ -141,6 +141,14 @@ class ApprovalRoutingEngine
                 throw new DomainException("Approval Chain #{$chain->id} has no pending steps.");
             }
 
+            if ($chain->chain_type === ApprovalChainType::PurchaseOrder) {
+                $purchaseOrder = PurchaseOrder::find($chain->target_id);
+
+                if ($purchaseOrder?->delivery_date?->lt(today())) {
+                    throw new DomainException('The expected delivery date has passed. Update it before approving this purchase order.');
+                }
+            }
+
             // Segregation of Duties: Check if approver is the original requester
             $this->enforceSegregationOfDuties($chain, $approver);
 
