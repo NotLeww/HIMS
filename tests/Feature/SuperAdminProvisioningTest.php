@@ -214,20 +214,20 @@ class SuperAdminProvisioningTest extends TestCase
         $email = 'new.admin@example.com';
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->post(route('admin.users.store'), $this->validUserPayload(UserRole::Administrator, $email))
+            ->post(route('super-admin.users.store'), $this->validUserPayload(UserRole::Administrator, $email))
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('admin.users.index'));
+            ->assertRedirect(route('super-admin.users.index'));
 
         $administrator = User::query()->where('email', $email)->firstOrFail();
         $payload = $this->validUpdatePayload($administrator, UserRole::Administrator);
         $payload['first_name'] = 'Updated';
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->put(route('admin.users.update', $administrator), $payload)
+            ->put(route('super-admin.users.update', $administrator), $payload)
             ->assertSessionHasNoErrors();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->patch(route('admin.users.toggle-status', $administrator), [
+            ->patch(route('super-admin.users.toggle-status', $administrator), [
                 'current_password' => self::INITIAL_PASSWORD,
             ])
             ->assertSessionHasNoErrors();
@@ -244,7 +244,7 @@ class SuperAdminProvisioningTest extends TestCase
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
             ->post(
-                route('admin.users.store'),
+                route('super-admin.users.store'),
                 $this->validUserPayload(UserRole::SuperAdministrator, $email)
             )->assertSessionHasErrors('role')
             ->assertSessionMissing('account_created_success');
@@ -339,7 +339,7 @@ class SuperAdminProvisioningTest extends TestCase
         ]);
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.users.edit', $superAdmin))
+            ->get(route('super-admin.users.edit', $superAdmin))
             ->assertOk()
             ->assertSee('value="super_administrator"', false)
             ->assertDontSee('value="administrator"', false);
@@ -348,7 +348,7 @@ class SuperAdminProvisioningTest extends TestCase
         $payload['phone'] = '09179999999';
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->put(route('admin.users.update', $superAdmin), $payload)
+            ->put(route('super-admin.users.update', $superAdmin), $payload)
             ->assertSessionHasNoErrors();
 
         $superAdmin->refresh();
@@ -369,7 +369,7 @@ class SuperAdminProvisioningTest extends TestCase
         $payload['phone'] = '09179999999';
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->put(route('admin.users.update', $superAdmin), $payload)
+            ->put(route('super-admin.users.update', $superAdmin), $payload)
             ->assertSessionHasErrors('role');
 
         $superAdmin->refresh();
@@ -394,7 +394,7 @@ class SuperAdminProvisioningTest extends TestCase
         $superAdmin = $this->provisionedSuperAdmin();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.users.create'))
+            ->get(route('super-admin.users.create'))
             ->assertOk()
             ->assertSee('form-role-permissions-modal')
             ->assertSee('View Role Permissions')
@@ -402,7 +402,7 @@ class SuperAdminProvisioningTest extends TestCase
             ->assertDontSee('This role can');
 
         $viewer = User::factory()->viewer()->create();
-        $this->get(route('admin.users.edit', $viewer))
+        $this->get(route('super-admin.users.edit', $viewer))
             ->assertOk()
             ->assertSee('form-role-permissions-modal')
             ->assertSee('View Role Permissions')

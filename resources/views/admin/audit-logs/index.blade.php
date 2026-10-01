@@ -2,19 +2,22 @@
     @if ($isPrint)
         <style>@media print { @page { size: A4 landscape; margin: 10mm; } }</style>
     @endif
-    <x-ui.page-header
-        title="Audit Trail"
-        :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Audit Trail' => null]" />
+    <div class="print:hidden">
+        <x-ui.page-header
+            title="Audit Trail"
+            :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Audit Trail' => null]" />
+    </div>
 
     @php
         $activeFilterCount = count(array_filter($filters ?? []));
         $hasActiveFilters = $activeFilterCount > 0;
         $recordCount = $isPrint ? $logs->count() : $logs->total();
-        $printUrl = route('admin.audit-logs.index', [...request()->except(['page', 'print']), 'print' => 1]);
+        $printUrl = route(\App\Support\AuthenticationContext::auditLogRoute(), [...request()->except(['page', 'print']), 'print' => 1]);
     @endphp
 
     <section class="hidden print:block print-context" aria-label="Printed audit trail context">
-        <h1>Audit Trail</h1>
+        <p class="print-context__system">{{ config('app.name', 'Hospital Inventory Management System') }}</p>
+        <h1>Audit Trail Report</h1>
         <p>Generated {{ now()->format('M d, Y, g:i:s A') }} {{ config('app.timezone') }} &middot; {{ number_format($recordCount) }} records</p>
         @if ($hasActiveFilters)
             <dl>
@@ -67,12 +70,12 @@
                 x-transition:leave-end="opacity-0 -translate-y-1"
                 class="border-b border-neutral-200 p-4 dark:border-neutral-800 sm:p-5"
             >
-                <form id="audit-log-filters" method="GET" action="{{ route('admin.audit-logs.index') }}"
+                <form id="audit-log-filters" method="GET" action="{{ route(\App\Support\AuthenticationContext::auditLogRoute()) }}"
                       class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:items-end">
                     <div
                         class="relative space-y-1.5"
                         x-data="auditSearchAutocomplete({
-                            endpoint: @js(route('admin.audit-logs.suggestions')),
+                            endpoint: @js(route(\App\Support\AuthenticationContext::auditLogRoute('suggestions'))),
                             formId: 'audit-log-filters',
                             initialQuery: @js($filters['search'] ?? ''),
                         })"
@@ -217,13 +220,23 @@
                     <div class="flex flex-wrap items-center gap-2">
                         <x-ui.button type="submit" icon="magnifying-glass" data-loading-text="Loading activity...">Filter</x-ui.button>
                         @if (array_filter($filters))
-                            <x-ui.button variant="secondary" :href="route('admin.audit-logs.index')">Clear</x-ui.button>
+                            <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::auditLogRoute())">Clear</x-ui.button>
                         @endif
                     </div>
                 </form>
             </div>
         @endif
         <x-ui.table class="audit-logs-table" aria-label="Audit trail entries">
+            @if ($isPrint)
+                <colgroup>
+                    <col class="audit-print-col-actor">
+                    <col class="audit-print-col-action">
+                    <col class="audit-print-col-module">
+                    <col class="audit-print-col-target">
+                    <col class="audit-print-col-description">
+                    <col class="audit-print-col-time">
+                </colgroup>
+            @endif
             <x-ui.table.head>
                 <x-ui.table.th>Performed By</x-ui.table.th>
                 <x-ui.table.th>Action</x-ui.table.th>
@@ -231,7 +244,9 @@
                 <x-ui.table.th>Target</x-ui.table.th>
                 <x-ui.table.th>Description</x-ui.table.th>
                 <x-ui.table.th>Date &amp; Time</x-ui.table.th>
-                <x-ui.table.th class="text-right print:hidden">Actions</x-ui.table.th>
+                @if (! $isPrint)
+                    <x-ui.table.th class="text-right">Actions</x-ui.table.th>
+                @endif
             </x-ui.table.head>
             <tbody>
                 @forelse ($logs as $log)
@@ -300,7 +315,8 @@
                             </div>
                         </x-ui.table.td>
 
-                        <x-ui.table.td class="whitespace-nowrap text-right print:hidden">
+                        @if (! $isPrint)
+                        <x-ui.table.td class="whitespace-nowrap text-right">
                             <div class="inline-flex items-center justify-end gap-1.5">
                                 @if ($hasDetails)
                                     <button
@@ -314,17 +330,18 @@
                                     </button>
                                 @endif
 
-                                <a href="{{ route('admin.audit-logs.show', $log) }}"
+                                <a href="{{ route(\App\Support\AuthenticationContext::auditLogRoute('show'), $log) }}"
                                    class="inline-flex items-center justify-center rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-xs font-medium text-neutral-700 shadow-2xs transition-all duration-150 hover:border-primary-300 hover:bg-primary-50/70 hover:text-primary-700 hover:shadow-xs dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
                                    title="View full audit log details">
                                     Details
                                 </a>
                             </div>
                         </x-ui.table.td>
+                        @endif
                     </x-ui.table.row>
                 @empty
                     <x-ui.table.empty
-                        :colspan="7"
+                        :colspan="$isPrint ? 6 : 7"
                         icon="clipboard-document-list"
                         title="No activity found"
                         message="Important user and authentication activity will appear here." />
@@ -455,7 +472,7 @@
 
                 <x-slot:footer>
                     <div class="flex w-full items-center justify-between">
-                        <a href="{{ route('admin.audit-logs.show', $log) }}"
+                        <a href="{{ route(\App\Support\AuthenticationContext::auditLogRoute('show'), $log) }}"
                            class="group inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-700 shadow-2xs transition-all duration-150 hover:border-primary-300 hover:bg-neutral-50 hover:text-primary-700 hover:shadow-xs dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800">
                             <x-ui.icon name="arrow-top-right-on-square" class="w-3.5 h-3.5 text-neutral-400 group-hover:text-primary-600 transition-colors" />
                             <span>Full Log Details</span>

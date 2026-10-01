@@ -3,7 +3,7 @@
         title="Master Records Archive"
         :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Administration' => null, 'Archive' => null]">
         <x-slot:actions>
-            <x-ui.button variant="secondary" :href="route('admin.audit-logs.index')" icon="shield-check">
+            <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::auditLogRoute())" icon="shield-check">
                 Audit Trail
             </x-ui.button>
         </x-slot:actions>
@@ -64,7 +64,7 @@
                     $isActiveTab = ($currentType === $key);
                     $query = array_merge(request()->except(['page']), ['type' => $key]);
                 @endphp
-                <a href="{{ route('admin.archive.index', $query) }}"
+                <a href="{{ route(\App\Support\AuthenticationContext::administrationRoute('archive.index'), $query) }}"
                    class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors {{ $isActiveTab ? 'bg-primary-600 text-white shadow-xs' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700' }}">
                     <x-ui.icon :name="$tab['icon']" class="h-4 w-4" />
                     <span>{{ $tab['label'] }}</span>
@@ -75,7 +75,7 @@
             @endforeach
         </div>
 
-        <form method="GET" action="{{ route('admin.archive.index') }}" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end mt-4">
+        <form method="GET" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('archive.index')) }}" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end mt-4">
             <input type="hidden" name="type" value="{{ $currentType }}">
 
             <x-ui.field
@@ -113,7 +113,7 @@
             <div class="flex items-center gap-2">
                 <x-ui.button type="submit" icon="magnifying-glass">Filter</x-ui.button>
                 @if (array_filter($filters))
-                    <x-ui.button variant="secondary" :href="route('admin.archive.index', ['type' => $currentType])">Clear</x-ui.button>
+                    <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('archive.index'), ['type' => $currentType])">Clear</x-ui.button>
                 @endif
             </div>
         </form>
@@ -149,9 +149,9 @@
                     $reason = $record->archive_reason ?: 'No specific reason documented';
                     $recordId = $record->id;
                     $unarchiveRoute = match ($recType) {
-                        'item', 'inventory_item' => route('admin.archive.items.unarchive', $recordId),
-                        'supplier' => route('admin.archive.suppliers.unarchive', $recordId),
-                        'user' => route('admin.archive.users.unarchive', $recordId),
+                        'item', 'inventory_item' => route(\App\Support\AuthenticationContext::administrationRoute('archive.items.unarchive'), $recordId),
+                        'supplier' => route(\App\Support\AuthenticationContext::administrationRoute('archive.suppliers.unarchive'), $recordId),
+                        'user' => route(\App\Support\AuthenticationContext::administrationRoute('archive.users.unarchive'), $recordId),
                         default => '#',
                     };
                 @endphp
@@ -224,9 +224,9 @@
                             @php
                                 $recType = $record->record_type;
                                 $unarchiveRoute = match ($recType) {
-                                    'item', 'inventory_item' => route('admin.archive.items.unarchive', $record->id),
-                                    'supplier' => route('admin.archive.suppliers.unarchive', $record->id),
-                                    'user' => route('admin.archive.users.unarchive', $record->id),
+                                    'item', 'inventory_item' => route(\App\Support\AuthenticationContext::administrationRoute('archive.items.unarchive'), $record->id),
+                                    'supplier' => route(\App\Support\AuthenticationContext::administrationRoute('archive.suppliers.unarchive'), $record->id),
+                                    'user' => route(\App\Support\AuthenticationContext::administrationRoute('archive.users.unarchive'), $record->id),
                                     default => '#',
                                 };
                                 $typeVariant = match ($recType) {
@@ -321,7 +321,7 @@
                                 </x-ui.table.td>
                                 <x-ui.table.td align="right" class="px-3 py-2.5 hims-sticky-actions">
                                     @can(\App\Enums\Permission::ManageArchive->value)
-                                        <form method="POST" action="{{ route('admin.archive.items.unarchive', $item) }}"
+                                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('archive.items.unarchive'), $item) }}"
                                               data-confirm-title="Restore Inventory Item"
                                               data-confirm-message="Restore '{{ $item->name }}' (SKU: {{ $item->sku }}) to the active catalog? Duplicate SKU and Barcode conflict checks will be performed."
                                               data-confirm-label="Restore Item">
@@ -376,7 +376,7 @@
                                 </x-ui.table.td>
                                 <x-ui.table.td align="right" class="px-3 py-2.5 hims-sticky-actions">
                                     @can(\App\Enums\Permission::ManageArchive->value)
-                                        <form method="POST" action="{{ route('admin.archive.suppliers.unarchive', $supplier) }}"
+                                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('archive.suppliers.unarchive'), $supplier) }}"
                                               data-confirm-title="Restore Supplier"
                                               data-confirm-message="Restore supplier '{{ $supplier->name }}' to active procurement? Tax ID collision checks will be enforced."
                                               data-confirm-label="Restore Supplier">
@@ -443,7 +443,7 @@
                                 </x-ui.table.td>
                                 <x-ui.table.td align="right" class="px-3 py-2.5 hims-sticky-actions">
                                     @can(\App\Enums\Permission::ManageArchive->value)
-                                        <form method="POST" action="{{ route('admin.archive.users.unarchive', $userAccount) }}"
+                                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('archive.users.unarchive'), $userAccount) }}"
                                               data-confirm-title="Restore User Account"
                                               data-confirm-message="Restore account for '{{ $userAccount->name }}' ({{ $userAccount->email }})? Duplicate email or employee ID checks will be enforced."
                                               data-confirm-label="Restore Account">

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\UserConsent;
 use App\Services\Privacy\ConsentService;
 use App\Support\AuditBrowserLocation;
+use App\Support\AuthenticationContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -329,7 +330,8 @@ class ConsentManagementTest extends TestCase
         $user = User::factory()->create();
 
         // Admin checks Privacy Governance Consent tab
-        $response = $this->actingAs($admin)->get(route('admin.privacy.index', ['tab' => 'consent']));
+        $response = $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.privacy.index', ['tab' => 'consent']));
         $response->assertOk();
         $response->assertSee('Workforce Consent Audit Registry');
         $response->assertSee('cannot grant, modify, or fabricate consent on behalf of workforce members');

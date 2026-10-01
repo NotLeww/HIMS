@@ -4,6 +4,7 @@ namespace Tests\Feature\Privacy;
 
 use App\Models\User;
 use App\Services\Privacy\CompliancePostureService;
+use App\Support\AuthenticationContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -59,8 +60,8 @@ class CompliancePostureTest extends TestCase
         $admin = User::factory()->superAdministrator()->create();
         app(\App\Services\Privacy\ConsentService::class)->recordConsent($admin, \App\Models\UserConsent::TYPE_PRIVACY_POLICY);
 
-        $response = $this->actingAs($admin)
-            ->get(route('admin.privacy.index', ['tab' => 'ropa']));
+        $response = $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.privacy.index', ['tab' => 'ropa']));
 
         $response->assertOk();
         $response->assertSee('Privacy & Security Governance');

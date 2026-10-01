@@ -3,7 +3,7 @@
 
     $isStockActive = request()->routeIs('inventory.items*', 'inventory.stock-movements*', 'inventory.adjustments*', 'inventory.cycle-counts*', 'inventory.alerts*');
     $isRequisitionActive = request()->routeIs('inventory.requisitions*', 'inventory.transfers*');
-    $isAuditsActive = request()->routeIs('inventory.import*', 'inventory.reports*', 'admin.audit-logs*');
+    $isAuditsActive = request()->routeIs('inventory.import*', 'inventory.reports*', 'admin.audit-logs*', 'super-admin.audit-logs*');
 @endphp
 
 <div
@@ -59,7 +59,7 @@
                             <option value="{{ route('inventory.reports') }}" @selected(request()->routeIs('inventory.reports*'))>Inventory Reports</option>
                         @endcan
                         @can(\App\Enums\Permission::ViewAuditTrail->value)
-                            <option value="{{ route('admin.audit-logs.index') }}" @selected(request()->routeIs('admin.audit-logs*'))>Audit Trail</option>
+                            <option value="{{ route(\App\Support\AuthenticationContext::auditLogRoute()) }}" @selected(request()->routeIs('admin.audit-logs*', 'super-admin.audit-logs*'))>Audit Trail</option>
                         @endcan
                     </optgroup>
                 @endcanany
@@ -315,14 +315,14 @@
 
                     @can(\App\Enums\Permission::ViewAuditTrail->value)
                         <a
-                            href="{{ route('admin.audit-logs.index') }}"
-                            class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition {{ request()->routeIs('admin.audit-logs*') ? 'bg-primary-50 text-primary-800 font-semibold dark:bg-primary-950/60 dark:text-primary-200' : 'text-neutral-700 hover:bg-neutral-50 dark:text-neutral-300 dark:hover:bg-neutral-800' }}"
+                            href="{{ route(\App\Support\AuthenticationContext::auditLogRoute()) }}"
+                            class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition {{ request()->routeIs('admin.audit-logs*', 'super-admin.audit-logs*') ? 'bg-primary-50 text-primary-800 font-semibold dark:bg-primary-950/60 dark:text-primary-200' : 'text-neutral-700 hover:bg-neutral-50 dark:text-neutral-300 dark:hover:bg-neutral-800' }}"
                         >
                             <span class="flex items-center gap-2">
-                                <x-ui.icon name="shield-check" class="w-4 h-4 {{ request()->routeIs('admin.audit-logs*') ? 'text-primary-600 dark:text-primary-400' : 'text-neutral-400 dark:text-neutral-500' }}" />
+                                <x-ui.icon name="shield-check" class="w-4 h-4 {{ request()->routeIs('admin.audit-logs*', 'super-admin.audit-logs*') ? 'text-primary-600 dark:text-primary-400' : 'text-neutral-400 dark:text-neutral-500' }}" />
                                 <span>Audit Trail</span>
                             </span>
-                            @if (request()->routeIs('admin.audit-logs*'))
+                            @if (request()->routeIs('admin.audit-logs*', 'super-admin.audit-logs*'))
                                 <span class="h-1.5 w-1.5 rounded-full bg-primary-600"></span>
                             @endif
                         </a>

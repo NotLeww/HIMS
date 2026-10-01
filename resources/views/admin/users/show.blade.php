@@ -4,14 +4,14 @@
         :title="$user->name"
         :breadcrumbs="[
             'Home' => route(\App\Support\AuthenticationContext::dashboardRoute()),
-            'User Management' => route('admin.users.index'),
+            'User Management' => route(\App\Support\AuthenticationContext::administrationRoute('users.index')),
             $user->name => null,
         ]">
         @if ($canManage)
             <x-slot:actions>
                 <div class="flex flex-wrap items-center gap-2">
                     @if ($canUnlock)
-                        <form method="POST" action="{{ route('admin.users.unlock', $user) }}"
+                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.unlock'), $user) }}"
                               data-confirm-title="Unlock account?"
                               data-confirm-message="This will allow the user to attempt signing in again."
                               data-confirm-label="Unlock Account">
@@ -22,13 +22,13 @@
                             </x-ui.button>
                         </form>
                     @endif
-                    <x-ui.button variant="secondary" :href="route('admin.users.edit', $user)" icon="pencil-square">
+                    <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('users.edit'), $user)" icon="pencil-square">
                         Edit
                     </x-ui.button>
                     @unless ($user->is(auth()->user()))
                         @if ($user->isArchived())
                             @can(\App\Enums\Permission::ManageArchive->value)
-                                <form method="POST" action="{{ route('admin.users.unarchive', $user) }}"
+                                <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.unarchive'), $user) }}"
                                       data-confirm-title="Restore User Account"
                                       data-confirm-message="Restore account for {{ $user->name }} ({{ $user->email }}) to active status? Duplicate email or employee ID checks will be enforced."
                                       data-confirm-label="Restore Account">
@@ -43,7 +43,7 @@
                                 </form>
                             @endcan
                         @else
-                            <form method="POST" action="{{ route('admin.users.toggle-status', $user) }}"
+                            <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.toggle-status'), $user) }}"
                                   data-confirm-title="Confirm account status change"
                                   data-confirm-message="Are you sure you want to {{ $user->isActive() ? 'deactivate' : 'reactivate' }} this user?"
                                   data-confirm-label="{{ $user->isActive() ? 'Deactivate' : 'Reactivate' }}"
@@ -64,7 +64,7 @@
                                         type="button"
                                         variant="danger"
                                         @click="$dispatch('open-archive-modal', {
-                                            actionUrl: '{{ route('admin.users.archive', $user) }}',
+                                            actionUrl: '{{ route(\App\Support\AuthenticationContext::administrationRoute('users.archive'), $user) }}',
                                             title: '{{ addslashes($user->name) }}',
                                             identifier: 'Employee ID: {{ addslashes($user->employee_id ?? 'N/A') }} · {{ addslashes($user->email) }}',
                                             context: 'Role: {{ addslashes($user->role?->label() ?? 'Staff') }}',

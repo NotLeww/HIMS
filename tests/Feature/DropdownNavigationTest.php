@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\AuthenticationContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -50,7 +51,8 @@ class DropdownNavigationTest extends TestCase
     public function test_sidebar_coordinates_exclusive_accordion_state(): void
     {
         // When visiting an administration page, activeDropdown should be initialized to 'administration'
-        $response = $this->actingAs($this->superAdmin)->get(route('admin.users.index'));
+        $response = $this->actingAs($this->superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.users.index'));
 
         $response->assertOk();
         $response->assertSee("activeDropdown: 'administration'", false);

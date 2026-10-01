@@ -3,11 +3,11 @@
         title="Edit {{ $user->name }}"
         :breadcrumbs="[
             'Home' => route(\App\Support\AuthenticationContext::dashboardRoute()),
-            'User Management' => route('admin.users.index'),
+            'User Management' => route(\App\Support\AuthenticationContext::administrationRoute('users.index')),
             $user->name => null,
         ]">
         <x-slot:actions>
-            <x-ui.button variant="secondary" :href="route('admin.users.show', $user)">View Activity</x-ui.button>
+            <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('users.show'), $user)">View Activity</x-ui.button>
         </x-slot:actions>
     </x-ui.page-header>
 
@@ -29,7 +29,7 @@
                 View Role Permissions
             </x-ui.button>
         </x-slot:actions>
-        <form method="POST" action="{{ route('admin.users.update', $user) }}" class="space-y-5"
+        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.update'), $user) }}" class="space-y-5"
               autocomplete="off"
               @if (auth()->user()?->isSuperAdministrator())
                   data-super-admin-password="edit"
@@ -44,7 +44,7 @@
             @include('admin.users.partials.form', ['user' => $user, 'roles' => $roles])
 
             <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 pt-2 border-t border-neutral-100">
-                <x-ui.button variant="secondary" :href="route('admin.users.index')">Cancel</x-ui.button>
+                <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('users.index'))">Cancel</x-ui.button>
                 <x-ui.button type="submit" data-loading-text="Saving changes...">Save Changes</x-ui.button>
             </div>
         </form>

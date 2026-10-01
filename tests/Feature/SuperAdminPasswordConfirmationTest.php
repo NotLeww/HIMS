@@ -91,16 +91,16 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $admin = User::factory()->administrator()->create();
 
         $this->actingAs($admin, AuthenticationContext::ADMIN_GUARD)
-            ->postJson(route('admin.users.confirm-password'), [
+            ->postJson(route('super-admin.users.confirm-password'), [
                 'current_password' => 'password',
-            ])->assertForbidden();
+            ])->assertUnauthorized();
 
         $staff = User::factory()->viewer()->create();
 
         $this->actingAs($staff, AuthenticationContext::WEB_GUARD)
-            ->postJson(route('admin.users.confirm-password'), [
+            ->postJson(route('super-admin.users.confirm-password'), [
                 'current_password' => 'password',
-            ])->assertForbidden();
+            ])->assertUnauthorized();
     }
 
     public function test_super_admin_confirm_password_requires_password(): void
@@ -108,7 +108,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $superAdmin = $this->getSuperAdmin();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->postJson(route('admin.users.confirm-password'), [
+            ->postJson(route('super-admin.users.confirm-password'), [
                 'current_password' => '',
             ])->assertStatus(422)
             ->assertJsonValidationErrors(['current_password']);
@@ -119,7 +119,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $superAdmin = $this->getSuperAdmin();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->postJson(route('admin.users.confirm-password'), [
+            ->postJson(route('super-admin.users.confirm-password'), [
                 'current_password' => 'IncorrectPassword123!',
             ])->assertStatus(422)
             ->assertJsonValidationErrors(['current_password']);
@@ -130,7 +130,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $superAdmin = $this->getSuperAdmin();
 
         $response = $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->postJson(route('admin.users.confirm-password'), [
+            ->postJson(route('super-admin.users.confirm-password'), [
                 'current_password' => self::SUPER_ADMIN_PASSWORD,
             ])->assertOk()
             ->assertJsonStructure(['status', 'token']);
@@ -155,7 +155,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $payload = $this->validCreatePayload('unconfirmed@example.com');
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->post(route('admin.users.store'), $payload)
+            ->post(route('super-admin.users.store'), $payload)
             ->assertSessionHasErrors(['current_password']);
 
         $this->assertDatabaseMissing('users', ['email' => 'unconfirmed@example.com']);
@@ -168,7 +168,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $payload['current_password'] = 'WrongPassword999!';
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->post(route('admin.users.store'), $payload)
+            ->post(route('super-admin.users.store'), $payload)
             ->assertSessionHasErrors(['current_password']);
 
         $this->assertDatabaseMissing('users', ['email' => 'wrongpass@example.com']);
@@ -181,9 +181,9 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $payload['current_password'] = self::SUPER_ADMIN_PASSWORD;
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->post(route('admin.users.store'), $payload)
+            ->post(route('super-admin.users.store'), $payload)
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('admin.users.index'));
+            ->assertRedirect(route('super-admin.users.index'));
 
         $this->assertDatabaseHas('users', ['email' => 'confirmed.direct@example.com']);
     }
@@ -193,7 +193,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $superAdmin = $this->getSuperAdmin();
 
         $tokenResponse = $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->postJson(route('admin.users.confirm-password'), [
+            ->postJson(route('super-admin.users.confirm-password'), [
                 'current_password' => self::SUPER_ADMIN_PASSWORD,
             ])->assertOk();
 
@@ -203,9 +203,9 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $payload['super_admin_confirmation_token'] = $token;
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->post(route('admin.users.store'), $payload)
+            ->post(route('super-admin.users.store'), $payload)
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('admin.users.index'));
+            ->assertRedirect(route('super-admin.users.index'));
 
         $this->assertDatabaseHas('users', ['email' => 'confirmed.token@example.com']);
 
@@ -214,7 +214,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $replayPayload['super_admin_confirmation_token'] = $token;
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->post(route('admin.users.store'), $replayPayload)
+            ->post(route('super-admin.users.store'), $replayPayload)
             ->assertSessionHasErrors(['current_password']);
 
         $this->assertDatabaseMissing('users', ['email' => 'replay@example.com']);
@@ -232,7 +232,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $payload['first_name'] = 'Tampered';
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->put(route('admin.users.update', $target), $payload)
+            ->put(route('super-admin.users.update', $target), $payload)
             ->assertSessionHasErrors(['current_password']);
 
         $this->assertSame('Original', $target->fresh()->first_name);
@@ -247,7 +247,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $payload['current_password'] = 'IncorrectPass123!';
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->put(route('admin.users.update', $target), $payload)
+            ->put(route('super-admin.users.update', $target), $payload)
             ->assertSessionHasErrors(['current_password']);
 
         $this->assertSame('Original', $target->fresh()->first_name);
@@ -262,9 +262,9 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $payload['current_password'] = self::SUPER_ADMIN_PASSWORD;
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->put(route('admin.users.update', $target), $payload)
+            ->put(route('super-admin.users.update', $target), $payload)
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('admin.users.index'));
+            ->assertRedirect(route('super-admin.users.index'));
 
         $this->assertSame('UpdatedBySuperAdmin', $target->fresh()->first_name);
     }
@@ -275,7 +275,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $target = User::factory()->viewer()->create(['first_name' => 'Original']);
 
         $tokenResponse = $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->postJson(route('admin.users.confirm-password'), [
+            ->postJson(route('super-admin.users.confirm-password'), [
                 'current_password' => self::SUPER_ADMIN_PASSWORD,
             ])->assertOk();
 
@@ -286,9 +286,9 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $payload['super_admin_confirmation_token'] = $token;
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->put(route('admin.users.update', $target), $payload)
+            ->put(route('super-admin.users.update', $target), $payload)
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('admin.users.index'));
+            ->assertRedirect(route('super-admin.users.index'));
 
         $this->assertSame('UpdatedWithToken', $target->fresh()->first_name);
 
@@ -299,7 +299,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $payload2['super_admin_confirmation_token'] = $token;
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->put(route('admin.users.update', $target2), $payload2)
+            ->put(route('super-admin.users.update', $target2), $payload2)
             ->assertSessionHasErrors(['current_password']);
 
         $this->assertSame('OriginalTwo', $target2->fresh()->first_name);
@@ -315,7 +315,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $target = User::factory()->viewer()->create(['status' => UserStatus::Active]);
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->patch(route('admin.users.toggle-status', $target))
+            ->patch(route('super-admin.users.toggle-status', $target))
             ->assertSessionHasErrors(['current_password']);
 
         $this->assertTrue($target->fresh()->isActive());
@@ -327,7 +327,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $target = User::factory()->viewer()->create(['status' => UserStatus::Active]);
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->patch(route('admin.users.toggle-status', $target), [
+            ->patch(route('super-admin.users.toggle-status', $target), [
                 'current_password' => 'WrongPassword123!',
             ])->assertSessionHasErrors(['current_password']);
 
@@ -340,7 +340,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $target = User::factory()->viewer()->create(['status' => UserStatus::Active]);
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->patch(route('admin.users.toggle-status', $target), [
+            ->patch(route('super-admin.users.toggle-status', $target), [
                 'current_password' => self::SUPER_ADMIN_PASSWORD,
             ])->assertSessionHasNoErrors();
 
@@ -353,14 +353,14 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $target = User::factory()->viewer()->create(['status' => UserStatus::Active]);
 
         $tokenResponse = $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->postJson(route('admin.users.confirm-password'), [
+            ->postJson(route('super-admin.users.confirm-password'), [
                 'current_password' => self::SUPER_ADMIN_PASSWORD,
             ])->assertOk();
 
         $token = $tokenResponse->json('token');
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->patch(route('admin.users.toggle-status', $target), [
+            ->patch(route('super-admin.users.toggle-status', $target), [
                 'super_admin_confirmation_token' => $token,
             ])->assertSessionHasNoErrors();
 
@@ -370,7 +370,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $target2 = User::factory()->viewer()->create(['status' => UserStatus::Active]);
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->patch(route('admin.users.toggle-status', $target2), [
+            ->patch(route('super-admin.users.toggle-status', $target2), [
                 'super_admin_confirmation_token' => $token,
             ])->assertSessionHasErrors(['current_password']);
 
@@ -383,7 +383,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         $target = User::factory()->viewer()->inactive()->create();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->patch(route('admin.users.toggle-status', $target))
+            ->patch(route('super-admin.users.toggle-status', $target))
             ->assertSessionHasNoErrors();
 
         $this->assertTrue($target->fresh()->isActive());
@@ -442,7 +442,7 @@ class SuperAdminPasswordConfirmationTest extends TestCase
         User::factory()->viewer()->create();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.users.index'))
+            ->get(route('super-admin.users.index'))
             ->assertOk()
             ->assertSee('data-super-admin-password-modal', false)
             ->assertSee('Confirm Your Password')
@@ -450,16 +450,16 @@ class SuperAdminPasswordConfirmationTest extends TestCase
             ->assertSee('data-super-admin-password-input', false)
             ->assertSee('data-super-admin-deactivate="true"', false);
 
-        $this->get(route('admin.users.create'))
+        $this->get(route('super-admin.users.create'))
             ->assertOk()
             ->assertSee('data-super-admin-password="create"', false);
 
         $target = User::factory()->viewer()->create();
-        $this->get(route('admin.users.edit', $target))
+        $this->get(route('super-admin.users.edit', $target))
             ->assertOk()
             ->assertSee('data-super-admin-password="edit"', false);
 
-        $this->get(route('admin.users.show', $target))
+        $this->get(route('super-admin.users.show', $target))
             ->assertOk()
             ->assertSee('data-super-admin-deactivate="true"', false);
     }

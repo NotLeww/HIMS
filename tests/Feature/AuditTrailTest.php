@@ -74,13 +74,15 @@ class AuditTrailTest extends TestCase
         $this->auditLog(['actor_name' => 'Excluded Operator']);
 
         $response = $this->actingAs($viewer, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.audit-logs.index', ['search' => 'Print Operator', 'print' => 1]));
+            ->get(route('super-admin.audit-logs.index', ['search' => 'Print Operator', 'print' => 1]));
 
         $response->assertOk()
             ->assertSee('Print Operator 001')
             ->assertSee('Print Operator 030')
             ->assertDontSee('Excluded Operator')
             ->assertSee('30 records')
+            ->assertSee('Audit Trail Report')
+            ->assertSee('audit-print-col-description', false)
             ->assertSee('size: A4 landscape', false)
             ->assertSee('window.print()', false)
             ->assertDontSee('audit-log-filters', false)
@@ -89,6 +91,23 @@ class AuditTrailTest extends TestCase
         $this->actingAs(User::factory()->administrator()->create())
             ->get(route('admin.audit-logs.index', ['print' => 1]))
             ->assertForbidden();
+    }
+
+    public function test_super_admin_audit_links_stay_in_the_super_admin_panel(): void
+    {
+        $viewer = User::factory()->superAdministrator()->create();
+
+        $response = $this->actingAs($viewer, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.audit-logs.index'));
+
+        $response->assertOk()
+            ->assertSee('/super-admin/audit-trail?print=1', false)
+            ->assertSee('super-admin\\/audit-trail\\/suggestions', false)
+            ->assertDontSee('/admin/audit-trail?print=1', false);
+
+        $this->actingAs(User::factory()->administrator()->create(), AuthenticationContext::ADMIN_GUARD)
+            ->get(route('super-admin.audit-logs.index'))
+            ->assertRedirect(route('super-admin.login'));
     }
 
     public function test_creating_a_user_records_actor_target_context_and_no_password(): void
@@ -162,13 +181,13 @@ class AuditTrailTest extends TestCase
         $viewer = User::factory()->superAdministrator()->create();
 
         $this->actingAs($viewer, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.audit-logs.index', ['search' => 'Manila']))
+            ->get(route('super-admin.audit-logs.index', ['search' => 'Manila']))
             ->assertOk()
             ->assertSee('Recorded audit activity.')
             ->assertDontSee('Manila, Metro Manila, Philippines')
             ->assertDontSee('Apple iPhone');
 
-        $this->get(route('admin.audit-logs.show', AuditLog::firstOrFail()))
+        $this->get(route('super-admin.audit-logs.show', AuditLog::firstOrFail()))
             ->assertOk()
             ->assertSee('Approximate location')
             ->assertSee('Manila, Metro Manila, Philippines')
@@ -244,7 +263,7 @@ class AuditTrailTest extends TestCase
         $this->auditLog(['actor_name' => 'Audit Tester', 'description' => 'Tested audit list layout.']);
 
         $response = $this->actingAs($viewer, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.audit-logs.index'));
+            ->get(route('super-admin.audit-logs.index'));
 
         $response
             ->assertOk()
@@ -414,7 +433,7 @@ class AuditTrailTest extends TestCase
         $this->app['auth']->forgetGuards();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.audit-logs.show', $log))
+            ->get(route('super-admin.audit-logs.show', $log))
             ->assertOk()
             ->assertSee('14.6723, 121.0183')
             ->assertSee('maps?q=14.6723,121.0183', false);
@@ -427,7 +446,7 @@ class AuditTrailTest extends TestCase
         $auditor = User::factory()->auditor()->create();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get('/admin/audit-trail')
+            ->get('/super-admin/audit-trail')
             ->assertOk()
             ->assertSee('Audit Trail');
 
@@ -458,7 +477,7 @@ class AuditTrailTest extends TestCase
         $auditor = User::factory()->auditor()->create();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->getJson(route('admin.audit-logs.suggestions', ['query' => 'Audit']))
+            ->getJson(route('super-admin.audit-logs.suggestions', ['query' => 'Audit']))
             ->assertOk();
 
         $this->flushSession();
@@ -508,7 +527,7 @@ class AuditTrailTest extends TestCase
 
         $superAdmin = User::factory()->superAdministrator()->create();
         $response = $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->getJson(route('admin.audit-logs.suggestions', ['query' => 'zed']));
+            ->getJson(route('super-admin.audit-logs.suggestions', ['query' => 'zed']));
 
         $response->assertOk();
 
@@ -555,7 +574,7 @@ class AuditTrailTest extends TestCase
 
         $superAdmin = User::factory()->superAdministrator()->create();
         $response = $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->getJson(route('admin.audit-logs.suggestions', ['query' => 'zedrick']))
+            ->getJson(route('super-admin.audit-logs.suggestions', ['query' => 'zedrick']))
             ->assertOk();
 
         $suggestions = collect($response->json('data'));
@@ -585,7 +604,7 @@ class AuditTrailTest extends TestCase
         $superAdmin = User::factory()->superAdministrator()->create();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->getJson(route('admin.audit-logs.suggestions', ['query' => 'Updated']))
+            ->getJson(route('super-admin.audit-logs.suggestions', ['query' => 'Updated']))
             ->assertOk()
             ->assertJsonFragment([
                 'value' => 'Updated User',
@@ -593,7 +612,7 @@ class AuditTrailTest extends TestCase
             ])
             ->assertJsonMissing(['value' => 'Created User']);
 
-        $this->get(route('admin.audit-logs.index', ['search' => 'Updated User']))
+        $this->get(route('super-admin.audit-logs.index', ['search' => 'Updated User']))
             ->assertOk()
             ->assertSee('Only the updated action should match.')
             ->assertDontSee('Unrelated login activity.');
@@ -612,7 +631,7 @@ class AuditTrailTest extends TestCase
         $superAdmin = User::factory()->superAdministrator()->create();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.audit-logs.index', ['search' => 'zediskaaa@gmail.com']))
+            ->get(route('super-admin.audit-logs.index', ['search' => 'zediskaaa@gmail.com']))
             ->assertOk()
             ->assertSee('Matched email activity.')
             ->assertDontSee('Unrelated email activity.');
@@ -630,21 +649,21 @@ class AuditTrailTest extends TestCase
         $superAdmin = User::factory()->superAdministrator()->create();
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD);
 
-        $limited = $this->getJson(route('admin.audit-logs.suggestions', ['query' => 'Test']));
+        $limited = $this->getJson(route('super-admin.audit-logs.suggestions', ['query' => 'Test']));
 
         $limited->assertOk();
         $this->assertLessThanOrEqual(8, count($limited->json('data')));
         $this->assertLessThan(12, count($limited->json('data')));
 
-        $this->getJson(route('admin.audit-logs.suggestions', ['query' => '']))
+        $this->getJson(route('super-admin.audit-logs.suggestions', ['query' => '']))
             ->assertOk()
             ->assertExactJson(['data' => []]);
 
-        $this->getJson(route('admin.audit-logs.suggestions', ['query' => 'NoSuchAuditValue']))
+        $this->getJson(route('super-admin.audit-logs.suggestions', ['query' => 'NoSuchAuditValue']))
             ->assertOk()
             ->assertExactJson(['data' => []]);
 
-        $this->getJson(route('admin.audit-logs.suggestions', ['query' => str_repeat('a', 101)]))
+        $this->getJson(route('super-admin.audit-logs.suggestions', ['query' => str_repeat('a', 101)]))
             ->assertUnprocessable()
             ->assertJsonValidationErrors('query');
     }
@@ -654,10 +673,10 @@ class AuditTrailTest extends TestCase
         $superAdmin = User::factory()->superAdministrator()->create();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.audit-logs.index'))
+            ->get(route('super-admin.audit-logs.index'))
             ->assertOk()
             ->assertSee('auditSearchAutocomplete', false)
-            ->assertSee('admin\\/audit-trail\\/suggestions', false)
+            ->assertSee('super-admin\\/audit-trail\\/suggestions', false)
             ->assertSee('!overflow-visible', false)
             ->assertSee('x-on:click.outside="close()"', false)
             ->assertSee('x-on:keydown.down.prevent="move(1)"', false)
@@ -689,7 +708,7 @@ class AuditTrailTest extends TestCase
         $superAdmin = User::factory()->superAdministrator()->create();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get('/admin/audit-trail?action='.AuditAction::LoggedIn->value.'&search=Juan')
+            ->get('/super-admin/audit-trail?action='.AuditAction::LoggedIn->value.'&search=Juan')
             ->assertOk()
             ->assertSee('Juan Dela Cruz')
             ->assertSee('Logged In')
@@ -794,7 +813,7 @@ class AuditTrailTest extends TestCase
         app(AuditLogger::class)->log(AuditAction::LoggedIn, $superAdmin, 'Unrelated activity.');
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.audit-logs.index', [
+            ->get(route('super-admin.audit-logs.index', [
                 'category' => 'Inventory & Warehousing',
                 'module' => 'Cycle Counts',
                 'outcome' => 'success',
@@ -805,7 +824,7 @@ class AuditTrailTest extends TestCase
             ->assertSee('Scheduled a count.')
             ->assertDontSee('Unrelated activity.');
 
-        $this->get(route('admin.audit-logs.show', $log))
+        $this->get(route('super-admin.audit-logs.show', $log))
             ->assertOk()
             ->assertSee($log->event_id)
             ->assertSee('Authoritative UTC time')
@@ -840,7 +859,7 @@ class AuditTrailTest extends TestCase
         app(AuditLogger::class)->log(AuditAction::LoggedIn, $superAdmin, 'Outside Manila day.');
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.audit-logs.index', [
+            ->get(route('super-admin.audit-logs.index', [
                 'date_from' => '2026-09-30',
                 'date_to' => '2026-09-30',
             ]))
@@ -981,7 +1000,7 @@ class AuditTrailTest extends TestCase
         $this->assertSame('Quezon City, Metro Manila, Philippines', $coordLog->placeName());
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.audit-logs.show', $coordLog))
+            ->get(route('super-admin.audit-logs.show', $coordLog))
             ->assertOk()
             ->assertSee('Quezon City, Metro Manila, Philippines')
             ->assertSee('Coordinates: 14.6646, 121.0500')

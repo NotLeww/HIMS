@@ -235,7 +235,7 @@ class AdminAuthenticationTest extends TestCase
             ->assertSee('Super Admin Dashboard')
             ->assertSee('Audit Trail');
 
-        $this->get(route('admin.audit-logs.index'))
+        $this->get(route('super-admin.audit-logs.index'))
             ->assertOk()
             ->assertSee('Audit Trail');
     }

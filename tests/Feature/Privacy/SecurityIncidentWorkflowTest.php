@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\SecurityIncident;
 use App\Models\User;
 use App\Services\Privacy\SecurityIncidentService;
+use App\Support\AuthenticationContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -32,8 +33,8 @@ class SecurityIncidentWorkflowTest extends TestCase
     {
         $admin = User::factory()->superAdministrator()->create();
 
-        $response = $this->actingAs($admin)
-            ->post(route('admin.privacy.incidents.store'), [
+        $response = $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->post(route('super-admin.privacy.incidents.store'), [
                 'title' => 'Excessive API Rate Limit Exceeded on Warehouse Telemetry',
                 'incident_type' => 'unauthorized_access_attempt',
                 'severity' => 'medium',
@@ -77,8 +78,8 @@ class SecurityIncidentWorkflowTest extends TestCase
             'reported_by_user_id' => $admin->id,
         ]);
 
-        $response = $this->actingAs($admin)
-            ->put(route('admin.privacy.incidents.update', $incident), [
+        $response = $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->put(route('super-admin.privacy.incidents.update', $incident), [
                 'status' => 'contained',
                 'severity' => 'medium',
                 'containment_actions' => 'Session remotely revoked; terminal locked.',

@@ -1,6 +1,6 @@
 <x-app-layout full-width>
     @php($accountCreatedSuccess = session()->pull('account_created_success'))
-    @php($openCreateUserModal = request()->routeIs('admin.users.create') || (old('form_context') === 'create_user' && $errors->any()))
+    @php($openCreateUserModal = request()->routeIs('admin.users.create', 'super-admin.users.create') || (old('form_context') === 'create_user' && $errors->any()))
 
     @if ($openCreateUserModal)
         <div x-data x-init="$nextTick(() => $dispatch('open-modal', 'create-user-modal'))"></div>
@@ -10,7 +10,7 @@
         title="User Management"
         :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'User Management' => null]">
         <x-slot:actions>
-            <x-ui.button variant="secondary" :href="route('admin.permissions')" icon="shield-check">Access Control</x-ui.button>
+            <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('permissions'))" icon="shield-check">Access Control</x-ui.button>
             <x-ui.button type="button" icon="plus" x-data x-on:click="$dispatch('open-modal', 'create-user-modal')">Add User</x-ui.button>
         </x-slot:actions>
     </x-ui.page-header>
@@ -40,7 +40,7 @@
     </div>
 
     <x-ui.card title="Find an Account" subtitle="Search by name, email, employee ID or department.">
-        <form method="GET" action="{{ route('admin.users.index') }}"
+        <form method="GET" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.index')) }}"
               class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
             <x-ui.field
                 name="search"
@@ -67,7 +67,7 @@
             <div class="flex items-center gap-2">
                 <x-ui.button type="submit" icon="magnifying-glass" data-loading-text="Loading accounts...">Search</x-ui.button>
                 @if (array_filter($filters))
-                    <x-ui.button variant="secondary" :href="route('admin.users.index')">Clear</x-ui.button>
+                    <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('users.index'))">Clear</x-ui.button>
                 @endif
             </div>
         </form>
@@ -99,7 +99,7 @@
                         <div class="flex items-center gap-2.5 min-w-0">
                             <x-ui.avatar :user="$account" size="sm" />
                             <div class="min-w-0">
-                                <a href="{{ route('admin.users.show', $account) }}"
+                                <a href="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.show'), $account) }}"
                                    title="{{ $account->name }}"
                                    class="font-medium text-neutral-900 hover:text-primary-700 hover:underline truncate block">
                                     {{ $account->name }}
@@ -147,12 +147,12 @@
                     <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-neutral-100">
                         @if (in_array($account->getKey(), $manageableAccountIds, true))
                             <x-ui.button variant="secondary" size="sm"
-                                         :href="route('admin.users.edit', $account)" icon="pencil-square">
+                                         :href="route(\App\Support\AuthenticationContext::administrationRoute('users.edit'), $account)" icon="pencil-square">
                                 Edit
                             </x-ui.button>
 
                             @if (in_array($account->getKey(), $unlockableAccountIds, true))
-                                <form method="POST" action="{{ route('admin.users.unlock', $account) }}"
+                                <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.unlock'), $account) }}"
                                       data-confirm-title="Unlock account?"
                                       data-confirm-message="This will allow the user to attempt signing in again."
                                       data-confirm-label="Unlock Account">
@@ -168,7 +168,7 @@
                             @endif
 
                             @unless ($account->is(auth()->user()))
-                                <form method="POST" action="{{ route('admin.users.toggle-status', $account) }}"
+                                <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.toggle-status'), $account) }}"
                                       data-confirm-title="Confirm account status change"
                                       data-confirm-message="Are you sure you want to {{ $account->isActive() ? 'deactivate' : 'reactivate' }} this user?"
                                       data-confirm-label="{{ $account->isActive() ? 'Deactivate' : 'Reactivate' }}"
@@ -192,7 +192,7 @@
                                             variant="ghost"
                                             class="text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
                                             @click="$dispatch('open-archive-modal', {
-                                                actionUrl: '{{ route('admin.users.archive', $account) }}',
+                                                actionUrl: '{{ route(\App\Support\AuthenticationContext::administrationRoute('users.archive'), $account) }}',
                                                 title: '{{ addslashes($account->name) }}',
                                                 identifier: 'Employee ID: {{ addslashes($account->employee_id ?? 'N/A') }} · {{ addslashes($account->email) }}',
                                                 context: 'Role: {{ addslashes($account->role?->label() ?? 'Staff') }}',
@@ -252,7 +252,7 @@
                                 <div class="flex items-center gap-2 min-w-0">
                                     <x-ui.avatar :user="$account" size="xs" />
                                     <div class="min-w-0">
-                                        <a href="{{ route('admin.users.show', $account) }}"
+                                        <a href="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.show'), $account) }}"
                                            title="{{ $account->name }}"
                                            class="font-medium text-neutral-900 hover:text-primary-700 hover:underline truncate block">
                                             {{ $nameComponents['surname'] ?? $account->name }}
@@ -306,12 +306,12 @@
                                 <div class="flex items-center justify-end gap-1 whitespace-nowrap">
                                     @if (in_array($account->getKey(), $manageableAccountIds, true))
                                         <x-ui.button variant="ghost" size="sm" class="px-2 py-1"
-                                                     :href="route('admin.users.edit', $account)">
+                                                     :href="route(\App\Support\AuthenticationContext::administrationRoute('users.edit'), $account)">
                                             Edit
                                         </x-ui.button>
 
                                         @if (in_array($account->getKey(), $unlockableAccountIds, true))
-                                            <form method="POST" action="{{ route('admin.users.unlock', $account) }}"
+                                            <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.unlock'), $account) }}"
                                                   data-confirm-title="Unlock account?"
                                                   data-confirm-message="This will allow the user to attempt signing in again."
                                                   data-confirm-label="Unlock Account">
@@ -330,7 +330,7 @@
                                         {{-- Deactivating yourself is refused by the service;
                                              hide the impossible action here as well. --}}
                                         @unless ($account->is(auth()->user()))
-                                            <form method="POST" action="{{ route('admin.users.toggle-status', $account) }}"
+                                            <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.toggle-status'), $account) }}"
                                                   data-confirm-title="Confirm account status change"
                                                   data-confirm-message="Are you sure you want to {{ $account->isActive() ? 'deactivate' : 'reactivate' }} this user?"
                                                   data-confirm-label="{{ $account->isActive() ? 'Deactivate' : 'Reactivate' }}"
@@ -355,7 +355,7 @@
                                                         class="px-2 py-1 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
                                                         variant="ghost"
                                                         @click="$dispatch('open-archive-modal', {
-                                                            actionUrl: '{{ route('admin.users.archive', $account) }}',
+                                                            actionUrl: '{{ route(\App\Support\AuthenticationContext::administrationRoute('users.archive'), $account) }}',
                                                             title: '{{ addslashes($account->name) }}',
                                                             identifier: 'Employee ID: {{ addslashes($account->employee_id ?? 'N/A') }} · {{ addslashes($account->email) }}',
                                                             context: 'Role: {{ addslashes($account->role?->label() ?? 'Staff') }}',
@@ -399,7 +399,7 @@
     </x-ui.card>
 
     <x-ui.modal name="create-user-modal" title="Add User" maxWidth="6xl">
-        <form method="POST" action="{{ route('admin.users.store') }}" class="space-y-5" autocomplete="off"
+        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.store')) }}" class="space-y-5" autocomplete="off"
               @if (auth()->user()?->isSuperAdministrator())
                   data-super-admin-password="create"
               @else

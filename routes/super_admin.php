@@ -69,6 +69,7 @@ Route::prefix('super-admin')->name('super-admin.')->group(function () {
 
     Route::middleware(['auth:super_admin', 'super-admin'])->group(function () {
         Route::get('dashboard', DashboardController::class)->middleware('verified')->name('dashboard');
+        Route::middleware('verified')->group(base_path('routes/administration.php'));
         Route::post('session/activity', fn () => response()->noContent())->name('session.activity');
         Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 

@@ -41,8 +41,9 @@
     @php
         $initialOpenDropdown = null;
         if (request()->routeIs(
-            'admin.users.*', 'admin.permissions', 'admin.audit-logs.*', 'admin.privacy.*',
-            'admin.archive.*'
+            'admin.users.*', 'super-admin.users.*', 'admin.permissions', 'super-admin.permissions',
+            'admin.audit-logs.*', 'super-admin.audit-logs.*', 'admin.privacy.*', 'super-admin.privacy.*',
+            'admin.archive.*', 'super-admin.archive.*'
         )) {
             $initialOpenDropdown = 'administration';
         }
@@ -160,8 +161,9 @@
         @canany([\App\Enums\Permission::ManageUsers->value, \App\Enums\Permission::ViewAuditTrail->value, \App\Enums\Permission::ManagePrivacyCompliance->value, \App\Enums\Permission::ViewArchive->value])
             @php
                 $isAdminActive = request()->routeIs(
-                    'admin.users.*', 'admin.permissions', 'admin.audit-logs.*', 'admin.privacy.*',
-                    'admin.archive.*'
+                    'admin.users.*', 'super-admin.users.*', 'admin.permissions', 'super-admin.permissions',
+                    'admin.audit-logs.*', 'super-admin.audit-logs.*', 'admin.privacy.*', 'super-admin.privacy.*',
+                    'admin.archive.*', 'super-admin.archive.*'
                 );
             @endphp
             <x-ui.nav-dropdown
@@ -171,28 +173,25 @@
                 :active="$isAdminActive"
             >
                 @can(\App\Enums\Permission::ManageUsers->value)
-                    <x-ui.nav-item sub :href="route('admin.users.index')" :active="request()->routeIs('admin.users.*')">
+                    <x-ui.nav-item sub :href="route(\App\Support\AuthenticationContext::administrationRoute('users.index'))" :active="request()->routeIs('admin.users.*', 'super-admin.users.*')">
                         User Management
-                    </x-ui.nav-item>
-                    <x-ui.nav-item sub :href="route('admin.permissions')" :active="request()->routeIs('admin.permissions')">
-                        Roles &amp; Permissions
                     </x-ui.nav-item>
                 @endcan
 
                 @can(\App\Enums\Permission::ViewArchive->value)
-                    <x-ui.nav-item sub :href="route('admin.archive.index')" :active="request()->routeIs('admin.archive.*')">
+                    <x-ui.nav-item sub :href="route(\App\Support\AuthenticationContext::administrationRoute('archive.index'))" :active="request()->routeIs('admin.archive.*', 'super-admin.archive.*')">
                         Archive
                     </x-ui.nav-item>
                 @endcan
 
                 @can(\App\Enums\Permission::ViewAuditTrail->value)
-                    <x-ui.nav-item sub :href="route('admin.audit-logs.index')" :active="request()->routeIs('admin.audit-logs.*')">
+                    <x-ui.nav-item sub :href="route(\App\Support\AuthenticationContext::auditLogRoute())" :active="request()->routeIs('admin.audit-logs.*', 'super-admin.audit-logs.*')">
                         Audit Trail
                     </x-ui.nav-item>
                 @endcan
 
                 @can(\App\Enums\Permission::ManagePrivacyCompliance->value)
-                    <x-ui.nav-item sub :href="route('admin.privacy.index')" :active="request()->routeIs('admin.privacy.*')">
+                    <x-ui.nav-item sub :href="route(\App\Support\AuthenticationContext::administrationRoute('privacy.index'))" :active="request()->routeIs('admin.privacy.*', 'super-admin.privacy.*')">
                         Privacy &amp; Governance
                     </x-ui.nav-item>
                 @endcan

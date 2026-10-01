@@ -169,7 +169,7 @@ class LoadingIndicatorTest extends TestCase
 
         $superAdmin = User::factory()->superAdministrator()->create();
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.audit-logs.index'))
+            ->get(route('super-admin.audit-logs.index'))
             ->assertOk()
             ->assertSee('data-loading-text="Loading activity..."', false)
             ->assertSee('Finding suggestions...')

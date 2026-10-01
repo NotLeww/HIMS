@@ -11,11 +11,11 @@
         :title="$log->action->label()"
         :breadcrumbs="[
             'Home' => route(\App\Support\AuthenticationContext::dashboardRoute()),
-            'Audit Trail' => route('admin.audit-logs.index'),
+            'Audit Trail' => route(\App\Support\AuthenticationContext::auditLogRoute()),
             'Event Details' => null,
         ]">
         <x-slot:actions>
-            <x-ui.button variant="secondary" size="sm" :href="route('admin.audit-logs.index')" icon="arrow-left">
+            <x-ui.button variant="secondary" size="sm" :href="route(\App\Support\AuthenticationContext::auditLogRoute())" icon="arrow-left">
                 Back to Audit Trail
             </x-ui.button>
         </x-slot:actions>

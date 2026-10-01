@@ -300,13 +300,13 @@ class LoginLockoutTest extends TestCase
         $this->runFailedCycle($staff);
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.users.index', ['search' => $staff->email]))
+            ->get(route('super-admin.users.index', ['search' => $staff->email]))
             ->assertOk()
             ->assertSee('Temporarily Locked')
             ->assertSee('This will allow the user to attempt signing in again.')
             ->assertSee('data-loading-text="Unlocking account..."', false);
 
-        $this->patch(route('admin.users.unlock', $staff))
+        $this->patch(route('super-admin.users.unlock', $staff))
             ->assertRedirect()
             ->assertSessionHas('success', "{$staff->name} can now attempt to sign in again.");
 
@@ -322,17 +322,17 @@ class LoginLockoutTest extends TestCase
             'target_type' => $staff->getMorphClass(),
             'target_id' => (string) $staff->getKey(),
         ]);
-        $this->patch(route('admin.users.unlock', $staff))
+        $this->patch(route('super-admin.users.unlock', $staff))
             ->assertSessionHasErrors('account');
         $this->assertSame(1, AuditLog::query()
             ->where('action', AuditAction::UnlockedUser->value)
             ->count());
 
-        $this->get(route('admin.audit-logs.index'))
+        $this->get(route('super-admin.audit-logs.index'))
             ->assertOk()
             ->assertSee('Temporarily Locked User')
             ->assertSee('Unlocked User');
-        $this->get(route('admin.users.index', ['search' => $staff->email]))
+        $this->get(route('super-admin.users.index', ['search' => $staff->email]))
             ->assertOk()
             ->assertDontSee('Are you sure you want to unlock this account?');
 
@@ -370,12 +370,12 @@ class LoginLockoutTest extends TestCase
         $superAdmin = User::factory()->superAdministrator()->create();
         $this->app['auth']->forgetGuards();
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.users.index', ['search' => $staff->email]))
+            ->get(route('super-admin.users.index', ['search' => $staff->email]))
             ->assertOk()
             ->assertSee('Temporarily Locked')
             ->assertSee('This will allow the user to attempt signing in again.');
 
-        $this->patch(route('admin.users.unlock', $staff))
+        $this->patch(route('super-admin.users.unlock', $staff))
             ->assertRedirect()
             ->assertSessionHas('success');
 
@@ -402,7 +402,7 @@ class LoginLockoutTest extends TestCase
         ]);
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->patch(route('admin.users.unlock', $admin))
+            ->patch(route('super-admin.users.unlock', $admin))
             ->assertRedirect();
         $this->assertFalse($admin->refresh()->isTemporarilyLocked());
 

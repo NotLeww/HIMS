@@ -1,6 +1,6 @@
 <dialog
     data-super-admin-password-modal
-    data-confirm-url="{{ route('admin.users.confirm-password') }}"
+    data-confirm-url="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.confirm-password')) }}"
     class="m-auto fixed inset-0 z-50 w-[calc(100%-2rem)] max-w-md overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 text-neutral-800 dark:text-neutral-200 shadow-2xl backdrop:bg-neutral-950/60 backdrop:backdrop-blur-xs"
     role="dialog"
     aria-modal="true"

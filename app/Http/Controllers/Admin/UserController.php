@@ -11,6 +11,7 @@ use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\User;
 use App\Services\UserAccountService;
+use App\Support\AuthenticationContext;
 use App\Support\SuperAdminPasswordConfirmation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -104,7 +105,7 @@ class UserController extends Controller implements HasMiddleware
         $request->session()->put('account_created_success', 'Account created successfully.');
 
         return redirect()
-            ->route('admin.users.index');
+            ->route(AuthenticationContext::administrationRoute('users.index'));
     }
 
     public function show(User $user): View
@@ -143,7 +144,7 @@ class UserController extends Controller implements HasMiddleware
         $this->accounts->update($user, $request->validated(), $request->user());
 
         return redirect()
-            ->route('admin.users.index')
+            ->route(AuthenticationContext::administrationRoute('users.index'))
             ->with('success', sprintf("%s's account was updated.", $user->name));
     }
 

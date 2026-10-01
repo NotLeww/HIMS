@@ -20,6 +20,7 @@ use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Models\WarehouseTask;
+use App\Support\AuthenticationContext;
 use Illuminate\Support\Str;
 
 class GlobalSearchService
@@ -1049,7 +1050,7 @@ class GlobalSearchService
                 'subtitle' => implode(' · ', $subtitleParts),
                 'badge' => $userRecord->role?->label() ?? 'User',
                 'badge_variant' => 'primary',
-                'url' => route('admin.users.show', $userRecord),
+                'url' => route(AuthenticationContext::administrationRoute('users.show'), $userRecord),
                 'icon' => 'user-circle',
             ];
         })->all();
@@ -1060,7 +1061,7 @@ class GlobalSearchService
             'icon' => 'user-circle',
             'total' => $total,
             'has_more' => $total > $limit,
-            'view_all_url' => route('admin.users.index', ['search' => $term]),
+            'view_all_url' => route(AuthenticationContext::administrationRoute('users.index'), ['search' => $term]),
             'items' => $items,
         ];
     }

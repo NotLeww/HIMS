@@ -4,7 +4,7 @@
         subtitle="Technical controls, data subject rights processing, and security incident management aligned with RA 10173 and ISO/IEC 27001:2022."
         :breadcrumbs="[
             'Home' => route(\App\Support\AuthenticationContext::dashboardRoute()),
-            'Administration' => route('admin.users.index'),
+            'Administration' => route(\App\Support\AuthenticationContext::administrationRoute('users.index')),
             'Privacy & Governance' => null,
         ]"
     >
@@ -85,35 +85,35 @@
     <div class="mb-6">
         <nav class="flex flex-wrap items-center gap-2 border-b border-neutral-200 pb-4 dark:border-neutral-800" aria-label="Privacy Tabs">
             <a
-                href="{{ route('admin.privacy.index', ['tab' => 'posture']) }}"
+                href="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.index'), ['tab' => 'posture']) }}"
                 class="inline-flex items-center whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 {{ $activeTab === 'posture' ? 'bg-primary-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700' }}"
             >
                 Security Posture ({{ $posture['passed_count'] }}/{{ $posture['total_controls'] }})
             </a>
 
             <a
-                href="{{ route('admin.privacy.index', ['tab' => 'ropa']) }}"
+                href="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.index'), ['tab' => 'ropa']) }}"
                 class="inline-flex items-center whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 {{ $activeTab === 'ropa' ? 'bg-primary-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700' }}"
             >
                 Processing Register (ROPA)
             </a>
 
             <a
-                href="{{ route('admin.privacy.index', ['tab' => 'classification']) }}"
+                href="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.index'), ['tab' => 'classification']) }}"
                 class="inline-flex items-center whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 {{ $activeTab === 'classification' ? 'bg-primary-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700' }}"
             >
                 Data Classification
             </a>
 
             <a
-                href="{{ route('admin.privacy.index', ['tab' => 'consent']) }}"
+                href="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.index'), ['tab' => 'consent']) }}"
                 class="inline-flex items-center whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 {{ $activeTab === 'consent' ? 'bg-primary-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700' }}"
             >
                 Consent Management
             </a>
 
             <a
-                href="{{ route('admin.privacy.index', ['tab' => 'dsr']) }}"
+                href="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.index'), ['tab' => 'dsr']) }}"
                 class="inline-flex items-center whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 {{ $activeTab === 'dsr' ? 'bg-primary-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700' }}"
             >
                 Data Subject Requests
@@ -125,7 +125,7 @@
             </a>
 
             <a
-                href="{{ route('admin.privacy.index', ['tab' => 'incidents']) }}"
+                href="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.index'), ['tab' => 'incidents']) }}"
                 class="inline-flex items-center whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 {{ $activeTab === 'incidents' ? 'bg-primary-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700' }}"
             >
                 Security Incidents
@@ -137,7 +137,7 @@
             </a>
 
             <a
-                href="{{ route('admin.privacy.index', ['tab' => 'retention']) }}"
+                href="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.index'), ['tab' => 'retention']) }}"
                 class="inline-flex items-center whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900 {{ $activeTab === 'retention' ? 'bg-primary-600 text-white shadow-xs' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700' }}"
             >
                 Retention &amp; Lifecycle
@@ -596,7 +596,7 @@
                                         <td class="px-4 py-3.5 whitespace-nowrap text-right space-x-1">
                                             @if ($requestItem->isDownloadable())
                                                 <a
-                                                    href="{{ route('admin.privacy.requests.download-package', $requestItem) }}"
+                                                    href="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.requests.download-package'), $requestItem) }}"
                                                     class="inline-flex items-center px-2.5 py-1 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 rounded transition shadow-2xs"
                                                     title="Download Complete DSAR Package (ZIP)"
                                                 >
@@ -738,14 +738,14 @@
                                             <div class="flex flex-col sm:flex-row items-center justify-between gap-2 pt-3 border-t border-neutral-200 dark:border-neutral-800">
                                                 <div>
                                                     @if ($requestItem->status === 'pending')
-                                                        <form method="POST" action="{{ route('admin.privacy.requests.under-review', $requestItem) }}" class="inline">
+                                                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.requests.under-review'), $requestItem) }}" class="inline">
                                                             @csrf
                                                             <button type="submit" class="px-2.5 py-1.5 text-xs rounded border border-neutral-300 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 transition">
                                                                 Mark Under Review
                                                             </button>
                                                         </form>
                                                     @elseif ($requestItem->isDownloadable())
-                                                        <form method="POST" action="{{ route('admin.privacy.requests.regenerate', $requestItem) }}" class="inline">
+                                                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.requests.regenerate'), $requestItem) }}" class="inline">
                                                             @csrf
                                                             <button type="submit" class="px-2.5 py-1.5 text-xs rounded border border-neutral-300 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 transition">
                                                                 Regenerate Package
@@ -757,7 +757,7 @@
                                                 <div class="flex items-center gap-2">
                                                     @if ($requestItem->isDownloadable())
                                                         <a
-                                                            href="{{ route('admin.privacy.requests.download-package', $requestItem) }}"
+                                                            href="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.requests.download-package'), $requestItem) }}"
                                                             class="px-3 py-1.5 text-xs rounded bg-primary-600 hover:bg-primary-700 text-white font-semibold transition"
                                                         >
                                                             Download ZIP Archive
@@ -765,7 +765,7 @@
                                                     @endif
 
                                                     @if (! in_array($requestItem->status, ['fulfilled', 'released', 'completed', 'rejected', 'closed', 'cancelled']))
-                                                        <form method="POST" action="{{ route('admin.privacy.requests.approve', $requestItem) }}" class="inline">
+                                                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.requests.approve'), $requestItem) }}" class="inline">
                                                             @csrf
                                                             <button
                                                                 type="submit"
@@ -795,7 +795,7 @@
 
                                     {{-- Reject Modal --}}
                                     <x-ui.modal name="reject-dsr-modal-{{ $requestItem->id }}" title="Refuse Data Subject Request #{{ $requestItem->ticket_number }}" maxWidth="md">
-                                        <form method="POST" action="{{ route('admin.privacy.requests.reject', $requestItem) }}" class="space-y-4">
+                                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.requests.reject'), $requestItem) }}" class="space-y-4">
                                             @csrf
                                             <x-ui.alert variant="warning" title="Mandatory Statutory Ground">
                                                 Under RA 10173 Section 16, refusal to fulfill a Data Subject Request requires specific legal or statutory justification (e.g. NAP GRDS-9, COA retention requirements, or ongoing audit inspection).
@@ -914,7 +914,7 @@
 
                                     {{-- Edit Incident Modal --}}
                                     <x-ui.modal name="edit-incident-modal-{{ $incident->id }}" title="Manage Incident {{ $incident->incident_number }}" maxWidth="lg">
-                                        <form method="POST" action="{{ route('admin.privacy.incidents.update', $incident) }}" class="space-y-4">
+                                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.incidents.update'), $incident) }}" class="space-y-4">
                                             @csrf
                                             @method('PUT')
 
@@ -995,7 +995,7 @@
                         <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Data Lifecycle &amp; Retention Schedules</h3>
                         <p class="text-xs text-neutral-500 dark:text-neutral-400">Enforcement of statutory retention schedules under RA 10173 Sec. 11(e) and NAP General Circulars.</p>
                     </div>
-                    <form method="POST" action="{{ route('admin.privacy.retention.sweep') }}">
+                    <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.retention.sweep')) }}">
                         @csrf
                         <button
                             type="submit"
@@ -1037,7 +1037,7 @@
 
     {{-- Record Incident Modal (Global) --}}
     <x-ui.modal name="record-incident-modal" title="Record Security Incident (ISO 27001 Control A.5.24)" maxWidth="lg">
-        <form method="POST" action="{{ route('admin.privacy.incidents.store') }}" class="space-y-4">
+        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('privacy.incidents.store')) }}" class="space-y-4">
             @csrf
 
             <div>

@@ -1,9 +1,9 @@
 <x-app-layout>
     <x-ui.page-header
         title="Access Control"
-        :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'User Management' => route('admin.users.index'), 'Access Control' => null]">
+        :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'User Management' => route(\App\Support\AuthenticationContext::administrationRoute('users.index')), 'Access Control' => null]">
         <x-slot:actions>
-            <x-ui.button variant="secondary" :href="route('admin.users.index')" icon="arrow-left">Back to User Management</x-ui.button>
+            <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('users.index'))" icon="arrow-left">Back to User Management</x-ui.button>
         </x-slot:actions>
     </x-ui.page-header>
 

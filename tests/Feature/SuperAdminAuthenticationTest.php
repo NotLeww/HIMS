@@ -142,7 +142,7 @@ class SuperAdminAuthenticationTest extends TestCase
             ->assertSessionHasErrors('email');
     }
 
-    public function test_super_admin_panel_and_shared_modules_match_admin_access(): void
+    public function test_super_admin_panel_keeps_administration_modules_in_its_own_route_space(): void
     {
         $superAdmin = $this->superAdmin();
         $this->login($superAdmin);
@@ -153,13 +153,25 @@ class SuperAdminAuthenticationTest extends TestCase
             ->assertSee('User Management')
             ->assertSee('Audit Trail');
 
-        $this->get(route('admin.users.index'))
+        $this->get(route('super-admin.users.index'))
             ->assertOk()
-            ->assertSee('Access Control');
-        $this->get(route('admin.permissions'))
+            ->assertSee('Access Control')
+            ->assertDontSee('/admin/', false);
+        $this->get(route('super-admin.permissions'))
             ->assertOk()
-            ->assertSee('Back to User Management');
-        $this->get(route('admin.audit-logs.index'))->assertOk();
+            ->assertSee('Back to User Management')
+            ->assertDontSee('/admin/', false);
+        $this->get(route('super-admin.audit-logs.index'))
+            ->assertOk()
+            ->assertDontSee('/admin/', false);
+        $this->get(route('super-admin.archive.index'))
+            ->assertOk()
+            ->assertDontSee('/admin/', false);
+        $this->get(route('super-admin.privacy.index'))
+            ->assertOk()
+            ->assertDontSee('/admin/', false);
+
+        $this->get(route('admin.users.index'))->assertRedirect(route('admin.login'));
         $this->get(route('inventory.items'))->assertOk();
         $this->get(route('inventory.purchases'))->assertOk();
         $this->get(route('inventory.reports'))->assertOk();
@@ -171,7 +183,7 @@ class SuperAdminAuthenticationTest extends TestCase
         $this->login($superAdmin);
         $this->app['auth']->forgetGuards();
 
-        $createPage = $this->get(route('admin.users.create'))
+        $createPage = $this->get(route('super-admin.users.create'))
             ->assertOk()
             ->assertSee('Create Account')
             ->assertSee('value="administrator"', false);
@@ -179,7 +191,7 @@ class SuperAdminAuthenticationTest extends TestCase
         $createPage->assertViewHas('createRoles', fn (array $roles): bool => in_array(UserRole::Administrator, $roles, true)
             && ! in_array(UserRole::SuperAdministrator, $roles, true));
 
-        $this->post(route('admin.users.store'), [
+        $this->post(route('super-admin.users.store'), [
             'surname' => 'Administrator',
             'first_name' => 'Vera',
             'email' => 'vera.administrator@example.com',
@@ -191,7 +203,7 @@ class SuperAdminAuthenticationTest extends TestCase
             'current_password' => 'password',
         ])->assertSessionHasNoErrors()
             ->assertSessionHas('account_created_success', 'Account created successfully.')
-            ->assertRedirect(route('admin.users.index'));
+            ->assertRedirect(route('super-admin.users.index'));
 
         $this->assertDatabaseHas('users', [
             'email' => 'vera.administrator@example.com',
@@ -206,15 +218,27 @@ class SuperAdminAuthenticationTest extends TestCase
         $this->postJson(route('super-admin.session.activity'))->assertNoContent();
         $this->app['auth']->forgetGuards();
 
-        $this->get(route('admin.users.index', ['search' => $created->email]))
+        $this->get(route('super-admin.users.index', ['search' => $created->email]))
             ->assertOk()
             ->assertSee('Account created successfully.')
             ->assertSee($created->name)
             ->assertSessionMissing('account_created_success');
 
-        $this->get(route('admin.users.index', ['search' => $created->email]))
+        $this->get(route('super-admin.users.index', ['search' => $created->email]))
             ->assertOk()
             ->assertDontSee('Account created successfully.');
+    }
+
+    public function test_standard_admin_cannot_open_super_admin_administration_routes(): void
+    {
+        $administrator = User::factory()->administrator()->create();
+
+        $this->actingAs($administrator, AuthenticationContext::ADMIN_GUARD);
+
+        foreach (['users.index', 'archive.index', 'permissions', 'privacy.index', 'audit-logs.index'] as $route) {
+            $this->get(route('super-admin.'.$route))
+                ->assertRedirect(route('super-admin.login'));
+        }
     }
 
     public function test_super_admin_session_can_use_stateful_browser_api_routes(): void

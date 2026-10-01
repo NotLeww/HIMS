@@ -5,6 +5,7 @@ namespace Tests\Feature\Privacy;
 use App\Enums\UserRole;
 use App\Models\PrivacyRequest;
 use App\Models\User;
+use App\Support\AuthenticationContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -82,8 +83,8 @@ class DataSubjectRequestTest extends TestCase
             'details' => 'Formal access request for personal data portability.',
         ]);
 
-        $response = $this->actingAs($admin)
-            ->get(route('admin.privacy.index', ['tab' => 'dsr']));
+        $response = $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.privacy.index', ['tab' => 'dsr']));
 
         $response->assertOk();
         $response->assertSee('#DSR-20260920-9999');
@@ -103,8 +104,8 @@ class DataSubjectRequestTest extends TestCase
             'details' => 'Access request.',
         ]);
 
-        $response = $this->actingAs($admin)
-            ->post(route('admin.privacy.requests.fulfill', $dsr), [
+        $response = $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->post(route('super-admin.privacy.requests.fulfill', $dsr), [
                 'resolution_notes' => 'Export generated and provided to data subject.',
             ]);
 
@@ -130,8 +131,8 @@ class DataSubjectRequestTest extends TestCase
             'details' => 'Please erase all my inventory records.',
         ]);
 
-        $response = $this->actingAs($admin)
-            ->post(route('admin.privacy.requests.reject', $dsr), [
+        $response = $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->post(route('super-admin.privacy.requests.reject', $dsr), [
                 'reason' => 'No', // Too short
             ]);
 
@@ -151,8 +152,8 @@ class DataSubjectRequestTest extends TestCase
             'details' => 'Please erase all my historical transaction entries.',
         ]);
 
-        $response = $this->actingAs($admin)
-            ->post(route('admin.privacy.requests.reject', $dsr), [
+        $response = $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->post(route('super-admin.privacy.requests.reject', $dsr), [
                 'reason' => 'Refused pursuant to National Archives of the Philippines (NAP) GRDS-9 and COA Circular No. 2012-001 requiring 10-year preservation of public hospital pharmaceutical supply records.',
             ]);
 
@@ -180,8 +181,8 @@ class DataSubjectRequestTest extends TestCase
             'details' => 'Data export request.',
         ]);
 
-        $response = $this->actingAs($admin)
-            ->get(route('admin.privacy.requests.export', $dsr));
+        $response = $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.privacy.requests.export', $dsr));
 
         $response->assertOk();
         $response->assertHeader('Content-Type', 'application/json');
@@ -213,8 +214,8 @@ class DataSubjectRequestTest extends TestCase
             'details' => 'Full access and data portability export request.',
         ]);
 
-        $response = $this->actingAs($admin)
-            ->post(route('admin.privacy.requests.approve', $dsr), [
+        $response = $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->post(route('super-admin.privacy.requests.approve', $dsr), [
                 'resolution_notes' => 'Approved by DPO. Disclosure authorized under RA 10173 Section 16(c).',
             ]);
 
@@ -299,7 +300,8 @@ class DataSubjectRequestTest extends TestCase
             'details' => 'Export my activity records.',
         ]);
 
-        $this->actingAs($admin)->post(route('admin.privacy.requests.approve', $dsr));
+        $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->post(route('super-admin.privacy.requests.approve', $dsr));
 
         $dsr->refresh();
         $fullPath = storage_path("app/private/{$dsr->package_path}");
@@ -327,7 +329,8 @@ class DataSubjectRequestTest extends TestCase
         ]);
 
         // Fulfill the request
-        $this->actingAs($admin)->post(route('admin.privacy.requests.approve', $dsr));
+        $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->post(route('super-admin.privacy.requests.approve', $dsr));
         $dsr->refresh();
 
         // User downloads their own package
@@ -364,7 +367,8 @@ class DataSubjectRequestTest extends TestCase
             'details' => 'Data access request.',
         ]);
 
-        $this->actingAs($admin)->post(route('admin.privacy.requests.approve', $dsr));
+        $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->post(route('super-admin.privacy.requests.approve', $dsr));
         $dsr->refresh();
 
         // User B tries to download User A's package
@@ -390,7 +394,8 @@ class DataSubjectRequestTest extends TestCase
             'details' => 'Data access request.',
         ]);
 
-        $this->actingAs($admin)->post(route('admin.privacy.requests.approve', $dsr));
+        $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->post(route('super-admin.privacy.requests.approve', $dsr));
         $dsr->refresh();
 
         // Force expiration

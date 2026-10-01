@@ -18,6 +18,7 @@ use App\Models\UserActiveSession;
 use App\Models\WarehouseTask;
 use App\Services\Privacy\PrivacyRequestService;
 use App\Services\UserAccountService;
+use App\Support\AuthenticationContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -109,8 +110,8 @@ class DataDeletionWorkflowTest extends TestCase
         $this->actingAs($ordinaryAdmin)->get(route('admin.privacy.index', ['tab' => 'dsr']))->assertForbidden();
         $this->actingAs($ordinaryAdmin)->post(route('admin.privacy.requests.approve', $request))->assertForbidden();
 
-        $this->actingAs($superAdmin)
-            ->get(route('admin.privacy.index', ['tab' => 'dsr']))
+        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.privacy.index', ['tab' => 'dsr']))
             ->assertOk()
             ->assertSee($request->ticket_number)
             ->assertSee('Approve &amp; Process Deletion', false);
@@ -207,9 +208,10 @@ class DataDeletionWorkflowTest extends TestCase
 
         $request = $this->deletionRequest($user, PrivacyRequest::STATUS_UNDER_REVIEW);
 
-        $this->actingAs($admin)->post(route('admin.privacy.requests.approve', $request), [
-            'resolution_notes' => 'Approved after identity and retention review.',
-        ])->assertSessionHas('status');
+        $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->post(route('super-admin.privacy.requests.approve', $request), [
+                'resolution_notes' => 'Approved after identity and retention review.',
+            ])->assertSessionHas('status');
 
         $deleted = $user->fresh();
         $this->assertSame(UserStatus::Inactive, $deleted->status);
