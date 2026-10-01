@@ -77,9 +77,9 @@ class RoleAuthorizationAuditTest extends TestCase
             'status' => 'submitted',
         ]);
 
-        $this->actingAs($auditor)->post(route('inventory.logistics.shipments.store'), [
+        $this->actingAs($auditor)->post('/inventory/logistics/shipments', [
             'carrier_name' => 'Unauthorized Carrier',
-        ])->assertForbidden();
+        ])->assertMethodNotAllowed();
 
         $this->actingAs($auditor)->post(route('inventory.suppliers.products.store', $supplier), [
             'item_id' => 1,
@@ -270,7 +270,7 @@ class RoleAuthorizationAuditTest extends TestCase
 
         $this->actingAs($warehouse)->get(route('inventory.logistics.shipments'))
             ->assertOk()
-            ->assertSee('Register Inbound Shipment');
+            ->assertDontSee('Register Inbound Shipment');
     }
 
     public function test_auditor_does_not_see_operational_smart_warehousing_buttons_or_narcotics_vault(): void

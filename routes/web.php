@@ -201,7 +201,6 @@ Route::middleware(['auth:web,admin,super_admin', 'verified'])->group(function ()
     Route::get('/inventory/logistics/documents/{document}/download', [LogisticsController::class, 'downloadDocument'])->name('inventory.logistics.documents.download');
 
     Route::get('/inventory/logistics/shipments', [LogisticsController::class, 'shipments'])->name('inventory.logistics.shipments');
-    Route::post('/inventory/logistics/shipments', [LogisticsController::class, 'storeShipment'])->name('inventory.logistics.shipments.store');
     Route::post('/inventory/logistics/shipments/{shipment}/dock-arrival', [LogisticsController::class, 'recordDockArrival'])->name('inventory.logistics.shipments.dock-arrival');
 
     Route::get('/inventory/logistics/iar', [LogisticsController::class, 'iarIndex'])->name('inventory.logistics.iar.index');

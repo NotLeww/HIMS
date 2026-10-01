@@ -1162,9 +1162,9 @@ class DocumentTrackingAndLogisticsTest extends TestCase
         // Check full-width layout
         $response->assertSee('max-w-none', false);
 
-        // Check header title & action
+        // Check header title and Logistics 1 scope
         $response->assertSee('Shipments &amp; Carrier Logistics', false);
-        $response->assertSee('Register Inbound Shipment', false);
+        $response->assertDontSee('Register Inbound Shipment', false);
         $response->assertDontSee('New Shipment', false);
 
         // Check table headers
@@ -1189,10 +1189,7 @@ class DocumentTrackingAndLogisticsTest extends TestCase
         $response->assertSee('Dock Arrival');
         $response->assertSee('Docked');
 
-        // Check GS1 SSCC camera scanner integration
-        $response->assertSee('camera-scanner-shipment-sscc', false);
-        $response->assertSee('Scan Pallet / Shipment GS1 SSCC Barcode', false);
-        $response->assertSee("validateFormat: 'sscc'", false);
+        $response->assertDontSee('camera-scanner-shipment-sscc', false);
     }
 
     public function test_logistics_dashboard_opens_recent_shipment_details_in_a_modal(): void

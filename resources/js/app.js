@@ -4845,167 +4845,13 @@ Alpine.data('himsAiAssistant', ({
     },
 }));
 
-Alpine.data('shipmentRegistration', ({
-    purchaseOrders = [],
-    suppliers = [],
-    locations = [],
-    initial = {},
-} = {}) => ({
-    purchaseOrders,
-    suppliers,
-    locations,
-    shipmentModalOpen: Boolean(initial.open),
+Alpine.data('shipmentTracking', () => ({
     dockModalOpen: false,
     selectedShipment: null,
     selectedShipmentNumber: '',
     selectedPickup: '',
     selectedDestination: '',
     isColdChain: false,
-    purchaseOrderId: String(initial.purchaseOrderId || ''),
-    supplierId: String(initial.supplierId || ''),
-    pickupOption: String(initial.pickupOption || ''),
-    pickupSource: '',
-    pickupStorageLocationId: '',
-    pickupLocationName: String(initial.pickupLocationName || ''),
-    pickupAddress: String(initial.pickupAddress || ''),
-    pickupContactName: String(initial.pickupContactName || ''),
-    pickupContactNumber: String(initial.pickupContactNumber || ''),
-    destinationStorageLocationId: String(initial.destinationStorageLocationId || ''),
-    dispatchDate: String(initial.dispatchDate || ''),
-    estimatedDeliveryDate: String(initial.estimatedDeliveryDate || ''),
-    pickupTouched: Boolean(initial.pickupOption),
-
-    init() {
-        if (this.purchaseOrderId) {
-            const po = this.selectedPurchaseOrder();
-            if (po) this.supplierId = String(po.supplier_id || '');
-        }
-        this.applyPickupOption();
-        this.normalizeEstimatedDeliveryDate();
-    },
-
-    selectedPurchaseOrder() {
-        return this.purchaseOrders.find((po) => String(po.id) === this.purchaseOrderId) || null;
-    },
-
-    selectedSupplier() {
-        return this.suppliers.find((supplier) => String(supplier.id) === this.supplierId) || null;
-    },
-
-    supplierPickupOptions() {
-        const supplier = this.selectedSupplier();
-        if (!supplier) return [];
-
-        const options = [];
-        const seen = new Set();
-        const add = (value, suffix, address) => {
-            const normalized = String(address || '').trim();
-            if (!normalized || seen.has(normalized.toLowerCase())) return;
-            seen.add(normalized.toLowerCase());
-            options.push({
-                value,
-                label: `${supplier.name} - ${suffix}`,
-                name: `${supplier.name} - ${suffix}`,
-                address: normalized,
-                contactName: supplier.contact_person || '',
-                contactNumber: supplier.phone || '',
-            });
-        };
-
-        add('supplier_address', 'Registered Address', supplier.address);
-
-        return options;
-    },
-
-    onPurchaseOrderChange() {
-        const po = this.selectedPurchaseOrder();
-        if (!po) return;
-
-        this.supplierId = String(po.supplier_id || '');
-        if (!this.pickupTouched) this.suggestSupplierPickup();
-        if (po.delivery_date) this.estimatedDeliveryDate = String(po.delivery_date).slice(0, 10);
-        this.normalizeEstimatedDeliveryDate();
-    },
-
-    minimumEstimatedDeliveryDate() {
-        const today = new Date();
-        const localToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-        if (!this.dispatchDate) return localToday;
-
-        const dayAfterDispatch = new Date(`${this.dispatchDate}T00:00:00`);
-        dayAfterDispatch.setDate(dayAfterDispatch.getDate() + 1);
-        const afterDispatch = `${dayAfterDispatch.getFullYear()}-${String(dayAfterDispatch.getMonth() + 1).padStart(2, '0')}-${String(dayAfterDispatch.getDate()).padStart(2, '0')}`;
-
-        return afterDispatch > localToday ? afterDispatch : localToday;
-    },
-
-    normalizeEstimatedDeliveryDate() {
-        const minimum = this.minimumEstimatedDeliveryDate();
-        if (!this.estimatedDeliveryDate || this.estimatedDeliveryDate < minimum) this.estimatedDeliveryDate = minimum;
-    },
-
-    onSupplierChange() {
-        if (this.pickupOption.startsWith('supplier_')) {
-            this.pickupOption = '';
-            this.pickupTouched = false;
-            this.clearPickup();
-        }
-        if (!this.pickupTouched || !this.pickupOption) this.suggestSupplierPickup();
-    },
-
-    suggestSupplierPickup() {
-        const option = this.supplierPickupOptions()[0];
-        if (!option) return;
-        this.pickupOption = option.value;
-        this.applyPickupOption();
-    },
-
-    clearPickup() {
-        this.pickupSource = '';
-        this.pickupStorageLocationId = '';
-        this.pickupLocationName = '';
-        this.pickupAddress = '';
-        this.pickupContactName = '';
-        this.pickupContactNumber = '';
-    },
-
-    applyPickupOption() {
-        if (!this.pickupOption) {
-            this.clearPickup();
-            return;
-        }
-
-        if (this.pickupOption === 'manual') {
-            this.pickupSource = 'manual';
-            this.pickupStorageLocationId = '';
-            return;
-        }
-
-        if (this.pickupOption.startsWith('internal:')) {
-            const id = this.pickupOption.split(':')[1] || '';
-            const location = this.locations.find((item) => String(item.id) === String(id));
-            this.pickupSource = 'internal';
-            this.pickupStorageLocationId = String(id);
-            this.pickupLocationName = location?.name || '';
-            this.pickupAddress = '';
-            this.pickupContactName = '';
-            this.pickupContactNumber = '';
-            return;
-        }
-
-        const option = this.supplierPickupOptions().find((item) => item.value === this.pickupOption);
-        if (!option) {
-            this.clearPickup();
-            return;
-        }
-
-        this.pickupSource = option.value;
-        this.pickupStorageLocationId = '';
-        this.pickupLocationName = option.name;
-        this.pickupAddress = option.address;
-        this.pickupContactName = option.contactName;
-        this.pickupContactNumber = option.contactNumber;
-    },
 
     openDockArrival(shipment) {
         this.selectedShipment = shipment.id;
@@ -5016,7 +4862,6 @@ Alpine.data('shipmentRegistration', ({
         this.dockModalOpen = true;
     },
 }));
-
 
 Alpine.data('procurementWorkspace', ({
     activeTab = 'orders_revisions',

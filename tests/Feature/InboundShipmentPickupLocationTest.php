@@ -78,7 +78,7 @@ class InboundShipmentPickupLocationTest extends TestCase
     {
         extract($this->setupLogistics());
 
-        $this->actingAs($actor)->post(route('inventory.logistics.shipments.store'), [
+        app(ShipmentTrackingService::class)->registerInboundShipment([
             'purchase_order_id' => $po->id,
             'supplier_id' => $supplier->id,
             'pickup_source' => 'supplier_address',
@@ -86,7 +86,7 @@ class InboundShipmentPickupLocationTest extends TestCase
             'carrier_name' => 'Verified 3PL Carrier',
             'dispatch_date' => today()->toDateString(),
             'estimated_delivery_date' => today()->addDays(3)->toDateString(),
-        ])->assertRedirect(route('inventory.logistics.shipments'));
+        ], $actor);
 
         $shipment = Shipment::query()->sole();
         $this->assertSame('supplier_address', $shipment->pickup_location_type);
@@ -138,54 +138,47 @@ class InboundShipmentPickupLocationTest extends TestCase
             ->assertDontSee('Address: Legacy Distribution Facility');
     }
 
-    public function test_page_supplies_database_backed_supplier_and_internal_pickup_options_with_po_prefill_contract(): void
+    public function test_logistics_one_page_omits_inbound_registration_controls_and_endpoint(): void
     {
         extract($this->setupLogistics());
 
-        $response = $this->actingAs($actor)->get(route('inventory.logistics.shipments'));
-        $response->assertOk()
-            ->assertSee('Pickup Location *')
-            ->assertSee('10 Supplier Avenue, San Fernando, La Union')
-            ->assertDontSee('Warehouse 4, Poro Point, La Union')
-            ->assertSee('Main Warehouse')
-            ->assertSee('Operating Theatre Store')
-            ->assertSee('Other / Manual Pickup Location')
-            ->assertSee('x-model="dispatchDate"', false)
-            ->assertSee(':min="minimumEstimatedDeliveryDate()"', false);
+        $this->actingAs($actor)->get(route('inventory.logistics.shipments'))
+            ->assertOk()
+            ->assertDontSee('Register Inbound Shipment')
+            ->assertDontSee('Register Inbound 3PL Shipment')
+            ->assertDontSee('camera-scanner-shipment-sscc');
+
+        $this->actingAs($actor)->post('/inventory/logistics/shipments')->assertMethodNotAllowed();
 
         $script = file_get_contents(resource_path('js/app.js'));
         $this->assertIsString($script);
-        $this->assertStringContainsString("this.supplierId = String(po.supplier_id || '')", $script);
-        $this->assertStringContainsString('this.estimatedDeliveryDate = String(po.delivery_date)', $script);
-        $this->assertStringContainsString('this.normalizeEstimatedDeliveryDate()', $script);
+        $this->assertStringNotContainsString("Alpine.data('shipmentRegistration'", $script);
     }
 
     public function test_purchase_order_rejects_a_different_supplier_pickup(): void
     {
         extract($this->setupLogistics());
 
-        $this->actingAs($actor)->post(route('inventory.logistics.shipments.store'), [
+        $this->expectException(\InvalidArgumentException::class);
+        app(ShipmentTrackingService::class)->registerInboundShipment([
             'purchase_order_id' => $po->id,
             'supplier_id' => $otherSupplier->id,
             'pickup_source' => 'supplier_address',
             'destination_storage_location_id' => $destination->id,
             'carrier_name' => 'Test Carrier',
-        ])->assertSessionHas('error');
-
-        $this->assertDatabaseCount('shipments', 0);
-        $this->assertDatabaseCount('chain_of_custody_logs', 0);
+        ], $actor);
     }
 
     public function test_direct_transfer_uses_distinct_active_internal_pickup_and_destination(): void
     {
         extract($this->setupLogistics());
 
-        $this->actingAs($actor)->post(route('inventory.logistics.shipments.store'), [
+        app(ShipmentTrackingService::class)->registerInboundShipment([
             'pickup_source' => 'internal',
             'pickup_storage_location_id' => $pickup->id,
             'destination_storage_location_id' => $destination->id,
             'carrier_name' => 'Hospital Fleet',
-        ])->assertRedirect(route('inventory.logistics.shipments'));
+        ], $actor);
 
         $shipment = Shipment::query()->sole();
         $this->assertNull($shipment->purchase_order_id);
@@ -200,14 +193,13 @@ class InboundShipmentPickupLocationTest extends TestCase
     {
         extract($this->setupLogistics());
 
-        $this->actingAs($actor)->post(route('inventory.logistics.shipments.store'), [
+        $this->expectException(\InvalidArgumentException::class);
+        app(ShipmentTrackingService::class)->registerInboundShipment([
             'pickup_source' => 'internal',
             'pickup_storage_location_id' => $pickup->id,
             'destination_storage_location_id' => $pickup->id,
             'carrier_name' => 'Hospital Fleet',
-        ])->assertSessionHas('error');
-
-        $this->assertDatabaseCount('shipments', 0);
+        ], $actor);
     }
 
     public function test_manual_pickup_is_saved_without_creating_master_data(): void
@@ -216,7 +208,7 @@ class InboundShipmentPickupLocationTest extends TestCase
         $supplierCount = Supplier::count();
         $locationCount = StorageLocation::count();
 
-        $this->actingAs($actor)->post(route('inventory.logistics.shipments.store'), [
+        app(ShipmentTrackingService::class)->registerInboundShipment([
             'pickup_source' => 'manual',
             'pickup_location_name' => 'Temporary 3PL Cross-Dock',
             'origin_address' => 'Pier 7, Port Area, Manila',
@@ -224,7 +216,7 @@ class InboundShipmentPickupLocationTest extends TestCase
             'pickup_contact_number' => '09175550000',
             'destination_storage_location_id' => $destination->id,
             'carrier_name' => 'Port Transfer Logistics',
-        ])->assertRedirect(route('inventory.logistics.shipments'));
+        ], $actor);
 
         $this->assertDatabaseHas('shipments', [
             'pickup_location_type' => 'manual',
@@ -236,32 +228,7 @@ class InboundShipmentPickupLocationTest extends TestCase
         $this->assertSame($locationCount, StorageLocation::count());
     }
 
-    public function test_pickup_validation_rejects_missing_and_invalid_locations(): void
-    {
-        extract($this->setupLogistics());
-
-        $this->actingAs($actor)->post(route('inventory.logistics.shipments.store'), [
-            'carrier_name' => 'Test Carrier',
-            'destination_storage_location_id' => $destination->id,
-        ])->assertSessionHasErrors('pickup_source');
-
-        $this->actingAs($actor)->post(route('inventory.logistics.shipments.store'), [
-            'pickup_source' => 'internal',
-            'pickup_storage_location_id' => 999999,
-            'destination_storage_location_id' => $destination->id,
-            'carrier_name' => 'Test Carrier',
-        ])->assertSessionHasErrors('pickup_storage_location_id');
-
-        $this->actingAs($actor)->post(route('inventory.logistics.shipments.store'), [
-            'pickup_source' => 'manual',
-            'destination_storage_location_id' => $destination->id,
-            'carrier_name' => 'Test Carrier',
-        ])->assertSessionHasErrors(['pickup_location_name', 'origin_address']);
-
-        $this->assertDatabaseCount('shipments', 0);
-    }
-
-    public function test_estimated_delivery_must_not_be_past_or_on_or_before_dispatch(): void
+    public function test_service_rejects_delivery_before_dispatch(): void
     {
         extract($this->setupLogistics());
 
@@ -270,49 +237,28 @@ class InboundShipmentPickupLocationTest extends TestCase
             'pickup_storage_location_id' => $pickup->id,
             'destination_storage_location_id' => $destination->id,
             'carrier_name' => 'Hospital Fleet',
-            'dispatch_date' => today()->toDateString(),
+            'dispatch_date' => today()->addDays(2)->toDateString(),
         ];
-
-        $this->actingAs($actor)->post(route('inventory.logistics.shipments.store'), [
-            ...$payload,
-            'estimated_delivery_date' => today()->subDay()->toDateString(),
-        ])->assertSessionHasErrors('estimated_delivery_date');
-
-        $this->actingAs($actor)->post(route('inventory.logistics.shipments.store'), [
-            ...$payload,
-            'estimated_delivery_date' => today()->toDateString(),
-        ])->assertSessionHasErrors('estimated_delivery_date');
 
         $this->expectException(\InvalidArgumentException::class);
         app(ShipmentTrackingService::class)->registerInboundShipment([
             ...$payload,
-            'dispatch_date' => today()->addDays(2)->toDateString(),
             'estimated_delivery_date' => today()->addDay()->toDateString(),
         ], $actor);
     }
 
-    public function test_inactive_locations_and_unauthorized_users_cannot_register_pickups(): void
+    public function test_service_rejects_inactive_pickup_locations(): void
     {
         extract($this->setupLogistics());
         $pickup->update(['status' => 'inactive']);
 
-        $this->actingAs($actor)->post(route('inventory.logistics.shipments.store'), [
+        $this->expectException(\InvalidArgumentException::class);
+        app(ShipmentTrackingService::class)->registerInboundShipment([
             'pickup_source' => 'internal',
             'pickup_storage_location_id' => $pickup->id,
             'destination_storage_location_id' => $destination->id,
             'carrier_name' => 'Hospital Fleet',
-        ])->assertSessionHas('error');
-
-        $viewer = User::factory()->viewer()->create();
-        $this->actingAs($viewer)->post(route('inventory.logistics.shipments.store'), [
-            'pickup_source' => 'manual',
-            'pickup_location_name' => 'Unauthorized Pickup',
-            'origin_address' => 'Unauthorized Address',
-            'destination_storage_location_id' => $destination->id,
-            'carrier_name' => 'Unauthorized Carrier',
-        ])->assertForbidden();
-
-        $this->assertDatabaseCount('shipments', 0);
+        ], $actor);
     }
 
     public function test_pickup_is_searchable_visible_during_receiving_and_survives_dock_arrival(): void
