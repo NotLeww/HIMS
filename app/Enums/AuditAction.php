@@ -64,6 +64,7 @@ enum AuditAction: string
     case IssuedPurchaseOrder = 'issued_purchase_order';
     case ApprovedPurchaseOrder = 'approved_purchase_order';
     case RejectedPurchaseOrder = 'rejected_purchase_order';
+    case CancelledPurchaseOrder = 'cancelled_purchase_order';
     case AmendedPurchaseOrder = 'amended_purchase_order';
     case ReceivedPurchaseOrder = 'received_purchase_order';
     case CreatedGoodsReceipt = 'created_goods_receipt';
@@ -218,6 +219,7 @@ enum AuditAction: string
             self::IssuedPurchaseOrder => 'Issued Purchase Order',
             self::ApprovedPurchaseOrder => 'Approved Purchase Order',
             self::RejectedPurchaseOrder => 'Rejected Purchase Order',
+            self::CancelledPurchaseOrder => 'Cancelled Purchase Order',
             self::AmendedPurchaseOrder => 'Amended Purchase Order',
             self::ReceivedPurchaseOrder => 'Received Purchase Order',
             self::CreatedGoodsReceipt => 'Created Goods Receipt',

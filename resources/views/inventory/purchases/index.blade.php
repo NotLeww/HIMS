@@ -1420,7 +1420,7 @@
                                     </select>
                                     <div class="flex gap-1.5">
                                         <x-ui.button type="submit" size="sm">Apply</x-ui.button>
-                                        @if($poFilters['poSearch'] !== '' || $poFilters['poStatus'] !== '' || $poFilters['poDate'] !== '' || $supplierFilter || $poPerPage !== 5)
+                                        @if($poFilters['poSearch'] !== '' || $poFilters['poStatus'] !== '' || $poFilters['poDate'] !== '' || $supplierFilter || $poCreatorFilter || $poPerPage !== 5)
                                             <x-ui.button variant="ghost" size="sm" :href="route('inventory.purchases').'#purchase-orders'">Clear</x-ui.button>
                                         @endif
                                     </div>
@@ -1433,8 +1433,11 @@
                                         @if($supplierFilter)
                                             <span class="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-semibold text-primary-800 dark:bg-primary-950/60 dark:text-primary-300">{{ $supplierFilter->name }}</span>
                                         @endif
+                                        @if($poCreatorFilter)
+                                            <span class="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-semibold text-primary-800 dark:bg-primary-950/60 dark:text-primary-300">Created by {{ $poCreatorFilter->name }}</span>
+                                        @endif
                                     </summary>
-                                    <div class="grid gap-2 border-t border-neutral-200 p-3 sm:grid-cols-2 dark:border-neutral-700">
+                                    <div class="grid gap-2 border-t border-neutral-200 p-3 sm:grid-cols-2 lg:grid-cols-3 dark:border-neutral-700">
                                         <div>
                                             <label for="po-supplier" class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Supplier</label>
                                             <select id="po-supplier" name="supplier_id" class="min-h-9 w-full rounded-md border border-neutral-300 pl-2.5 pr-8 text-xs text-neutral-700 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
@@ -1445,6 +1448,15 @@
                                                 @if($supplierFilter && ! $suppliers->contains('id', $supplierFilter->id))
                                                     <option value="{{ $supplierFilter->id }}" selected>{{ $supplierFilter->name }} (not currently eligible)</option>
                                                 @endif
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label for="po-creator" class="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Created by</label>
+                                            <select id="po-creator" name="created_by_user_id" class="min-h-9 w-full rounded-md border border-neutral-300 pl-2.5 pr-8 text-xs text-neutral-700 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                                                <option value="">All authorized creators</option>
+                                                @foreach($purchaseOrderCreators as $creator)
+                                                    <option value="{{ $creator->id }}" @selected($poCreatorFilter?->id === $creator->id)>{{ $creator->name }}</option>
+                                                @endforeach
                                             </select>
                                         </div>
                                         <p class="self-end text-[11px] text-neutral-500 dark:text-neutral-400">Combines with the toolbar filters when you press Apply.</p>
@@ -1478,6 +1490,9 @@
                                     $canApprovePoPermission = $currentUser?->can(\App\Enums\Permission::ApprovePurchaseOrder->value) ?? false;
                                     $isPoPendingApproval = in_array($po->status, ['submitted', 'pending', 'pending_approval'], true)
                                         || ($po->approvalChain && $po->approvalChain->status === 'pending');
+                                    $canCancelThisPo = $currentUser?->can(\App\Enums\Permission::IssuePurchaseOrder->value)
+                                        && $po->created_by_user_id === $currentUser->id
+                                        && in_array($po->status, ['draft', 'submitted', 'pending_approval'], true);
 
                                     $canApproveThisPo = false;
                                     if ($canApprovePoPermission && $isPoPendingApproval) {
@@ -1755,6 +1770,18 @@
                                                         Approve Order
                                                     </button>
                                                 </form>
+                                            @endif
+                                            @if($canCancelThisPo)
+                                                <form method="POST" action="{{ route('inventory.purchases.orders.cancel', $po) }}"
+                                                      data-confirm-title="Cancel Purchase Order"
+                                                      data-confirm-message="Cancel Purchase Order {{ $po->po_number }}? Its pending approval will stop and reserved funds will be released."
+                                                      data-confirm-label="Cancel Order"
+                                                      data-confirm-variant="danger">
+                                                    @csrf
+                                                    <x-ui.button type="submit" variant="danger" size="sm" data-loading-text="Cancelling...">Cancel Order</x-ui.button>
+                                                </form>
+                                            @endif
+                                            @if($canApproveThisPo)
                                                 <form method="POST" action="{{ route('inventory.purchases.orders.reject', $po) }}"
                                                       data-confirm-title="Reject Purchase Order"
                                                       data-confirm-message="Are you sure you want to reject Purchase Order {{ $po->po_number }}? The procurement commitment will be cancelled."

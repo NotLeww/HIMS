@@ -228,6 +228,7 @@ Route::middleware(['auth:web,admin,super_admin', 'verified'])->group(function ()
     Route::post('/inventory/purchases/orders/from-award', [ProcurementController::class, 'generatePoFromAwardWeb'])->name('inventory.purchases.orders.from-award');
     Route::post('/inventory/purchases/orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])->name('inventory.purchases.orders.approve');
     Route::post('/inventory/purchases/orders/{purchaseOrder}/reject', [PurchaseOrderController::class, 'reject'])->name('inventory.purchases.orders.reject');
+    Route::post('/inventory/purchases/orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('inventory.purchases.orders.cancel');
     Route::post('/inventory/purchases/orders/{purchaseOrder}/revise', [PurchaseOrderController::class, 'revise'])->name('inventory.purchases.orders.revise');
     Route::get('/inventory/stock', [InventoryController::class, 'stock'])->name('inventory.stock');
     Route::get('/inventory/alerts', [InventoryController::class, 'alerts'])->name('inventory.alerts');

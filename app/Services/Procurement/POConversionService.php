@@ -2,6 +2,8 @@
 
 namespace App\Services\Procurement;
 
+use App\Enums\ApprovalStepStatus;
+use App\Enums\AuditAction;
 use App\Enums\PurchaseOrderStatus;
 use App\Models\InventoryItem;
 use App\Models\PurchaseOrder;
@@ -13,6 +15,7 @@ use App\Models\SupplierProduct;
 use App\Models\SupplierQuote;
 use App\Models\User;
 use DomainException;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -123,6 +126,53 @@ class POConversionService
             );
 
             return $po->fresh(['supplier', 'item', 'lines.item']);
+        });
+    }
+
+    public function cancelPendingPurchaseOrder(PurchaseOrder $purchaseOrder, User $actor): PurchaseOrder
+    {
+        return DB::transaction(function () use ($purchaseOrder, $actor): PurchaseOrder {
+            $po = PurchaseOrder::query()->lockForUpdate()->findOrFail($purchaseOrder->id);
+
+            if ($po->created_by_user_id !== $actor->id) {
+                throw new AuthorizationException('You may only cancel purchase orders that you created.');
+            }
+
+            if (! in_array($po->statusEnum(), [
+                PurchaseOrderStatus::Draft,
+                PurchaseOrderStatus::Submitted,
+                PurchaseOrderStatus::PendingApproval,
+            ], true)) {
+                throw new DomainException("Purchase Order {$po->po_number} can no longer be cancelled because approval or fulfillment has started.");
+            }
+
+            $oldStatus = $po->status;
+            $po->status = PurchaseOrderStatus::Cancelled->value;
+            $po->save();
+
+            $chain = $po->approvalChain;
+            if ($chain?->status === 'pending') {
+                $chain->steps()
+                    ->where('status', ApprovalStepStatus::Pending->value)
+                    ->update([
+                        'status' => ApprovalStepStatus::Skipped->value,
+                        'decision_notes' => 'Purchase order cancelled by its creator.',
+                        'decided_at' => now(),
+                    ]);
+                $chain->update(['status' => 'cancelled']);
+            }
+
+            $this->budgetService->releaseHardEncumbrance($po);
+            $this->auditService->record(
+                $actor,
+                'PurchaseOrder',
+                $po->id,
+                AuditAction::CancelledPurchaseOrder->value,
+                ['status' => $oldStatus],
+                ['status' => PurchaseOrderStatus::Cancelled->value],
+            );
+
+            return $po->fresh();
         });
     }
 

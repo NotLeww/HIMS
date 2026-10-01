@@ -7,6 +7,7 @@ use App\Enums\Permission;
 use App\Enums\ProcurementMethod;
 use App\Enums\RequisitionStatus;
 use App\Enums\RfqStatus;
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\ApprovalChain;
 use App\Models\CostCenter;
@@ -20,6 +21,7 @@ use App\Models\SourcingRfq;
 use App\Models\Supplier;
 use App\Models\SupplierProduct;
 use App\Models\SupplierQuote;
+use App\Models\User;
 use App\Rules\ProcurementEligibleSupplier;
 use App\Services\DemandForecastService;
 use App\Services\Procurement\ApprovalRoutingEngine;
@@ -100,6 +102,13 @@ class ProcurementController extends Controller implements HasMiddleware
         $supplierFilter = $request->integer('supplier_id')
             ? Supplier::query()->find($request->integer('supplier_id'))
             : null;
+        $purchaseOrderCreators = User::active()
+            ->whereIn('role', collect(UserRole::cases())
+                ->filter(fn (UserRole $role): bool => $role->grants(Permission::IssuePurchaseOrder))
+                ->map(fn (UserRole $role): string => $role->value))
+            ->orderBy('name')
+            ->get(['id', 'name']);
+        $poCreatorFilter = $purchaseOrderCreators->firstWhere('id', $request->integer('created_by_user_id'));
         $poSearch = trim((string) $request->string('po_search'));
         $poStatus = trim((string) $request->string('po_status'));
         $poDate = trim((string) $request->string('po_date'));
@@ -169,7 +178,11 @@ class ProcurementController extends Controller implements HasMiddleware
             'approvalChain.steps.approver',
             'shipments',
         ])
+            ->where('requested_at', '<=', now())
+            ->where(fn ($query) => $query->whereNull('dispatched_at')->orWhere('dispatched_at', '<=', now()))
+            ->where(fn ($query) => $query->whereNull('received_at')->orWhere('received_at', '<=', now()))
             ->when($supplierFilter, fn ($query) => $query->where('supplier_id', $supplierFilter->id))
+            ->when($poCreatorFilter, fn ($query) => $query->where('created_by_user_id', $poCreatorFilter->id))
             ->when($poSearch !== '', fn ($query) => $query->where(function ($searchQuery) use ($poSearch): void {
                 $searchQuery->where('po_number', 'like', "%{$poSearch}%")
                     ->orWhereHas('supplier', fn ($supplier) => $supplier->where('name', 'like', "%{$poSearch}%"))
@@ -226,7 +239,9 @@ class ProcurementController extends Controller implements HasMiddleware
             'poFilters',
             'poPerPage',
             'procurementAuditLogs',
-            'supplierFilter'
+            'supplierFilter',
+            'purchaseOrderCreators',
+            'poCreatorFilter'
         ));
     }
 

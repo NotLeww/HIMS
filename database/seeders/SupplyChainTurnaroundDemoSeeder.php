@@ -131,6 +131,11 @@ class SupplyChainTurnaroundDemoSeeder extends Seeder
         $receivedAt = $dispatchedAt->copy()->addDays($deliveryDurations[$index]);
         $inspectionDate = $receivedAt->copy()->addDays($inspectionDurations[$index]);
         $acceptanceDate = $inspectionDate->copy()->addDays($acceptanceDurations[$index]);
+
+        if ($acceptanceDate->isFuture()) {
+            return;
+        }
+
         $quantity = 40 + ($sequence * 10);
         $unitCost = max(1, (float) ($item->unit_cost ?? 1));
         $totalAmount = round($quantity * $unitCost, 2);

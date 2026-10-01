@@ -14,6 +14,7 @@ use App\Models\SupplierPrice;
 use App\Models\SupplierProduct;
 use App\Models\User;
 use App\Services\Procurement\BudgetEncumbranceService;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery\MockInterface;
 use RuntimeException;
@@ -121,6 +122,38 @@ class PurchaseOrderWorkspaceTest extends TestCase
             ->assertSee('lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.65fr)]', false)
             ->assertDontSee('name="unit_cost"', false)
             ->assertDontSee('name="status"', false);
+    }
+
+    public function test_workspace_excludes_future_dated_purchase_orders(): void
+    {
+        $this->travelTo(CarbonImmutable::create(2026, 10, 2, 12, 0, 0, 'Asia/Manila'));
+
+        $manager = User::factory()->inventoryManager()->create();
+        $item = $this->item();
+        $supplier = $this->supplier();
+
+        foreach ([
+            ['po_number' => 'PO-CURRENT-DATE', 'requested_at' => now()],
+            ['po_number' => 'PO-FUTURE-DATE', 'requested_at' => now()->addDay()],
+            ['po_number' => 'PO-FUTURE-DISPATCH', 'requested_at' => now()->subDay(), 'dispatched_at' => now()->addDay()],
+            ['po_number' => 'PO-FUTURE-RECEIPT', 'requested_at' => now()->subDay(), 'received_at' => now()->addDay()],
+        ] as $attributes) {
+            PurchaseOrder::create($attributes + [
+                'supplier_id' => $supplier->id,
+                'item_id' => $item->id,
+                'quantity' => 1,
+                'unit_cost' => 125.50,
+                'total_amount' => 125.50,
+                'status' => 'received',
+            ]);
+        }
+
+        $this->actingAs($manager)->get('/inventory/purchases')
+            ->assertOk()
+            ->assertSee('PO-CURRENT-DATE')
+            ->assertDontSee('PO-FUTURE-DATE')
+            ->assertDontSee('PO-FUTURE-DISPATCH')
+            ->assertDontSee('PO-FUTURE-RECEIPT');
     }
 
     public function test_supplier_catalog_price_and_minimum_order_are_enforced_server_side(): void
@@ -274,6 +307,57 @@ class PurchaseOrderWorkspaceTest extends TestCase
             ->assertSee('No purchase orders found');
     }
 
+    public function test_creator_filter_only_lists_users_allowed_to_create_purchase_orders(): void
+    {
+        $viewer = User::factory()->viewer()->create(['name' => 'Viewer Cannot Issue PO']);
+        $creator = User::factory()->inventoryManager()->create(['name' => 'Authorized PO Creator']);
+        $otherCreator = User::factory()->superAdministrator()->create(['name' => 'Executive PO Creator']);
+        User::factory()->inventoryManager()->create(['name' => 'Inactive PO Creator', 'status' => 'inactive']);
+        $item = $this->item();
+        $supplier = $this->supplier();
+
+        PurchaseOrder::create([
+            'po_number' => 'PO-CREATOR-MATCH',
+            'supplier_id' => $supplier->id,
+            'item_id' => $item->id,
+            'quantity' => 2,
+            'unit_cost' => 125.50,
+            'total_amount' => 251,
+            'status' => 'pending_approval',
+            'created_by_user_id' => $creator->id,
+            'requested_at' => now(),
+        ]);
+        PurchaseOrder::create([
+            'po_number' => 'PO-CREATOR-HIDDEN',
+            'supplier_id' => $supplier->id,
+            'item_id' => $item->id,
+            'quantity' => 1,
+            'unit_cost' => 125.50,
+            'total_amount' => 125.50,
+            'status' => 'pending_approval',
+            'created_by_user_id' => $otherCreator->id,
+            'requested_at' => now()->subMinute(),
+        ]);
+
+        $filtered = $this->actingAs($creator)->get('/inventory/purchases?created_by_user_id='.$creator->id);
+        $filtered->assertOk();
+        $filteredContent = $filtered->getContent();
+        $this->assertTrue(str_contains($filteredContent, 'id="po-creator"'));
+        $this->assertTrue(str_contains($filteredContent, 'Authorized PO Creator'));
+        $this->assertTrue(str_contains($filteredContent, 'Executive PO Creator'));
+        $this->assertFalse(str_contains($filteredContent, 'Viewer Cannot Issue PO'));
+        $this->assertFalse(str_contains($filteredContent, 'Inactive PO Creator'));
+        $this->assertTrue(str_contains($filteredContent, 'PO-CREATOR-MATCH'));
+        $this->assertSame(1, substr_count($filteredContent, 'data-purchase-order-row'));
+
+        $invalidFilter = $this->actingAs($creator)->get('/inventory/purchases?created_by_user_id='.$viewer->id);
+        $invalidFilter->assertOk();
+        $invalidContent = $invalidFilter->getContent();
+        $this->assertTrue(str_contains($invalidContent, 'PO-CREATOR-MATCH'));
+        $this->assertTrue(str_contains($invalidContent, 'PO-CREATOR-HIDDEN'));
+        $this->assertSame(2, substr_count($invalidContent, 'data-purchase-order-row'));
+    }
+
     public function test_read_only_users_cannot_create_orders_or_receive_sensitive_price_context(): void
     {
         $viewer = User::factory()->viewer()->create();
@@ -379,6 +463,10 @@ class PurchaseOrderWorkspaceTest extends TestCase
             ->post(route('inventory.purchases.orders.approve', $po1))
             ->assertSessionHas('success');
         $this->assertSame('approved', $po1->fresh()->status);
+        $approvedMessage = "Purchase Order {$po1->po_number} approved successfully.";
+        $approvedPage = $this->actingAs($managerApprover)->get('/inventory/purchases');
+        $approvedPage->assertOk()->assertSee('himsToastNotifications', false);
+        $this->assertSame(1, substr_count($approvedPage->getContent(), $approvedMessage));
         $this->assertDatabaseHas('procurement_audit_logs', [
             'entity_name' => 'PurchaseOrder',
             'entity_id' => $po1->id,
@@ -403,6 +491,14 @@ class PurchaseOrderWorkspaceTest extends TestCase
         $this->actingAs($superAdmin)->post('/inventory/purchases/orders', $payload)->assertSessionHas('success');
         $po3 = PurchaseOrder::latest('id')->firstOrFail();
         $this->assertSame($superAdmin->id, $po3->created_by_user_id);
+
+        $this->actingAs($superAdmin)->get('/inventory/purchases')
+            ->assertOk()
+            ->assertSeeInOrder([
+                route('inventory.purchases.orders.approve', $po3),
+                route('inventory.purchases.orders.cancel', $po3),
+                route('inventory.purchases.orders.reject', $po3),
+            ], false);
 
         $this->actingAs($superAdmin)
             ->post(route('inventory.purchases.orders.approve', $po3))
@@ -433,7 +529,12 @@ class PurchaseOrderWorkspaceTest extends TestCase
             ->post(route('inventory.purchases.orders.reject', $po), [
                 'rejection_reason' => 'Duplicate order submitted.',
             ])
-            ->assertSessionHas('info');
+            ->assertSessionHas('success');
+
+        $rejectedMessage = "Purchase Order {$po->po_number} rejected and reserved funds released.";
+        $rejectedPage = $this->actingAs($superAdmin)->get('/inventory/purchases');
+        $rejectedPage->assertOk()->assertSee('himsToastNotifications', false);
+        $this->assertSame(1, substr_count($rejectedPage->getContent(), $rejectedMessage));
 
         $this->assertSame('cancelled', $po->fresh()->status);
         $this->assertSame(0.0, (float) $po->fresh()->total_encumbered_amount);
@@ -496,6 +597,60 @@ class PurchaseOrderWorkspaceTest extends TestCase
         $this->actingAs($warehouseStaff)
             ->post(route('inventory.purchases.orders.approve', $po))
             ->assertForbidden();
+    }
+
+    public function test_only_creator_can_cancel_a_pending_purchase_order(): void
+    {
+        $issuer = User::factory()->inventoryManager()->create();
+        $otherManager = User::factory()->inventoryManager()->create();
+        $item = $this->item();
+        $supplier = $this->supplier();
+        $costCenter = $this->costCenter();
+        $payload = [
+            'supplier_id' => $supplier->id,
+            'item_id' => $item->id,
+            'cost_center_id' => $costCenter->id,
+            'quantity' => 2,
+        ];
+
+        $this->actingAs($issuer)->post('/inventory/purchases/orders', $payload)->assertSessionHas('success');
+        $po = PurchaseOrder::latest('id')->firstOrFail();
+        $cancelUrl = route('inventory.purchases.orders.cancel', $po);
+
+        $this->actingAs($issuer)->get('/inventory/purchases')
+            ->assertOk()
+            ->assertSee($cancelUrl, false)
+            ->assertSee('data-confirm-title="Cancel Purchase Order"', false)
+            ->assertSee('data-confirm-variant="danger"', false);
+
+        $this->actingAs($otherManager)->get('/inventory/purchases')
+            ->assertOk()
+            ->assertDontSee($cancelUrl, false);
+        $this->actingAs($otherManager)->post($cancelUrl)->assertForbidden();
+        $this->assertSame('pending_approval', $po->fresh()->status);
+
+        $this->actingAs($issuer)->post($cancelUrl)
+            ->assertRedirect(route('inventory.purchases'))
+            ->assertSessionHas('success');
+
+        $cancelledMessage = "Purchase Order {$po->po_number} cancelled and reserved funds released.";
+        $cancelledPage = $this->actingAs($issuer)->get('/inventory/purchases');
+        $cancelledPage->assertOk()->assertSee('himsToastNotifications', false);
+        $this->assertSame(1, substr_count($cancelledPage->getContent(), $cancelledMessage));
+
+        $po->refresh();
+        $this->assertSame('cancelled', $po->status);
+        $this->assertSame(0.0, (float) $po->total_encumbered_amount);
+        $this->assertSame('cancelled', $po->approvalChain->status);
+        $this->assertFalse($po->approvalChain->steps()->where('status', 'pending')->exists());
+        $this->assertDatabaseHas('procurement_audit_logs', [
+            'entity_name' => 'PurchaseOrder',
+            'entity_id' => $po->id,
+            'action_type' => 'cancelled_purchase_order',
+            'user_id' => $issuer->id,
+        ]);
+        $this->assertTrue(AuditLog::where('target_id', $po->id)
+            ->where('action', 'cancelled_purchase_order')->exists());
     }
 
     public function test_review_purchase_order_and_inbound_receiving_shipment_modals_render_properly(): void

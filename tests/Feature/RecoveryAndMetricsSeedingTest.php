@@ -9,6 +9,7 @@ use App\Models\InventoryAdjustment;
 use App\Models\InventoryItem;
 use App\Models\KpiProcessReview;
 use App\Models\ProcessRecommendation;
+use App\Models\PurchaseOrder;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Models\SupplierScorecard;
@@ -20,6 +21,7 @@ use App\Services\Analytics\SupplierScoringService;
 use App\Services\Import\ImportStagingService;
 use App\Services\Recovery\SmartRetryService;
 use App\Support\AuthenticationContext;
+use Carbon\CarbonImmutable;
 use Database\Seeders\ErrorRecoveryDemoSeeder;
 use Database\Seeders\OperationalMetricsDemoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -160,6 +162,8 @@ class RecoveryAndMetricsSeedingTest extends TestCase
 
     public function test_operational_metrics_demo_seeder_populates_reviews_and_adjustments(): void
     {
+        $this->travelTo(CarbonImmutable::create(2026, 10, 2, 12, 0, 0, 'Asia/Manila'));
+
         $reviewedSuppliers = collect([
             ['name' => 'MedSupply Demonstration Corp', 'status' => 'active', 'standard_lead_time_days' => 5],
             ['name' => 'Clinical Diagnostics Demo Inc', 'status' => 'active', 'standard_lead_time_days' => 10],
@@ -183,9 +187,9 @@ class RecoveryAndMetricsSeedingTest extends TestCase
         $submittedReview = KpiProcessReview::where('review_number', 'REV-2026-Q4')->firstOrFail();
 
         $this->assertSame($reviewedSuppliers->count(), $approvedReview->supplierScorecards()->count());
-        $this->assertSame($reviewedSuppliers->count(), $submittedReview->supplierScorecards()->count());
+        $this->assertSame(0, $submittedReview->supplierScorecards()->count());
         $this->assertSame($reviewedSuppliers->count(), $approvedReview->metrics_summary['suppliers_evaluated']);
-        $this->assertSame($reviewedSuppliers->count(), $submittedReview->metrics_summary['suppliers_evaluated']);
+        $this->assertSame(0, $submittedReview->metrics_summary['suppliers_evaluated']);
 
         foreach ([$approvedReview, $submittedReview] as $review) {
             $calculatedBottlenecks = app(BottleneckAnalysisService::class)
@@ -193,11 +197,11 @@ class RecoveryAndMetricsSeedingTest extends TestCase
 
             $this->assertEquals($calculatedBottlenecks['stages'], $review->metrics_summary['bottleneck_stages']);
             $this->assertEquals($calculatedBottlenecks['critical_bottleneck'], $review->metrics_summary['critical_bottleneck']);
-            $this->assertNotContains(
-                0,
-                collect($calculatedBottlenecks['stages'])->pluck('sample_count')->all()
-            );
         }
+
+        $this->assertNotContains(0, collect($approvedReview->metrics_summary['bottleneck_stages'])->pluck('sample_count')->all());
+        $this->assertSame([0], collect($submittedReview->metrics_summary['bottleneck_stages'])->pluck('sample_count')->unique()->values()->all());
+        $this->assertFalse(PurchaseOrder::where('requested_at', '>', now())->exists());
 
         $calculatedScores = app(SupplierScoringService::class)
             ->evaluate($approvedReview->period_start, $approvedReview->period_end)
@@ -275,5 +279,4 @@ class RecoveryAndMetricsSeedingTest extends TestCase
         $this->assertSame(RecoveryStatus::Retrying, $importIncident->fresh()->status);
         $this->assertSame(1, $importIncident->fresh()->retry_count);
     }
-
 }

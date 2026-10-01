@@ -34,7 +34,7 @@ class PurchaseOrderController extends Controller implements HasMiddleware
         return [
             'auth:web,admin,super_admin',
             new Middleware('can:'.Permission::ViewProcurement->value, only: ['index']),
-            new Middleware('can:'.Permission::IssuePurchaseOrder->value, only: ['store']),
+            new Middleware('can:'.Permission::IssuePurchaseOrder->value, only: ['store', 'cancel']),
             new Middleware('can:'.Permission::ApprovePurchaseOrder->value, only: ['revise', 'approve', 'reject']),
             new Middleware('can:'.Permission::ReceivePurchaseOrder->value, only: ['receive']),
         ];
@@ -86,6 +86,19 @@ class PurchaseOrderController extends Controller implements HasMiddleware
     public function receive(PurchaseOrder $purchaseOrder): RedirectResponse
     {
         return redirect()->route('inventory.receiving.index', ['purchase_order_id' => $purchaseOrder->id]);
+    }
+
+    public function cancel(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
+    {
+        try {
+            $this->poConversionService->cancelPendingPurchaseOrder($purchaseOrder, $request->user());
+
+            return redirect()->route('inventory.purchases')
+                ->with('success', "Purchase Order {$purchaseOrder->po_number} cancelled and reserved funds released.");
+        } catch (DomainException $exception) {
+            return redirect()->route('inventory.purchases')
+                ->withErrors(['purchase_order' => $exception->getMessage()]);
+        }
     }
 
     /**
@@ -225,7 +238,7 @@ class PurchaseOrderController extends Controller implements HasMiddleware
             }
 
             return redirect()->route('inventory.purchases')
-                ->with('info', "Purchase Order {$purchaseOrder->po_number} has been rejected and funds released.");
+                ->with('success', "Purchase Order {$purchaseOrder->po_number} rejected and reserved funds released.");
         } catch (DomainException $e) {
             return redirect()->route('inventory.purchases')->withErrors(['approval' => $e->getMessage()]);
         }

@@ -18,6 +18,7 @@ use App\Models\SupplierScorecard;
 use App\Models\SystemRecoveryRecord;
 use App\Models\User;
 use App\Models\WarehouseTask;
+use Carbon\CarbonImmutable;
 use Database\Seeders\ComprehensiveDemoSeeder;
 use Database\Seeders\DemandForecastDemoSeeder;
 use Database\Seeders\DemoUserSeeder;
@@ -51,6 +52,8 @@ class ComprehensiveDemoSeederTest extends TestCase
 
     public function test_opt_in_seeder_provides_database_records_for_every_demo_module(): void
     {
+        $this->travelTo(CarbonImmutable::create(2026, 10, 2, 12, 0, 0, 'Asia/Manila'));
+
         $this->seed(ComprehensiveDemoSeeder::class);
 
         foreach (UserRole::cases() as $role) {
@@ -76,7 +79,8 @@ class ComprehensiveDemoSeederTest extends TestCase
             ->with('goodsReceiptNote.lines')
             ->where('iar_number', 'like', 'IAR-REV-2026-%')
             ->get();
-        $this->assertCount(12, $turnaroundReports);
+        $this->assertCount(6, $turnaroundReports);
+        $this->assertFalse(PurchaseOrder::where('requested_at', '>', now())->exists());
         $this->assertTrue($turnaroundReports->every(
             fn (InspectionAcceptanceReport $report): bool => $report->goodsReceiptNote?->lines->isNotEmpty()
                 && $report->coa_transmittal_deadline_at !== null
