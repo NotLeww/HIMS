@@ -98,7 +98,7 @@ Do not invent props. Extend a shared component only when multiple real consumers
 - Use `<x-ui.card>` for ordinary panels. Do not nest cards inside cards or create a card for a single tiny control.
 - Primary operational KPI cards use the existing three-zone pattern: identity and icon, dominant tabular value, then a plain contextual footer separated by a subtle divider.
 - Keep KPI footers badge-free and concise. Use semantic tones only when they convey real operational meaning.
-- When a KPI needs an on-hover explanation, use the shared `stat` component's cursor-following `summary` tooltip contract described in the design-consistency reference.
+- Give KPI cards the shared cursor-following tooltip only when they have useful context or underlying records; follow the design-consistency reference.
 - Prefer compact, scannable dashboard grids over promotional copy or decorative surfaces.
 
 ### Tables and Pagination

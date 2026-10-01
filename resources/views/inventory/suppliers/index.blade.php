@@ -21,11 +21,11 @@
     @endif
 
     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <x-ui.stat compact label="Active suppliers" :value="$counts['active']" icon="users" tone="primary" :hint="$counts['new_this_month'].' added this month · '.$counts['total'].' total'" />
-        <x-ui.stat compact label="Procurement eligible" :value="$counts['eligible']" icon="shield-check" tone="success" :hint="$counts['pending'].' awaiting accreditation review'" />
-        <x-ui.stat compact label="Compliance attention" :value="$counts['attention']" icon="exclamation-triangle" :tone="$counts['critical_alerts'] > 0 ? 'danger' : 'warning'" :hint="$counts['critical_alerts'].' critical · '.$counts['active_alerts'].' active alerts'" />
+        <x-ui.stat compact label="Active suppliers" :value="$counts['active']" icon="users" tone="primary" :hint="$counts['new_this_month'].' added this month · '.$counts['total'].' total'" :details="$supplierMetricDetails['active']" summary-title="Active suppliers" />
+        <x-ui.stat compact label="Procurement eligible" :value="$counts['eligible']" icon="shield-check" tone="success" :hint="$counts['pending'].' awaiting accreditation review'" :details="$supplierMetricDetails['eligible']" summary-title="Procurement-eligible suppliers" />
+        <x-ui.stat compact label="Compliance attention" :value="$counts['attention']" icon="exclamation-triangle" :tone="$counts['critical_alerts'] > 0 ? 'danger' : 'warning'" :hint="$counts['critical_alerts'].' critical · '.$counts['active_alerts'].' active alerts'" :details="$supplierMetricDetails['attention']" summary-title="Suppliers requiring attention" />
         @if ($canViewProcurement)
-            <x-ui.stat compact label="Open purchase orders" :value="$counts['open_purchase_orders']" icon="shopping-cart" tone="warning" :hint="$counts['purchase_orders'].' total purchase orders'" />
+            <x-ui.stat compact label="Open purchase orders" :value="$counts['open_purchase_orders']" icon="shopping-cart" tone="warning" :hint="$counts['purchase_orders'].' total purchase orders'" :details="$supplierMetricDetails['open_orders']" summary-title="Open supplier purchase orders" />
         @else
             <x-ui.stat compact label="Pending review" :value="$counts['pending']" icon="clipboard-document-list" tone="warning" hint="Awaiting an accreditation decision" />
         @endif

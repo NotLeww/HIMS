@@ -64,12 +64,12 @@
 
             {{-- Metric Cards --}}
             <div class="grid gap-4 sm:grid-cols-3">
-                <div class="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+                <div data-metric-title="Quarantined items awaiting disposition" data-metric-details="{{ json_encode($metricDetails['inspections']) }}" class="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
                     <p class="text-xs font-medium uppercase tracking-wider text-neutral-500">Quarantine Assay Queue</p>
                     <p class="mt-2 text-2xl font-bold text-amber-600">{{ $inspections->total() }}</p>
                     <p class="mt-1 text-xs text-neutral-500">Pending clinical or packaging release</p>
                 </div>
-                <div class="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+                <div data-metric-title="Available unrestricted locations" data-metric-details="{{ json_encode($metricDetails['locations']) }}" class="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
                     <p class="text-xs font-medium uppercase tracking-wider text-neutral-500">Target Unrestricted Zones</p>
                     <p class="mt-2 text-2xl font-bold text-emerald-600">{{ count($storageLocations) }}</p>
                     <p class="mt-1 text-xs text-neutral-500">Active distribution racks &amp; pharmacy shelves</p>

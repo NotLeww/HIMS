@@ -20,6 +20,7 @@ use App\Services\Logistics\ChainOfCustodyService;
 use App\Services\Logistics\DocumentTrackingService;
 use App\Services\Logistics\InspectionAcceptanceService;
 use App\Services\Logistics\ShipmentTrackingService;
+use App\Support\MetricDetails;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -129,9 +130,19 @@ class LogisticsController extends Controller implements HasMiddleware
             ->latest()
             ->take(6)
             ->get();
+        $pendingIars = InspectionAcceptanceReport::with('supplier')->whereIn('status', ['pending_inspection', 'inspected_passed'])->latest()->take(5)->get();
+        $activeShipments = Shipment::with('supplier')->whereIn('status', ['dispatched', 'in_transit', 'customs_hold'])->latest()->take(5)->get();
+        $excursionShipments = Shipment::with('supplier')->where('temp_excursion', true)->latest()->take(5)->get();
+        $metricDetails = [
+            'documents' => MetricDetails::from($recentDocuments, $metrics['total_documents'], fn (LogisticsDocument $document): string => $document->tracking_number.' · '.$document->title, 'No logistics documents registered'),
+            'iars' => MetricDetails::from($pendingIars, $metrics['iar_pending_inspection'] + $metrics['iar_pending_acceptance'], fn (InspectionAcceptanceReport $iar): string => $iar->iar_number.' · '.($iar->supplier?->name ?? 'Supplier not recorded'), 'No IAR records awaiting review'),
+            'shipments' => MetricDetails::from($activeShipments, $metrics['active_shipments'], fn (Shipment $shipment): string => $shipment->shipment_number.' · '.($shipment->supplier?->name ?? $shipment->carrier_name), 'No inbound shipments in transit'),
+            'excursions' => MetricDetails::from($excursionShipments, $metrics['dock_excursions'], fn (Shipment $shipment): string => $shipment->shipment_number.' · '.($shipment->temp_min ?? '—').'°C to '.($shipment->temp_max ?? '—').'°C', 'No cold-chain excursions recorded'),
+        ];
 
         return view('inventory.logistics.index', compact(
             'metrics',
+            'metricDetails',
             'recentShipments',
             'recentIars',
             'recentCustodyLogs',

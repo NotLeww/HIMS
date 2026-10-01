@@ -12,6 +12,7 @@ use App\Http\Requests\UpdateSupplierRequest;
 use App\Models\AuditLog;
 use App\Models\InventoryItem;
 use App\Models\ItemCategory;
+use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\SupplierContract;
 use App\Models\SupplierDocument;
@@ -20,6 +21,7 @@ use App\Models\SupplierProduct;
 use App\Services\AuditLogger;
 use App\Services\FileContentValidator;
 use App\Services\SupplierManagementService;
+use App\Support\MetricDetails;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -236,6 +238,34 @@ class SupplierController extends Controller implements HasMiddleware
             $counts['open_purchase_orders'] = (int) ($poCounts->open_orders ?? 0);
         }
 
+        $hasDirectoryFilters = $request->hasAny(['search', 'status', 'accreditation_status', 'eligibility', 'product_category_id', 'compliance', 'expiry', 'contract', 'performance', 'supplier']);
+        $supplierMetricDetails = ['active' => [], 'eligible' => [], 'attention' => [], 'open_orders' => []];
+        if (! $hasDirectoryFilters) {
+            $activeSupplierDetails = Supplier::where('status', SupplierStatus::Active->value)->orderBy('name')->take(5)->get();
+            $eligibleSupplierDetails = Supplier::procurementEligible()->orderBy('name')->take(5)->get();
+            $attentionSupplierDetails = Supplier::query()
+                ->where('status', '!=', SupplierStatus::Archived->value)
+                ->whereHas('complianceAlerts', fn ($alerts) => $alerts->active())
+                ->orderBy('name')
+                ->take(5)
+                ->get();
+            $supplierMetricDetails = [
+                'active' => MetricDetails::from($activeSupplierDetails, $counts['active'], fn (Supplier $supplier): string => $supplier->name, 'No active suppliers'),
+                'eligible' => MetricDetails::from($eligibleSupplierDetails, $counts['eligible'], fn (Supplier $supplier): string => $supplier->name, 'No procurement-eligible suppliers'),
+                'attention' => MetricDetails::from($attentionSupplierDetails, $counts['attention'], fn (Supplier $supplier): string => $supplier->name, 'No suppliers require compliance attention'),
+                'open_orders' => [],
+            ];
+        }
+        if ($canViewProcurement && ! $hasDirectoryFilters) {
+            $openOrderDetails = PurchaseOrder::with('supplier')->whereNull('received_at')->where('status', '!=', 'cancelled')->latest('requested_at')->take(5)->get();
+            $supplierMetricDetails['open_orders'] = MetricDetails::from(
+                $openOrderDetails,
+                $counts['open_purchase_orders'],
+                fn (PurchaseOrder $order): string => $order->po_number.' · '.($order->supplier?->name ?? 'Supplier not recorded'),
+                'No open purchase orders',
+            );
+        }
+
         return view('inventory.suppliers.index', [
             'suppliers' => $suppliers,
             'selectedSupplier' => $selectedSupplier,
@@ -245,6 +275,7 @@ class SupplierController extends Controller implements HasMiddleware
             'businessStructures' => $this->businessStructures(),
             'productCategories' => ItemCategory::active()->orderBy('name')->pluck('name', 'id')->all(),
             'counts' => $counts,
+            'supplierMetricDetails' => $supplierMetricDetails,
             'canViewProcurement' => $canViewProcurement,
             'canViewSensitiveData' => $canViewSensitiveData,
         ]);

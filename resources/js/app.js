@@ -80,21 +80,52 @@ const resetButtonLoading = (button) => {
     loadingButtons.delete(button);
 };
 
-Alpine.data('statTooltip', () => ({
-    open: false,
-    position: { left: '0px', top: '0px' },
+const startMetricSummaryTooltips = () => {
+    const tooltipId = 'hims-metric-summary-tooltip';
+    const descriptions = new WeakMap();
+    let tooltip = null;
+    let tooltipLabel = null;
+    let tooltipBody = null;
+    let activeTrigger = null;
+    let pointerActive = false;
+    let hideTimer = null;
 
-    showTooltip(event) {
-        if (event.pointerType === 'touch') return;
+    const triggerFor = (target) => target instanceof Element
+        ? target.closest('[data-metric-summary], [data-metric-details]')
+        : null;
 
-        this.open = true;
-        this.$nextTick(() => this.followPointer(event));
-    },
+    const ensureTooltip = () => {
+        if (tooltip) return tooltip;
 
-    followPointer(event) {
-        const tooltip = this.$refs.tooltip;
-        if (!this.open || !tooltip) return;
+        tooltip = document.createElement('div');
+        tooltip.id = tooltipId;
+        tooltip.hidden = true;
+        tooltip.setAttribute('role', 'tooltip');
+        tooltip.className = 'pointer-events-none fixed z-[70] w-64 scale-95 rounded-lg border border-neutral-200/90 bg-white/95 p-3 text-left opacity-0 shadow-lg backdrop-blur-xs transition duration-150 ease-out motion-reduce:transition-none dark:border-neutral-700/80 dark:bg-neutral-900/95 dark:shadow-2xl';
 
+        tooltipLabel = document.createElement('p');
+        tooltipLabel.className = 'text-[10px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400';
+
+        tooltipBody = document.createElement('div');
+        tooltipBody.className = 'mt-1 text-xs leading-relaxed text-neutral-700 dark:text-neutral-200';
+        tooltip.append(tooltipLabel, tooltipBody);
+        document.body.append(tooltip);
+
+        return tooltip;
+    };
+
+    const detailsFor = (trigger) => {
+        if (!trigger.dataset.metricDetails) return [];
+
+        try {
+            const details = JSON.parse(trigger.dataset.metricDetails);
+            return Array.isArray(details) ? details.filter((detail) => typeof detail === 'string' && detail.trim()) : [];
+        } catch {
+            return [];
+        }
+    };
+
+    const placeAtPointer = (event) => {
         const gutter = 8;
         const offset = 14;
         const width = tooltip.offsetWidth;
@@ -105,41 +136,121 @@ Alpine.data('statTooltip', () => ({
         if (left + width > window.innerWidth - gutter) left = event.clientX - width - offset;
         if (top < gutter) top = event.clientY + offset;
 
-        this.position = {
-            left: `${Math.max(gutter, Math.min(left, window.innerWidth - width - gutter))}px`,
-            top: `${Math.max(gutter, Math.min(top, window.innerHeight - height - gutter))}px`,
-        };
-    },
+        tooltip.style.left = `${Math.max(gutter, Math.min(left, window.innerWidth - width - gutter))}px`;
+        tooltip.style.top = `${Math.max(gutter, Math.min(top, window.innerHeight - height - gutter))}px`;
+    };
 
-    showForFocus() {
-        this.open = true;
-        this.$nextTick(() => {
-            const tooltip = this.$refs.tooltip;
-            if (!tooltip) return;
+    const placeAtCard = (trigger) => {
+        const gutter = 8;
+        const offset = 12;
+        const rect = trigger.getBoundingClientRect();
+        const width = tooltip.offsetWidth;
+        const height = tooltip.offsetHeight;
+        const left = Math.max(gutter, Math.min(
+            rect.left + ((rect.width - width) / 2),
+            window.innerWidth - width - gutter,
+        ));
+        const preferredTop = rect.top - height - offset;
+        const top = preferredTop >= gutter ? preferredTop : rect.bottom + offset;
 
-            const card = this.$el.getBoundingClientRect();
-            const gutter = 8;
-            const offset = 12;
-            const width = tooltip.offsetWidth;
-            const height = tooltip.offsetHeight;
-            const left = Math.max(gutter, Math.min(
-                card.left + ((card.width - width) / 2),
-                window.innerWidth - width - gutter,
-            ));
-            const preferredTop = card.top - height - offset;
-            const top = preferredTop >= gutter ? preferredTop : card.bottom + offset;
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${Math.max(gutter, Math.min(top, window.innerHeight - height - gutter))}px`;
+    };
 
-            this.position = {
-                left: `${left}px`,
-                top: `${Math.min(top, window.innerHeight - height - gutter)}px`,
-            };
+    const show = (trigger, place) => {
+        const summary = trigger.dataset.metricSummary?.trim();
+        const details = detailsFor(trigger);
+        if (!summary && details.length === 0) return;
+
+        clearTimeout(hideTimer);
+        ensureTooltip();
+
+        if (activeTrigger && activeTrigger !== trigger) {
+            const previousDescription = descriptions.get(activeTrigger);
+            if (previousDescription) activeTrigger.setAttribute('aria-describedby', previousDescription);
+            else activeTrigger.removeAttribute('aria-describedby');
+        }
+
+        activeTrigger = trigger;
+        if (!descriptions.has(trigger)) descriptions.set(trigger, trigger.getAttribute('aria-describedby'));
+        trigger.setAttribute('aria-describedby', [descriptions.get(trigger), tooltipId].filter(Boolean).join(' '));
+        tooltipLabel.textContent = trigger.dataset.metricTitle?.trim() || (details.length > 0 ? 'Included records' : 'Summary');
+        tooltipBody.replaceChildren();
+
+        if (summary) {
+            const description = document.createElement('p');
+            description.textContent = summary;
+            tooltipBody.append(description);
+        }
+
+        if (details.length > 0) {
+            const list = document.createElement('ul');
+            list.className = `${summary ? 'mt-2 border-t border-neutral-200/80 pt-2 dark:border-neutral-700/80 ' : ''}space-y-1.5`;
+            details.forEach((detail) => {
+                const item = document.createElement('li');
+                item.className = 'flex gap-2';
+                const marker = document.createElement('span');
+                marker.setAttribute('aria-hidden', 'true');
+                marker.className = 'mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary-500';
+                const text = document.createElement('span');
+                text.textContent = detail;
+                item.append(marker, text);
+                list.append(item);
+            });
+            tooltipBody.append(list);
+        }
+        tooltip.hidden = false;
+        tooltip.style.visibility = 'hidden';
+        place();
+        tooltip.style.visibility = 'visible';
+        window.requestAnimationFrame(() => {
+            tooltip.classList.remove('scale-95', 'opacity-0');
+            tooltip.classList.add('scale-100', 'opacity-100');
         });
-    },
+    };
 
-    hideTooltip() {
-        this.open = false;
-    },
-}));
+    const hide = () => {
+        if (!activeTrigger || !tooltip) return;
+
+        const previousDescription = descriptions.get(activeTrigger);
+        if (previousDescription) activeTrigger.setAttribute('aria-describedby', previousDescription);
+        else activeTrigger.removeAttribute('aria-describedby');
+        activeTrigger = null;
+        pointerActive = false;
+        tooltip.classList.remove('scale-100', 'opacity-100');
+        tooltip.classList.add('scale-95', 'opacity-0');
+        hideTimer = window.setTimeout(() => { tooltip.hidden = true; }, 150);
+    };
+
+    document.addEventListener('pointerover', (event) => {
+        if (event.pointerType === 'touch') return;
+        const trigger = triggerFor(event.target);
+        if (!trigger || trigger === activeTrigger) return;
+        pointerActive = true;
+        show(trigger, () => placeAtPointer(event));
+    });
+
+    document.addEventListener('pointermove', (event) => {
+        if (event.pointerType !== 'touch' && pointerActive && activeTrigger) placeAtPointer(event);
+    });
+
+    document.addEventListener('pointerout', (event) => {
+        if (!pointerActive || !activeTrigger || activeTrigger.contains(event.relatedTarget)) return;
+        hide();
+    });
+
+    document.addEventListener('focusin', (event) => {
+        const trigger = triggerFor(event.target);
+        if (!trigger || !event.target.matches(':focus-visible')) return;
+        pointerActive = false;
+        show(trigger, () => placeAtCard(trigger));
+    });
+
+    document.addEventListener('focusout', (event) => {
+        if (activeTrigger?.contains(event.relatedTarget)) return;
+        if (activeTrigger?.contains(event.target)) hide();
+    });
+};
 
 /**
  * Keep Alpine-powered modal dialogs usable without a mouse. Native <dialog>
@@ -3624,6 +3735,11 @@ Alpine.data('dashboardLive', (endpoint) => ({
 
             const data = await response.json();
             const format = new Intl.NumberFormat();
+            const updateMetricDetails = (tile, details) => {
+                if (!tile) return;
+                if (Array.isArray(details) && details.length > 0) tile.dataset.metricDetails = JSON.stringify(details);
+                else delete tile.dataset.metricDetails;
+            };
 
             this.$refs.alerts.innerHTML = data.alertsHtml;
 
@@ -3636,6 +3752,7 @@ Alpine.data('dashboardLive', (endpoint) => ({
             if (trackedItemsTile) {
                 trackedItemsTile.querySelector('[data-stat-value]').textContent = format.format(data.totalItems);
                 trackedItemsTile.querySelector('[data-stat-hint]').textContent = `${format.format(data.totalOnHand)} units on hand`;
+                updateMetricDetails(trackedItemsTile, data.trackedItemDetails);
             }
 
             if (lowStockTile) {
@@ -3647,6 +3764,7 @@ Alpine.data('dashboardLive', (endpoint) => ({
                         ? `${format.format(data.outOfStockItems)} fully out of stock`
                         : 'No items out of stock';
                 }
+                updateMetricDetails(lowStockTile, data.attentionItemDetails);
             }
 
             if (expiryTile) {
@@ -3660,6 +3778,7 @@ Alpine.data('dashboardLive', (endpoint) => ({
                             ? '1–90 days remaining'
                             : 'No batches expiring within 90 days');
                 }
+                updateMetricDetails(expiryTile, data.expiringBatchDetails);
             }
 
             if (inventoryValueTile && data.totalInventoryValue !== undefined) {
@@ -3667,6 +3786,7 @@ Alpine.data('dashboardLive', (endpoint) => ({
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                 }).format(data.totalInventoryValue)}`;
+                updateMetricDetails(inventoryValueTile, data.inventoryValueDetails);
             }
 
             const now = new Date();
@@ -5141,5 +5261,6 @@ if (document.querySelector('[data-hims-camera-scanner]')) {
 }
 
 Alpine.start();
+startMetricSummaryTooltips();
 startAccessibleDialogs();
 focusFirstInvalidField();

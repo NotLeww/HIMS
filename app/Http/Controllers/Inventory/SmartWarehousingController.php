@@ -16,6 +16,7 @@ use App\Models\WarehouseTask;
 use App\Services\AuditLogger;
 use App\Services\Warehouse\BarcodeService;
 use App\Services\Warehouse\WarehouseTaskService;
+use App\Support\MetricDetails;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -73,7 +74,18 @@ class SmartWarehousingController extends Controller implements HasMiddleware
             ->take(8)
             ->get();
 
-        return view('inventory.warehousing.index', compact('metrics', 'recentTasks', 'recentScans'));
+        $activeTasks = WarehouseTask::with('item')->whereNotIn('status', ['completed', 'cancelled'])->latest()->take(5)->get();
+        $activeLocations = StorageLocation::active()->orderBy('code')->take(5)->get();
+        $narcoticsItems = InventoryItem::where('regulatory_category', 'DANGEROUS_DRUG')->orderBy('name')->take(5)->get();
+        $pendingConsignments = SurgicalConsignmentBillOnly::with('item')->where('status', 'pending_po')->latest()->take(5)->get();
+        $metricDetails = [
+            'tasks' => MetricDetails::from($activeTasks, $metrics['open_tasks'], fn (WarehouseTask $task): string => $task->task_number.' · '.($task->item?->name ?? $task->task_type->label()), 'No active warehouse tasks'),
+            'locations' => MetricDetails::from($activeLocations, $metrics['active_locations'], fn (StorageLocation $location): string => $location->code.' · '.$location->name, 'No active storage locations'),
+            'narcotics' => MetricDetails::from($narcoticsItems, $metrics['narcotics_items'], fn (InventoryItem $item): string => $item->name.' ('.$item->sku.')', 'No controlled items registered'),
+            'consignments' => MetricDetails::from($pendingConsignments, $metrics['pending_bill_onlys'], fn (SurgicalConsignmentBillOnly $request): string => $request->request_number.' · '.($request->item?->name ?? 'Implant item'), 'No pending consignment requests'),
+        ];
+
+        return view('inventory.warehousing.index', compact('metrics', 'metricDetails', 'recentTasks', 'recentScans'));
     }
 
     public function locations(Request $request): View

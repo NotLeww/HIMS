@@ -85,7 +85,7 @@
             {{-- Operational KPI Metric Cards (Standardized 3-Zone Architecture per hims-ui-ux) --}}
             <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4 xl:gap-4">
                 {{-- 1. Open Purchase Orders --}}
-                <div class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-primary-400 dark:hover:border-primary-600 transition-all duration-150">
+                <div data-metric-title="Open purchase orders" data-metric-details="{{ json_encode($poMetricDetails['open']) }}" class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-primary-400 dark:hover:border-primary-600 transition-all duration-150">
                     {{-- Zone 1: Header --}}
                     <div class="flex items-center justify-between gap-2">
                         <p class="text-xs sm:text-sm font-bold uppercase tracking-wider text-primary-700 dark:text-primary-300">Open Purchase Orders</p>
@@ -105,7 +105,7 @@
                 </div>
 
                 {{-- 2. Pending Approval --}}
-                <div class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between {{ $poMetrics['pending_approval'] > 0 ? 'hover:border-amber-400 dark:hover:border-amber-600' : 'hover:border-emerald-400 dark:hover:border-emerald-600' }} transition-all duration-150">
+                <div data-metric-title="Purchase orders awaiting approval" data-metric-details="{{ json_encode($poMetricDetails['pending_approval']) }}" class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between {{ $poMetrics['pending_approval'] > 0 ? 'hover:border-amber-400 dark:hover:border-amber-600' : 'hover:border-emerald-400 dark:hover:border-emerald-600' }} transition-all duration-150">
                     {{-- Zone 1: Header --}}
                     <div class="flex items-center justify-between gap-2">
                         <p class="text-xs sm:text-sm font-bold uppercase tracking-wider {{ $poMetrics['pending_approval'] > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300' }}">Pending Approval</p>
@@ -125,7 +125,7 @@
                 </div>
 
                 {{-- 3. In Fulfillment --}}
-                <div class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-sky-400 dark:hover:border-sky-600 transition-all duration-150">
+                <div data-metric-title="Purchase orders in fulfillment" data-metric-details="{{ json_encode($poMetricDetails['in_transit']) }}" class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-sky-400 dark:hover:border-sky-600 transition-all duration-150">
                     {{-- Zone 1: Header --}}
                     <div class="flex items-center justify-between gap-2">
                         <p class="text-xs sm:text-sm font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">In Fulfillment</p>
@@ -145,7 +145,7 @@
                 </div>
 
                 {{-- 4. Overdue Delivery --}}
-                <div class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between {{ $poMetrics['overdue'] > 0 ? 'hover:border-rose-400 dark:hover:border-rose-600' : 'hover:border-emerald-400 dark:hover:border-emerald-600' }} transition-all duration-150">
+                <div data-metric-title="Overdue purchase orders" data-metric-details="{{ json_encode($poMetricDetails['overdue']) }}" class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between {{ $poMetrics['overdue'] > 0 ? 'hover:border-rose-400 dark:hover:border-rose-600' : 'hover:border-emerald-400 dark:hover:border-emerald-600' }} transition-all duration-150">
                     {{-- Zone 1: Header --}}
                     <div class="flex items-center justify-between gap-2">
                         <p class="text-xs sm:text-sm font-bold uppercase tracking-wider {{ $poMetrics['overdue'] > 0 ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300' }}">Overdue Delivery</p>

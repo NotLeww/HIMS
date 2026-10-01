@@ -13,6 +13,7 @@ use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Services\Inventory\GoodsReceiptService;
 use App\Services\Inventory\QualityControlService;
+use App\Support\MetricDetails;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -72,8 +73,22 @@ class GoodsReceiptController extends Controller implements HasMiddleware
             ->get();
 
         $suppliers = Supplier::where('status', 'active')->orderBy('name')->get();
+        $metricDetails = [
+            'open_orders' => MetricDetails::from(
+                $openPurchaseOrders,
+                $openPurchaseOrders->count(),
+                fn (PurchaseOrder $order): string => $order->po_number.' · '.($order->supplier?->name ?? 'Supplier not recorded'),
+                'No purchase orders awaiting dock fulfillment',
+            ),
+            'receipts' => MetricDetails::from(
+                $goodsReceipts->getCollection(),
+                $goodsReceipts->total(),
+                fn (GoodsReceiptNote $receipt): string => $receipt->grn_number.' · '.($receipt->supplier?->name ?? 'Supplier not recorded'),
+                'No goods receipts recorded',
+            ),
+        ];
 
-        return view('inventory.receiving.index', compact('goodsReceipts', 'openPurchaseOrders', 'storageLocations', 'suppliers'));
+        return view('inventory.receiving.index', compact('goodsReceipts', 'openPurchaseOrders', 'storageLocations', 'suppliers', 'metricDetails'));
     }
 
     public function show(GoodsReceiptNote $goodsReceiptNote): View
@@ -194,8 +209,22 @@ class GoodsReceiptController extends Controller implements HasMiddleware
             ->whereNotIn('type', ['warehouse', 'zone', 'aisle', 'rack', 'shelf', 'level', 'department'])
             ->orderBy('name')
             ->get();
+        $metricDetails = [
+            'inspections' => MetricDetails::from(
+                $inspections->getCollection(),
+                $inspections->total(),
+                fn (QualityInspection $inspection): string => ($inspection->item?->name ?? 'Unknown item').' · Batch '.($inspection->batch?->batch_number ?? 'not recorded'),
+                'No stock awaiting quality disposition',
+            ),
+            'locations' => MetricDetails::from(
+                $storageLocations,
+                $storageLocations->count(),
+                fn (StorageLocation $location): string => $location->code.' · '.$location->name,
+                'No unrestricted target locations available',
+            ),
+        ];
 
-        return view('inventory.receiving.qc', compact('inspections', 'storageLocations'));
+        return view('inventory.receiving.qc', compact('inspections', 'storageLocations', 'metricDetails'));
     }
 
     public function releaseQc(Request $request, QualityInspection $inspection): RedirectResponse

@@ -13,6 +13,7 @@ use App\Models\WarehouseException;
 use App\Models\WarehouseTask;
 use App\Services\Warehouse\WarehouseLabelService;
 use App\Services\Warehouse\WarehouseTaskService;
+use App\Support\MetricDetails;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -68,8 +69,19 @@ class WarehouseTaskController extends Controller implements HasMiddleware
             'exceptions' => WarehouseException::where('status', 'open')->count(),
             'completed_today' => (int) $taskMetrics->completed_today_count,
         ];
+        $openTasks = WarehouseTask::with('item')->whereNotIn('status', ['completed', 'cancelled'])->latest()->take(5)->get();
+        $overdueTasks = WarehouseTask::with('item')->whereNotIn('status', ['completed', 'cancelled'])->where('due_at', '<', now())->orderBy('due_at')->take(5)->get();
+        $openExceptions = WarehouseException::with(['item', 'task'])->where('status', 'open')->latest()->take(5)->get();
+        $completedTasks = WarehouseTask::with('item')->where('status', 'completed')->whereDate('completed_at', today())->latest('completed_at')->take(5)->get();
+        $formatTask = fn (WarehouseTask $task): string => $task->task_number.' · '.($task->item?->name ?? $task->task_type->label());
+        $metricDetails = [
+            'open' => MetricDetails::from($openTasks, $metrics['open'], $formatTask, 'No open warehouse tasks'),
+            'overdue' => MetricDetails::from($overdueTasks, $metrics['overdue'], $formatTask, 'No overdue warehouse tasks'),
+            'exceptions' => MetricDetails::from($openExceptions, $metrics['exceptions'], fn (WarehouseException $exception): string => $exception->exception_number.' · '.($exception->item?->name ?? $exception->exception_type), 'No open warehouse exceptions'),
+            'completed_today' => MetricDetails::from($completedTasks, $metrics['completed_today'], $formatTask, 'No warehouse tasks completed today'),
+        ];
 
-        return view('inventory.warehouse_tasks.index', compact('tasks', 'locations', 'items', 'operators', 'metrics'));
+        return view('inventory.warehouse_tasks.index', compact('tasks', 'locations', 'items', 'operators', 'metrics', 'metricDetails'));
     }
 
     public function show(WarehouseTask $warehouseTask): View

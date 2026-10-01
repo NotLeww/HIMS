@@ -49,6 +49,8 @@
     <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4 xl:gap-4">
         {{-- 1. Tracked items --}}
         <a href="{{ route('inventory.items') }}" x-ref="trackedItemsTile"
+           data-metric-title="Tracked items"
+           @if($trackedItemDetails) data-metric-details="{{ json_encode($trackedItemDetails) }}" @endif
            class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-primary-400 dark:hover:border-primary-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 transition-all duration-150">
             {{-- Zone 1: Header --}}
             <div class="flex items-center justify-between gap-2">
@@ -70,6 +72,8 @@
 
         {{-- 2. Needs reorder --}}
         <a href="{{ route('inventory.alerts') }}" x-ref="lowStockTile"
+           data-metric-title="Items needing attention"
+           @if($attentionItemDetails) data-metric-details="{{ json_encode($attentionItemDetails) }}" @endif
            class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-amber-400 dark:hover:border-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 transition-all duration-150">
             {{-- Zone 1: Header --}}
             <div class="flex items-center justify-between gap-2">
@@ -91,6 +95,8 @@
 
         {{-- 3. Expiring soon --}}
         <a href="{{ route('inventory.alerts') }}" x-ref="expiryTile"
+           data-metric-title="Expiring batches"
+           @if($expiringBatchDetails) data-metric-details="{{ json_encode($expiringBatchDetails) }}" @endif
            class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-rose-400 dark:hover:border-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 transition-all duration-150">
             {{-- Zone 1: Header --}}
             <div class="flex items-center justify-between gap-2">
@@ -117,6 +123,8 @@
         {{-- 4. Inventory value --}}
         @can(\App\Enums\Permission::ViewProcurementSensitiveData->value)
         <a href="{{ route('inventory.reports') }}" x-ref="inventoryValueTile"
+           data-metric-title="Highest-value items"
+           @if($inventoryValueDetails) data-metric-details="{{ json_encode($inventoryValueDetails) }}" @endif
            class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-emerald-400 dark:hover:border-emerald-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 transition-all duration-150">
             {{-- Zone 1: Header --}}
             <div class="flex items-center justify-between gap-2">

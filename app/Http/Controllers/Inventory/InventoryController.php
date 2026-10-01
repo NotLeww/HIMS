@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Services\AiDemandForecastService;
 use App\Services\DemandForecastService;
 use App\Services\InventoryReportService;
+use App\Support\MetricDetails;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -120,6 +121,10 @@ class InventoryController extends Controller implements HasMiddleware
             'outOfStockItems' => $snapshot['outOfStockItems'],
             'totalOnHand' => $snapshot['totalOnHand'],
             'totalInventoryValue' => $snapshot['totalInventoryValue'],
+            'trackedItemDetails' => $snapshot['trackedItemDetails'],
+            'attentionItemDetails' => $snapshot['attentionItemDetails'],
+            'expiringBatchDetails' => $snapshot['expiringBatchDetails'],
+            'inventoryValueDetails' => $snapshot['inventoryValueDetails'],
         ], fn (mixed $value): bool => $value !== null));
     }
 
@@ -168,6 +173,12 @@ class InventoryController extends Controller implements HasMiddleware
         $criticalExpiryCount = $stockedExpiryBatches(ItemBatch::query())
             ->expiringSoon(ItemBatch::CRITICAL_EXPIRY_DAYS)
             ->count();
+        $expiringBatches = $stockedExpiryBatches(ItemBatch::query())
+            ->expiringSoon()
+            ->with('item:id,name,sku')
+            ->orderBy('expiry_date')
+            ->take(5)
+            ->get();
 
         // Use current balances, which are also the source of truth on the
         // inventory alerts page. Persisted alert rows can lag behind imports
@@ -183,11 +194,57 @@ class InventoryController extends Controller implements HasMiddleware
             })
             ->orderBy('quantity_on_hand')
             ->orderBy('name')
-            ->take(6)
+            ->take(5)
             ->get();
+
+        $catalogItems = InventoryItem::query()
+            ->where('status', '!=', 'archived')
+            ->orderBy('name')
+            ->take(5)
+            ->get(['id', 'name', 'sku', 'quantity_on_hand']);
+        $canViewFinancials = $request->user()->can(Permission::ViewProcurementSensitiveData->value);
+        $topValueItems = $canViewFinancials
+            ? InventoryItem::query()
+                ->where('status', '!=', 'archived')
+                ->orderByRaw('(quantity_on_hand * unit_cost) desc')
+                ->orderBy('name')
+                ->take(5)
+                ->get(['id', 'name', 'sku', 'quantity_on_hand', 'unit_cost'])
+            : collect();
+
+        $trackedItemDetails = MetricDetails::from(
+            $catalogItems,
+            $summary['items'],
+            fn (InventoryItem $item): string => $item->name.' ('.$item->sku.') — '.number_format($item->quantity_on_hand).' on hand',
+            'No active inventory items',
+        );
+        $attentionItemDetails = MetricDetails::from(
+            $attentionItems,
+            $summary['needs_attention'],
+            fn (InventoryItem $item): string => $item->name.' — '.number_format($item->quantity_on_hand).' on hand',
+            'No items currently need attention',
+        );
+        $expiringBatchDetails = MetricDetails::from(
+            $expiringBatches,
+            $expiringSoonCount,
+            fn (ItemBatch $batch): string => ($batch->item?->name ?? 'Unknown item').' · '.$batch->batch_number.' — '.$batch->expiry_date?->format('M d, Y'),
+            'No stocked batches expire within 90 days',
+        );
+        $inventoryValueDetails = $canViewFinancials
+            ? MetricDetails::from(
+                $topValueItems,
+                $summary['items'],
+                fn (InventoryItem $item): string => $item->name.' — ₱'.number_format($item->quantity_on_hand * $item->unit_cost, 2),
+                'No inventory value recorded',
+            )
+            : [];
 
         return [
             'attentionItems' => $attentionItems,
+            'trackedItemDetails' => $trackedItemDetails,
+            'attentionItemDetails' => $attentionItemDetails,
+            'expiringBatchDetails' => $expiringBatchDetails,
+            'inventoryValueDetails' => $inventoryValueDetails,
             'openAlertCount' => $summary['needs_attention'],
             'expiringSoonCount' => $expiringSoonCount,
             'criticalExpiryCount' => $criticalExpiryCount,
@@ -195,7 +252,7 @@ class InventoryController extends Controller implements HasMiddleware
             'lowStockItems' => $summary['needs_attention'],
             'outOfStockItems' => $stockStatus['out_of_stock']['items'],
             'totalOnHand' => $summary['units_on_hand'],
-            'totalInventoryValue' => $request->user()->can(Permission::ViewProcurementSensitiveData->value)
+            'totalInventoryValue' => $canViewFinancials
                 ? $summary['stock_value']
                 : null,
         ];

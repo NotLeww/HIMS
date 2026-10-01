@@ -91,9 +91,11 @@ Use semantic tone consistently: neutral for stock/reference values, violet for A
 
 ### Cursor-Following KPI Summary Tooltips
 
-When the user asks to inspect a KPI summary by hovering, reuse `<x-ui.stat summary="...">` and its shared Alpine `statTooltip` behavior. Do not create a page-local tooltip implementation.
+Use the shared delegated metric tooltip instead of page-local implementations. A card participates only when it supplies `summary`/`data-metric-summary` or actual `details`/`data-metric-details`; never generate a tooltip from the card's visible text.
 
-- Keep the summary concise and grounded in the live metric: explain what is counted, what states are included, and where the full records can be opened.
+- For count metrics, show the actual records behind the number (for example item name, SKU, and operational state). Limit long lists to the most relevant five records, then state how many remain and retain the card's route to the complete list.
+- Use a concise explicit `summary` only for useful business context that is not already printed on the card. Never repeat the card label, value, or footer as the tooltip body.
+- Keep async detail payloads synchronized with their displayed counts so live metrics do not expose stale records.
 - Position the tooltip near the pointer with `position: fixed`, teleport it to `body`, flip it to the opposite side when needed, and clamp it inside an 8px viewport gutter.
 - Update its position on pointer movement. Never animate `left` or `top`; that makes the tooltip fly from its old or initial position. Use only a restrained 100–150ms opacity/scale entrance and honor `prefers-reduced-motion`.
 - Mouse click or pointer focus must preserve the current pointer position. Run the stable card-relative fallback only for genuine `:focus-visible` keyboard focus.

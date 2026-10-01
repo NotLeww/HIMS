@@ -113,6 +113,18 @@ class DashboardAccuracyTest extends TestCase
         );
         $this->assertSame($expectedPendingOrderIds, $page->viewData('pendingPurchaseOrders')->pluck('id')->all());
         $this->assertSame([$inactive->id], $page->viewData('attentionItems')->pluck('id')->all());
+        $this->assertSame([
+            'Active Item (ACTIVE) — 100 on hand',
+            'Inactive Item (INACTIVE) — 5 on hand',
+        ], $page->viewData('trackedItemDetails'));
+        $this->assertSame(['Inactive Item — 5 on hand'], $page->viewData('attentionItemDetails'));
+        $this->assertSame([
+            'Active Item · ACTIVE-BATCH — '.today()->addDays(20)->format('M d, Y'),
+        ], $page->viewData('expiringBatchDetails'));
+        $this->assertSame([
+            'Active Item — ₱200.00',
+            'Inactive Item — ₱15.00',
+        ], $page->viewData('inventoryValueDetails'));
         $this->assertSame([$newerMovement->id, $olderMovement->id], $page->viewData('recentMovements')->pluck('id')->all());
 
         $live->assertJsonPath('totalItems', $expectedItems->count())
@@ -120,7 +132,10 @@ class DashboardAccuracyTest extends TestCase
             ->assertJsonPath('lowStockItems', 1)
             ->assertJsonPath('outOfStockItems', 0)
             ->assertJsonPath('expiringSoonCount', 1)
-            ->assertJsonPath('criticalExpiryCount', 1);
+            ->assertJsonPath('criticalExpiryCount', 1)
+            ->assertJsonPath('trackedItemDetails.0', 'Active Item (ACTIVE) — 100 on hand')
+            ->assertJsonPath('attentionItemDetails.0', 'Inactive Item — 5 on hand')
+            ->assertJsonPath('expiringBatchDetails.0', 'Active Item · ACTIVE-BATCH — '.today()->addDays(20)->format('M d, Y'));
 
         $api->assertJsonPath('total_items', 2)
             ->assertJsonPath('total_on_hand', 105)
@@ -156,6 +171,24 @@ class DashboardAccuracyTest extends TestCase
         $this->assertSame(0, $page->viewData('totalSuppliers'));
         $this->assertSame(0, $page->viewData('storageLocations'));
         $this->assertTrue($page->viewData('recentMovements')->isEmpty());
+        $this->assertSame(['No active inventory items'], $page->viewData('trackedItemDetails'));
+        $this->assertSame(['No items currently need attention'], $page->viewData('attentionItemDetails'));
+        $this->assertSame(['No stocked batches expire within 90 days'], $page->viewData('expiringBatchDetails'));
+    }
+
+    public function test_dashboard_metric_details_show_five_records_then_the_remaining_count(): void
+    {
+        $manager = User::factory()->inventoryManager()->create();
+
+        foreach (range(1, 6) as $number) {
+            $this->item("Item {$number}", "ITEM-{$number}", $number, 0, 1.00, 'active');
+        }
+
+        $details = $this->actingAs($manager)->get('/dashboard')->assertOk()->viewData('trackedItemDetails');
+
+        $this->assertCount(6, $details);
+        $this->assertSame('Item 1 (ITEM-1) — 1 on hand', $details[0]);
+        $this->assertSame('1 more — open the card to view all', $details[5]);
     }
 
     private function item(

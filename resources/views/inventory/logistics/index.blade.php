@@ -23,7 +23,7 @@
         {{-- Metric Cards: Standardized 3-Zone Architecture --}}
         <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
             {{-- Zone 1: Document Registry --}}
-            <div class="flex flex-col justify-between rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs transition-all duration-150 hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/95 dark:hover:border-neutral-700">
+            <div data-metric-title="Logistics documents" data-metric-details="{{ json_encode($metricDetails['documents']) }}" class="flex flex-col justify-between rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs transition-all duration-150 hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/95 dark:hover:border-neutral-700">
                 <div class="flex items-center justify-between gap-2">
                     <p class="text-xs sm:text-sm font-bold uppercase tracking-wider text-primary-700 dark:text-primary-300">Document Registry</p>
                     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700 ring-1 ring-primary-200 dark:bg-primary-950/80 dark:text-primary-300 dark:ring-primary-800/50">
@@ -46,7 +46,7 @@
             </div>
 
             {{-- Zone 2: COA GAM App. 50 (IAR) --}}
-            <div class="flex flex-col justify-between rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs transition-all duration-150 hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/95 dark:hover:border-neutral-700">
+            <div data-metric-title="IAR records awaiting review" data-metric-details="{{ json_encode($metricDetails['iars']) }}" class="flex flex-col justify-between rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs transition-all duration-150 hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/95 dark:hover:border-neutral-700">
                 <div class="flex items-center justify-between gap-2">
                     <p class="text-xs sm:text-sm font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">COA GAM App. 50 (IAR)</p>
                     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200 dark:bg-indigo-950/80 dark:text-indigo-300 dark:ring-indigo-800/50">
@@ -69,7 +69,7 @@
             </div>
 
             {{-- Zone 3: Inbound Shipments --}}
-            <div class="flex flex-col justify-between rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs transition-all duration-150 hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/95 dark:hover:border-neutral-700">
+            <div data-metric-title="Inbound shipments" data-metric-details="{{ json_encode($metricDetails['shipments']) }}" class="flex flex-col justify-between rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs transition-all duration-150 hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/95 dark:hover:border-neutral-700">
                 <div class="flex items-center justify-between gap-2">
                     <p class="text-xs sm:text-sm font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-300">Inbound Shipments</p>
                     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700 ring-1 ring-cyan-200 dark:bg-cyan-950/80 dark:text-cyan-300 dark:ring-cyan-800/50">
@@ -95,7 +95,7 @@
             @php
                 $hasExcursion = $metrics['dock_excursions'] > 0;
             @endphp
-            <div class="flex flex-col justify-between rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs transition-all duration-150 hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/95 dark:hover:border-neutral-700">
+            <div data-metric-title="Cold-chain excursions" data-metric-details="{{ json_encode($metricDetails['excursions']) }}" class="flex flex-col justify-between rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs transition-all duration-150 hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/95 dark:hover:border-neutral-700">
                 <div class="flex items-center justify-between gap-2">
                     <p class="text-xs sm:text-sm font-bold uppercase tracking-wider {{ $hasExcursion ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300' }}">Cold Chain Integrity</p>
                     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {{ $hasExcursion ? 'bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-950/80 dark:text-rose-300 dark:ring-rose-800/50' : 'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:ring-emerald-800/50' }} ring-1">

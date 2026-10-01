@@ -27,6 +27,7 @@ use App\Services\Procurement\BudgetEncumbranceService;
 use App\Services\Procurement\EvaluationEngine;
 use App\Services\Procurement\POConversionService;
 use App\Services\Procurement\ProcurementAuditService;
+use App\Support\MetricDetails;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -145,6 +146,17 @@ class ProcurementController extends Controller implements HasMiddleware
             'in_transit' => (int) $poMetricRow->in_transit_count,
             'overdue' => (int) $poMetricRow->overdue_count,
         ];
+        $openOrders = PurchaseOrder::with('supplier')->when($supplierFilter, fn ($query) => $query->where('supplier_id', $supplierFilter->id))->whereNotIn('status', $closedStatuses)->latest('requested_at')->take(5)->get();
+        $pendingOrders = PurchaseOrder::with('supplier')->when($supplierFilter, fn ($query) => $query->where('supplier_id', $supplierFilter->id))->whereIn('status', ['submitted', 'pending', 'pending_approval'])->latest('requested_at')->take(5)->get();
+        $fulfillmentOrders = PurchaseOrder::with('supplier')->when($supplierFilter, fn ($query) => $query->where('supplier_id', $supplierFilter->id))->whereIn('status', ['dispatched', 'acknowledged', 'partially_fulfilled'])->latest('requested_at')->take(5)->get();
+        $overdueOrders = PurchaseOrder::with('supplier')->when($supplierFilter, fn ($query) => $query->where('supplier_id', $supplierFilter->id))->whereNotIn('status', $closedStatuses)->whereNotNull('delivery_date')->whereDate('delivery_date', '<', today())->orderBy('delivery_date')->take(5)->get();
+        $formatOrder = fn (PurchaseOrder $order): string => $order->po_number.' · '.($order->supplier?->name ?? 'Supplier not recorded');
+        $poMetricDetails = [
+            'open' => MetricDetails::from($openOrders, $supplierFilter ? $openOrders->count() : $poMetrics['open'], $formatOrder, 'No open purchase orders'),
+            'pending_approval' => MetricDetails::from($pendingOrders, $supplierFilter ? $pendingOrders->count() : $poMetrics['pending_approval'], $formatOrder, 'No purchase orders awaiting approval'),
+            'in_transit' => MetricDetails::from($fulfillmentOrders, $supplierFilter ? $fulfillmentOrders->count() : $poMetrics['in_transit'], $formatOrder, 'No purchase orders in fulfillment'),
+            'overdue' => MetricDetails::from($overdueOrders, $supplierFilter ? $overdueOrders->count() : $poMetrics['overdue'], $formatOrder, 'No overdue purchase orders'),
+        ];
 
         $purchaseOrderQuery = PurchaseOrder::with([
             'supplier',
@@ -209,6 +221,7 @@ class ProcurementController extends Controller implements HasMiddleware
             'itemProcurementContext',
             'supplierCatalogTerms',
             'poMetrics',
+            'poMetricDetails',
             'poStatusOptions',
             'poFilters',
             'poPerPage',

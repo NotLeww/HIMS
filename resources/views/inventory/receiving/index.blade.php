@@ -138,12 +138,12 @@
 
             {{-- Summary Metrics --}}
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div class="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+                <div data-metric-title="Purchase orders awaiting receipt" data-metric-details="{{ json_encode($metricDetails['open_orders']) }}" class="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
                     <p class="text-xs font-medium text-neutral-500 uppercase tracking-wider">Open Purchase Orders</p>
                     <p class="mt-2 text-2xl font-bold text-neutral-900">{{ count($openPurchaseOrders) }}</p>
                     <p class="mt-1 text-xs text-neutral-500">Awaiting dock fulfillment</p>
                 </div>
-                <div class="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+                <div data-metric-title="Goods receipt records" data-metric-details="{{ json_encode($metricDetails['receipts']) }}" class="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
                     <p class="text-xs font-medium text-neutral-500 uppercase tracking-wider">Goods Receipts (Total)</p>
                     <p class="mt-2 text-2xl font-bold text-primary-600">{{ $goodsReceipts->total() }}</p>
                     <p class="mt-1 text-xs text-neutral-500">Documented delivery intake</p>
