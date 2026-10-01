@@ -168,7 +168,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
             <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ __('Authenticator App') }}</h3>
-            <p class="mt-0.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300">{{ __('Use a standards-compatible authenticator app for secure sign-in.') }}</p>
+            <p class="mt-0.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300">{{ __('Use an authenticator app as your primary sign-in verification method.') }}</p>
         </div>
         <x-ui.switch
             :checked="$authenticatorRecoveryRequired || $user->authenticatorMfaEnabled()"
@@ -250,7 +250,7 @@
 
     {{-- ── Disabled state: Turn ON action ──────────────────────────────── --}}
     <p x-show="!enabled && !recoveryRequired" x-cloak class="mt-2 text-xs leading-5 text-neutral-600 dark:text-neutral-300">
-        Setup remains disabled until you verify a code from your authenticator app.
+        Turn this on to begin setup. It becomes active after you verify a code from your authenticator app.
     </p>
 
     {{-- ── Step 1: Current Password Confirmation Modal ────────────────── --}}

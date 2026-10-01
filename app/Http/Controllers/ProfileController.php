@@ -7,6 +7,7 @@ use App\Enums\Permission;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\TrustedDevice;
 use App\Models\User;
+use App\Models\UserAvatar;
 use App\Services\AuthenticatorSecretService;
 use App\Services\AuthenticatorSetupService;
 use App\Services\DeviceSecurity\DeviceSecurityService;
@@ -21,12 +22,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class ProfileController extends Controller
 {
@@ -286,6 +289,7 @@ class ProfileController extends Controller
         $user = $request->user();
         $file = $request->file('avatar');
         $oldPath = $user->avatar_path;
+        $content = file_get_contents($file->getRealPath());
         $mime = getimagesize($file->getRealPath())['mime'];
         $extension = match ($mime) {
             'image/jpeg' => 'jpg',
@@ -295,24 +299,22 @@ class ProfileController extends Controller
             'image/bmp', 'image/x-ms-bmp' => 'bmp',
         };
 
-        // Store the replacement before deleting the old file so a storage
-        // failure cannot leave the account pointing at a missing avatar.
-        $path = $file->storeAs('avatars', Str::uuid().'.'.$extension, 'public');
-
-        if (! is_string($path)) {
+        if (! is_string($content)) {
             return Redirect::route('profile.edit')
                 ->withErrors(['avatar' => 'The profile picture could not be saved. Please try again.']);
         }
 
-        try {
+        $path = 'database/'.Str::uuid().'.'.$extension;
+
+        DB::transaction(function () use ($user, $path, $mime, $content): void {
+            UserAvatar::query()->updateOrCreate(
+                ['user_id' => $user->getKey()],
+                ['mime_type' => $mime, 'content' => $content],
+            );
             $user->forceFill(['avatar_path' => $path])->save();
-        } catch (\Throwable $exception) {
-            Storage::disk('public')->delete($path);
+        });
 
-            throw $exception;
-        }
-
-        if ($oldPath && $oldPath !== $path && Storage::disk('public')->exists($oldPath)) {
+        if ($oldPath && ! str_starts_with($oldPath, 'database/') && Storage::disk('public')->exists($oldPath)) {
             Storage::disk('public')->delete($oldPath);
         }
 
@@ -327,12 +329,16 @@ class ProfileController extends Controller
     public function destroyAvatar(Request $request): RedirectResponse
     {
         $user = $request->user();
+        $oldPath = $user->avatar_path;
 
-        if ($user->avatar_path && Storage::disk('public')->exists($user->avatar_path)) {
-            Storage::disk('public')->delete($user->avatar_path);
+        DB::transaction(function () use ($user): void {
+            $user->storedAvatar()->delete();
+            $user->forceFill(['avatar_path' => null])->save();
+        });
+
+        if ($oldPath && ! str_starts_with($oldPath, 'database/') && Storage::disk('public')->exists($oldPath)) {
+            Storage::disk('public')->delete($oldPath);
         }
-
-        $user->forceFill(['avatar_path' => null])->save();
 
         $request->session()->put('avatar_success', 'Profile picture removed. Your initials avatar is now active.');
 
@@ -342,7 +348,7 @@ class ProfileController extends Controller
     /**
      * Safely stream the user's profile picture.
      */
-    public function showAvatar(Request $request, User $user): BinaryFileResponse
+    public function showAvatar(Request $request, User $user): BinaryFileResponse|Response
     {
         $actor = $request->user();
         abort_unless(
@@ -356,6 +362,17 @@ class ProfileController extends Controller
                 ),
             403,
         );
+
+        if (str_starts_with((string) $user->avatar_path, 'database/')) {
+            $avatar = $user->storedAvatar()->first();
+            abort_unless($avatar instanceof UserAvatar, 404);
+
+            return response($avatar->content, 200, [
+                'Content-Type' => $avatar->mime_type,
+                'Cache-Control' => 'private, max-age=86400',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        }
 
         abort_unless($user->avatar_path && Storage::disk('public')->exists($user->avatar_path), 404);
 

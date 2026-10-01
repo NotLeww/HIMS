@@ -332,6 +332,7 @@ class PrivacyRequestService
             $user->tokens()->delete();
             $user->notifications()->delete();
             $user->aiChatConversations()->delete();
+            $user->storedAvatar()->delete();
 
             $pseudonymousEmail = "deleted-user-{$user->id}@invalid.local";
             $user->forceFill([
@@ -375,7 +376,7 @@ class PrivacyRequestService
                 ])->saveQuietly();
             });
 
-            if (is_string($avatarPath) && $avatarPath !== '' && ! str_contains($avatarPath, '..')
+            if (is_string($avatarPath) && $avatarPath !== '' && ! str_starts_with($avatarPath, 'database/') && ! str_contains($avatarPath, '..')
                 && Storage::disk('public')->exists($avatarPath) && ! Storage::disk('public')->delete($avatarPath)) {
                 throw new \RuntimeException('Unable to remove the profile photo.');
             }

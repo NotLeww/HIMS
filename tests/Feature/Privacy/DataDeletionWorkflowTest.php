@@ -15,6 +15,7 @@ use App\Models\StockMovement;
 use App\Models\TrustedDevice;
 use App\Models\User;
 use App\Models\UserActiveSession;
+use App\Models\UserAvatar;
 use App\Models\WarehouseTask;
 use App\Services\Privacy\PrivacyRequestService;
 use App\Services\UserAccountService;
@@ -130,6 +131,11 @@ class DataDeletionWorkflowTest extends TestCase
             'avatar_path' => 'avatars/delete-me.jpg',
             'mfa_enabled' => true,
         ]);
+        UserAvatar::create([
+            'user_id' => $user->id,
+            'mime_type' => 'image/jpeg',
+            'content' => 'image',
+        ]);
         $unrelated = User::factory()->create(['email' => 'keep-me@example.test']);
         Storage::disk('public')->put('avatars/delete-me.jpg', 'image');
 
@@ -221,6 +227,7 @@ class DataDeletionWorkflowTest extends TestCase
         $this->assertNull($deleted->department);
         $this->assertNull($deleted->phone);
         $this->assertNull($deleted->avatar_path);
+        $this->assertDatabaseMissing('user_avatars', ['user_id' => $user->id]);
         $this->assertFalse($deleted->mfa_enabled);
 
         $this->assertDatabaseMissing('sessions', ['user_id' => $user->id]);

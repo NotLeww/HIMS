@@ -4,7 +4,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
             <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ __('Email Multi-Factor Authentication') }}</h3>
-            <p class="mt-0.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300">{{ __('Require a one-time email code after your password is accepted.') }}</p>
+            <p class="mt-0.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300">{{ __('Require an email code when Authenticator App is not active.') }}</p>
         </div>
         <x-ui.switch
             :checked="$user->mfa_enabled"

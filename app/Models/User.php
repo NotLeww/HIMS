@@ -264,6 +264,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasOne(AccountActivationChallenge::class);
     }
 
+    public function storedAvatar(): HasOne
+    {
+        return $this->hasOne(UserAvatar::class);
+    }
+
     /**
      * Whether this account's role grants an ability.
      *
@@ -379,8 +384,12 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function hasAvatar(): bool
     {
-        return ! empty($this->avatar_path)
-            && Storage::disk('public')->exists($this->avatar_path);
+        if (empty($this->avatar_path)) {
+            return false;
+        }
+
+        return str_starts_with($this->avatar_path, 'database/')
+            || Storage::disk('public')->exists($this->avatar_path);
     }
 
     public function avatarUrl(): ?string

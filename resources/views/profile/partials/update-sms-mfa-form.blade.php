@@ -5,7 +5,7 @@
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
             <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">SMS Authentication</h3>
-            <p class="mt-0.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300">Require a one-time SMS code during sign-in.</p>
+            <p class="mt-0.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300">Add SMS verification after Authenticator App or email. If neither is active, SMS follows your password.</p>
         </div>
         <x-ui.switch
             :checked="$user->sms_mfa_enabled"

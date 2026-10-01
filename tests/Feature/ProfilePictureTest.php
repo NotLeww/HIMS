@@ -61,7 +61,12 @@ class ProfilePictureTest extends TestCase
         $user->refresh();
 
         $this->assertNotNull($user->avatar_path);
-        Storage::disk('public')->assertExists($user->avatar_path);
+        $this->assertStringStartsWith('database/', $user->avatar_path);
+        $this->assertDatabaseHas('user_avatars', [
+            'user_id' => $user->id,
+            'mime_type' => 'image/jpeg',
+        ]);
+        $this->assertSame([], Storage::disk('public')->allFiles());
         $this->assertTrue($user->hasAvatar());
         $this->assertStringContainsString('/users/'.$user->id.'/avatar', $user->avatarUrl());
 
@@ -92,12 +97,34 @@ class ProfilePictureTest extends TestCase
 
         $this->assertNotNull($user->avatar_path);
         $this->assertSame('png', pathinfo($user->avatar_path, PATHINFO_EXTENSION));
-        Storage::disk('public')->assertExists($user->avatar_path);
+        $this->assertDatabaseHas('user_avatars', [
+            'user_id' => $user->id,
+            'mime_type' => 'image/png',
+        ]);
 
         $this->actingAs($user)
             ->get(route('users.avatar', $user))
             ->assertOk()
             ->assertHeader('Content-Type', 'image/png');
+    }
+
+    public function test_uploaded_avatar_remains_available_without_local_file_storage(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $file = $this->createFakeJpg('shared-avatar.jpg', 128 * 1024);
+
+        $this->actingAs($user)
+            ->post(route('profile.avatar.update'), ['avatar' => $file])
+            ->assertRedirect(route('profile.edit'));
+
+        Storage::fake('public');
+
+        $this->get(route('users.avatar', $user->fresh()))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/jpeg')
+            ->assertContent($file->getContent());
     }
 
     public function test_image_content_must_match_a_supported_filename_extension(): void
@@ -144,7 +171,7 @@ class ProfilePictureTest extends TestCase
             ->assertSee($superAdmin->avatarUrl(), false);
     }
 
-    public function test_replacing_avatar_deletes_old_file_from_storage(): void
+    public function test_replacing_avatar_replaces_shared_database_content(): void
     {
         Storage::fake('public');
 
@@ -154,7 +181,7 @@ class ProfilePictureTest extends TestCase
         $file1 = $this->createFakeJpg('first.jpg');
         $this->actingAs($user)->post(route('profile.avatar.update'), ['avatar' => $file1]);
         $oldPath = $user->refresh()->avatar_path;
-        Storage::disk('public')->assertExists($oldPath);
+        $this->assertSame($file1->getContent(), $user->storedAvatar()->value('content'));
 
         // 2. Upload replacement avatar
         $file2 = $this->createFakePng('second.png');
@@ -162,8 +189,9 @@ class ProfilePictureTest extends TestCase
         $newPath = $user->refresh()->avatar_path;
 
         $this->assertNotSame($oldPath, $newPath);
-        Storage::disk('public')->assertMissing($oldPath);
-        Storage::disk('public')->assertExists($newPath);
+        $this->assertSame($file2->getContent(), $user->storedAvatar()->value('content'));
+        $this->assertDatabaseCount('user_avatars', 1);
+        $this->assertSame([], Storage::disk('public')->allFiles());
     }
 
     public function test_user_can_remove_avatar_and_revert_to_initials(): void
@@ -174,8 +202,8 @@ class ProfilePictureTest extends TestCase
 
         $file = $this->createFakeJpg('avatar.jpg');
         $this->actingAs($user)->post(route('profile.avatar.update'), ['avatar' => $file]);
-        $savedPath = $user->refresh()->avatar_path;
-        Storage::disk('public')->assertExists($savedPath);
+        $user->refresh();
+        $this->assertDatabaseHas('user_avatars', ['user_id' => $user->id]);
 
         // Delete avatar
         $response = $this->actingAs($user)->delete(route('profile.avatar.destroy'));
@@ -186,7 +214,7 @@ class ProfilePictureTest extends TestCase
         $user->refresh();
         $this->assertNull($user->avatar_path);
         $this->assertFalse($user->hasAvatar());
-        Storage::disk('public')->assertMissing($savedPath);
+        $this->assertDatabaseMissing('user_avatars', ['user_id' => $user->id]);
 
         // Profile view reflects fallback
         $this->get(route('profile.edit'))
