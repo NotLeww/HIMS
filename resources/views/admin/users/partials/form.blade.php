@@ -69,6 +69,19 @@
         }).filter(Boolean);
     },
 }">
+    @if (! $isEdit)
+        <div class="mb-4 flex justify-end">
+            <x-ui.button
+                type="button"
+                variant="secondary"
+                size="sm"
+                icon="shield-check"
+                x-on:click="$dispatch('open-modal', 'form-role-permissions-modal')">
+                View Role Permissions
+            </x-ui.button>
+        </div>
+    @endif
+
     <div class="grid gap-4 md:grid-cols-2">
         <div class="grid gap-4 sm:grid-cols-2 md:col-span-2 lg:grid-cols-3">
             <x-ui.field
@@ -170,13 +183,6 @@
             <div class="mt-1.5 flex items-center justify-between" x-show="detail" x-cloak>
                 <span class="text-xs text-neutral-500 dark:text-neutral-400 font-mono"
                       x-text="detail ? `${detail.total_count} permissions` : ''"></span>
-                <button
-                    type="button"
-                    class="inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors focus-visible:outline-none focus-visible:underline"
-                    x-on:click="$dispatch('open-modal', 'form-role-permissions-modal')">
-                    <x-ui.icon name="shield-check" class="w-3.5 h-3.5" />
-                    <span>View permissions list</span>
-                </button>
             </div>
         </div>
 
@@ -227,30 +233,8 @@
         <x-auth.password-requirements />
     </div>
 
-    {{-- Clean Role permissions preview summary and modal trigger button --}}
-    <div class="mt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50/80 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-800/60" x-show="detail" x-cloak>
-        <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2">
-                <span class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Assigned Role Access</span>
-                <span class="inline-flex items-center rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-800 dark:bg-primary-950/70 dark:text-primary-300 font-mono"
-                      x-text="detail ? `${detail.total_count} abilities granted` : ''"></span>
-            </div>
-            <p class="mt-1 text-xs text-neutral-600 dark:text-neutral-300 line-clamp-1" x-text="detail?.description"></p>
-        </div>
-        <div class="shrink-0">
-            <x-ui.button
-                type="button"
-                variant="secondary"
-                size="sm"
-                icon="shield-check"
-                x-on:click="$dispatch('open-modal', 'form-role-permissions-modal')">
-                View Role Permissions
-            </x-ui.button>
-        </div>
-    </div>
-
     {{-- Role Permissions Detail Modal --}}
-    <x-ui.modal name="form-role-permissions-modal" maxWidth="3xl">
+    <x-ui.modal name="form-role-permissions-modal" title="Role permissions" maxWidth="3xl">
         <x-slot:header>
             <div class="flex items-center gap-3">
                 <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-50 dark:bg-primary-950/60 text-primary-600 dark:text-primary-400">
@@ -258,7 +242,7 @@
                 </div>
                 <div>
                     <div class="flex items-center gap-2">
-                        <h2 class="text-base font-semibold text-neutral-900 dark:text-neutral-100">
+                        <h2 id="form-role-permissions-modal-title" class="text-base font-semibold text-neutral-900 dark:text-neutral-100">
                             <span x-text="detail?.label"></span> Permissions
                         </h2>
                         <span class="inline-flex items-center rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-800 dark:bg-primary-950/70 dark:text-primary-300 font-mono"
@@ -272,33 +256,10 @@
         </x-slot:header>
 
         <div class="space-y-4">
-            {{-- Role description callout --}}
+            {{-- Only the currently selected role is shown. --}}
             <div class="rounded-lg border border-neutral-200 bg-neutral-50/90 p-3 text-xs text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800/60 dark:text-neutral-300">
                 <span class="font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 block mb-0.5">Scope & Responsibilities</span>
                 <span x-text="detail?.description"></span>
-            </div>
-
-            {{-- Role switch pills --}}
-            <div class="space-y-1.5">
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Select Role</p>
-                <div class="flex flex-wrap gap-1.5 pb-1">
-                    @foreach ($roles as $r)
-                        <button
-                            type="button"
-                            x-on:click="role = '{{ $r->value }}'"
-                            :class="role === '{{ $r->value }}'
-                                ? 'bg-primary-600 text-white border-primary-600 shadow-xs'
-                                : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-700 dark:hover:bg-neutral-700'"
-                            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium transition-colors">
-                            <span>{{ $r->label() }}</span>
-                            <span
-                                :class="role === '{{ $r->value }}' ? 'bg-primary-700 text-white' : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300'"
-                                class="rounded-full px-1.5 py-0.2 text-[10px] font-mono">
-                                {{ count($r->permissions()) }}
-                            </span>
-                        </button>
-                    @endforeach
-                </div>
             </div>
 
             {{-- Filter Search --}}
@@ -343,7 +304,7 @@
         <x-slot:footer>
             <div class="flex items-center justify-between w-full">
                 <span class="text-xs text-neutral-500 dark:text-neutral-400 hidden sm:inline">
-                    Selecting a role tab updates the user's role on the form.
+                    Permissions shown are limited to the selected role.
                 </span>
                 <x-ui.button type="button" variant="secondary" size="sm" x-on:click="$dispatch('close-modal', 'form-role-permissions-modal')">
                     Close

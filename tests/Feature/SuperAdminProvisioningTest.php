@@ -398,7 +398,7 @@ class SuperAdminProvisioningTest extends TestCase
             ->assertOk()
             ->assertSee('form-role-permissions-modal')
             ->assertSee('View Role Permissions')
-            ->assertSee('Assigned Role Access')
+            ->assertSee('Permissions shown are limited to the selected role.')
             ->assertDontSee('This role can');
 
         $viewer = User::factory()->viewer()->create();
@@ -406,7 +406,7 @@ class SuperAdminProvisioningTest extends TestCase
             ->assertOk()
             ->assertSee('form-role-permissions-modal')
             ->assertSee('View Role Permissions')
-            ->assertSee('Assigned Role Access')
+            ->assertSee('Permissions shown are limited to the selected role.')
             ->assertDontSee('This role can');
     }
 }

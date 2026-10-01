@@ -173,28 +173,6 @@
                 </dl>
             </x-ui.card>
 
-            <x-ui.card title="Permissions" :subtitle="$user->role->description()">
-                @if ($user->isActive())
-                    <ul class="space-y-2">
-                        @foreach ($user->permissions() as $permission)
-                            <li class="flex items-start gap-2">
-                                <x-ui.icon name="check-circle" class="w-4 h-4 mt-0.5 shrink-0 text-success-600" />
-                                <div class="min-w-0">
-                                    <p class="text-sm text-neutral-800">{{ $permission->label() }}</p>
-                                    <p class="text-xs text-neutral-500">{{ $permission->description() }}</p>
-                                </div>
-                            </li>
-                        @endforeach
-                    </ul>
-                @else
-                    {{-- An inactive account holds no permissions at all, so listing
-                         the role's abilities here would be misleading. --}}
-                    <p class="text-sm text-neutral-500">
-                        This account is inactive and currently holds no permissions. Reactivate it to restore
-                        {{ $user->role->label() }} access.
-                    </p>
-                @endif
-            </x-ui.card>
         </div>
 
         <div class="lg:col-span-2">

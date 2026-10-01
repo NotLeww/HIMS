@@ -19,6 +19,16 @@
     @endif
 
     <x-ui.card title="Account Details" subtitle="Leave the password fields blank to keep the current password.">
+        <x-slot:actions>
+            <x-ui.button
+                type="button"
+                variant="secondary"
+                size="sm"
+                icon="shield-check"
+                x-on:click="$dispatch('open-modal', 'form-role-permissions-modal')">
+                View Role Permissions
+            </x-ui.button>
+        </x-slot:actions>
         <form method="POST" action="{{ route('admin.users.update', $user) }}" class="space-y-5"
               autocomplete="off"
               @if (auth()->user()?->isSuperAdministrator())
