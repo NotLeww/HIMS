@@ -1,160 +1,151 @@
 <x-ui.card
     :title="__('Consent & Privacy Preferences')"
-    :subtitle="__('Manage your institutional privacy acknowledgments, optional processing permissions, and consent history.')"
+    :subtitle="__('Review your policy consent and optional location access.')"
 >
-    <div class="space-y-4">
-        {{-- 1. Mandatory Privacy Policy --}}
-        <div class="rounded-lg border border-neutral-200 dark:border-neutral-700 p-3.5 bg-neutral-50/50 dark:bg-neutral-800/40 space-y-2">
-            <div class="flex items-center justify-between gap-3 flex-wrap">
+    <div class="divide-y divide-neutral-200 dark:divide-neutral-800">
+        <section class="pb-4">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div class="min-w-0">
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-                            {{ __('System Privacy Policy & Terms of Use') }}
-                        </span>
-                        <span class="text-[11px] font-mono px-1.5 py-0.2 rounded bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300">
-                            {{ config('privacy.policy_version', 'v1.0') }}
-                        </span>
-                    </div>
-                    <p class="mt-0.5 text-xs text-neutral-600 dark:text-neutral-300">
-                        {{ __('Mandatory statutory governance governing healthcare account access and inventory chain-of-custody under RA 10173.') }}
+                    <h3 class="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                        {{ __('System Privacy Policy & Terms of Use') }}
+                    </h3>
+                    <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+                        {{ __('Version :version', ['version' => config('privacy.policy_version', 'v1.0')]) }}
+                        <span aria-hidden="true">·</span>
+                        @if ($consentSummary['policy']['consented_at'] ?? false)
+                            {{ __('Accepted :date', ['date' => $consentSummary['policy']['consented_at']->format('M d, Y H:i')]) }}
+                        @else
+                            {{ __('Acceptance not recorded') }}
+                        @endif
                     </p>
                 </div>
+
                 @if (!($consentSummary['policy']['is_current'] ?? false))
-                    <div class="shrink-0 flex items-center gap-2">
-                        <x-ui.badge status="action_required" dot>
-                            {{ __('Renewal Required') }}
-                        </x-ui.badge>
-                        <a href="{{ route('consent.privacy-policy') }}" class="text-xs font-semibold text-primary-600 hover:text-primary-700 underline">
-                            {{ __('Review & Acknowledge') }}
-                        </a>
-                    </div>
+                    <a href="{{ route('consent.privacy-policy') }}" class="shrink-0 text-xs font-semibold text-primary-600 underline underline-offset-2 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
+                        {{ __('Review and accept') }}
+                    </a>
+                @else
+                    <a href="{{ route('privacy.notice') }}" target="_blank" rel="noopener noreferrer" class="shrink-0 text-xs font-medium text-primary-600 underline underline-offset-2 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
+                        {{ __('View Current Policy') }}
+                    </a>
                 @endif
             </div>
+        </section>
 
-            <div class="flex items-center justify-between pt-1 text-[11px] text-neutral-500 border-t border-neutral-200/60 dark:border-neutral-700/60">
-                <span>
-                    @if ($consentSummary['policy']['consented_at'] ?? false)
-                        {{ __('Consented on :date', ['date' => $consentSummary['policy']['consented_at']->format('M d, Y H:i')]) }}
-                    @else
-                        {{ __('No recorded acceptance for current version.') }}
-                    @endif
-                </span>
-                <a href="{{ route('privacy.notice') }}" target="_blank" rel="noopener noreferrer" class="text-primary-600 hover:text-primary-700 underline font-medium inline-flex items-center gap-1">
-                    <span>{{ __('View Current Policy') }}</span>
-                    <x-ui.icon name="arrow-top-right-on-square" class="h-3 w-3" />
-                </a>
-            </div>
-        </div>
-
-        {{-- 2. Optional Consent: Geolocation Audit Tracking --}}
-        <div class="rounded-lg border border-neutral-200 dark:border-neutral-700 p-3.5 bg-neutral-50/50 dark:bg-neutral-800/40 space-y-3">
-            <div class="flex items-center justify-between gap-3 flex-wrap">
+        <section class="py-4">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div class="min-w-0">
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-                            {{ __('High-Accuracy Audit Geolocation') }}
-                        </span>
-                        <span class="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-400">
-                            {{ __('Optional') }}
-                        </span>
-                    </div>
-                    <p class="mt-0.5 text-xs text-neutral-600 dark:text-neutral-300">
-                        {{ __('Allows HIMS to record device-reported coordinates during signed-in sessions to verify authorized facility access in the security audit trail.') }}
+                    <h3 class="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                        {{ __('High-Accuracy Audit Geolocation') }}
+                        <span class="font-normal text-neutral-500 dark:text-neutral-400">({{ __('Optional') }})</span>
+                    </h3>
+                    <p class="mt-1 max-w-2xl text-xs text-neutral-600 dark:text-neutral-300">
+                        {{ __('Allow HIMS to record device coordinates during signed-in sessions for security audits.') }}
+                    </p>
+                    <p class="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">
+                        @if ($consentSummary['optional_location']['is_active'] ?? false)
+                            {{ __('On since :date', ['date' => $consentSummary['optional_location']['consented_at']?->format('M d, Y H:i') ?? 'N/A']) }}
+                        @else
+                            {{ __('Off. Browser coordinates are not collected; approximate location may still be derived from your IP.') }}
+                        @endif
                     </p>
                 </div>
-            </div>
-
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-2 border-t border-neutral-200/60 dark:border-neutral-700/60">
-                <p class="text-[11px] text-neutral-500">
-                    @if ($consentSummary['optional_location']['is_active'] ?? false)
-                        {{ __('Active since :date. You may withdraw this permission at any time.', ['date' => $consentSummary['optional_location']['consented_at']?->format('M d, Y H:i') ?? 'N/A']) }}
-                    @elseif ($consentSummary['optional_location']['withdrawn_at'] ?? false)
-                        {{ __('Withdrawn on :date. Browser coordinates are not collected.', ['date' => $consentSummary['optional_location']['withdrawn_at']?->format('M d, Y H:i')]) }}
-                    @else
-                        {{ __('Declined/Not granted. Only coarse IP-based country/region is derived.') }}
-                    @endif
-                </p>
 
                 @if ($consentSummary['optional_location']['is_active'] ?? false)
-                    <form method="POST" action="{{ route('profile.consent.optional') }}" class="shrink-0">
+                    <form
+                        method="POST"
+                        action="{{ route('profile.consent.optional') }}"
+                        class="shrink-0"
+                        data-confirm-title="{{ __('Turn off audit geolocation?') }}"
+                        data-confirm-message="{{ __('HIMS will stop collecting browser coordinates. Approximate location may still be derived from your IP.') }}"
+                        data-confirm-label="{{ __('Turn off') }}"
+                    >
                         @csrf
                         <input type="hidden" name="consent_type" value="audit_browser_location">
                         <input type="hidden" name="status" value="withdrawn">
-                        <x-ui.button type="submit" variant="danger" size="sm">
-                            {{ __('Withdraw Permission') }}
+                        <x-ui.button type="submit" variant="secondary" size="sm" data-loading-text="{{ __('Turning off...') }}">
+                            {{ __('Turn off') }}
                         </x-ui.button>
                     </form>
                 @else
-                    <form method="POST" action="{{ route('profile.consent.optional') }}" class="shrink-0">
+                    <form
+                        method="POST"
+                        action="{{ route('profile.consent.optional') }}"
+                        class="shrink-0"
+                        data-confirm-title="{{ __('Turn on audit geolocation?') }}"
+                        data-confirm-message="{{ __('Allow HIMS to collect browser coordinates during signed-in sessions for security audits?') }}"
+                        data-confirm-label="{{ __('Turn on') }}"
+                        data-confirm-variant="info"
+                    >
                         @csrf
                         <input type="hidden" name="consent_type" value="audit_browser_location">
                         <input type="hidden" name="status" value="consented">
-                        <x-ui.button type="submit" variant="secondary" size="sm">
-                            {{ __('Grant Permission') }}
+                        <x-ui.button type="submit" variant="secondary" size="sm" data-loading-text="{{ __('Turning on...') }}">
+                            {{ __('Turn on') }}
                         </x-ui.button>
                     </form>
                 @endif
             </div>
-        </div>
+        </section>
 
-        {{-- 3. Consent History Table --}}
         @if (!empty($consentSummary['history']) && count($consentSummary['history']) > 0)
-            <details class="rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs">
-                <summary class="cursor-pointer px-3 py-2.5 font-semibold text-neutral-800 dark:text-neutral-200 hover:text-neutral-900 dark:hover:text-white focus:outline-none">
-                    {{ __('View Consent History & Audit Evidence (:count records)', ['count' => count($consentSummary['history'])]) }}
-                </summary>
-                <div class="border-t border-neutral-200 dark:border-neutral-700 p-3 overflow-x-auto">
-                    <table class="w-full text-left text-[11px]">
-                        <thead>
-                            <tr class="border-b border-neutral-200 dark:border-neutral-700 text-neutral-500 font-medium">
-                                <th class="pb-1.5">{{ __('Purpose') }}</th>
-                                <th class="pb-1.5">{{ __('Version') }}</th>
-                                <th class="pb-1.5">{{ __('Status') }}</th>
-                                <th class="pb-1.5">{{ __('Recorded At') }}</th>
-                                <th class="pb-1.5">{{ __('Context / Source') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800">
-                            @foreach ($consentSummary['history'] as $item)
-                                <tr>
-                                    <td class="py-1.5 font-medium text-neutral-800 dark:text-neutral-200">
-                                        {{ $item->consent_type === 'privacy_policy' ? 'Privacy Policy & Terms' : 'High-Accuracy Geolocation' }}
-                                    </td>
-                                    <td class="py-1.5 font-mono text-neutral-600 dark:text-neutral-400">
-                                        {{ $item->policy_version }}
-                                    </td>
-                                    <td class="py-1.5">
-                                        @if ($item->status === 'consented')
-                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                                                {{ __('Consented') }}
-                                            </span>
-                                        @elseif ($item->status === 'withdrawn')
-                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                                                {{ __('Withdrawn') }}
-                                            </span>
-                                        @else
-                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-300">
-                                                {{ ucfirst($item->status) }}
-                                            </span>
-                                        @endif
-                                    </td>
-                                    <td class="py-1.5 text-neutral-600 dark:text-neutral-400">
-                                        {{ $item->consented_at?->format('M d, Y H:i') ?? $item->created_at->format('M d, Y H:i') }}
-                                        @if ($item->withdrawn_at)
-                                            <span class="text-neutral-400 text-[10px] block">
-                                                {{ __('Withdrawn: :time', ['time' => $item->withdrawn_at->format('M d, Y H:i')]) }}
-                                            </span>
-                                        @endif
-                                    </td>
-                                    <td class="py-1.5 font-mono text-neutral-500">
-                                        {{ $item->source ?? 'system' }}
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            </details>
+            <div class="pt-4">
+                <x-ui.button type="button" variant="secondary" size="sm" x-data x-on:click="$dispatch('open-modal', 'consent-history-modal')">
+                    {{ __('View consent history (:count)', ['count' => count($consentSummary['history'])]) }}
+                </x-ui.button>
+            </div>
         @endif
     </div>
 </x-ui.card>
+
+@if (!empty($consentSummary['history']) && count($consentSummary['history']) > 0)
+    <x-ui.modal name="consent-history-modal" :title="__('Consent History')" maxWidth="4xl">
+        <p class="mb-4 text-xs text-neutral-500 dark:text-neutral-400">
+            {{ __('A record of your privacy policy and optional location consent changes.') }}
+        </p>
+
+        <x-ui.table :stickyHeader="false">
+            <x-ui.table.head :sticky="false">
+                <x-ui.table.th>{{ __('Purpose') }}</x-ui.table.th>
+                <x-ui.table.th>{{ __('Version') }}</x-ui.table.th>
+                <x-ui.table.th>{{ __('Status') }}</x-ui.table.th>
+                <x-ui.table.th>{{ __('Recorded At') }}</x-ui.table.th>
+                <x-ui.table.th>{{ __('Source') }}</x-ui.table.th>
+            </x-ui.table.head>
+            <tbody>
+                @foreach ($consentSummary['history'] as $item)
+                    <x-ui.table.row>
+                        <x-ui.table.td class="font-medium">
+                            {{ $item->consent_type === 'privacy_policy' ? __('Privacy Policy & Terms') : __('High-Accuracy Geolocation') }}
+                        </x-ui.table.td>
+                        <x-ui.table.td class="font-mono text-xs">
+                            {{ $item->policy_version }}
+                        </x-ui.table.td>
+                        <x-ui.table.td>
+                            <x-ui.badge :variant="$item->status === 'consented' ? 'success' : ($item->status === 'withdrawn' ? 'warning' : 'neutral')">
+                                {{ __(ucfirst($item->status)) }}
+                            </x-ui.badge>
+                        </x-ui.table.td>
+                        <x-ui.table.td class="whitespace-nowrap text-xs tabular-nums">
+                            {{ $item->consented_at?->format('M d, Y H:i') ?? $item->created_at->format('M d, Y H:i') }}
+                            @if ($item->withdrawn_at)
+                                <span class="mt-0.5 block text-[11px] text-neutral-500 dark:text-neutral-400">
+                                    {{ __('Withdrawn: :time', ['time' => $item->withdrawn_at->format('M d, Y H:i')]) }}
+                                </span>
+                            @endif
+                        </x-ui.table.td>
+                        <x-ui.table.td class="font-mono text-xs" muted>
+                            {{ $item->source ?? 'system' }}
+                        </x-ui.table.td>
+                    </x-ui.table.row>
+                @endforeach
+            </tbody>
+        </x-ui.table>
+
+        <x-slot:footer>
+            <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'consent-history-modal')">
+                {{ __('Close') }}
+            </x-ui.button>
+        </x-slot:footer>
+    </x-ui.modal>
+@endif

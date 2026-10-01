@@ -348,6 +348,11 @@ class ConsentManagementTest extends TestCase
         $user = User::factory()->create();
         $service = app(ConsentService::class);
         $service->recordConsent($user, UserConsent::TYPE_PRIVACY_POLICY);
+
+        $locationOffResponse = $this->actingAs($user)->get(route('profile.edit'));
+        $locationOffResponse->assertSee('Turn on audit geolocation?');
+        $locationOffResponse->assertSee('data-confirm-label="Turn on"', false);
+
         $service->recordConsent($user, UserConsent::TYPE_AUDIT_BROWSER_LOCATION);
 
         $response = $this->actingAs($user)->get(route('profile.edit'));
@@ -356,9 +361,13 @@ class ConsentManagementTest extends TestCase
         $response->assertSee('Consent & Privacy Preferences');
         $response->assertSee('System Privacy Policy & Terms of Use');
         $response->assertSee('High-Accuracy Audit Geolocation');
-        $response->assertSee('View Consent History & Audit Evidence');
+        $response->assertSee('View consent history');
+        $response->assertSee('consent-history-modal');
+        $response->assertSee('Turn off audit geolocation?');
+        $response->assertSee('data-confirm-label="Turn off"', false);
         $response->assertSee(config('privacy.policy_version', 'v1.0'));
-        $response->assertSee('Active since');
+        $response->assertSee('On since');
+        $response->assertSee('Turn off');
         $response->assertDontSee('Active ('.config('privacy.policy_version', 'v1.0').')');
         $response->assertDontSee('Opted In');
     }
