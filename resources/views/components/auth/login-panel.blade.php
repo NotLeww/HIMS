@@ -50,11 +50,6 @@
                     <p class="mt-3 max-w-sm text-sm leading-6 text-neutral-500 dark:text-neutral-400">{{ $description }}</p>
                 </div>
             </div>
-            @unless ($hasSessionTimeout)
-                <div class="mt-5 rounded-lg border border-primary-100 bg-primary-50/70 px-3.5 py-3 text-xs leading-5 text-primary-900 dark:border-primary-900/60 dark:bg-primary-950/50 dark:text-primary-200">
-                    Access is limited to the administration modules assigned to your account.
-                </div>
-            @endunless
         </header>
     @else
         <header class="animate-fade-up [animation-delay:320ms]">
@@ -182,7 +177,7 @@
             </div>
             <x-input-error id="login-password-error" :messages="$errors->get('password')" class="mt-2 text-danger-600" />
 
-            <div class="mt-2 {{ $isSuperAdmin ? 'flex justify-end' : '' }}">
+            <div class="mt-2">
                 <a
                     class="rounded text-xs font-medium text-primary-700 transition-colors hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-100 dark:text-primary-400 dark:hover:text-primary-300 dark:focus-visible:ring-offset-neutral-900"
                     href="{{ $forgotPasswordUrl }}"

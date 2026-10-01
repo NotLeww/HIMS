@@ -36,7 +36,7 @@ class AdminAuthenticationTest extends TestCase
             ->assertSee('Admin Login')
             ->assertSee('Administrative access')
             ->assertSee('Keep hospital operations organized and accountable.')
-            ->assertSee('Access is limited to the administration modules assigned to your account.')
+            ->assertDontSee('Access is limited to the administration modules assigned to your account.')
             ->assertSee('User access')
             ->assertSee('Operations')
             ->assertSee('Audit records')
@@ -274,7 +274,7 @@ class AdminAuthenticationTest extends TestCase
 
         $this->assertGuest(AuthenticationContext::ADMIN_GUARD);
         $this->get(route('admin.login'))
-            ->assertSee('Access is limited to the administration modules assigned to your account.')
+            ->assertDontSee('Access is limited to the administration modules assigned to your account.')
             ->assertDontSee('Your session has expired due to inactivity. Please log in again.');
     }
 
@@ -298,7 +298,7 @@ class AdminAuthenticationTest extends TestCase
             ->assertSessionMissing('session_timeout');
 
         $this->get(route('admin.login'))
-            ->assertSee('Access is limited to the administration modules assigned to your account.')
+            ->assertDontSee('Access is limited to the administration modules assigned to your account.')
             ->assertDontSee('Your session has expired due to inactivity. Please log in again.');
 
         $this->app['auth']->forgetGuards();
