@@ -2045,7 +2045,7 @@
                                     <template x-for="step in selectedPo.approval_steps" x-bind:key="step.number">
                                         <div class="rounded-md border border-neutral-200 bg-neutral-50/50 px-3 py-2 text-xs dark:border-neutral-800 dark:bg-neutral-800/40">
                                             <div class="flex flex-wrap items-center justify-between gap-2">
-                                                <span class="text-neutral-700 dark:text-neutral-300" x-text="`Step ${step.number} · ${step.role}`"></span>
+                                                <span class="text-neutral-700 dark:text-neutral-300" x-text="`${selectedPo.approval_steps.length > 1 ? `Step ${step.number}` : 'Approval'} · ${step.role}`"></span>
                                                 <span class="font-medium text-neutral-900 dark:text-neutral-100" x-text="`${step.status}${step.approver ? ` · ${step.approver}` : ''}`"></span>
                                             </div>
                                             <p x-show="step.notes" class="mt-1.5 break-words border-t border-neutral-200 pt-1.5 leading-relaxed text-neutral-700 dark:border-neutral-700 dark:text-neutral-300" x-text="step.notes"></p>

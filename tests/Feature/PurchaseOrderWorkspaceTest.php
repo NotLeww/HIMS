@@ -647,6 +647,7 @@ class PurchaseOrderWorkspaceTest extends TestCase
             ->assertOk()
             ->assertSee('Approve Order')
             ->assertSee('Reject')
+            ->assertSee('selectedPo.approval_steps.length > 1', false)
             ->assertSee(route('inventory.purchases.orders.approve', $po), false)
             ->assertSee(route('inventory.purchases.orders.reject', $po), false);
 
