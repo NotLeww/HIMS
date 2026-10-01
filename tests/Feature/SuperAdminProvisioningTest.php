@@ -163,7 +163,7 @@ class SuperAdminProvisioningTest extends TestCase
             $this->actingAs($administrator)
                 ->post(route('admin.users.store'), $this->validUserPayload($role, $email))
                 ->assertSessionHasErrors('role')
-                ->assertSessionMissing('account_created_success');
+                ->assertSessionMissing('success');
 
             $this->assertDatabaseMissing('users', ['email' => $email]);
         }
@@ -255,7 +255,7 @@ class SuperAdminProvisioningTest extends TestCase
                 route('super-admin.users.store'),
                 $this->validUserPayload(UserRole::SuperAdministrator, $email)
             )->assertSessionHasErrors('role')
-            ->assertSessionMissing('account_created_success');
+            ->assertSessionMissing('success');
 
         $this->assertDatabaseMissing('users', ['email' => $email]);
         $this->assertSame(1, User::superAdministrators()->count());

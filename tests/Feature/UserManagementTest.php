@@ -96,7 +96,7 @@ class UserManagementTest extends TestCase
                 'role' => UserRole::Administrator->value,
                 'phone' => '09171234567',
             ])->assertForbidden()
-                ->assertSessionMissing('account_created_success');
+                ->assertSessionMissing('success');
         }
 
         // Not one of those attempts created anything.
@@ -217,7 +217,7 @@ class UserManagementTest extends TestCase
 
         $response
             ->assertSessionHasNoErrors()
-            ->assertSessionHas('account_created_success', 'Account created as Pending Activation. The user must activate it and create their own password from the login page.')
+            ->assertSessionHas('success', 'Account created as Pending Activation. The user must activate it and create their own password from the login page.')
             ->assertRedirect('/admin/users');
 
         $created = User::where('email', 'juan.delacruz@djnrmhs.test')->firstOrFail();
@@ -242,6 +242,7 @@ class UserManagementTest extends TestCase
         );
 
         $this->actingAs($admin)->get('/admin/users')
+            ->assertSee('himsToastNotifications', false)
             ->assertSee('Account created as Pending Activation. The user must activate it and create their own password from the login page.')
             ->assertSee('Juan Santos Dela Cruz')
             ->assertSee('09171234567')
@@ -304,7 +305,7 @@ class UserManagementTest extends TestCase
             'department' => 'Warehouse',
             'phone' => '09171234567',
         ])->assertSessionHasErrors('email')
-            ->assertSessionMissing('account_created_success')
+            ->assertSessionMissing('success')
             ->assertSessionDoesntHaveErrors('employee_id');
     }
 
@@ -320,7 +321,7 @@ class UserManagementTest extends TestCase
             'department' => 'Warehouse',
             'phone' => '09171234567',
         ])->assertSessionHasNoErrors()
-            ->assertSessionHas('account_created_success');
+            ->assertSessionHas('success');
 
         $this->assertNull(User::query()->where('email', 'typo@djnrmhs.test')->firstOrFail()->password);
     }
@@ -347,7 +348,7 @@ class UserManagementTest extends TestCase
 
         $response
             ->assertServerError()
-            ->assertSessionMissing('account_created_success');
+            ->assertSessionMissing('success');
 
         $this->assertDatabaseMissing('users', [
             'email' => 'failed.creation@djnrmhs.test',

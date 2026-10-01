@@ -103,10 +103,10 @@ class UserController extends Controller implements HasMiddleware
     public function store(StoreUserRequest $request): RedirectResponse
     {
         $this->accounts->create($request->validated(), $request->user());
-        $request->session()->put('account_created_success', 'Account created as Pending Activation. The user must activate it and create their own password from the login page.');
 
         return redirect()
-            ->route(AuthenticationContext::administrationRoute('users.index'));
+            ->route(AuthenticationContext::administrationRoute('users.index'))
+            ->with('success', 'Account created as Pending Activation. The user must activate it and create their own password from the login page.');
     }
 
     public function show(User $user): View

@@ -201,7 +201,7 @@ class SuperAdminAuthenticationTest extends TestCase
             'phone' => '09179876543',
             'current_password' => 'password',
         ])->assertSessionHasNoErrors()
-            ->assertSessionHas('account_created_success', 'Account created as Pending Activation. The user must activate it and create their own password from the login page.')
+            ->assertSessionHas('success', 'Account created as Pending Activation. The user must activate it and create their own password from the login page.')
             ->assertRedirect(route('super-admin.users.index'));
 
         $this->assertDatabaseHas('users', [
@@ -222,7 +222,7 @@ class SuperAdminAuthenticationTest extends TestCase
             ->assertOk()
             ->assertSee('Account created as Pending Activation. The user must activate it and create their own password from the login page.')
             ->assertSee($created->name)
-            ->assertSessionMissing('account_created_success');
+            ->assertSessionMissing('success');
 
         $this->get(route('super-admin.users.index', ['search' => $created->email]))
             ->assertOk()

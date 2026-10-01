@@ -1,5 +1,4 @@
 <x-app-layout full-width>
-    @php($accountCreatedSuccess = session()->pull('account_created_success'))
     @php($openCreateUserModal = request()->routeIs('admin.users.create', 'super-admin.users.create') || (old('form_context') === 'create_user' && $errors->any()))
 
     @if ($openCreateUserModal)
@@ -14,12 +13,6 @@
             <x-ui.button type="button" icon="plus" x-data x-on:click="$dispatch('open-modal', 'create-user-modal')">Add User</x-ui.button>
         </x-slot:actions>
     </x-ui.page-header>
-
-    @if ($accountCreatedSuccess)
-        <x-ui.alert variant="success" title="Account created" dismissible>
-            {{ $accountCreatedSuccess }}
-        </x-ui.alert>
-    @endif
 
     @if ($errors->any() && old('form_context') !== 'create_user')
         <x-ui.alert variant="danger" title="That change was not applied">
