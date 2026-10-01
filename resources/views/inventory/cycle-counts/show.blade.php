@@ -188,24 +188,24 @@
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div class="rounded-lg border border-neutral-200/80 bg-white p-2.5">
-                        <span class="font-semibold text-neutral-900 block mb-1 text-emerald-700">Sino ang Pwedeng Mag-Approve?</span>
+                        <span class="font-semibold text-neutral-900 block mb-1 text-emerald-700">Who Can Approve?</span>
                         <ul class="list-disc list-inside space-y-1 text-neutral-600">
-                            <li><strong class="text-neutral-800">Inventory Manager:</strong> Primary approver para sa adjustments up to ₱25,000.</li>
-                            <li><strong class="text-neutral-800">Administrator / Super Admin:</strong> Required kapag ang variance ay lumagpas sa ₱25,000.</li>
+                            <li><strong class="text-neutral-800">Inventory Manager:</strong> Primary approver for adjustments up to ₱25,000.</li>
+                            <li><strong class="text-neutral-800">Administrator / Super Admin:</strong> Required when the variance exceeds ₱25,000.</li>
                         </ul>
                     </div>
                     <div class="rounded-lg border border-neutral-200/80 bg-white p-2.5">
-                        <span class="font-semibold text-neutral-900 block mb-1 text-amber-700">Bakit Walang Approve Button?</span>
+                        <span class="font-semibold text-neutral-900 block mb-1 text-amber-700">Why Is the Approve Button Unavailable?</span>
                         <ul class="list-disc list-inside space-y-1 text-neutral-600">
-                            <li><strong>Scheduled pa lang:</strong> Kailangan munang i-encode at i-submit ang physical counts sa ibaba.</li>
-                            <li><strong>Assigned Counter ka:</strong> Bawal aprubahan ng nagbilang ang sarili niyang bilang (SoD rule).</li>
+                            <li><strong>Scheduled:</strong> Enter and submit the physical counts below first.</li>
+                            <li><strong>Assigned Counter:</strong> Counters cannot approve their own counts (SoD rule).</li>
                         </ul>
                     </div>
                     <div class="rounded-lg border border-neutral-200/80 bg-white p-2.5">
                         <span class="font-semibold text-neutral-900 block mb-1 text-indigo-700">Dual-Tier Variance Thresholds</span>
                         <ul class="list-disc list-inside space-y-1 text-neutral-600">
-                            <li><strong>&gt; 2% o &gt; ₱5,000:</strong> Auto-flagged for recount verification bago i-reconcile.</li>
-                            <li><strong>&gt; ₱25,000:</strong> Strict requirement para sa Plant Controller / Administrator authorization.</li>
+                            <li><strong>&gt; 2% or &gt; ₱5,000:</strong> Automatically flagged for recount verification before reconciliation.</li>
+                            <li><strong>&gt; ₱25,000:</strong> Requires Plant Controller / Administrator authorization.</li>
                         </ul>
                     </div>
                 </div>
