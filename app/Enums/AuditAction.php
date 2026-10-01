@@ -10,6 +10,7 @@ enum AuditAction: string
     case LoggedIn = 'logged_in';
     case FailedLogin = 'failed_login';
     case LoggedOut = 'logged_out';
+    case AcknowledgedNotification = 'acknowledged_notification';
     case ChangedPassword = 'changed_password';
     case ChangedMfa = 'changed_mfa';
     case SmsVerification = 'sms_verification';
@@ -165,6 +166,7 @@ enum AuditAction: string
             self::LoggedIn => 'Logged In',
             self::FailedLogin => 'Failed Login',
             self::LoggedOut => 'Logged Out',
+            self::AcknowledgedNotification => 'Acknowledged Notification',
             self::ChangedPassword => 'Changed Password',
             self::ChangedMfa => 'Changed MFA',
             self::SmsVerification => 'SMS Verification',

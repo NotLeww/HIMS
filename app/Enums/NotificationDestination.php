@@ -66,7 +66,9 @@ enum NotificationDestination: string
                 'requisition' => (int) ($parameters['requisition'] ?? 0),
             ]),
             self::InventoryAdjustments => route('inventory.adjustments'),
-            self::Procurement => route('inventory.purchases'),
+            self::Procurement => route('inventory.purchases', array_filter([
+                'po_search' => $parameters['po_search'] ?? null,
+            ])).'#purchase-orders',
             self::Import => route('inventory.import.index'),
             self::Profile => route('profile.edit'),
             self::QualityControl => route('inventory.qc.index'),

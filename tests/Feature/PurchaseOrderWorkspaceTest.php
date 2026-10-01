@@ -583,6 +583,70 @@ class PurchaseOrderWorkspaceTest extends TestCase
             ->assertSee('Approval was completed after the original expected delivery date.');
     }
 
+    public function test_due_purchase_order_reminders_are_scoped_deduplicated_and_actions_remain_audited(): void
+    {
+        $this->travelTo(CarbonImmutable::create(2026, 10, 2, 9, 0, 0, 'Asia/Manila'));
+
+        $issuer = User::factory()->inventoryManager()->create();
+        $approver = User::factory()->inventoryManager()->create();
+        $administrator = User::factory()->administrator()->create();
+        $superAdmin = User::factory()->superAdministrator()->create();
+        $viewer = User::factory()->viewer()->create();
+
+        $this->actingAs($issuer)->post('/inventory/purchases/orders', [
+            'supplier_id' => $this->supplier()->id,
+            'item_id' => $this->item()->id,
+            'cost_center_id' => $this->costCenter()->id,
+            'quantity' => 2,
+            'delivery_date' => '2026-10-05',
+        ])->assertSessionHas('success');
+
+        $po = PurchaseOrder::firstOrFail();
+
+        $this->artisan('procurement:send-approval-reminders')->assertSuccessful();
+
+        foreach ([$approver, $superAdmin] as $recipient) {
+            $reminder = $recipient->fresh()->notifications->first(
+                fn ($notification) => $notification->data['title'] === 'PO approval due soon'
+            );
+            $this->assertNotNull($reminder);
+            $this->assertSame('warning', $reminder->data['priority']);
+            $this->assertSame($po->po_number, $reminder->data['route_parameters']['po_search']);
+        }
+
+        foreach ([$issuer, $administrator, $viewer] as $nonRecipient) {
+            $this->assertFalse($nonRecipient->fresh()->notifications->contains(
+                fn ($notification) => $notification->data['title'] === 'PO approval due soon'
+            ));
+        }
+
+        $this->artisan('procurement:send-approval-reminders')->assertSuccessful();
+        $this->assertSame(1, $approver->fresh()->notifications->where('data.title', 'PO approval due soon')->count());
+
+        $this->travelTo(CarbonImmutable::create(2026, 10, 6, 9, 0, 0, 'Asia/Manila'));
+        $this->artisan('procurement:send-approval-reminders')->assertSuccessful();
+
+        $overdue = $approver->fresh()->notifications->first(
+            fn ($notification) => $notification->data['title'] === 'Overdue PO approval'
+        );
+        $this->assertNotNull($overdue);
+        $this->assertSame('critical', $overdue->data['priority']);
+
+        $this->flushSession();
+        $this->actingAs($approver)->post(route('inventory.purchases.orders.approve', $po), [
+            'approval_po_id' => $po->id,
+            'revised_delivery_date' => '2026-10-07',
+            'delivery_date_change_reason' => 'Updated after acting on the overdue approval reminder.',
+        ])->assertSessionHas('success');
+
+        $this->assertSame('approved', $po->fresh()->status);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'approved_purchase_order',
+            'user_id' => $approver->id,
+            'target_id' => (string) $po->id,
+        ]);
+    }
+
     public function test_pipeline_rejection_releases_hard_encumbrance_and_records_audit(): void
     {
         $issuer = User::factory()->inventoryManager()->create();
