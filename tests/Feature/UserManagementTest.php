@@ -197,7 +197,7 @@ class UserManagementTest extends TestCase
 
         $response
             ->assertSessionHasNoErrors()
-            ->assertSessionHas('account_created_success', 'Account created successfully.')
+            ->assertSessionHas('account_created_success', 'Account created. A verification email was sent; access remains pending until the email is verified.')
             ->assertRedirect('/admin/users');
 
         $created = User::where('email', 'juan.delacruz@djnrmhs.test')->firstOrFail();
@@ -218,7 +218,7 @@ class UserManagementTest extends TestCase
         Notification::assertSentTo($created, VerifyEmail::class);
 
         $this->actingAs($admin)->get('/admin/users')
-            ->assertSee('Account created successfully.')
+            ->assertSee('Account created. A verification email was sent; access remains pending until the email is verified.')
             ->assertSee('Juan Santos Dela Cruz')
             ->assertSee('09171234567')
             ->assertSeeInOrder([
@@ -226,7 +226,7 @@ class UserManagementTest extends TestCase
             ]);
 
         $this->actingAs($admin)->get('/admin/users')
-            ->assertDontSee('Account created successfully.');
+            ->assertDontSee('Account created. A verification email was sent; access remains pending until the email is verified.');
     }
 
     public function test_a_new_account_gets_exactly_its_role_permissions(): void
@@ -626,6 +626,13 @@ class UserManagementTest extends TestCase
         Notification::fake();
         $admin = $this->admin();
         $staff = User::factory()->create();
+        UserActiveSession::query()->create([
+            'user_id' => $staff->id,
+            'guard' => AuthenticationContext::WEB_GUARD,
+            'session_id' => 'old-session',
+            'ip_address' => '127.0.0.1',
+            'last_activity_at' => now(),
+        ]);
 
         $this->actingAs($admin)->put("/admin/users/{$staff->id}", [
             ...$staff->nameComponents(),
@@ -640,7 +647,52 @@ class UserManagementTest extends TestCase
 
         $this->assertSame('changed.account@example.com', $staff->email);
         $this->assertNull($staff->email_verified_at);
+        $this->assertDatabaseMissing('user_active_sessions', ['user_id' => $staff->id]);
         Notification::assertSentTo($staff, VerifyEmail::class);
+
+        $this->app['auth']->forgetGuards();
+        $this->flushSession();
+        $url = Notification::sent($staff, VerifyEmail::class)->last()->toMail($staff)->actionUrl;
+        $this->get($url)->assertRedirect(route('login'));
+
+        $this->post(route('login'), [
+            'email' => 'changed.account@example.com',
+            'password' => 'password',
+        ])->assertRedirect(route('dashboard', absolute: false));
+        $this->get(route('dashboard'))->assertOk();
+    }
+
+    public function test_user_management_shows_pending_verification_and_can_resend_activation(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $staff = User::factory()->unverified()->create();
+
+        $this->actingAs($admin)->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSee('Pending Verification')
+            ->assertSee(route('admin.users.verification.send', $staff), escape: false);
+
+        $this->post(route('admin.users.verification.send', $staff))
+            ->assertRedirect()
+            ->assertSessionHas('success', 'A new activation email was sent to '.$staff->email.'.');
+
+        Notification::assertSentTo($staff, VerifyEmail::class);
+    }
+
+    public function test_resending_activation_is_rate_limited(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $staff = User::factory()->unverified()->create();
+        $this->actingAs($admin);
+
+        for ($attempt = 1; $attempt <= 6; $attempt++) {
+            $this->post(route('admin.users.verification.send', $staff))->assertRedirect();
+        }
+
+        $this->post(route('admin.users.verification.send', $staff))->assertTooManyRequests();
+        Notification::assertSentToTimes($staff, VerifyEmail::class, 6);
     }
 
     public function test_an_invalid_phone_number_cannot_update_a_user(): void

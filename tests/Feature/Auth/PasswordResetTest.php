@@ -195,6 +195,27 @@ class PasswordResetTest extends TestCase
         $this->assertDatabaseMissing('password_reset_tokens', ['email' => $user->email]);
     }
 
+    public function test_password_reset_does_not_activate_an_unverified_account(): void
+    {
+        $user = User::factory()->unverified()->create();
+        $notification = $this->requestOtp($user);
+        $token = $this->tokenFromRedirect($this->verifyOtp($user, $notification));
+
+        $this->post(route('password.store'), [
+            'token' => $token,
+            'email' => $user->email,
+            'password' => 'NewPassword1!',
+            'password_confirmation' => 'NewPassword1!',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertFalse($user->fresh()->hasVerifiedEmail());
+        $this->post(route('login'), [
+            'email' => $user->email,
+            'password' => 'NewPassword1!',
+        ])->assertSessionHasErrors('email');
+        $this->assertGuest();
+    }
+
     public function test_current_password_cannot_be_reused_after_valid_otp_verification(): void
     {
         $user = User::factory()->create();

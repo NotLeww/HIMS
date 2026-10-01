@@ -202,7 +202,7 @@ class SuperAdminAuthenticationTest extends TestCase
             'phone' => '09179876543',
             'current_password' => 'password',
         ])->assertSessionHasNoErrors()
-            ->assertSessionHas('account_created_success', 'Account created successfully.')
+            ->assertSessionHas('account_created_success', 'Account created. A verification email was sent; access remains pending until the email is verified.')
             ->assertRedirect(route('super-admin.users.index'));
 
         $this->assertDatabaseHas('users', [
@@ -220,13 +220,13 @@ class SuperAdminAuthenticationTest extends TestCase
 
         $this->get(route('super-admin.users.index', ['search' => $created->email]))
             ->assertOk()
-            ->assertSee('Account created successfully.')
+            ->assertSee('Account created. A verification email was sent; access remains pending until the email is verified.')
             ->assertSee($created->name)
             ->assertSessionMissing('account_created_success');
 
         $this->get(route('super-admin.users.index', ['search' => $created->email]))
             ->assertOk()
-            ->assertDontSee('Account created successfully.');
+            ->assertDontSee('Account created. A verification email was sent; access remains pending until the email is verified.');
     }
 
     public function test_standard_admin_cannot_open_super_admin_administration_routes(): void

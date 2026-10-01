@@ -12,11 +12,13 @@ use App\Http\Middleware\EnsureSuperAdministrator;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\PreventBackHistoryCache;
 use App\Support\AuthenticationContext;
+use App\Support\AuthenticationPanel;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Exceptions\InvalidSignatureException;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -87,6 +89,22 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (InvalidSignatureException $exception, Request $request) {
+            if (! $request->routeIs('verification.verify') || $request->expectsJson()) {
+                return null;
+            }
+
+            $expired = is_numeric($request->query('expires'))
+                && (int) $request->query('expires') <= now()->timestamp;
+
+            $panel = AuthenticationPanel::tryFrom((string) $request->query('panel')) ?? AuthenticationPanel::Staff;
+
+            return response()->view('auth.verification-link-invalid', [
+                'expired' => $expired,
+                'panel' => $panel,
+            ], 403);
+        });
+
         $exceptions->render(function (NotFoundHttpException $exception, Request $request) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'Not Found'], 404);

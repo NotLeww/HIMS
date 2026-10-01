@@ -13,6 +13,7 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\PasswordResetOtpController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Middleware\ValidateEmailVerificationSignature;
 use App\Support\AuthenticationPanel;
 use Illuminate\Support\Facades\Route;
 
@@ -33,6 +34,10 @@ Route::post('device-approval/{approvalRequest}/email/{decision}', [DeviceApprova
     ->where('decision', 'approve-once|approve-trust|deny')
     ->middleware(['signed', 'throttle:10,1,device-approval-email-confirm:'])
     ->name('auth.device-approval.email.confirm');
+
+Route::get('verify-email/{id}/{hash}', VerifyEmailController::class)
+    ->middleware([ValidateEmailVerificationSignature::class, 'throttle:6,1'])
+    ->name('verification.verify');
 
 Route::middleware(['guest:web', 'guest:admin', 'guest:super_admin'])->group(function () {
     Route::get('register', [RegisteredUserController::class, 'create'])
@@ -145,10 +150,6 @@ Route::middleware('auth:web,admin,super_admin')->group(function () {
 
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
-
-    Route::get('verify-email/{id}/{hash}', VerifyEmailController::class)
-        ->middleware(['signed', 'throttle:6,1'])
-        ->name('verification.verify');
 
     Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
         ->middleware('throttle:6,1')

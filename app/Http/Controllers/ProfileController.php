@@ -20,6 +20,7 @@ use App\Support\MfaSession;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -80,6 +81,7 @@ class ProfileController extends Controller
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
+        $guard = AuthenticationContext::authenticatedGuard() ?? AuthenticationContext::WEB_GUARD;
         $request->user()->fill($request->safe()->only([
             'surname',
             'first_name',
@@ -97,13 +99,19 @@ class ProfileController extends Controller
 
         if ($emailChanged) {
             $request->user()->sendEmailVerificationNotification();
+
+            Auth::guard($guard)->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()
+                ->route(AuthenticationContext::loginRoute($guard))
+                ->with('status', 'Email updated. Check your new address to reactivate your account before signing in.');
         }
 
         $request->session()->put(
             'profile_success',
-            $emailChanged
-                ? 'Email updated. Check your new address to verify it.'
-                : 'Profile updated successfully.'
+            'Profile updated successfully.'
         );
 
         return Redirect::route('profile.edit');

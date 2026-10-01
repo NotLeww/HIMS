@@ -116,9 +116,12 @@
                         <x-ui.badge :variant="$account->isAdministrator() ? 'primary' : 'neutral'">
                             {{ $account->role->label() }}
                         </x-ui.badge>
-                        <x-ui.badge :status="$account->status->value" dot>
-                            {{ $account->status->label() }}
-                        </x-ui.badge>
+                        @unless ($account->hasVerifiedEmail())
+                            <x-ui.badge status="pending" dot>Pending Verification</x-ui.badge>
+                        @endunless
+                        @if ($account->hasVerifiedEmail() || ! $account->isActive())
+                            <x-ui.badge :status="$account->status->value" dot>{{ $account->status->label() }}</x-ui.badge>
+                        @endif
                         @if ($account->isTemporarilyLocked())
                             <x-ui.badge variant="warning">Temporarily Locked</x-ui.badge>
                         @endif
@@ -150,6 +153,15 @@
                                          :href="route(\App\Support\AuthenticationContext::administrationRoute('users.edit'), $account)" icon="pencil-square">
                                 Edit
                             </x-ui.button>
+
+                            @unless ($account->hasVerifiedEmail())
+                                <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.verification.send'), $account) }}">
+                                    @csrf
+                                    <x-ui.button type="submit" variant="secondary" size="sm" data-loading-text="Sending activation email...">
+                                        Resend Activation
+                                    </x-ui.button>
+                                </form>
+                            @endunless
 
                             @if (in_array($account->getKey(), $unlockableAccountIds, true))
                                 <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.unlock'), $account) }}"
@@ -282,9 +294,12 @@
                             </x-ui.table.td>
 
                             <x-ui.table.td class="px-2.5 py-2 xl:px-3 xl:py-2.5">
-                                <x-ui.badge :status="$account->status->value" dot>
-                                    {{ $account->status->label() }}
-                                </x-ui.badge>
+                                @unless ($account->hasVerifiedEmail())
+                                    <x-ui.badge status="pending" dot>Pending Verification</x-ui.badge>
+                                @endunless
+                                @if ($account->hasVerifiedEmail() || ! $account->isActive())
+                                    <x-ui.badge :status="$account->status->value" dot>{{ $account->status->label() }}</x-ui.badge>
+                                @endif
                                 @if ($account->isTemporarilyLocked())
                                     <x-ui.badge variant="warning" class="mt-1">Locked</x-ui.badge>
                                     <span class="mt-0.5 block text-[11px] text-neutral-500">
@@ -309,6 +324,15 @@
                                                      :href="route(\App\Support\AuthenticationContext::administrationRoute('users.edit'), $account)">
                                             Edit
                                         </x-ui.button>
+
+                                        @unless ($account->hasVerifiedEmail())
+                                            <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.verification.send'), $account) }}">
+                                                @csrf
+                                                <x-ui.button type="submit" variant="ghost" size="sm" class="px-2 py-1" data-loading-text="Sending...">
+                                                    Resend
+                                                </x-ui.button>
+                                            </form>
+                                        @endunless
 
                                         @if (in_array($account->getKey(), $unlockableAccountIds, true))
                                             <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.unlock'), $account) }}"

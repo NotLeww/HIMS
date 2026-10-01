@@ -9,6 +9,7 @@ use App\Models\PurchaseOrder;
 use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Support\AuthenticationContext;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\ConfiguresAccountProvisioning;
@@ -32,8 +33,16 @@ class DemoSeedTest extends TestCase
 
         $this->assertSame(1, User::query()->count());
         $this->assertSame(1, User::role(UserRole::SuperAdministrator)->count());
-        $this->assertTrue(User::superAdministrators()->firstOrFail()->isProtected());
+        $owner = User::superAdministrators()->firstOrFail();
+        $this->assertTrue($owner->isProtected());
+        $this->assertTrue($owner->hasVerifiedEmail());
         $this->assertSame(1, PasswordHistory::query()->count());
+
+        $this->post(route('super-admin.login.store'), [
+            'email' => $owner->email,
+            'password' => 'SyntheticSeedSuperAdmin123!',
+        ])->assertRedirect(route('super-admin.dashboard', absolute: false));
+        $this->assertAuthenticatedAs($owner, AuthenticationContext::SUPER_ADMIN_GUARD);
 
         foreach (UserRole::cases() as $role) {
             if ($role !== UserRole::SuperAdministrator) {

@@ -25,6 +25,14 @@
                     <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('users.edit'), $user)" icon="pencil-square">
                         Edit
                     </x-ui.button>
+                    @unless ($user->hasVerifiedEmail())
+                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.verification.send'), $user) }}">
+                            @csrf
+                            <x-ui.button type="submit" variant="secondary" data-loading-text="Sending activation email...">
+                                Resend Activation
+                            </x-ui.button>
+                        </form>
+                    @endunless
                     @unless ($user->is(auth()->user()))
                         @if ($user->isArchived())
                             @can(\App\Enums\Permission::ManageArchive->value)
@@ -141,7 +149,12 @@
                     <div class="flex items-start justify-between gap-3">
                         <dt class="text-neutral-500">Status</dt>
                         <dd>
-                            <x-ui.badge :status="$user->status->value" dot>{{ $user->status->label() }}</x-ui.badge>
+                            @unless ($user->hasVerifiedEmail())
+                                <x-ui.badge status="pending" dot>Pending Verification</x-ui.badge>
+                            @endunless
+                            @if ($user->hasVerifiedEmail() || ! $user->isActive())
+                                <x-ui.badge :status="$user->status->value" dot>{{ $user->status->label() }}</x-ui.badge>
+                            @endif
                             @if ($user->isTemporarilyLocked())
                                 <x-ui.badge variant="warning" class="mt-1">Temporarily Locked</x-ui.badge>
                                 <span class="mt-1 block text-right text-xs text-neutral-500">

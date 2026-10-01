@@ -9,7 +9,6 @@ use App\Notifications\PasswordResetOtp;
 use App\Services\PasswordHistoryService;
 use App\Support\AuthenticationContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
@@ -97,11 +96,10 @@ class PerUserPasswordHistoryTest extends TestCase
             'password_confirmation' => self::SHARED_PASSWORD,
             'privacy_consent' => '1',
         ])->assertSessionHasNoErrors()
-            ->assertRedirect(route('dashboard'));
+            ->assertRedirect(route('login'));
 
         $this->assertDatabaseHas('users', ['email' => 'registrant@example.test']);
 
-        Auth::guard(AuthenticationContext::WEB_GUARD)->logout();
         $this->flushSession();
 
         $admin = User::factory()->administrator()->create();

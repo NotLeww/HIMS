@@ -54,7 +54,7 @@ class UserObserver
 
     public function updated(User $user): void
     {
-        if ($user->wasChanged('status') && ! $user->isActive()) {
+        if ($user->wasChanged('email') || ($user->wasChanged('status') && ! $user->isActive())) {
             $this->deviceSecurity->revokeAllAccess($user);
         }
 

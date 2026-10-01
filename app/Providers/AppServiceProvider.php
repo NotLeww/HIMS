@@ -21,10 +21,15 @@ use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Auth\Events\PasswordReset as PasswordResetEvent;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -47,6 +52,7 @@ class AppServiceProvider extends ServiceProvider
         $this->registerAuditLogging();
         $this->registerRecoveryReconciliation();
         $this->registerPasswordResetUrls();
+        $this->registerEmailVerificationUrls();
         \Illuminate\Pagination\Paginator::defaultView('vendor.pagination.tailwind');
         View::composer('layouts.partials.topbar', NotificationComposer::class);
     }
@@ -80,6 +86,36 @@ class AppServiceProvider extends ServiceProvider
                 'token' => $token,
                 'email' => $user->email,
             ]);
+        });
+    }
+
+    /**
+     * Keep verification links valid when the same HIMS instance is reached
+     * through an equivalent host or HTTPS-terminating proxy.
+     */
+    private function registerEmailVerificationUrls(): void
+    {
+        VerifyEmail::toMailUsing(fn (User $user, string $url): MailMessage => (new MailMessage)
+            ->subject('Activate your HIMS account')
+            ->greeting('Hello '.$user->name.'!')
+            ->line('Use the button below to verify your email address and activate your HIMS account.')
+            ->action('Activate HIMS Account', $url)
+            ->line('This activation link expires in '.Config::get('auth.verification.expire', 60).' minutes.')
+            ->line('If you did not expect this account, no further action is required.'));
+
+        VerifyEmail::createUrlUsing(function (User $user): string {
+            $path = URL::temporarySignedRoute(
+                'verification.verify',
+                Carbon::now()->addMinutes(Config::get('auth.verification.expire', 60)),
+                [
+                    'id' => $user->getKey(),
+                    'hash' => sha1($user->getEmailForVerification()),
+                    'panel' => AuthenticationPanel::forRole($user->role)->value,
+                ],
+                absolute: false,
+            );
+
+            return URL::to($path);
         });
     }
 

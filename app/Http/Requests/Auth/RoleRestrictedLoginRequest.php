@@ -79,6 +79,8 @@ abstract class RoleRestrictedLoginRequest extends FormRequest
 
         RateLimiter::clear($this->throttleKey());
 
+        $this->ensureEmailIsVerified($user);
+
         return $user;
     }
 
@@ -129,6 +131,8 @@ abstract class RoleRestrictedLoginRequest extends FormRequest
         );
 
         if ($result['status'] === LoginLockoutService::SUCCESS) {
+            $this->ensureEmailIsVerified($result['user']);
+
             return $result['user'];
         }
 
@@ -191,6 +195,20 @@ abstract class RoleRestrictedLoginRequest extends FormRequest
 
         throw ValidationException::withMessages([
             'email' => app(LoginLockoutService::class)->message($restriction),
+        ]);
+    }
+
+    private function ensureEmailIsVerified(User $user): void
+    {
+        if ($user->hasVerifiedEmail()) {
+            return;
+        }
+
+        app(LoginLockoutService::class)->clearRestriction($this);
+        RateLimiter::clear($this->throttleKey());
+
+        throw ValidationException::withMessages([
+            'email' => 'Your account is pending activation. Verify your email address first, or ask an administrator to resend the activation email.',
         ]);
     }
 

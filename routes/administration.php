@@ -21,6 +21,9 @@ Route::get('users/{user}/edit', [UserController::class, 'edit'])->name('users.ed
 Route::put('users/{user}', [UserController::class, 'update'])->name('users.update');
 Route::patch('users/{user}/status', [UserController::class, 'toggleStatus'])->name('users.toggle-status');
 Route::patch('users/{user}/unlock', [UserController::class, 'unlock'])->name('users.unlock');
+Route::post('users/{user}/verification-notification', [UserController::class, 'resendVerification'])
+    ->middleware('throttle:6,1')
+    ->name('users.verification.send');
 Route::post('users/{user}/archive', [ArchiveController::class, 'archiveUser'])->name('users.archive');
 Route::post('users/{user}/unarchive', [ArchiveController::class, 'unarchiveUser'])->name('users.unarchive');
 

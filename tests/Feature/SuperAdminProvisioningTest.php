@@ -284,8 +284,8 @@ class SuperAdminProvisioningTest extends TestCase
                 'email' => 'changed@example.com',
                 'current_password' => self::INITIAL_PASSWORD,
             ])->assertSessionHasNoErrors()
-            ->assertSessionHas('profile_success', 'Email updated. Check your new address to verify it.')
-            ->assertRedirect(route('profile.edit'));
+            ->assertSessionHas('status', 'Email updated. Check your new address to reactivate your account before signing in.')
+            ->assertRedirect(route('super-admin.login'));
 
         $this->assertSame('changed@example.com', $superAdmin->refresh()->email);
 

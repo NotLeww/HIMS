@@ -64,9 +64,9 @@ class UserController extends Controller implements HasMiddleware
             ->withQueryString();
 
         $countRow = User::query()
-            ->selectRaw("SUM(CASE WHEN status != ? THEN 1 ELSE 0 END) AS total_count", [UserStatus::Archived->value])
-            ->selectRaw("SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS active_count", [UserStatus::Active->value])
-            ->selectRaw("SUM(CASE WHEN status = ? AND role IN (?, ?) THEN 1 ELSE 0 END) AS administrator_count", [
+            ->selectRaw('SUM(CASE WHEN status != ? THEN 1 ELSE 0 END) AS total_count', [UserStatus::Archived->value])
+            ->selectRaw('SUM(CASE WHEN status = ? AND email_verified_at IS NOT NULL THEN 1 ELSE 0 END) AS active_count', [UserStatus::Active->value])
+            ->selectRaw('SUM(CASE WHEN status = ? AND email_verified_at IS NOT NULL AND role IN (?, ?) THEN 1 ELSE 0 END) AS administrator_count', [
                 UserStatus::Active->value,
                 UserRole::Administrator->value,
                 UserRole::SuperAdministrator->value,
@@ -102,7 +102,7 @@ class UserController extends Controller implements HasMiddleware
     public function store(StoreUserRequest $request): RedirectResponse
     {
         $this->accounts->create($request->validated(), $request->user());
-        $request->session()->put('account_created_success', 'Account created successfully.');
+        $request->session()->put('account_created_success', 'Account created. A verification email was sent; access remains pending until the email is verified.');
 
         return redirect()
             ->route(AuthenticationContext::administrationRoute('users.index'));
@@ -202,5 +202,18 @@ class UserController extends Controller implements HasMiddleware
         return redirect()
             ->back()
             ->with('success', sprintf('%s can now attempt to sign in again.', $unlocked->name));
+    }
+
+    public function resendVerification(Request $request, User $user): RedirectResponse
+    {
+        abort_unless($this->accounts->canManage($request->user(), $user), 403);
+
+        if ($user->hasVerifiedEmail()) {
+            return back()->with('success', sprintf('%s is already verified.', $user->name));
+        }
+
+        $user->sendEmailVerificationNotification();
+
+        return back()->with('success', sprintf('A new activation email was sent to %s.', $user->email));
     }
 }

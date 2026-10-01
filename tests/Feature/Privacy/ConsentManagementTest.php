@@ -3,7 +3,6 @@
 namespace Tests\Feature\Privacy;
 
 use App\Enums\AuditAction;
-use App\Models\AuditLog;
 use App\Models\User;
 use App\Models\UserConsent;
 use App\Services\Privacy\ConsentService;
@@ -43,7 +42,8 @@ class ConsentManagementTest extends TestCase
             'privacy_consent' => '1',
         ]);
 
-        $this->assertAuthenticated();
+        $this->assertGuest();
+        $response->assertRedirect(route('login'));
         $user = User::where('email', 'maria.santos@hospital.gov.ph')->firstOrFail();
 
         $this->assertDatabaseHas('user_consents', [

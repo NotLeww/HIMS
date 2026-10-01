@@ -47,8 +47,10 @@ class RegistrationTest extends TestCase
 
         $user = User::where('email', 'test@example.com')->firstOrFail();
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $this->assertGuest();
+        $response
+            ->assertRedirect(route('login'))
+            ->assertSessionHas('status', 'Account created. Check your email to activate your HIMS account before signing in.');
         $this->assertTrue($user->password_changed_at->isToday());
         $this->assertNull($user->email_verified_at);
         Notification::assertSentTo($user, VerifyEmail::class);

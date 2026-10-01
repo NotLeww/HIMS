@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Models\User;
+use App\Support\AuthenticationContext;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -171,9 +172,11 @@ class ProfileTest extends TestCase
 
         $response
             ->assertSessionHasNoErrors()
-            ->assertSessionHas('profile_success', 'Email updated. Check your new address to verify it.')
+            ->assertSessionHas('status', 'Email updated. Check your new address to reactivate your account before signing in.')
             ->assertSessionMissing('success')
-            ->assertRedirect('/profile');
+            ->assertRedirect(route('login'));
+
+        $this->assertGuest();
 
         $user->refresh();
 
@@ -194,17 +197,7 @@ class ProfileTest extends TestCase
             ->assertSee('value="Dela Cruz"', false)
             ->assertSee('value="Juan"', false)
             ->assertSee('value="Santos"', false)
-            ->assertSee('Juan Santos Dela Cruz')
-            ->assertSee('Email updated')
-            ->assertSee('Email updated. Check your new address to verify it.');
-
-        $this->assertSame(1, substr_count($profilePage->getContent(), 'Email updated. Check your new address to verify it.'));
-
-        $this
-            ->actingAs($user)
-            ->get('/profile')
-            ->assertOk()
-            ->assertDontSee('Email updated. Check your new address to verify it.');
+            ->assertSee('Juan Santos Dela Cruz');
     }
 
     public function test_current_password_is_required_to_change_email(): void
@@ -441,20 +434,11 @@ class ProfileTest extends TestCase
             'email' => $newEmail,
             'current_password' => 'password',
         ])->assertSessionHasNoErrors()
-            ->assertSessionHas('profile_success', 'Email updated. Check your new address to verify it.')
-            ->assertRedirect('/profile');
+            ->assertSessionHas('status', 'Email updated. Check your new address to reactivate your account before signing in.')
+            ->assertRedirect(route(AuthenticationContext::loginRoute($guard)));
 
         $this->assertSame($newEmail, $user->refresh()->email);
-
-        $this->get('/profile')
-            ->assertOk()
-            ->assertSee('Email updated. Check your new address to verify it.')
-            ->assertSee('value="'.$newEmail.'"', false);
-
-        $this->get('/profile')
-            ->assertOk()
-            ->assertDontSee('Email updated. Check your new address to verify it.')
-            ->assertSee('value="'.$newEmail.'"', false);
+        $this->assertGuest($guard);
     }
 
     public function test_email_verification_status_is_unchanged_when_the_email_address_is_unchanged(): void
@@ -475,6 +459,29 @@ class ProfileTest extends TestCase
             ->assertRedirect('/profile');
 
         $this->assertNotNull($user->refresh()->email_verified_at);
+    }
+
+    public function test_changing_own_email_revokes_the_existing_authenticated_session(): void
+    {
+        Notification::fake();
+        $user = User::factory()->create();
+
+        $this->post(route('login'), [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertRedirect(route('dashboard', absolute: false));
+
+        $this->patch(route('profile.update'), [
+            ...$user->nameComponents(),
+            'email' => 'replacement@example.test',
+            'current_password' => 'password',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertNull($user->fresh()->email_verified_at);
+        $this->assertDatabaseMissing('user_active_sessions', ['user_id' => $user->id]);
+        Notification::assertSentTo($user, VerifyEmail::class);
+
+        $this->assertGuest();
     }
 
     public function test_middle_name_is_optional_and_full_name_omits_it_cleanly(): void
