@@ -48,6 +48,8 @@
             icon="shield-check"
             :tone="$posture['passed_count'] === $posture['total_controls'] ? 'success' : 'warning'"
             :hint="$posture['attention_count'] . ' control(s) require technical attention'"
+            :summary="'Passed controls: ' . $posture['passed_count'] . ' of ' . $posture['total_controls'] . '. Controls needing attention: ' . $posture['attention_count'] . '. Open to review each safeguard and its verified evidence.'"
+            :href="route(\App\Support\AuthenticationContext::administrationRoute('privacy.index'), ['tab' => 'posture'])"
         />
 
         <x-ui.stat
@@ -56,6 +58,8 @@
             icon="document-text"
             tone="neutral"
             hint="Cataloged under DPA Sec. 16 / ISO A.5.9"
+            :summary="count($ropaActivities) . ' registered flows: identity access, audit logging, warehouse custody, supplier and procurement management, AI analytics, and incident management.'"
+            :href="route(\App\Support\AuthenticationContext::administrationRoute('privacy.index'), ['tab' => 'ropa'])"
         />
 
         <x-ui.stat
@@ -64,6 +68,8 @@
             icon="user-circle"
             :tone="$openDsrCount > 0 ? 'warning' : 'neutral'"
             hint="Pending review or fulfillment by DPO"
+            :summary="'Open cases: ' . $openDsrCount . '. This includes requests that are pending or under DPO review and still require a resolution or fulfillment action.'"
+            :href="route(\App\Support\AuthenticationContext::administrationRoute('privacy.index'), ['tab' => 'dsr'])"
         />
 
         <x-ui.stat
@@ -72,6 +78,8 @@
             icon="exclamation-triangle"
             :tone="$openIncidentsCount > 0 ? 'danger' : 'success'"
             hint="ISO A.5.24 incident response registry"
+            :summary="'Active incidents: ' . $openIncidentsCount . '. This includes incidents that are reported, under investigation, or contained but not yet closed.'"
+            :href="route(\App\Support\AuthenticationContext::administrationRoute('privacy.index'), ['tab' => 'incidents'])"
         />
     </div>
 

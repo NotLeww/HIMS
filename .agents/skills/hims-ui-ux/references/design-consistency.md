@@ -89,6 +89,17 @@ Reference structure:
 
 Use semantic tone consistently: neutral for stock/reference values, violet for AI/forecasting, primary blue for procurement/actions, rose for critical shortage/risk, and emerald for healthy/successful states. Verify actual contrast in both themes.
 
+### Cursor-Following KPI Summary Tooltips
+
+When the user asks to inspect a KPI summary by hovering, reuse `<x-ui.stat summary="...">` and its shared Alpine `statTooltip` behavior. Do not create a page-local tooltip implementation.
+
+- Keep the summary concise and grounded in the live metric: explain what is counted, what states are included, and where the full records can be opened.
+- Position the tooltip near the pointer with `position: fixed`, teleport it to `body`, flip it to the opposite side when needed, and clamp it inside an 8px viewport gutter.
+- Update its position on pointer movement. Never animate `left` or `top`; that makes the tooltip fly from its old or initial position. Use only a restrained 100–150ms opacity/scale entrance and honor `prefers-reduced-motion`.
+- Mouse click or pointer focus must preserve the current pointer position. Run the stable card-relative fallback only for genuine `:focus-visible` keyboard focus.
+- Keep it non-interactive with `pointer-events: none`, hide it on pointer leave or focus out, and associate it through `role="tooltip"` and `aria-describedby`.
+- Hover must not be the only way to obtain required information. Keep the primary metric and context visible, provide the same tooltip on keyboard focus, and retain a click/tap path to the detailed records when available.
+
 ## Badges and Icons
 
 - Use `<x-ui.badge>` for essential entity lifecycle states such as Pending, Approved, Dispatched, Delivered, or Archived.

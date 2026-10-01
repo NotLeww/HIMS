@@ -80,6 +80,67 @@ const resetButtonLoading = (button) => {
     loadingButtons.delete(button);
 };
 
+Alpine.data('statTooltip', () => ({
+    open: false,
+    position: { left: '0px', top: '0px' },
+
+    showTooltip(event) {
+        if (event.pointerType === 'touch') return;
+
+        this.open = true;
+        this.$nextTick(() => this.followPointer(event));
+    },
+
+    followPointer(event) {
+        const tooltip = this.$refs.tooltip;
+        if (!this.open || !tooltip) return;
+
+        const gutter = 8;
+        const offset = 14;
+        const width = tooltip.offsetWidth;
+        const height = tooltip.offsetHeight;
+        let left = event.clientX + offset;
+        let top = event.clientY - height - offset;
+
+        if (left + width > window.innerWidth - gutter) left = event.clientX - width - offset;
+        if (top < gutter) top = event.clientY + offset;
+
+        this.position = {
+            left: `${Math.max(gutter, Math.min(left, window.innerWidth - width - gutter))}px`,
+            top: `${Math.max(gutter, Math.min(top, window.innerHeight - height - gutter))}px`,
+        };
+    },
+
+    showForFocus() {
+        this.open = true;
+        this.$nextTick(() => {
+            const tooltip = this.$refs.tooltip;
+            if (!tooltip) return;
+
+            const card = this.$el.getBoundingClientRect();
+            const gutter = 8;
+            const offset = 12;
+            const width = tooltip.offsetWidth;
+            const height = tooltip.offsetHeight;
+            const left = Math.max(gutter, Math.min(
+                card.left + ((card.width - width) / 2),
+                window.innerWidth - width - gutter,
+            ));
+            const preferredTop = card.top - height - offset;
+            const top = preferredTop >= gutter ? preferredTop : card.bottom + offset;
+
+            this.position = {
+                left: `${left}px`,
+                top: `${Math.min(top, window.innerHeight - height - gutter)}px`,
+            };
+        });
+    },
+
+    hideTooltip() {
+        this.open = false;
+    },
+}));
+
 /**
  * Keep Alpine-powered modal dialogs usable without a mouse. Native <dialog>
  * elements already provide modal focus containment, so this only covers the

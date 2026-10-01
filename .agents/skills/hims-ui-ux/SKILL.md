@@ -59,7 +59,7 @@ Prefer an existing `<x-ui.*>` component when its contract fits:
 - `modal`: `name`, `title`, `maxWidth`
 - `nav-item`: `href`, `icon`, `active`, `badge`, `disabled`, `sub`
 - `page-header`: `title`, `subtitle`, `breadcrumbs`, with optional `actions`
-- `stat`: `label`, `value`, `icon`, `tone`, `hint`, `href`, `compact`
+- `stat`: `label`, `value`, `icon`, `tone`, `hint`, `summary`, `href`, `compact`
 - `table`: `stickyHeader`, `zebra`, plus `table.head`, `table.row`, `table.th`, `table.td`, and `table.empty`
 
 Do not invent props. Extend a shared component only when multiple real consumers benefit and existing uses remain compatible; otherwise keep a local exception in the page.
@@ -98,6 +98,7 @@ Do not invent props. Extend a shared component only when multiple real consumers
 - Use `<x-ui.card>` for ordinary panels. Do not nest cards inside cards or create a card for a single tiny control.
 - Primary operational KPI cards use the existing three-zone pattern: identity and icon, dominant tabular value, then a plain contextual footer separated by a subtle divider.
 - Keep KPI footers badge-free and concise. Use semantic tones only when they convey real operational meaning.
+- When a KPI needs an on-hover explanation, use the shared `stat` component's cursor-following `summary` tooltip contract described in the design-consistency reference.
 - Prefer compact, scannable dashboard grids over promotional copy or decorative surfaces.
 
 ### Tables and Pagination
