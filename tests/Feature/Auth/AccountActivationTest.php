@@ -29,6 +29,19 @@ class AccountActivationTest extends TestCase
         $this->app->instance(SmsGateway::class, $this->sms);
     }
 
+    public function test_activation_mobile_number_accepts_digits_only(): void
+    {
+        $this->get(route('activation.start'))
+            ->assertOk()
+            ->assertSee('inputmode="numeric"', false)
+            ->assertSee('oninput="this.value = this.value.replace(/[^0-9]/g, \'\').slice(0, 11)"', false);
+
+        $this->post(route('activation.identify'), [
+            'email' => 'pending@example.test',
+            'phone' => '0917abc4567',
+        ])->assertSessionHasErrors('phone');
+    }
+
     public function test_admin_created_user_completes_email_otp_activation_and_can_log_in(): void
     {
         Notification::fake();

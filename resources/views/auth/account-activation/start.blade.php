@@ -16,7 +16,7 @@
             </div>
             <div>
                 <x-input-label for="activation-phone" value="Registered mobile number" class="text-neutral-700 dark:text-neutral-300" />
-                <x-text-input id="activation-phone" class="mt-2 block h-11 w-full rounded-lg border-neutral-300 px-3.5 text-sm dark:border-neutral-700 dark:bg-neutral-800" type="tel" name="phone" :value="old('phone')" required inputmode="numeric" minlength="11" maxlength="11" pattern="09[0-9]{9}" autocomplete="off" />
+                <x-text-input id="activation-phone" class="mt-2 block h-11 w-full rounded-lg border-neutral-300 px-3.5 text-sm dark:border-neutral-700 dark:bg-neutral-800" type="tel" name="phone" :value="old('phone')" required inputmode="numeric" minlength="11" maxlength="11" pattern="09[0-9]{9}" autocomplete="off" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11)" />
                 <x-input-error :messages="$errors->get('phone')" class="mt-2 text-danger-600" />
             </div>
             <x-ui.button type="submit" size="lg" class="w-full" data-loading-text="Checking details...">Continue</x-ui.button>
