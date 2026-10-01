@@ -7,6 +7,8 @@ use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Notifications\AccountCreated;
+use App\Services\Sms\SmsOtpDelivery;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -24,6 +26,7 @@ class UserAccountService
 {
     public function __construct(
         private readonly AuditLogger $audit,
+        private readonly SmsOtpDelivery $sms,
     ) {}
 
     /**
@@ -94,7 +97,7 @@ class UserAccountService
      */
     public function create(array $attributes, User $actor): User
     {
-        return DB::transaction(function () use ($attributes, $actor): User {
+        $user = DB::transaction(function () use ($attributes, $actor): User {
             $role = UserRole::from($attributes['role']);
             $this->assertCanAssignRole($actor, $role);
 
@@ -113,6 +116,11 @@ class UserAccountService
 
             return $user;
         });
+
+        $user->notify(new AccountCreated);
+        $this->sms->sendAccountCreated($user);
+
+        return $user;
     }
 
     /**

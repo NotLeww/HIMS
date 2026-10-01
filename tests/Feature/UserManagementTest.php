@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Contracts\SmsGateway;
 use App\Enums\AuditAction;
 use App\Enums\MovementType;
 use App\Enums\Permission;
@@ -13,6 +14,7 @@ use App\Models\KpiProcessReview;
 use App\Models\StockMovement;
 use App\Models\User;
 use App\Models\UserActiveSession;
+use App\Notifications\AccountCreated;
 use App\Services\UserAccountService;
 use App\Support\AuthenticationContext;
 use Illuminate\Auth\Notifications\VerifyEmail;
@@ -180,6 +182,26 @@ class UserManagementTest extends TestCase
     public function test_an_administrator_creates_a_staff_account(): void
     {
         Notification::fake();
+        $sms = new class implements SmsGateway
+        {
+            public ?string $destination = null;
+
+            public ?string $message = null;
+
+            public function available(): bool
+            {
+                return true;
+            }
+
+            public function send(string $mobileNumber, #[\SensitiveParameter] string $message): bool
+            {
+                $this->destination = $mobileNumber;
+                $this->message = $message;
+
+                return true;
+            }
+        };
+        $this->app->instance(SmsGateway::class, $sms);
         $admin = $this->admin();
 
         $response = $this->actingAs($admin)->post('/admin/users', [
@@ -211,7 +233,13 @@ class UserManagementTest extends TestCase
         $this->assertNull($created->password);
 
         $this->assertNull($created->email_verified_at);
-        Notification::assertNothingSentTo($created);
+        Notification::assertSentTo($created, AccountCreated::class, fn (AccountCreated $notification): bool => $notification->toMail($created)->actionUrl === route('activation.start')
+        );
+        $this->assertSame('09171234567', $sms->destination);
+        $this->assertSame(
+            'Your HIMS account has been created. To activate it, open the HIMS sign-in page, select Activate account, and verify using the code sent by email or SMS.',
+            $sms->message,
+        );
 
         $this->actingAs($admin)->get('/admin/users')
             ->assertSee('Account created as Pending Activation. The user must activate it and create their own password from the login page.')
@@ -674,9 +702,28 @@ class UserManagementTest extends TestCase
 
         $this->post(route('admin.users.verification.send', $staff))
             ->assertRedirect()
-            ->assertSessionHas('success', 'A new activation email was sent to '.$staff->email.'.');
+            ->assertSessionHas('success', 'A new verification email was sent to '.$staff->email.'.');
 
         Notification::assertSentTo($staff, VerifyEmail::class);
+    }
+
+    public function test_resend_for_pending_activation_sends_account_created_notification(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+            'email_verified_at' => null,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.verification.send', $pending))
+            ->assertRedirect()
+            ->assertSessionHas('success', 'A new activation email was sent to '.$pending->email.'.');
+
+        Notification::assertSentTo($pending, AccountCreated::class);
+        Notification::assertNotSentTo($pending, VerifyEmail::class);
     }
 
     public function test_resending_activation_is_rate_limited(): void

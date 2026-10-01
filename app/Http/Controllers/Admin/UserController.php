@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Models\User;
+use App\Notifications\AccountCreated;
 use App\Services\UserAccountService;
 use App\Support\AuthenticationContext;
 use App\Support\SuperAdminPasswordConfirmation;
@@ -213,11 +214,13 @@ class UserController extends Controller implements HasMiddleware
         }
 
         if ($user->isPendingActivation()) {
-            return back()->with('success', 'This account is pending activation. The user can request an email or SMS code from the login page.');
+            $user->notify(new AccountCreated);
+
+            return back()->with('success', sprintf('A new activation email was sent to %s.', $user->email));
         }
 
         $user->sendEmailVerificationNotification();
 
-        return back()->with('success', sprintf('A new activation email was sent to %s.', $user->email));
+        return back()->with('success', sprintf('A new verification email was sent to %s.', $user->email));
     }
 }

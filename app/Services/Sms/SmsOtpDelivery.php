@@ -71,4 +71,21 @@ class SmsOtpDelivery
             return self::FAILED;
         }
     }
+
+    public function sendAccountCreated(User $user): string
+    {
+        $phone = (string) $user->phone;
+        if (! $this->available() || preg_match('/^09[0-9]{9}$/D', $phone) !== 1) {
+            return self::FAILED;
+        }
+
+        try {
+            return $this->gateway->send(
+                $phone,
+                'Your HIMS account has been created. To activate it, open the HIMS sign-in page, select Activate account, and verify using the code sent by email or SMS.',
+            ) ? self::SENT : self::FAILED;
+        } catch (Throwable) {
+            return self::FAILED;
+        }
+    }
 }
