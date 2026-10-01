@@ -42,6 +42,7 @@ class SuperAdminAuthenticationTest extends TestCase
             ->assertSee('Email address')
             ->assertSee('Password')
             ->assertSee('Forgot password?')
+            ->assertDontSee('Activate account')
             ->assertSee('Sign in as Super Admin')
             ->assertDontSee('Highest privilege tier')
             ->assertDontSee('Keep me signed in')
