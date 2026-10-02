@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Casts\EncryptedAuthenticatorSecret;
 use App\Casts\EncryptedPhone;
+use App\Enums\ActivationCancellationReason;
 use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
@@ -40,6 +41,11 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'role',
         'status',
+        'activation_cancellation_reason',
+        'activation_cancellation_details',
+        'activation_cancelled_at',
+        'activation_cancelled_by',
+        'activation_cancellation_notice_sent_at',
         'employee_id',
         'department',
         'phone',
@@ -92,6 +98,9 @@ class User extends Authenticatable implements MustVerifyEmail
             'password' => 'hashed',
             'role' => UserRole::class,
             'status' => UserStatus::class,
+            'activation_cancellation_reason' => ActivationCancellationReason::class,
+            'activation_cancelled_at' => 'datetime',
+            'activation_cancellation_notice_sent_at' => 'datetime',
             'archived_at' => 'datetime',
         ];
     }
@@ -239,6 +248,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->belongsTo(self::class, 'archived_by');
     }
 
+    public function activationCancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'activation_cancelled_by');
+    }
+
     public function activeSession(): HasOne
     {
         return $this->hasOne(UserActiveSession::class);
@@ -319,6 +333,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isPendingActivation(): bool
     {
         return $this->status->isPendingActivation();
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->status->isCancelled();
     }
 
     public function requiresActivation(): bool

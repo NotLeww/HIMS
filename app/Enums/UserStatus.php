@@ -12,6 +12,7 @@ namespace App\Enums;
 enum UserStatus: string
 {
     case PendingActivation = 'pending_activation';
+    case Cancelled = 'cancelled';
     case Active = 'active';
     case Inactive = 'inactive';
     case Archived = 'archived';
@@ -20,6 +21,7 @@ enum UserStatus: string
     {
         return match ($this) {
             self::PendingActivation => 'Pending Activation',
+            self::Cancelled => 'Cancelled',
             self::Active => 'Active',
             self::Inactive => 'Inactive',
             self::Archived => 'Archived',
@@ -34,6 +36,11 @@ enum UserStatus: string
     public function isPendingActivation(): bool
     {
         return $this === self::PendingActivation;
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this === self::Cancelled;
     }
 
     public function isArchived(): bool

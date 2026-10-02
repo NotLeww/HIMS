@@ -19,7 +19,7 @@
         </x-slot:actions>
     </x-ui.page-header>
 
-    @if ($errors->any() && old('form_context') !== 'create_user' && ! $openEditUserModal)
+    @if ($errors->any() && ! $errors->cancelActivation->any() && old('form_context') !== 'create_user' && ! $openEditUserModal)
         <x-ui.alert variant="danger" title="That change was not applied">
             <ul class="space-y-0.5 list-disc list-inside">
                 @foreach ($errors->all() as $error)
@@ -115,7 +115,7 @@
                             {{ $account->role->label() }}
                         </x-ui.badge>
                         <x-ui.badge :status="$account->status->value" dot>{{ $account->status->label() }}</x-ui.badge>
-                        @if (! $account->isPendingActivation() && ! $account->hasVerifiedEmail())
+                        @if (! $account->isPendingActivation() && ! $account->isCancelled() && ! $account->hasVerifiedEmail())
                             <x-ui.badge status="pending" dot>Pending Email Verification</x-ui.badge>
                         @endif
                         @if ($account->isTemporarilyLocked())
@@ -150,7 +150,7 @@
                                 Edit
                             </x-ui.button>
 
-                            @if (! $account->isPendingActivation() && ! $account->hasVerifiedEmail())
+                            @if (! $account->isCancelled() && ! $account->hasVerifiedEmail())
                                 <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.verification.send'), $account) }}">
                                     @csrf
                                     <x-ui.button type="submit" variant="secondary" size="sm" data-loading-text="Sending activation email...">
@@ -160,16 +160,13 @@
                             @endif
 
                             @if ($account->isPendingActivation())
-                                <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.cancel-invitation'), $account) }}"
-                                      data-confirm-title="Cancel invitation?"
-                                      data-confirm-message="This will invalidate the activation code and mark the account as inactive."
-                                      data-confirm-label="Cancel Invitation">
-                                    @csrf
-                                    @method('PATCH')
-                                    <x-ui.button type="submit" variant="danger" size="sm" data-loading-text="Cancelling invitation...">
-                                        Cancel Invitation
-                                    </x-ui.button>
-                                </form>
+                                <x-ui.button
+                                    type="button"
+                                    variant="danger"
+                                    size="sm"
+                                    x-on:click="$dispatch('open-cancel-activation', { actionUrl: {{ Illuminate\Support\Js::from(route(\App\Support\AuthenticationContext::administrationRoute('users.cancel-invitation'), $account)) }}, accountName: {{ Illuminate\Support\Js::from($account->name) }}, userId: {{ Illuminate\Support\Js::from($account->getKey()) }} })">
+                                    Cancel Activation
+                                </x-ui.button>
                             @endif
 
                             @if (in_array($account->getKey(), $unlockableAccountIds, true))
@@ -305,7 +302,7 @@
 
                             <x-ui.table.td class="px-2.5 py-2 xl:px-3 xl:py-2.5">
                                 <x-ui.badge :status="$account->status->value" dot>{{ $account->status->label() }}</x-ui.badge>
-                                @if (! $account->isPendingActivation() && ! $account->hasVerifiedEmail())
+                                @if (! $account->isPendingActivation() && ! $account->isCancelled() && ! $account->hasVerifiedEmail())
                                     <x-ui.badge status="pending" dot>Pending Email Verification</x-ui.badge>
                                 @endif
                                 @if ($account->isTemporarilyLocked())
@@ -333,31 +330,24 @@
                                             Edit
                                         </x-ui.button>
 
-                                        @unless ($account->hasVerifiedEmail())
+                                        @if (! $account->isCancelled() && ! $account->hasVerifiedEmail())
                                             <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.verification.send'), $account) }}">
                                                 @csrf
                                                 <x-ui.button type="submit" variant="ghost" size="sm" class="px-2 py-1" data-loading-text="Sending...">
                                                     Resend
                                                 </x-ui.button>
                                             </form>
-                                        @endunless
+                                        @endif
 
                                         @if ($account->isPendingActivation())
-                                            <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.cancel-invitation'), $account) }}"
-                                                  data-confirm-title="Cancel invitation?"
-                                                  data-confirm-message="This will invalidate the activation code and mark the account as inactive."
-                                                  data-confirm-label="Cancel Invitation">
-                                                @csrf
-                                                @method('PATCH')
-                                                <x-ui.button
-                                                    type="submit"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    class="px-2 py-1 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                                                    data-loading-text="Cancelling...">
-                                                    Cancel
-                                                </x-ui.button>
-                                            </form>
+                                            <x-ui.button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                class="px-2 py-1 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                                                x-on:click="$dispatch('open-cancel-activation', { actionUrl: {{ Illuminate\Support\Js::from(route(\App\Support\AuthenticationContext::administrationRoute('users.cancel-invitation'), $account)) }}, accountName: {{ Illuminate\Support\Js::from($account->name) }}, userId: {{ Illuminate\Support\Js::from($account->getKey()) }} })">
+                                                Cancel Activation
+                                            </x-ui.button>
                                         @endif
 
                                         @if (in_array($account->getKey(), $unlockableAccountIds, true))
@@ -448,6 +438,8 @@
             </x-slot:footer>
         @endif
     </x-ui.card>
+
+    @include('admin.users.partials.cancel-activation-modal')
 
     @unless ($openEditUserModal)
         <x-ui.modal name="create-user-modal" title="Add User" maxWidth="6xl">

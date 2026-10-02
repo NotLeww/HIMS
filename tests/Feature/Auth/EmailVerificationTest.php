@@ -200,6 +200,22 @@ class EmailVerificationTest extends TestCase
         $this->assertGuest();
     }
 
+    public function test_old_verification_link_cannot_verify_a_cancelled_account(): void
+    {
+        $user = User::factory()->unverified()->create(['status' => UserStatus::Cancelled]);
+        $url = (new VerifyEmail)->toMail($user)->actionUrl;
+
+        $this->get($url)
+            ->assertRedirect(route('login'))
+            ->assertSessionHas(
+                'status',
+                'This account activation request has been cancelled. Please contact your administrator if you believe this is an error.',
+            );
+
+        $this->assertFalse($user->fresh()->hasVerifiedEmail());
+        $this->assertSame(UserStatus::Cancelled, $user->fresh()->status);
+    }
+
     public function test_a_signed_link_cannot_verify_a_different_account(): void
     {
         $first = User::factory()->unverified()->create();

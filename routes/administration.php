@@ -20,6 +20,9 @@ Route::get('users/{user}', [UserController::class, 'show'])->name('users.show');
 Route::get('users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
 Route::put('users/{user}', [UserController::class, 'update'])->name('users.update');
 Route::patch('users/{user}/invitation', [UserController::class, 'cancelInvitation'])->name('users.cancel-invitation');
+Route::post('users/{user}/cancellation-notification', [UserController::class, 'resendCancellationNotice'])
+    ->middleware('throttle:3,1')
+    ->name('users.cancellation-notification.send');
 Route::patch('users/{user}/status', [UserController::class, 'toggleStatus'])->name('users.toggle-status');
 Route::patch('users/{user}/unlock', [UserController::class, 'unlock'])->name('users.unlock');
 Route::post('users/{user}/verification-notification', [UserController::class, 'resendVerification'])

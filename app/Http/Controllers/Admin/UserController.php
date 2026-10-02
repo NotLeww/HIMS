@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\ActivationCancellationReason;
 use App\Enums\Permission;
 use App\Enums\UserDepartment;
 use App\Enums\UserRole;
@@ -20,6 +21,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -111,6 +113,8 @@ class UserController extends Controller implements HasMiddleware
 
     public function show(User $user): View
     {
+        $user->load('activationCancelledBy');
+
         return view('admin.users.show', [
             'user' => $user,
             'canManage' => $this->accounts->canManage(request()->user(), $user),
@@ -197,20 +201,59 @@ class UserController extends Controller implements HasMiddleware
 
         return redirect()
             ->back()
-            ->with('success', sprintf(
-                '%s is now %s.',
-                $updated->name,
-                $updated->status->label()
-            ));
+            ->with('success', $updated->isActive()
+                ? sprintf("%s's account was reactivated successfully.", $updated->name)
+                : sprintf("%s's account was deactivated.", $updated->name));
     }
 
     public function cancelInvitation(Request $request, User $user): RedirectResponse
     {
         abort_unless($this->accounts->canManage($request->user(), $user), 403);
 
-        $cancelled = $this->accounts->cancelInvitation($user, $request->user());
+        $validated = $request->validateWithBag('cancelActivation', [
+            'cancellation_reason' => ['required', Rule::enum(ActivationCancellationReason::class)],
+            'cancellation_details' => [
+                'nullable',
+                'string',
+                'max:1000',
+                'required_if:cancellation_reason,'.ActivationCancellationReason::Other->value,
+            ],
+            'cancel_user_id' => ['required', 'integer', 'in:'.$user->getKey()],
+        ], [
+            'cancellation_reason.required' => 'Select a reason for cancelling activation.',
+            'cancellation_details.required_if' => 'Additional details are required when Other is selected.',
+        ]);
 
-        return back()->with('success', sprintf("%s's invitation was cancelled.", $cancelled->name));
+        $details = filled($validated['cancellation_details'] ?? null)
+            ? trim($validated['cancellation_details'])
+            : null;
+        $cancelled = $this->accounts->cancelInvitation(
+            $user,
+            $request->user(),
+            ActivationCancellationReason::from($validated['cancellation_reason']),
+            $details,
+        );
+        $noticeSent = $this->accounts->sendCancellationNotice($cancelled, $request->user());
+
+        if (! $noticeSent) {
+            return back()->with('warning', sprintf(
+                "%s's activation was cancelled, but the email could not be sent. Use Resend Cancellation Notice to try again.",
+                $cancelled->name,
+            ));
+        }
+
+        return back()->with('success', sprintf("%s's account activation was cancelled.", $cancelled->name));
+    }
+
+    public function resendCancellationNotice(Request $request, User $user): RedirectResponse
+    {
+        abort_unless($this->accounts->canManage($request->user(), $user), 403);
+
+        if (! $this->accounts->sendCancellationNotice($user, $request->user(), resend: true)) {
+            return back()->with('warning', 'The cancellation notice could not be sent. Please try again later.');
+        }
+
+        return back()->with('success', sprintf('The cancellation notice was sent to %s.', $user->email));
     }
 
     public function unlock(Request $request, User $user): RedirectResponse
@@ -228,6 +271,12 @@ class UserController extends Controller implements HasMiddleware
 
         if ($user->hasVerifiedEmail()) {
             return back()->with('success', sprintf('%s is already verified.', $user->name));
+        }
+
+        if ($user->isCancelled()) {
+            throw ValidationException::withMessages([
+                'status' => ['Cancelled activations cannot receive a verification email. Re-invite the user first.'],
+            ]);
         }
 
         if ($user->isPendingActivation()) {

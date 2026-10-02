@@ -19,6 +19,8 @@ enum AuditAction: string
     case AccountActivationOtpVerified = 'account_activation_otp_verified';
     case AccountActivationOtpFailed = 'account_activation_otp_failed';
     case AccountActivationCompleted = 'account_activation_completed';
+    case AccountActivationCancelled = 'account_activation_cancelled';
+    case AccountActivationCancellationNoticeResent = 'account_activation_cancellation_notice_resent';
     case AccountActivationRateLimited = 'account_activation_rate_limited';
     case TemporarilyLockedUser = 'temporarily_locked_user';
     case UnlockedUser = 'unlocked_user';
@@ -175,6 +177,8 @@ enum AuditAction: string
             self::AccountActivationOtpVerified => 'Activation OTP Verified',
             self::AccountActivationOtpFailed => 'Activation OTP Verification Failed',
             self::AccountActivationCompleted => 'Account Activation Completed',
+            self::AccountActivationCancelled => 'Account Activation Cancelled',
+            self::AccountActivationCancellationNoticeResent => 'Activation Cancellation Notice Resent',
             self::AccountActivationRateLimited => 'Account Activation Rate Limited',
             self::TemporarilyLockedUser => 'Temporarily Locked User',
             self::UnlockedUser => 'Unlocked User',
@@ -330,6 +334,8 @@ enum AuditAction: string
                 self::AccountActivationOtpVerified,
                 self::AccountActivationOtpFailed,
                 self::AccountActivationCompleted,
+                self::AccountActivationCancelled,
+                self::AccountActivationCancellationNoticeResent,
                 self::AccountActivationRateLimited,
                 self::TemporarilyLockedUser,
                 self::UnlockedUser,

@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Hash;
 
 class AccountActivationService
 {
+    public const CANCELLED_MESSAGE = 'This account activation request has been cancelled. Please contact your administrator if you believe this is an error.';
+
     public const SENT = 'sent';
 
     public const COOLDOWN = 'cooldown';

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Contracts\SmsGateway;
+use App\Enums\ActivationCancellationReason;
 use App\Enums\AuditAction;
 use App\Enums\MovementType;
 use App\Enums\Permission;
@@ -15,6 +16,7 @@ use App\Models\KpiProcessReview;
 use App\Models\StockMovement;
 use App\Models\User;
 use App\Models\UserActiveSession;
+use App\Notifications\AccountActivationCancelled;
 use App\Notifications\AccountCreated;
 use App\Services\UserAccountService;
 use App\Support\AuthenticationContext;
@@ -23,6 +25,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -234,8 +237,15 @@ class UserManagementTest extends TestCase
         $this->assertNull($created->password);
 
         $this->assertNull($created->email_verified_at);
-        Notification::assertSentTo($created, AccountCreated::class, fn (AccountCreated $notification): bool => $notification->toMail($created)->actionUrl === route('activation.start')
-        );
+        Notification::assertSentTo($created, AccountCreated::class, function (AccountCreated $notification) use ($created): bool {
+            $mail = $notification->toMail($created);
+            $html = view($mail->view['html'], $mail->viewData)->render();
+
+            return $mail->view['html'] === 'emails.auth.account-created'
+                && $mail->viewData['activationUrl'] === route('activation.start')
+                && str_contains($html, 'background:#174c86')
+                && str_contains($html, 'Activate HIMS Account');
+        });
         $this->assertSame('09171234567', $sms->destination);
         $this->assertSame(
             'Your HIMS account has been created. To activate it, open the HIMS sign-in page, select Activate account, and verify using the code sent by email or SMS.',
@@ -750,6 +760,7 @@ class UserManagementTest extends TestCase
         $pending = User::factory()->create([
             'status' => UserStatus::PendingActivation,
             'password' => null,
+            'email_verified_at' => null,
         ]);
         AccountActivationChallenge::create([
             'user_id' => $pending->id,
@@ -761,28 +772,72 @@ class UserManagementTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.users.index'))
             ->assertOk()
-            ->assertSee(route('admin.users.cancel-invitation', $pending), escape: false)
-            ->assertSee('Cancel Invitation');
+            ->assertSee('Cancel Activation');
+
+        $this->from('/admin/users')
+            ->patch(route('admin.users.cancel-invitation', $pending), [
+                'cancel_user_id' => $pending->id,
+            ])
+            ->assertRedirect('/admin/users')
+            ->assertSessionHasErrors(['cancellation_reason'], null, 'cancelActivation');
 
         $this
             ->from('/admin/users')
-            ->patch(route('admin.users.cancel-invitation', $pending))
+            ->patch(route('admin.users.cancel-invitation', $pending), [
+                'cancel_user_id' => $pending->id,
+                'cancellation_reason' => ActivationCancellationReason::IncorrectEmailAddress->value,
+                'cancellation_details' => 'The registered address needs correction.',
+            ])
             ->assertRedirect('/admin/users')
-            ->assertSessionHas('success', "{$pending->name}'s invitation was cancelled.");
+            ->assertSessionHas('success', "{$pending->name}'s account activation was cancelled.");
 
-        $this->assertSame(UserStatus::Inactive, $pending->fresh()->status);
+        $pending->refresh();
+        $this->assertSame(UserStatus::Cancelled, $pending->status);
+        $this->assertSame(ActivationCancellationReason::IncorrectEmailAddress, $pending->activation_cancellation_reason);
+        $this->assertSame('The registered address needs correction.', $pending->activation_cancellation_details);
+        $this->assertSame($admin->id, $pending->activation_cancelled_by);
+        $this->assertNotNull($pending->activation_cancelled_at);
+        $this->assertNotNull($pending->activation_cancellation_notice_sent_at);
         $this->assertDatabaseMissing('account_activation_challenges', ['user_id' => $pending->id]);
 
-        $log = AuditLog::where('action', AuditAction::UpdatedUser->value)->latest('id')->firstOrFail();
+        Notification::assertSentTo($pending, AccountActivationCancelled::class, function ($notification) use ($pending): bool {
+            $mail = $notification->toMail($pending);
+            $html = view($mail->view['html'], $mail->viewData)->render();
+
+            return $mail->view['html'] === 'emails.auth.account-activation-cancelled'
+                && $mail->viewData['reason'] === 'Incorrect Email Address'
+                && $mail->viewData['details'] === 'The registered address needs correction.'
+                && str_contains($html, 'background:#991b1b')
+                && str_contains($html, 'The registered address needs correction.');
+        });
+
+        $log = AuditLog::where('action', AuditAction::AccountActivationCancelled->value)->latest('id')->firstOrFail();
         $this->assertSame(UserStatus::PendingActivation->value, $log->old_values['status']);
-        $this->assertSame(UserStatus::Inactive->value, $log->new_values['status']);
+        $this->assertSame(UserStatus::Cancelled->value, $log->new_values['status']);
+        $this->assertSame('Incorrect Email Address', $log->new_values['reason']);
 
-        $this->patch(route('admin.users.cancel-invitation', $pending))
-            ->assertSessionHasErrors('status');
+        $this->patch(route('admin.users.cancel-invitation', $pending), [
+            'cancel_user_id' => $pending->id,
+            'cancellation_reason' => ActivationCancellationReason::DuplicateAccount->value,
+        ])->assertSessionHasErrors('status');
 
-        $this->get(route('admin.users.index'))
+        Notification::assertSentToTimes($pending, AccountActivationCancelled::class, 1);
+
+        $cancelledIndex = $this->get(route('admin.users.index'))
             ->assertOk()
+            ->assertSee('Cancelled')
             ->assertSee('Re-invite');
+        $this->assertFalse(str_contains(
+            $cancelledIndex->getContent(),
+            route('admin.users.verification.send', $pending),
+        ));
+
+        $this->get(route('admin.users.show', $pending))
+            ->assertOk()
+            ->assertSee('Incorrect Email Address')
+            ->assertSee('The registered address needs correction.')
+            ->assertSee($admin->name)
+            ->assertSee('Resend Cancellation Notice');
 
         $this->from('/admin/users')
             ->patch(route('admin.users.toggle-status', $pending))
@@ -790,7 +845,209 @@ class UserManagementTest extends TestCase
             ->assertSessionHas('success', "A new activation invitation was sent to {$pending->email}.");
 
         $this->assertSame(UserStatus::PendingActivation, $pending->fresh()->status);
+        $this->assertNull($pending->fresh()->activation_cancellation_reason);
         Notification::assertSentTo($pending, AccountCreated::class);
+        $this->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSee('himsToastNotifications', false)
+            ->assertSee("A new activation invitation was sent to {$pending->email}.")
+            ->assertSee('Resend');
+    }
+
+    public function test_other_cancellation_reason_requires_and_emails_custom_details(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+            'email_verified_at' => null,
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.users.cancel-invitation', $pending), [
+                'cancel_user_id' => $pending->id,
+                'cancellation_reason' => ActivationCancellationReason::Other->value,
+                'cancellation_details' => '   ',
+            ])
+            ->assertSessionHasErrors(['cancellation_details'], null, 'cancelActivation');
+
+        $this->patch(route('admin.users.cancel-invitation', $pending), [
+            'cancel_user_id' => $pending->id,
+            'cancellation_reason' => ActivationCancellationReason::Other->value,
+            'cancellation_details' => 'Account was requested for the wrong hospital unit.',
+        ])->assertSessionHasNoErrors();
+
+        Notification::assertSentTo($pending, AccountActivationCancelled::class, function ($notification) use ($pending): bool {
+            return $notification->toMail($pending)->viewData['details'] === 'Account was requested for the wrong hospital unit.';
+        });
+    }
+
+    public function test_cancelled_account_cannot_use_an_old_activation_code_or_sign_in(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+            'email_verified_at' => null,
+        ]);
+        AccountActivationChallenge::create([
+            'user_id' => $pending->id,
+            'channel' => 'email',
+            'otp_hash' => Hash::make('123456'),
+            'expires_at' => now()->addMinutes(5),
+        ]);
+
+        $this->actingAs($admin)->patch(route('admin.users.cancel-invitation', $pending), [
+            'cancel_user_id' => $pending->id,
+            'cancellation_reason' => ActivationCancellationReason::RequestWithdrawn->value,
+        ]);
+
+        $this->app['auth']->forgetGuards();
+        $this->flushSession();
+        $this->withSession([
+            'account_activation.identity' => [
+                'user_id' => $pending->id,
+                'channel' => 'email',
+            ],
+        ])->post(route('activation.verify.store'), ['otp' => '123456'])
+            ->assertRedirect(route('activation.start'))
+            ->assertSessionHasErrors('email');
+
+        $this->assertSame(UserStatus::Cancelled, $pending->fresh()->status);
+        $this->assertFalse($pending->fresh()->hasVerifiedEmail());
+        $this->post(route('login'), ['email' => $pending->email, 'password' => 'Password1!']);
+        $this->assertGuest();
+    }
+
+    public function test_unauthorized_user_cannot_cancel_or_resend_a_cancellation_notice(): void
+    {
+        Notification::fake();
+        $viewer = User::factory()->viewer()->create();
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+        ]);
+
+        $this->actingAs($viewer)
+            ->patch(route('admin.users.cancel-invitation', $pending), [
+                'cancel_user_id' => $pending->id,
+                'cancellation_reason' => ActivationCancellationReason::DuplicateAccount->value,
+            ])->assertForbidden();
+
+        $pending->forceFill([
+            'status' => UserStatus::Cancelled,
+            'activation_cancellation_reason' => ActivationCancellationReason::DuplicateAccount,
+            'activation_cancelled_at' => now(),
+        ])->saveQuietly();
+
+        $this->post(route('admin.users.cancellation-notification.send', $pending))->assertForbidden();
+        Notification::assertNothingSent();
+    }
+
+    public function test_active_account_cannot_use_pending_activation_cancellation(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $active = User::factory()->warehouseStaff()->create();
+
+        $this->actingAs($admin)
+            ->patch(route('admin.users.cancel-invitation', $active), [
+                'cancel_user_id' => $active->id,
+                'cancellation_reason' => ActivationCancellationReason::CreatedByMistake->value,
+            ])
+            ->assertSessionHasErrors('status');
+
+        $this->assertSame(UserStatus::Active, $active->fresh()->status);
+        Notification::assertNothingSent();
+    }
+
+    public function test_cancellation_email_failure_does_not_undo_cancellation(): void
+    {
+        $admin = $this->admin();
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+        ]);
+        Notification::shouldReceive('send')->once()->andThrow(new \RuntimeException('Synthetic mail failure'));
+        Log::spy();
+
+        $this->actingAs($admin)
+            ->patch(route('admin.users.cancel-invitation', $pending), [
+                'cancel_user_id' => $pending->id,
+                'cancellation_reason' => ActivationCancellationReason::CreatedByMistake->value,
+            ])
+            ->assertSessionHas('warning');
+
+        $pending->refresh();
+        $this->assertSame(UserStatus::Cancelled, $pending->status);
+        $this->assertNull($pending->activation_cancellation_notice_sent_at);
+        Log::shouldHaveReceived('warning')->once();
+    }
+
+    public function test_authorized_admin_can_resend_cancellation_notice_without_changing_status(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $cancelled = User::factory()->create([
+            'status' => UserStatus::Cancelled,
+            'password' => null,
+            'email_verified_at' => null,
+            'activation_cancellation_reason' => ActivationCancellationReason::WrongRoleOrDepartment,
+            'activation_cancellation_details' => 'The assigned unit was incorrect.',
+            'activation_cancelled_at' => now(),
+            'activation_cancelled_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.cancellation-notification.send', $cancelled))
+            ->assertSessionHas('success', 'The cancellation notice was sent to '.$cancelled->email.'.');
+
+        $this->assertSame(UserStatus::Cancelled, $cancelled->fresh()->status);
+        Notification::assertSentToTimes($cancelled, AccountActivationCancelled::class, 1);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::AccountActivationCancellationNoticeResent->value,
+            'user_id' => $admin->id,
+            'target_id' => (string) $cancelled->id,
+        ]);
+
+        $this->post(route('admin.users.verification.send', $cancelled))
+            ->assertSessionHasErrors('status');
+        Notification::assertSentToTimes($cancelled, AccountActivationCancelled::class, 1);
+    }
+
+    public function test_correcting_a_pending_activation_email_invalidates_the_code_and_notifies_only_the_new_address(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+            'email_verified_at' => null,
+            'phone' => '09123456789',
+        ]);
+        AccountActivationChallenge::create([
+            'user_id' => $pending->id,
+            'channel' => 'email',
+            'otp_hash' => Hash::make('123456'),
+            'expires_at' => now()->addMinutes(5),
+        ]);
+        $this->actingAs($admin)->put(route('admin.users.update', $pending), [
+            ...$pending->nameComponents(),
+            'email' => 'corrected.activation@example.test',
+            'role' => $pending->role->value,
+            'status' => UserStatus::PendingActivation->value,
+            'department' => $pending->department,
+            'phone' => $pending->phone,
+        ])->assertSessionHasNoErrors();
+
+        $pending->refresh();
+        $this->assertSame(UserStatus::PendingActivation, $pending->status);
+        $this->assertSame('corrected.activation@example.test', $pending->email);
+        $this->assertDatabaseMissing('account_activation_challenges', ['user_id' => $pending->id]);
+        Notification::assertSentTo($pending, AccountCreated::class);
+        $this->assertSame('corrected.activation@example.test', $pending->routeNotificationFor('mail'));
     }
 
     public function test_an_invalid_phone_number_cannot_update_a_user(): void
@@ -835,9 +1092,15 @@ class UserManagementTest extends TestCase
         $this->actingAs($admin)
             ->from('/admin/users')
             ->patch("/admin/users/{$staff->id}/status")
-            ->assertRedirect('/admin/users');
+            ->assertRedirect('/admin/users')
+            ->assertSessionHas('success', "{$staff->name}'s account was reactivated successfully.");
 
         $this->assertSame(UserStatus::Active, $staff->fresh()->status);
+
+        $this->get('/admin/users')
+            ->assertOk()
+            ->assertSee('himsToastNotifications', false)
+            ->assertSee('account was reactivated successfully.');
     }
 
     public function test_deactivation_preserves_employee_inventory_and_audit_ownership(): void

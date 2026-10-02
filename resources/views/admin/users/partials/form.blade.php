@@ -192,13 +192,17 @@
         </div>
 
         @if ($isEdit)
-            @if ($user->isArchived() || $user->isPendingActivation())
+            @if ($user->isArchived() || $user->isPendingActivation() || $user->isCancelled())
                 <div class="min-w-0 xl:col-span-5">
                     <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">Status</label>
                     <div class="flex min-h-10 items-center justify-between gap-3 rounded-md border border-neutral-200 bg-neutral-100 px-3 py-2 text-xs dark:border-neutral-700 dark:bg-neutral-800">
                         <x-ui.badge class="shrink-0" :status="$user->status->value">{{ $user->status->label() }}</x-ui.badge>
                         <span class="min-w-0 text-right leading-snug text-neutral-500 dark:text-neutral-400">
-                            {{ $user->isArchived() ? 'Restore through the Archive workspace.' : 'OTP verification and password setup required.' }}
+                            {{ match (true) {
+                                $user->isArchived() => 'Restore through the Archive workspace.',
+                                $user->isCancelled() => 'Use Re-invite to restart activation.',
+                                default => 'OTP verification and password setup required.',
+                            } }}
                         </span>
                     </div>
                     <input type="hidden" name="status" value="{{ $user->status->value }}">
@@ -217,7 +221,7 @@
             @endif
         @endif
 
-        @if ($isEdit && ! $user->isPendingActivation())
+        @if ($isEdit && ! $user->requiresActivation())
             <div class="min-w-0 md:col-span-1 xl:col-span-6">
                 <x-ui.field
                     name="password"

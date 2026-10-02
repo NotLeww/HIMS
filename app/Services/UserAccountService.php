@@ -2,16 +2,20 @@
 
 namespace App\Services;
 
+use App\Enums\ActivationCancellationReason;
 use App\Enums\AuditAction;
 use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Notifications\AccountActivationCancelled;
 use App\Notifications\AccountCreated;
 use App\Services\Sms\SmsOtpDelivery;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Owns the rules that stop the user-management screen locking everyone out.
@@ -154,6 +158,12 @@ class UserAccountService
                 ]);
             }
 
+            if ($user->isCancelled() && $newStatus !== UserStatus::Cancelled) {
+                throw ValidationException::withMessages([
+                    'status' => ['Cancelled activations must be restarted through the Re-invite action.'],
+                ]);
+            }
+
             $losesAdmin = $user->isAdministrator()
                 && (! $newRole->isAdministrator() || ! $newStatus->isActive());
 
@@ -178,7 +188,7 @@ class UserAccountService
             // Blank means "leave it alone" — the edit form does not echo the
             // existing password back, so an empty field is not a request to
             // clear it.
-            if (! empty($attributes['password']) && ! $user->isPendingActivation()) {
+            if (! empty($attributes['password']) && ! $user->requiresActivation()) {
                 return $this->passwords->usePassword(
                     $user,
                     $attributes['password'],
@@ -200,8 +210,12 @@ class UserAccountService
             return $user;
         });
 
-        if ($emailChanged && ! $user->isPendingActivation()) {
-            $user->sendEmailVerificationNotification();
+        if ($emailChanged) {
+            if ($user->isPendingActivation()) {
+                $user->notify(new AccountCreated);
+            } elseif (! $user->isCancelled()) {
+                $user->sendEmailVerificationNotification();
+            }
         }
 
         return $user;
@@ -240,6 +254,14 @@ class UserAccountService
                 $user->status = $user->requiresActivation()
                     ? UserStatus::PendingActivation
                     : UserStatus::Active;
+
+                if ($user->status === UserStatus::PendingActivation) {
+                    $user->activation_cancellation_reason = null;
+                    $user->activation_cancellation_details = null;
+                    $user->activation_cancelled_at = null;
+                    $user->activation_cancelled_by = null;
+                    $user->activation_cancellation_notice_sent_at = null;
+                }
             }
 
             $user->save();
@@ -248,9 +270,13 @@ class UserAccountService
         });
     }
 
-    public function cancelInvitation(User $user, User $actor): User
-    {
-        return DB::transaction(function () use ($user, $actor): User {
+    public function cancelInvitation(
+        User $user,
+        User $actor,
+        ActivationCancellationReason $reason,
+        ?string $details,
+    ): User {
+        return DB::transaction(function () use ($user, $actor, $reason, $details): User {
             $lockedUser = User::query()->lockForUpdate()->findOrFail($user->getKey());
 
             $this->assertCanManage($actor, $lockedUser);
@@ -262,11 +288,80 @@ class UserAccountService
             }
 
             $lockedUser->accountActivationChallenge()->delete();
-            $lockedUser->status = UserStatus::Inactive;
-            $lockedUser->save();
+            $lockedUser->forceFill([
+                'status' => UserStatus::Cancelled,
+                'activation_cancellation_reason' => $reason,
+                'activation_cancellation_details' => $details,
+                'activation_cancelled_at' => now(),
+                'activation_cancelled_by' => $actor->getKey(),
+                'activation_cancellation_notice_sent_at' => null,
+            ])->saveQuietly();
+
+            $this->audit->log(
+                AuditAction::AccountActivationCancelled,
+                $actor,
+                "Cancelled account activation for {$lockedUser->name}.",
+                $lockedUser,
+                $lockedUser->name,
+                oldValues: ['status' => UserStatus::PendingActivation->value],
+                newValues: [
+                    'status' => UserStatus::Cancelled->value,
+                    'reason' => $reason->label(),
+                    'additional_details' => $details,
+                ],
+                businessReason: $reason->label(),
+            );
 
             return $lockedUser;
         });
+    }
+
+    public function sendCancellationNotice(User $user, User $actor, bool $resend = false): bool
+    {
+        if (! $user->isCancelled() || $user->activation_cancellation_reason === null) {
+            throw ValidationException::withMessages([
+                'status' => ['Only cancelled activation requests have a cancellation notice.'],
+            ]);
+        }
+
+        try {
+            $user->notify(new AccountActivationCancelled(
+                $user->activation_cancellation_reason,
+                $user->activation_cancellation_details,
+            ));
+        } catch (Throwable $exception) {
+            Log::warning('Account activation cancellation notice could not be sent.', [
+                'user_id' => $user->getKey(),
+                'exception_class' => $exception::class,
+            ]);
+
+            if ($resend) {
+                $this->audit->log(
+                    AuditAction::AccountActivationCancellationNoticeResent,
+                    $actor,
+                    "Could not resend the account activation cancellation notice for {$user->name}.",
+                    $user,
+                    $user->name,
+                    outcome: 'failure',
+                );
+            }
+
+            return false;
+        }
+
+        $user->forceFill(['activation_cancellation_notice_sent_at' => now()])->saveQuietly();
+
+        if ($resend) {
+            $this->audit->log(
+                AuditAction::AccountActivationCancellationNoticeResent,
+                $actor,
+                "Resent the account activation cancellation notice for {$user->name}.",
+                $user,
+                $user->name,
+            );
+        }
+
+        return true;
     }
 
     public function unlock(User $user, User $actor): User

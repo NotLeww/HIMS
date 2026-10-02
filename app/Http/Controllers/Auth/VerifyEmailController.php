@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\AccountActivationService;
 use App\Support\AuthenticationPanel;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\RedirectResponse;
@@ -19,6 +21,13 @@ class VerifyEmailController extends Controller
         $user = User::query()->findOrFail($request->route('id'));
 
         abort_unless(hash_equals((string) $request->route('hash'), sha1($user->getEmailForVerification())), 403);
+
+        if ($user->status === UserStatus::Cancelled) {
+            return redirect()->route(AuthenticationPanel::forRole($user->role)->loginRoute())->with(
+                'status',
+                AccountActivationService::CANCELLED_MESSAGE,
+            );
+        }
 
         if (! $user->hasVerifiedEmail() && $user->markEmailAsVerified()) {
             event(new Verified($user));

@@ -2,13 +2,19 @@
 
 namespace App\Notifications;
 
+use App\Enums\ActivationCancellationReason;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class AccountCreated extends Notification
+class AccountActivationCancelled extends Notification
 {
     use Queueable;
+
+    public function __construct(
+        private readonly ActivationCancellationReason $reason,
+        private readonly ?string $details,
+    ) {}
 
     /** @return list<string> */
     public function via(object $notifiable): array
@@ -21,13 +27,14 @@ class AccountCreated extends Notification
         $data = [
             'appName' => config('app.name'),
             'name' => $notifiable->name,
-            'activationUrl' => route('activation.start'),
+            'reason' => $this->reason->label(),
+            'details' => $this->details,
         ];
 
         return (new MailMessage)
-            ->subject('Your HIMS account is ready to activate')
-            ->view('emails.auth.account-created', $data)
-            ->text('emails.auth.account-created-text', $data);
+            ->subject('HIMS Account Activation Cancelled')
+            ->view('emails.auth.account-activation-cancelled', $data)
+            ->text('emails.auth.account-activation-cancelled-text', $data);
     }
 
     /** @return array<string, never> */

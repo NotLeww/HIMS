@@ -25,7 +25,7 @@
                     <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('users.edit'), $user)" icon="pencil-square">
                         Edit
                     </x-ui.button>
-                    @if (! $user->isPendingActivation() && ! $user->hasVerifiedEmail())
+                    @if (! $user->isPendingActivation() && ! $user->isCancelled() && ! $user->hasVerifiedEmail())
                         <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.verification.send'), $user) }}">
                             @csrf
                             <x-ui.button type="submit" variant="secondary" data-loading-text="Sending activation email...">
@@ -34,14 +34,17 @@
                         </form>
                     @endif
                     @if ($user->isPendingActivation())
-                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.cancel-invitation'), $user) }}"
-                              data-confirm-title="Cancel invitation?"
-                              data-confirm-message="This will invalidate the activation code and mark the account as inactive."
-                              data-confirm-label="Cancel Invitation">
+                        <x-ui.button
+                            type="button"
+                            variant="danger"
+                            x-on:click="$dispatch('open-cancel-activation', { actionUrl: {{ Illuminate\Support\Js::from(route(\App\Support\AuthenticationContext::administrationRoute('users.cancel-invitation'), $user)) }}, accountName: {{ Illuminate\Support\Js::from($user->name) }}, userId: {{ Illuminate\Support\Js::from($user->getKey()) }} })">
+                            Cancel Activation
+                        </x-ui.button>
+                    @elseif ($user->isCancelled())
+                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.cancellation-notification.send'), $user) }}">
                             @csrf
-                            @method('PATCH')
-                            <x-ui.button type="submit" variant="danger" data-loading-text="Cancelling invitation...">
-                                Cancel Invitation
+                            <x-ui.button type="submit" variant="secondary" data-loading-text="Sending cancellation notice...">
+                                Resend Cancellation Notice
                             </x-ui.button>
                         </form>
                     @endif
@@ -108,7 +111,7 @@
         @endif
     </x-ui.page-header>
 
-    @if ($errors->any())
+    @if ($errors->any() && ! $errors->cancelActivation->any())
         <x-ui.alert variant="danger" class="mt-4" title="Operation refused">
             <ul class="space-y-0.5 list-disc list-inside">
                 @foreach ($errors->all() as $error)
@@ -163,7 +166,7 @@
                         <dt class="text-neutral-500">Status</dt>
                         <dd>
                             <x-ui.badge :status="$user->status->value" dot>{{ $user->status->label() }}</x-ui.badge>
-                            @if (! $user->isPendingActivation() && ! $user->hasVerifiedEmail())
+                            @if (! $user->isPendingActivation() && ! $user->isCancelled() && ! $user->hasVerifiedEmail())
                                 <x-ui.badge status="pending" dot>Pending Email Verification</x-ui.badge>
                             @endif
                             @if ($user->isTemporarilyLocked())
@@ -196,6 +199,41 @@
                     </div>
                 </dl>
             </x-ui.card>
+
+            @if ($user->isCancelled())
+                <x-ui.card title="Activation Cancellation">
+                    <dl class="space-y-3 text-sm">
+                        <div>
+                            <dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Reason</dt>
+                            <dd class="mt-0.5 text-neutral-900 dark:text-neutral-100">{{ $user->activation_cancellation_reason?->label() ?? 'Not recorded' }}</dd>
+                        </div>
+                        @if (filled($user->activation_cancellation_details))
+                            <div>
+                                <dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Additional Details</dt>
+                                <dd class="mt-0.5 break-words text-neutral-900 dark:text-neutral-100">{{ $user->activation_cancellation_details }}</dd>
+                            </div>
+                        @endif
+                        <div>
+                            <dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Cancelled</dt>
+                            <dd class="mt-0.5 text-neutral-900 dark:text-neutral-100">
+                                {{ $user->activation_cancelled_at?->timezone(config('app.timezone'))->format('M d, Y g:i A') ?? 'Not recorded' }}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Cancelled By</dt>
+                            <dd class="mt-0.5 text-neutral-900 dark:text-neutral-100">{{ $user->activationCancelledBy?->name ?? 'System' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Cancellation Notice</dt>
+                            <dd class="mt-0.5 text-neutral-900 dark:text-neutral-100">
+                                {{ $user->activation_cancellation_notice_sent_at
+                                    ? 'Sent '.$user->activation_cancellation_notice_sent_at->timezone(config('app.timezone'))->format('M d, Y g:i A')
+                                    : 'Not sent' }}
+                            </dd>
+                        </div>
+                    </dl>
+                </x-ui.card>
+            @endif
 
         </div>
 
@@ -246,4 +284,8 @@
             </x-ui.card>
         </div>
     </div>
+
+    @if ($canManage)
+        @include('admin.users.partials.cancel-activation-modal')
+    @endif
 </x-app-layout>

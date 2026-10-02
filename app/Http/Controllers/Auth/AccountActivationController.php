@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Enums\AuditAction;
+use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Notifications\AccountActivationOtp;
@@ -181,6 +182,10 @@ class AccountActivationController extends Controller
         $user = is_array($identity) ? $this->activationUser($identity) : null;
 
         if ($user === null || ! isset($identity['channel'])) {
+            if (is_array($identity) && $this->cancelledActivationUser($identity) !== null) {
+                return redirect()->route('activation.start')->withErrors(['email' => AccountActivationService::CANCELLED_MESSAGE]);
+            }
+
             return back()->withErrors(['otp' => 'The code is incorrect, expired, or no longer valid.']);
         }
 
@@ -227,6 +232,10 @@ class AccountActivationController extends Controller
     {
         $user = $this->verifiedUser($request);
 
+        if ($user?->isCancelled()) {
+            return redirect()->route('activation.start')->withErrors(['email' => AccountActivationService::CANCELLED_MESSAGE]);
+        }
+
         return $user !== null && $activation->canSetPassword($user)
             ? view('auth.account-activation.password')
             : redirect()->route('activation.start')
@@ -247,6 +256,10 @@ class AccountActivationController extends Controller
         $activated = $user === null ? null : $activation->complete($user, $validated['password']);
 
         if ($activated === null) {
+            if ($user?->isCancelled()) {
+                return redirect()->route('activation.start')->withErrors(['email' => AccountActivationService::CANCELLED_MESSAGE]);
+            }
+
             return redirect()->route('activation.start')
                 ->withErrors(['email' => 'Your verified activation session expired. Start again to receive a new code.']);
         }
@@ -270,6 +283,13 @@ class AccountActivationController extends Controller
     {
         return isset($identity['user_id'])
             ? User::query()->where('status', 'pending_activation')->find($identity['user_id'])
+            : null;
+    }
+
+    private function cancelledActivationUser(array $identity): ?User
+    {
+        return isset($identity['user_id'])
+            ? User::query()->where('status', UserStatus::Cancelled->value)->find($identity['user_id'])
             : null;
     }
 
