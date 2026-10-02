@@ -227,15 +227,8 @@ class SupplierController extends Controller implements HasMiddleware
         ];
 
         if ($canViewProcurement) {
-            $poCounts = DB::table('purchase_orders')
-                ->selectRaw("
-                    COUNT(*) as total_orders,
-                    COUNT(CASE WHEN received_at IS NULL AND status != 'cancelled' THEN 1 END) as open_orders
-                ")
-                ->first();
-
-            $counts['purchase_orders'] = (int) ($poCounts->total_orders ?? 0);
-            $counts['open_purchase_orders'] = (int) ($poCounts->open_orders ?? 0);
+            $counts['purchase_orders'] = PurchaseOrder::visibleInPipeline()->count();
+            $counts['open_purchase_orders'] = PurchaseOrder::visibleInPipeline()->issuedOpen()->count();
         }
 
         $hasDirectoryFilters = $request->hasAny(['search', 'status', 'accreditation_status', 'eligibility', 'product_category_id', 'compliance', 'expiry', 'contract', 'performance', 'supplier']);
@@ -257,7 +250,7 @@ class SupplierController extends Controller implements HasMiddleware
             ];
         }
         if ($canViewProcurement && ! $hasDirectoryFilters) {
-            $openOrderDetails = PurchaseOrder::with('supplier')->whereNull('received_at')->where('status', '!=', 'cancelled')->latest('requested_at')->take(5)->get();
+            $openOrderDetails = PurchaseOrder::with('supplier')->visibleInPipeline()->issuedOpen()->latest('requested_at')->take(5)->get();
             $supplierMetricDetails['open_orders'] = MetricDetails::from(
                 $openOrderDetails,
                 $counts['open_purchase_orders'],

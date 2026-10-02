@@ -132,7 +132,7 @@ class SupplierManagementTest extends TestCase
             'quantity' => 2,
             'unit_cost' => 25,
             'total_amount' => 50,
-            'status' => 'pending',
+            'status' => 'approved',
             'requested_at' => now(),
         ]);
         $review = KpiProcessReview::create([
@@ -158,6 +158,7 @@ class SupplierManagementTest extends TestCase
         $this->actingAs($manager)->get('/inventory/suppliers?supplier='.$supplier->id)
             ->assertOk()
             ->assertViewHas('selectedSupplier', fn (?Supplier $selected) => $selected?->is($supplier) === true)
+            ->assertViewHas('counts', fn (array $counts) => $counts['open_purchase_orders'] === 1 && $counts['purchase_orders'] === 1)
             ->assertSee('Supplier Vendor Analytics')
             ->assertSee('Selected supplier')
             ->assertSee('Selected Clinical Vendor')
@@ -166,6 +167,10 @@ class SupplierManagementTest extends TestCase
             ->assertSee('92%')
             ->assertSee('create-supplier')
             ->assertSee('View Supplier')
+            ->assertSee(route('inventory.suppliers', ['status' => 'active']), false)
+            ->assertSee(route('inventory.suppliers', ['eligibility' => 'eligible']), false)
+            ->assertSee(route('inventory.suppliers', ['compliance' => 'alerts']), false)
+            ->assertSee(route('inventory.purchases', ['po_status' => 'open']).'#purchase-orders', false)
             ->assertSee('Other Vendor');
     }
 

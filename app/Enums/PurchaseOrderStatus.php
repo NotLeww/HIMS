@@ -85,4 +85,17 @@ enum PurchaseOrderStatus: string
             array_filter(self::cases(), fn (self $status): bool => $status->isOpen()),
         ));
     }
+
+    /** @return array<int, string> */
+    public static function issuedOpenValues(): array
+    {
+        return array_map(fn (self $status): string => $status->value, [
+            self::Approved,
+            self::Dispatched,
+            self::Acknowledged,
+            self::UnderInspection,
+            self::RejectedDelivery,
+            self::PartiallyFulfilled,
+        ]);
+    }
 }

@@ -293,6 +293,27 @@ class PurchaseOrderWorkspaceTest extends TestCase
             'delivery_date' => today()->addWeek(),
             'requested_at' => now()->subDays(40),
         ]);
+        PurchaseOrder::create([
+            'po_number' => 'PO-FILTER-FUTURE',
+            'supplier_id' => $supplier->id,
+            'item_id' => $item->id,
+            'quantity' => 1,
+            'unit_cost' => 125.50,
+            'total_amount' => 125.50,
+            'status' => 'approved',
+            'requested_at' => now()->addDay(),
+        ]);
+        PurchaseOrder::create([
+            'po_number' => 'PO-FILTER-DRAFT-OVERDUE',
+            'supplier_id' => $supplier->id,
+            'item_id' => $item->id,
+            'quantity' => 1,
+            'unit_cost' => 125.50,
+            'total_amount' => 125.50,
+            'status' => 'draft',
+            'delivery_date' => today()->subDay(),
+            'requested_at' => now()->subDays(2),
+        ]);
 
         $this->actingAs($manager)->get('/inventory/purchases?po_search=FILTER-MATCH&po_status=approved&po_date=7')
             ->assertOk()
@@ -302,7 +323,17 @@ class PurchaseOrderWorkspaceTest extends TestCase
         $this->actingAs($manager)->get('/inventory/purchases?po_date=overdue')
             ->assertOk()
             ->assertSee('PO-FILTER-MATCH')
-            ->assertDontSee('PO-FILTER-HIDDEN');
+            ->assertDontSee('PO-FILTER-HIDDEN')
+            ->assertDontSee('PO-FILTER-DRAFT-OVERDUE');
+
+        $this->actingAs($manager)->get('/inventory/purchases?po_status=open')
+            ->assertOk()
+            ->assertViewHas('purchaseOrders', fn ($orders) => $orders->total() === 1)
+            ->assertSee('<option value="open" selected>Open</option>', false)
+            ->assertSee('PO-FILTER-MATCH')
+            ->assertDontSee('PO-FILTER-HIDDEN')
+            ->assertDontSee('PO-FILTER-FUTURE')
+            ->assertDontSee('PO-FILTER-DRAFT-OVERDUE');
 
         $this->actingAs($manager)->get('/inventory/purchases?po_search=NO-SUCH-ORDER')
             ->assertOk()

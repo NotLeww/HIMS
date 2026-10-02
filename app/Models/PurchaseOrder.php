@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\PurchaseOrderStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -129,6 +130,19 @@ class PurchaseOrder extends Model
         return is_string($this->status)
             ? (PurchaseOrderStatus::tryFrom($this->status) ?? PurchaseOrderStatus::Draft)
             : $this->status;
+    }
+
+    public function scopeVisibleInPipeline(Builder $query): Builder
+    {
+        return $query
+            ->where('requested_at', '<=', now())
+            ->where(fn (Builder $query) => $query->whereNull('dispatched_at')->orWhere('dispatched_at', '<=', now()))
+            ->where(fn (Builder $query) => $query->whereNull('received_at')->orWhere('received_at', '<=', now()));
+    }
+
+    public function scopeIssuedOpen(Builder $query): Builder
+    {
+        return $query->whereIn('status', PurchaseOrderStatus::issuedOpenValues());
     }
 
     public function isFullyReceived(): bool

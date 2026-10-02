@@ -27,6 +27,18 @@ class PurchaseOrderStatusTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_issued_open_orders_start_at_approval_and_end_at_fulfillment(): void
+    {
+        $this->assertSame([
+            'approved',
+            'dispatched',
+            'acknowledged',
+            'under_inspection',
+            'rejected_delivery',
+            'partially_fulfilled',
+        ], PurchaseOrderStatus::issuedOpenValues());
+    }
+
     public function test_api_rejects_a_status_outside_the_purchase_order_vocabulary(): void
     {
         // 'pending' was the old column default and was never an enum case. A row

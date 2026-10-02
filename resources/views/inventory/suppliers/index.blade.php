@@ -21,13 +21,13 @@
     @endif
 
     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <x-ui.stat compact label="Active suppliers" :value="$counts['active']" icon="users" tone="primary" :hint="$counts['new_this_month'].' added this month · '.$counts['total'].' total'" :details="$supplierMetricDetails['active']" summary-title="Active suppliers" />
-        <x-ui.stat compact label="Procurement eligible" :value="$counts['eligible']" icon="shield-check" tone="success" :hint="$counts['pending'].' awaiting accreditation review'" :details="$supplierMetricDetails['eligible']" summary-title="Procurement-eligible suppliers" />
-        <x-ui.stat compact label="Compliance attention" :value="$counts['attention']" icon="exclamation-triangle" :tone="$counts['critical_alerts'] > 0 ? 'danger' : 'warning'" :hint="$counts['critical_alerts'].' critical · '.$counts['active_alerts'].' active alerts'" :details="$supplierMetricDetails['attention']" summary-title="Suppliers requiring attention" />
+        <x-ui.stat compact label="Active suppliers" :value="$counts['active']" icon="users" tone="primary" :hint="$counts['new_this_month'].' added this month · '.$counts['total'].' total'" :details="$supplierMetricDetails['active']" summary-title="Active suppliers" :href="route('inventory.suppliers', ['status' => 'active'])" />
+        <x-ui.stat compact label="Procurement eligible" :value="$counts['eligible']" icon="shield-check" tone="success" :hint="$counts['pending'].' awaiting accreditation review'" :details="$supplierMetricDetails['eligible']" summary-title="Procurement-eligible suppliers" :href="route('inventory.suppliers', ['eligibility' => 'eligible'])" />
+        <x-ui.stat compact label="Compliance attention" :value="$counts['attention']" icon="exclamation-triangle" :tone="$counts['critical_alerts'] > 0 ? 'danger' : 'warning'" :hint="$counts['critical_alerts'].' critical · '.$counts['active_alerts'].' active alerts'" :details="$supplierMetricDetails['attention']" summary-title="Suppliers requiring attention" :href="route('inventory.suppliers', ['compliance' => 'alerts'])" />
         @if ($canViewProcurement)
-            <x-ui.stat compact label="Open purchase orders" :value="$counts['open_purchase_orders']" icon="shopping-cart" tone="warning" :hint="$counts['purchase_orders'].' total purchase orders'" :details="$supplierMetricDetails['open_orders']" summary-title="Open supplier purchase orders" />
+            <x-ui.stat compact label="Open purchase orders" :value="$counts['open_purchase_orders']" icon="shopping-cart" tone="warning" :hint="$counts['purchase_orders'].' total purchase orders'" :details="$supplierMetricDetails['open_orders']" summary-title="Open supplier purchase orders" :href="route('inventory.purchases', ['po_status' => 'open']).'#purchase-orders'" />
         @else
-            <x-ui.stat compact label="Pending review" :value="$counts['pending']" icon="clipboard-document-list" tone="warning" hint="Awaiting an accreditation decision" />
+            <x-ui.stat compact label="Pending review" :value="$counts['pending']" icon="clipboard-document-list" tone="warning" hint="Awaiting an accreditation decision" :href="route('inventory.suppliers', ['accreditation_status' => 'pending_review'])" />
         @endif
     </div>
 

@@ -142,23 +142,20 @@ class ProcurementController extends Controller implements HasMiddleware
             ->paginate(10, ['*'], 'approval_page')
             ->withQueryString();
 
-        $closedStatuses = ['received', 'fulfilled', 'cancelled', 'rejected', 'amended'];
-        $poMetricRow = PurchaseOrder::query()
-            ->selectRaw('SUM(CASE WHEN status NOT IN (?, ?, ?, ?, ?) THEN 1 ELSE 0 END) AS open_count', $closedStatuses)
+        $poMetricRow = PurchaseOrder::visibleInPipeline()
             ->selectRaw("SUM(CASE WHEN status IN ('submitted', 'pending', 'pending_approval') THEN 1 ELSE 0 END) AS pending_approval_count")
             ->selectRaw("SUM(CASE WHEN status IN ('dispatched', 'acknowledged', 'partially_fulfilled') THEN 1 ELSE 0 END) AS in_transit_count")
-            ->selectRaw('SUM(CASE WHEN status NOT IN (?, ?, ?, ?, ?) AND delivery_date IS NOT NULL AND DATE(delivery_date) < ? THEN 1 ELSE 0 END) AS overdue_count', [...$closedStatuses, today()->toDateString()])
             ->first();
         $poMetrics = [
-            'open' => (int) $poMetricRow->open_count,
+            'open' => PurchaseOrder::visibleInPipeline()->issuedOpen()->count(),
             'pending_approval' => (int) $poMetricRow->pending_approval_count,
             'in_transit' => (int) $poMetricRow->in_transit_count,
-            'overdue' => (int) $poMetricRow->overdue_count,
+            'overdue' => PurchaseOrder::visibleInPipeline()->issuedOpen()->whereNotNull('delivery_date')->whereDate('delivery_date', '<', today())->count(),
         ];
-        $openOrders = PurchaseOrder::with('supplier')->when($supplierFilter, fn ($query) => $query->where('supplier_id', $supplierFilter->id))->whereNotIn('status', $closedStatuses)->latest('requested_at')->take(5)->get();
-        $pendingOrders = PurchaseOrder::with('supplier')->when($supplierFilter, fn ($query) => $query->where('supplier_id', $supplierFilter->id))->whereIn('status', ['submitted', 'pending', 'pending_approval'])->latest('requested_at')->take(5)->get();
-        $fulfillmentOrders = PurchaseOrder::with('supplier')->when($supplierFilter, fn ($query) => $query->where('supplier_id', $supplierFilter->id))->whereIn('status', ['dispatched', 'acknowledged', 'partially_fulfilled'])->latest('requested_at')->take(5)->get();
-        $overdueOrders = PurchaseOrder::with('supplier')->when($supplierFilter, fn ($query) => $query->where('supplier_id', $supplierFilter->id))->whereNotIn('status', $closedStatuses)->whereNotNull('delivery_date')->whereDate('delivery_date', '<', today())->orderBy('delivery_date')->take(5)->get();
+        $openOrders = PurchaseOrder::with('supplier')->visibleInPipeline()->when($supplierFilter, fn ($query) => $query->where('supplier_id', $supplierFilter->id))->issuedOpen()->latest('requested_at')->take(5)->get();
+        $pendingOrders = PurchaseOrder::with('supplier')->visibleInPipeline()->when($supplierFilter, fn ($query) => $query->where('supplier_id', $supplierFilter->id))->whereIn('status', ['submitted', 'pending', 'pending_approval'])->latest('requested_at')->take(5)->get();
+        $fulfillmentOrders = PurchaseOrder::with('supplier')->visibleInPipeline()->when($supplierFilter, fn ($query) => $query->where('supplier_id', $supplierFilter->id))->whereIn('status', ['dispatched', 'acknowledged', 'partially_fulfilled'])->latest('requested_at')->take(5)->get();
+        $overdueOrders = PurchaseOrder::with('supplier')->visibleInPipeline()->when($supplierFilter, fn ($query) => $query->where('supplier_id', $supplierFilter->id))->issuedOpen()->whereNotNull('delivery_date')->whereDate('delivery_date', '<', today())->orderBy('delivery_date')->take(5)->get();
         $formatOrder = fn (PurchaseOrder $order): string => $order->po_number.' · '.($order->supplier?->name ?? 'Supplier not recorded');
         $poMetricDetails = [
             'open' => MetricDetails::from($openOrders, $supplierFilter ? $openOrders->count() : $poMetrics['open'], $formatOrder, 'No open purchase orders'),
@@ -177,10 +174,7 @@ class ProcurementController extends Controller implements HasMiddleware
             'createdBy',
             'approvalChain.steps.approver',
             'shipments',
-        ])
-            ->where('requested_at', '<=', now())
-            ->where(fn ($query) => $query->whereNull('dispatched_at')->orWhere('dispatched_at', '<=', now()))
-            ->where(fn ($query) => $query->whereNull('received_at')->orWhere('received_at', '<=', now()))
+        ])->visibleInPipeline()
             ->when($supplierFilter, fn ($query) => $query->where('supplier_id', $supplierFilter->id))
             ->when($poCreatorFilter, fn ($query) => $query->where('created_by_user_id', $poCreatorFilter->id))
             ->when($poSearch !== '', fn ($query) => $query->where(function ($searchQuery) use ($poSearch): void {
@@ -189,11 +183,12 @@ class ProcurementController extends Controller implements HasMiddleware
                     ->orWhereHas('item', fn ($item) => $item->where('name', 'like', "%{$poSearch}%"))
                     ->orWhereHas('lines.item', fn ($item) => $item->where('name', 'like', "%{$poSearch}%"));
             }))
-            ->when($poStatus !== '', fn ($query) => $query->where('status', $poStatus))
+            ->when($poStatus === 'open', fn ($query) => $query->issuedOpen())
+            ->when($poStatus !== '' && $poStatus !== 'open', fn ($query) => $query->where('status', $poStatus))
             ->when(in_array($poDate, ['7', '30', '90'], true), fn ($query) => $query
                 ->where('requested_at', '>=', now()->subDays((int) $poDate)))
             ->when($poDate === 'overdue', fn ($query) => $query
-                ->whereNotIn('status', $closedStatuses)
+                ->issuedOpen()
                 ->whereNotNull('delivery_date')
                 ->whereDate('delivery_date', '<', today()));
 
@@ -206,13 +201,13 @@ class ProcurementController extends Controller implements HasMiddleware
             ->latest('requested_at')
             ->paginate($poPerPage, ['*'], 'po_page')
             ->withQueryString();
-        $poStatusOptions = PurchaseOrder::query()
+        $poStatusOptions = collect(['open' => 'Open'])->merge(PurchaseOrder::query()
             ->select('status')
             ->distinct()
             ->orderBy('status')
             ->pluck('status')
             ->filter()
-            ->mapWithKeys(fn (string $status): array => [$status => Str::headline($status)]);
+            ->mapWithKeys(fn (string $status): array => [$status => Str::headline($status)]));
         $poFilters = compact('poSearch', 'poStatus', 'poDate', 'poPerPage');
 
         // Procurement Audit Logs
