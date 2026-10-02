@@ -897,14 +897,17 @@ class StorageLocationLifecycleTest extends TestCase
     public function test_26_super_admin_viewing_storage_locations_registry_sees_deactivate_button_with_confirmation(): void
     {
         $location = $this->createLocation('Warehouse Bay 26', 'BAY-26', 'active');
+        $inactiveLocation = $this->createLocation('Warehouse Bay 27', 'BAY-27', 'inactive');
 
         $response = $this->actingAs($this->superAdmin)
             ->get(route('inventory.storage-locations'));
 
         $response->assertOk();
-        $response->assertSee('Deactivate', false);
+        $response->assertSee('aria-label="Deactivate '.$location->code.'"', false);
+        $response->assertSee('aria-label="Activate '.$inactiveLocation->code.'"', false);
+        $response->assertSee('Print QR', false);
         $response->assertSee('Are you sure you want to deactivate this storage location?', false);
-        $response->assertSee('Are you sure you want to deactivate '.$location->code, false);
         $response->assertSee('Yes, Deactivate Location', false);
+        $response->assertDontSee('data-confirm-title="Update location status"', false);
     }
 }

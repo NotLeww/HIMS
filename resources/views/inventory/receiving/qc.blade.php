@@ -64,16 +64,16 @@
 
             {{-- Metric Cards --}}
             <div class="grid gap-4 sm:grid-cols-3">
-                <div data-metric-title="Quarantined items awaiting disposition" data-metric-details="{{ json_encode($metricDetails['inspections']) }}" class="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+                <a href="#qc-inspection-queue" aria-label="View quarantined stock awaiting quality disposition" data-metric-title="Quarantined items awaiting disposition" data-metric-details="{{ json_encode($metricDetails['inspections']) }}" class="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm transition hover:border-amber-400 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2">
                     <p class="text-xs font-medium uppercase tracking-wider text-neutral-500">Quarantine Assay Queue</p>
                     <p class="mt-2 text-2xl font-bold text-amber-600">{{ $inspections->total() }}</p>
                     <p class="mt-1 text-xs text-neutral-500">Pending clinical or packaging release</p>
-                </div>
-                <div data-metric-title="Available unrestricted locations" data-metric-details="{{ json_encode($metricDetails['locations']) }}" class="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
+                </a>
+                <a href="{{ route('inventory.storage-locations') }}" aria-label="View available unrestricted storage locations" data-metric-title="Available unrestricted locations" data-metric-details="{{ json_encode($metricDetails['locations']) }}" class="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm transition hover:border-emerald-400 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2">
                     <p class="text-xs font-medium uppercase tracking-wider text-neutral-500">Target Unrestricted Zones</p>
                     <p class="mt-2 text-2xl font-bold text-emerald-600">{{ count($storageLocations) }}</p>
                     <p class="mt-1 text-xs text-neutral-500">Active distribution racks &amp; pharmacy shelves</p>
-                </div>
+                </a>
                 <div class="rounded-xl border border-neutral-200 bg-white p-5 shadow-sm">
                     <p class="text-xs font-medium uppercase tracking-wider text-neutral-500">Regulatory Compliance</p>
                     <p class="mt-2 text-2xl font-bold text-neutral-900">DOH AO 2019-0041</p>
@@ -82,7 +82,7 @@
             </div>
 
             {{-- Inspection Queue Table --}}
-            <div class="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
+            <div id="qc-inspection-queue" class="scroll-mt-6 rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
                 <div class="border-b border-neutral-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
                         <h3 class="text-base font-semibold text-neutral-900">Quarantined Stock Awaiting Quality Disposition</h3>

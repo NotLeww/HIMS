@@ -871,7 +871,12 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
         $this->assertEquals(200, ItemStockLevel::where('item_id', $item->id)->sum('quarantined_quantity'));
         $this->assertEquals(200, ItemStockLevel::where('item_id', $item->id)->sum('in_transit_quantity'));
         $this->assertEquals(0, ItemStockLevel::where('item_id', $item->id)->sum('quantity'));
-        $this->actingAs($this->qcInspector)->get(route('inventory.qc.index'))->assertSee($item->name);
+        $this->actingAs($this->qcInspector)
+            ->get(route('inventory.qc.index'))
+            ->assertSee($item->name)
+            ->assertSee('href="#qc-inspection-queue"', false)
+            ->assertSee('href="'.route('inventory.storage-locations').'"', false)
+            ->assertSee('id="qc-inspection-queue"', false);
 
         $this->qcService->rejectLot($inspection, 1, 'Failed assay', $this->qcInspector, 'partial-reject-1');
         $this->assertSame('partially_disposed', $inspection->refresh()->inspection_status);

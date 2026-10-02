@@ -208,31 +208,34 @@
                     <x-ui.table.td><div class="flex max-w-xs flex-wrap gap-1">@foreach(['is_receiving_staging'=>'Receiving','is_quarantine'=>'Quarantine','is_pick_face'=>'Pick face','is_reserve'=>'Reserve','is_dispatch_staging'=>'Dispatch','is_in_transit'=>'In transit','is_returns_area'=>'Returns','is_damaged_stock'=>'Damaged'] as $flag=>$label)@if($location->{$flag})<span class="rounded bg-neutral-100 px-2 py-0.5 text-xs">{{ $label }}</span>@endif @endforeach</div></x-ui.table.td>
                     <x-ui.table.td>{{ number_format($location->totalQuantity()) }}@if($location->capacity) / {{ number_format($location->capacity) }} {{ $location->capacity_unit }}<p class="text-xs text-neutral-500">{{ $location->utilisation() }}%</p>@endif</x-ui.table.td>
                     <x-ui.table.td><x-ui.badge :status="$location->status">{{ str($location->status)->title() }}</x-ui.badge></x-ui.table.td>
-                    <x-ui.table.td><div class="flex min-w-52 flex-wrap gap-2">
-                        @can(\App\Enums\Permission::PrintWarehouseLabels->value)<form method="POST" action="{{ route('inventory.storage-locations.label', $location) }}" target="_blank">@csrf<input type="hidden" name="copies" value="1"><button class="text-xs font-semibold text-primary-700 hover:underline">Print QR</button></form>@endcan
+                    <x-ui.table.td><div class="flex min-w-40 items-center justify-end gap-2">
+                        @can(\App\Enums\Permission::PrintWarehouseLabels->value)
+                            <form method="POST" action="{{ route('inventory.storage-locations.label', $location) }}" target="_blank">
+                                @csrf
+                                <input type="hidden" name="copies" value="1">
+                                <x-ui.button type="submit" size="sm" variant="secondary" icon="qr-code">Print QR</x-ui.button>
+                            </form>
+                        @endcan
                         @if(auth()->user()?->isSuperAdministrator())
                             @if($location->status === 'active')
                                 <button
                                     type="button"
                                     @click="targetLocation = { id: {{ $location->id }}, code: '{{ addslashes($location->code) }}', name: '{{ addslashes($location->name) }}' }; reason = ''; reasonError = null; confirmDeactivateModal = false; deactivateModal = true;"
-                                    data-confirm-title="Are you sure you want to deactivate this storage location?"
-                                    data-confirm-prompt="Are you sure you want to deactivate {{ $location->code }} ({{ $location->name }})?"
-                                    data-confirm-label="Yes, Deactivate Location"
-                                    class="text-xs font-semibold text-amber-700 hover:underline">
-                                    Deactivate
+                                    aria-label="Deactivate {{ $location->code }}"
+                                    title="Deactivate location"
+                                    class="inline-flex size-9 items-center justify-center rounded-md border border-neutral-300 bg-white text-neutral-600 transition-colors hover:bg-neutral-50 hover:text-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-amber-300 dark:focus-visible:ring-offset-neutral-900">
+                                    <x-ui.icon name="ellipsis-vertical" class="size-4" />
                                 </button>
                             @else
                                 <button
                                     type="button"
                                     @click="targetLocation = { id: {{ $location->id }}, code: '{{ addslashes($location->code) }}', name: '{{ addslashes($location->name) }}' }; reason = ''; reasonError = null; confirmActivateModal = false; activateModal = true;"
-                                    data-confirm-title="Are you sure you want to reactivate this storage location?"
-                                    data-confirm-prompt="Are you sure you want to reactivate {{ $location->code }} ({{ $location->name }})?"
-                                    data-confirm-label="Yes, Activate Location"
-                                    class="text-xs font-semibold text-emerald-700 hover:underline">
-                                    Activate
+                                    aria-label="Activate {{ $location->code }}"
+                                    title="Activate location"
+                                    class="inline-flex size-9 items-center justify-center rounded-md border border-neutral-300 bg-white text-neutral-600 transition-colors hover:bg-neutral-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-emerald-300 dark:focus-visible:ring-offset-neutral-900">
+                                    <x-ui.icon name="ellipsis-vertical" class="size-4" />
                                 </button>
                             @endif
-                            <form method="POST" action="{{ route('inventory.storage-locations.status', $location) }}" class="flex items-center gap-1" data-confirm-title="Update location status" data-confirm-message="Are you sure you want to change the status of {{ $location->code }} ({{ $location->name }})? Inactive locations cannot receive new inventory." data-confirm-label="Update Status" data-confirm-variant="warning">@csrf @method('PATCH')<select name="status" class="rounded border-neutral-300 py-1 text-xs">@foreach(['active'=>'Active','blocked'=>'Blocked','inactive'=>'Inactive'] as $value=>$label)<option value="{{ $value }}" @selected($location->status===$value)>{{ $label }}</option>@endforeach</select><input name="reason" required maxlength="1000" placeholder="Reason" class="w-24 rounded border-neutral-300 py-1 text-xs"><button class="text-xs font-semibold text-primary-700 hover:underline">Apply</button></form>
                         @endif
                     </div></x-ui.table.td>
                 </x-ui.table.row>@empty<x-ui.table.empty colspan="7" title="No storage locations" message="Configure the real warehouse hierarchy before creating physical tasks." />@endforelse</tbody>
