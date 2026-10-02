@@ -37,6 +37,7 @@ use App\Services\Procurement\ApprovalRoutingEngine;
 use App\Services\Procurement\EvaluationEngine;
 use App\Services\Procurement\POConversionService;
 use App\Services\Warehouse\WarehouseTaskService;
+use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -227,6 +228,76 @@ class EnterpriseProcurementTest extends TestCase
     // =========================================================================
     // 2. Sourcing RFQ, Supplier Eligibility & Sealed Bidding Tests
     // =========================================================================
+
+    public function test_web_rfq_packaging_uses_the_selected_purchase_request(): void
+    {
+        $this->travelTo(CarbonImmutable::create(2026, 10, 2, 9, 9, 0, 'Asia/Manila'));
+
+        [$costCenter, , $manager] = $this->createCostCenterWithBudget();
+        $item = $this->createItem('Selected PR Item', 'SELECTED-PR-01');
+        $supplier = $this->createEligibleSupplier();
+        $purchaseRequest = PurchaseRequest::create([
+            'pr_number' => 'PR-SELECTED-001',
+            'requester_id' => $manager->id,
+            'cost_center_id' => $costCenter->id,
+            'title' => 'Selected Request',
+            'status' => RequisitionStatus::Approved,
+            'total_estimated_amount' => 450,
+        ]);
+        $line = $purchaseRequest->lines()->create([
+            'line_number' => 1,
+            'item_id' => $item->id,
+            'item_description' => $item->name,
+            'quantity' => 3,
+            'uom' => 'box',
+            'estimated_unit_price' => 150,
+            'estimated_total_price' => 450,
+        ]);
+
+        $this->actingAs($manager)
+            ->get(route('inventory.purchases', ['tab' => 'sourcing_rfqs']))
+            ->assertOk()
+            ->assertSee('showRfqForm: false', false)
+            ->assertSee('Create standalone RFQ');
+
+        $this->actingAs($manager)
+            ->get(route('inventory.purchases', ['tab' => 'sourcing_rfqs', 'purchase_request_id' => $purchaseRequest->id]))
+            ->assertOk()
+            ->assertSee(route('inventory.purchases', ['tab' => 'sourcing_rfqs', 'purchase_request_id' => $purchaseRequest->id]).'#rfq-package-form')
+            ->assertSee('showRfqForm: true', false)
+            ->assertSee("\$el.scrollIntoView({ block: 'start' })", false)
+            ->assertSee('value="'.$purchaseRequest->id.'"', false)
+            ->assertSee('min="2026-10-02T09:10"', false)
+            ->assertSee('RFQ for Selected Request', false);
+
+        $this->actingAs($manager)->from(route('inventory.purchases'))->post(route('inventory.purchases.rfqs.store'), [
+            'purchase_request_id' => $purchaseRequest->id,
+            'title' => 'RFQ with expired deadline',
+            'bidding_type' => 'sealed',
+            'submission_deadline' => now()->subMinute()->toDateTimeString(),
+            'supplier_ids' => [$supplier->id],
+        ])->assertRedirect(route('inventory.purchases'))
+            ->assertSessionHasErrors('submission_deadline');
+
+        $this->assertDatabaseMissing('sourcing_rfqs', ['title' => 'RFQ with expired deadline']);
+
+        $this->actingAs($manager)->post(route('inventory.purchases.rfqs.store'), [
+            'purchase_request_id' => $purchaseRequest->id,
+            'title' => 'RFQ for Selected Request',
+            'bidding_type' => 'sealed',
+            'submission_deadline' => now()->addDays(5)->toDateTimeString(),
+            'supplier_ids' => [$supplier->id],
+        ])->assertRedirect(route('inventory.purchases'));
+
+        $rfq = SourcingRfq::where('purchase_request_id', $purchaseRequest->id)->firstOrFail();
+        $this->assertDatabaseHas('rfq_line_items', [
+            'sourcing_rfq_id' => $rfq->id,
+            'pr_line_id' => $line->id,
+            'item_id' => $item->id,
+            'target_quantity' => 3,
+        ]);
+        $this->assertSame(RequisitionStatus::Sourcing, $purchaseRequest->fresh()->status);
+    }
 
     public function test_rfq_packaging_enforces_supplier_accreditation_eligibility(): void
     {

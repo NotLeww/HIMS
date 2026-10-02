@@ -123,6 +123,11 @@ class ProcurementController extends Controller implements HasMiddleware
             ->latest('id')
             ->paginate(10, ['*'], 'request_page')
             ->withQueryString();
+        $selectedPurchaseRequest = $request->integer('purchase_request_id')
+            ? PurchaseRequest::with('lines.item')
+                ->where('status', RequisitionStatus::Approved->value)
+                ->find($request->integer('purchase_request_id'))
+            : null;
 
         // Sourcing RFQs
         $rfqs = SourcingRfq::with(['lines.item', 'quotes.supplier', 'quotes.lines', 'invitations.supplier', 'evaluations.quote.supplier'])
@@ -227,6 +232,7 @@ class ProcurementController extends Controller implements HasMiddleware
             'suppliers',
             'requests',
             'enterpriseRequests',
+            'selectedPurchaseRequest',
             'rfqs',
             'costCenters',
             'categories',
@@ -419,8 +425,9 @@ class ProcurementController extends Controller implements HasMiddleware
             'title' => ['required', 'string', 'max:255'],
             'bidding_type' => ['required', 'in:sealed,open'],
             'submission_deadline' => ['required', 'date', 'after:now'],
-            'item_id' => ['required', 'exists:inventory_items,id'],
-            'target_quantity' => ['required', 'integer', 'min:1'],
+            'purchase_request_id' => ['nullable', 'exists:purchase_requests,id'],
+            'item_id' => ['nullable', 'required_without:purchase_request_id', 'exists:inventory_items,id'],
+            'target_quantity' => ['nullable', 'required_without:purchase_request_id', 'integer', 'min:1'],
             'supplier_ids' => ['required', 'array', 'min:1'],
             'supplier_ids.*' => ['required', 'exists:suppliers,id'],
             'terms_conditions' => ['nullable', 'string'],
@@ -436,33 +443,66 @@ class ProcurementController extends Controller implements HasMiddleware
         }
 
         DB::transaction(function () use ($validated, $eligibleSuppliers) {
+            $purchaseRequest = ! empty($validated['purchase_request_id'])
+                ? PurchaseRequest::with('lines.item')->lockForUpdate()->findOrFail($validated['purchase_request_id'])
+                : null;
+
+            if ($purchaseRequest && $purchaseRequest->status !== RequisitionStatus::Approved) {
+                throw ValidationException::withMessages([
+                    'purchase_request_id' => ["Cannot package PR #{$purchaseRequest->pr_number}: Requisition must be approved first."],
+                ]);
+            }
+
             $rfq = SourcingRfq::create([
                 'rfq_number' => 'RFQ-'.now()->format('Ymd').'-'.Str::upper(Str::ulid()),
                 'title' => $validated['title'],
+                'purchase_request_id' => $purchaseRequest?->id,
                 'created_by_user_id' => auth()->id(),
                 'procurement_method' => ProcurementMethod::RequestForQuotation->value,
                 'bidding_type' => $validated['bidding_type'],
                 'submission_deadline' => $validated['submission_deadline'],
                 'status' => RfqStatus::Published->value,
                 'terms_conditions' => $validated['terms_conditions'] ?? null,
+                'currency' => $purchaseRequest?->currency ?? 'PHP',
                 'published_at' => now(),
             ]);
 
-            $item = InventoryItem::find($validated['item_id']);
+            if ($purchaseRequest) {
+                if ($purchaseRequest->lines->isEmpty()) {
+                    throw ValidationException::withMessages(['purchase_request_id' => ['The selected purchase request has no line items to source.']]);
+                }
 
-            if (blank($item->unit)) {
-                throw ValidationException::withMessages(['item_id' => ['Add the item unit of measure before publishing an RFQ.']]);
+                foreach ($purchaseRequest->lines as $line) {
+                    $rfq->lines()->create([
+                        'pr_line_id' => $line->id,
+                        'item_id' => $line->item_id,
+                        'line_number' => $line->line_number,
+                        'target_quantity' => $line->quantity,
+                        'uom' => $line->uom,
+                        'item_description' => $line->item_description,
+                        'technical_specifications' => null,
+                        'max_budget_unit_price' => $line->estimated_unit_price,
+                    ]);
+                }
+
+                $purchaseRequest->update(['status' => RequisitionStatus::Sourcing]);
+            } else {
+                $item = InventoryItem::findOrFail($validated['item_id']);
+
+                if (blank($item->unit)) {
+                    throw ValidationException::withMessages(['item_id' => ['Add the item unit of measure before publishing an RFQ.']]);
+                }
+
+                $rfq->lines()->create([
+                    'item_id' => $item->id,
+                    'line_number' => 1,
+                    'target_quantity' => $validated['target_quantity'],
+                    'uom' => $item->unit,
+                    'item_description' => $item->name,
+                    'technical_specifications' => null,
+                    'max_budget_unit_price' => $item->unit_cost,
+                ]);
             }
-
-            $rfq->lines()->create([
-                'item_id' => $item->id,
-                'line_number' => 1,
-                'target_quantity' => $validated['target_quantity'],
-                'uom' => $item->unit,
-                'item_description' => $item->name,
-                'technical_specifications' => null,
-                'max_budget_unit_price' => $item->unit_cost,
-            ]);
 
             foreach ($eligibleSuppliers as $supplier) {
                 $rfq->invitations()->create([
@@ -479,7 +519,7 @@ class ProcurementController extends Controller implements HasMiddleware
                 $rfq->id,
                 'created_sourcing_rfq',
                 null,
-                ['rfq_number' => $rfq->rfq_number, 'deadline' => $rfq->submission_deadline->toIso8601String()]
+                ['rfq_number' => $rfq->rfq_number, 'purchase_request_id' => $purchaseRequest?->id, 'deadline' => $rfq->submission_deadline->toIso8601String()]
             );
         });
 

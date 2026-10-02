@@ -7,8 +7,11 @@
     </x-slot>
 
     @php
+        $requestedTab = request('tab');
         $defaultTab = match (true) {
+            in_array($requestedTab, ['enterprise_s2p', 'orders_revisions', 'legacy_canvass', 'sourcing_rfqs', 'evaluations', 'doa_approvals', 'audit_trail'], true) => $requestedTab,
             request()->has('request_page') => 'enterprise_s2p',
+            request()->has('purchase_request_id') => 'sourcing_rfqs',
             request()->has('rfq_page') => request('tab') === 'evaluations' ? 'evaluations' : 'sourcing_rfqs',
             request()->has('approval_page') => 'doa_approvals',
             request()->has('audit_page') => 'audit_trail',
@@ -695,10 +698,10 @@
                                         </td>
                                         <td class="px-3.5 py-3">
                                             @can('manage_sourcing')
-                                                @if(($pr->status->value ?? $pr->status) === 'approved' || ($pr->status->value ?? $pr->status) === 'pending_approval')
-                                                    <button @click="activeTab = 'sourcing_rfqs'" class="text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1">
+                                                @if(($pr->status->value ?? $pr->status) === 'approved')
+                                                    <a href="{{ route('inventory.purchases', ['tab' => 'sourcing_rfqs', 'purchase_request_id' => $pr->id]).'#rfq-package-form' }}" class="text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline inline-flex items-center gap-1">
                                                         Package into RFQ &rarr;
-                                                    </button>
+                                                    </a>
                                                 @else
                                                     <span class="text-xs text-neutral-400 dark:text-neutral-500">Processed</span>
                                                 @endif
@@ -729,55 +732,91 @@
             <div x-show="activeTab === 'sourcing_rfqs'" x-cloak class="space-y-6">
                 @can('manage_sourcing')
                 {{-- Create RFQ Package Card --}}
-                <div class="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
-                    <div class="flex items-center justify-between border-b border-neutral-100 pb-4">
-                        <div>
-                            <h3 class="text-lg font-bold text-neutral-900">Publish Sourcing RFQ Package (Sealed Bidding)</h3>
-                            <p class="text-sm text-neutral-500">Configure RFQ event parameters, invited accredited vendors, and strict sealed-bid deadlines.</p>
+                <div
+                    x-data="{ showRfqForm: {{ Js::from((bool) ($selectedPurchaseRequest || old('bidding_type') !== null)) }} }"
+                    class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5 dark:border-neutral-800 dark:bg-neutral-900/90"
+                >
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" :class="showRfqForm ? 'border-b border-neutral-100 pb-4 dark:border-neutral-800' : ''">
+                        <div class="min-w-0">
+                            <h3 class="text-lg font-bold text-neutral-900 dark:text-neutral-100">Publish Sourcing RFQ Package (Sealed Bidding)</h3>
+                            <p class="text-sm text-neutral-500 dark:text-neutral-400">Configure RFQ event parameters, invited accredited vendors, and strict sealed-bid deadlines.</p>
                         </div>
-                        <span class="rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700">Sealed Bidding Protocol</span>
+                        <div class="flex shrink-0 flex-wrap items-center gap-2">
+                            <span x-show="showRfqForm" class="rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700 dark:bg-purple-950/60 dark:text-purple-300">Sealed Bidding Protocol</span>
+                            @unless($selectedPurchaseRequest)
+                                <x-ui.button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    x-on:click="showRfqForm = !showRfqForm; if (showRfqForm) $nextTick(() => $refs.rfqTitle.focus())"
+                                    x-bind:aria-expanded="showRfqForm.toString()"
+                                    aria-controls="rfq-package-form"
+                                >
+                                    <span x-text="showRfqForm ? 'Hide form' : 'Create standalone RFQ'">Create standalone RFQ</span>
+                                </x-ui.button>
+                            @endunless
+                        </div>
                     </div>
 
-                    <form method="POST" action="{{ route('inventory.purchases.rfqs.store') }}" class="mt-4 grid gap-4 md:grid-cols-3"
+                    <form id="rfq-package-form" x-show="showRfqForm" x-cloak method="POST" action="{{ route('inventory.purchases.rfqs.store') }}" class="mt-4 grid gap-3 scroll-mt-24 {{ $selectedPurchaseRequest ? 'md:grid-cols-2 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1.3fr)_minmax(15rem,0.9fr)]' : 'md:grid-cols-3' }}"
+                          @if($selectedPurchaseRequest) x-init="$nextTick(() => { $el.scrollIntoView({ block: 'start' }); $refs.rfqTitle.focus({ preventScroll: true }); })" @endif
                           data-confirm-title="Issue Request for Quotation (RFQ)"
                           data-confirm-message="Are you sure you want to publish this RFQ to invited suppliers?"
                           data-confirm-label="Issue RFQ">
                         @csrf
+                        @if($selectedPurchaseRequest)
+                            <input type="hidden" name="purchase_request_id" value="{{ $selectedPurchaseRequest->id }}">
+                            <div class="min-w-0 rounded-lg border border-primary-200 bg-primary-50 p-3 md:col-span-2 xl:col-span-1 dark:border-primary-800 dark:bg-primary-950/40">
+                                <p class="text-xs font-semibold uppercase tracking-wider text-primary-700 dark:text-primary-300">Selected purchase request</p>
+                                <p class="mt-1 break-words text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ $selectedPurchaseRequest->pr_number }} &middot; {{ $selectedPurchaseRequest->title }}</p>
+                                <p class="mt-1 line-clamp-2 text-xs text-neutral-600 dark:text-neutral-300" title="{{ $selectedPurchaseRequest->lines->map(fn ($line) => ($line->item_description ?: $line->item?->name).' ('.$line->quantity.' '.$line->uom.')')->join(', ') }}">
+                                    {{ $selectedPurchaseRequest->lines->map(fn ($line) => ($line->item_description ?: $line->item?->name).' ('.$line->quantity.' '.$line->uom.')')->join(', ') }}
+                                </p>
+                            </div>
+                        @endif
                         <div>
-                            <label class="mb-1 block text-xs font-semibold uppercase tracking-wider text-neutral-600">RFQ Event Title</label>
-                            <input type="text" name="title" placeholder="e.g. Competitive Canvass: Syringes &amp; PPE" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-primary-500" required />
+                            <label for="rfq-title" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">RFQ Event Title</label>
+                            <input id="rfq-title" x-ref="rfqTitle" type="text" name="title" value="{{ old('title', $selectedPurchaseRequest ? 'RFQ for '.$selectedPurchaseRequest->title : '') }}" placeholder="e.g. Competitive Canvass: Syringes &amp; PPE" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100" required />
                         </div>
                         <div>
-                            <label class="mb-1 block text-xs font-semibold uppercase tracking-wider text-neutral-600">Bidding Protocol</label>
-                            <select name="bidding_type" class="w-full rounded-lg border border-neutral-300 pl-3 pr-10 py-2 text-sm focus:border-primary-500">
+                            <label for="rfq-bidding-type" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Bidding Protocol</label>
+                            <select id="rfq-bidding-type" name="bidding_type" class="w-full rounded-lg border border-neutral-300 py-2 pl-3 pr-10 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
                                 <option value="sealed" selected>Sealed Bid (Commercial prices masked until close)</option>
                                 <option value="open">Open Canvass / Quotation</option>
                             </select>
                         </div>
                         <div>
-                            <label class="mb-1 block text-xs font-semibold uppercase tracking-wider text-neutral-600">Submission Deadline</label>
-                            <input type="datetime-local" name="submission_deadline" value="{{ now()->addDays(5)->format('Y-m-d\TH:i') }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-primary-500" required />
+                            @php
+                                $minimumRfqDeadline = now()->addMinute()->startOfMinute()->format('Y-m-d\TH:i');
+                            @endphp
+                            <label for="rfq-submission-deadline" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Submission Deadline</label>
+                            <input id="rfq-submission-deadline" type="datetime-local" name="submission_deadline" value="{{ old('submission_deadline', now()->addDays(5)->format('Y-m-d\TH:i')) }}" min="{{ $minimumRfqDeadline }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100" @error('submission_deadline') aria-describedby="rfq-submission-deadline-error" aria-invalid="true" @enderror required />
+                            @error('submission_deadline')
+                                <p id="rfq-submission-deadline-error" class="mt-1 text-xs font-medium text-danger-600 dark:text-danger-400" role="alert">{{ $message }}</p>
+                            @enderror
                         </div>
 
-                        <div>
-                            <label class="mb-1 block text-xs font-semibold uppercase tracking-wider text-neutral-600">Item to Sourcing</label>
-                            <select name="item_id" class="w-full rounded-lg border border-neutral-300 pl-3 pr-10 py-2 text-sm focus:border-primary-500" required>
-                                <option value="">Select Item</option>
-                                @foreach($items as $item)
-                                    <option value="{{ $item->id }}">{{ $item->name }} ({{ $item->sku }})</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div>
-                            <label class="mb-1 block text-xs font-semibold uppercase tracking-wider text-neutral-600">Target Quantity</label>
-                            <input type="number" name="target_quantity" min="1" value="500" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-primary-500" required />
-                        </div>
+                        @unless($selectedPurchaseRequest)
+                            <div>
+                                <label for="rfq-item" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Item to Sourcing</label>
+                                <select id="rfq-item" name="item_id" class="w-full rounded-lg border border-neutral-300 py-2 pl-3 pr-10 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100" required>
+                                    <option value="">Select Item</option>
+                                    @foreach($items as $item)
+                                        <option value="{{ $item->id }}">{{ $item->name }} ({{ $item->sku }})</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label for="rfq-target-quantity" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Target Quantity</label>
+                                <input id="rfq-target-quantity" type="number" name="target_quantity" min="1" value="500" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100" required />
+                            </div>
+                        @endunless
                         @php
                             $selectedRfqSupplierIds = collect(old('supplier_ids', $suppliers->modelKeys()))->map(fn ($id) => (int) $id)->values();
                             $rfqSupplierOptions = $suppliers->map(fn ($supplier) => ['id' => $supplier->id, 'name' => $supplier->name])->values();
                         @endphp
                         <div
-                            class="md:col-span-3"
+                            class="{{ $selectedPurchaseRequest ? 'md:col-span-2 xl:col-span-4' : 'md:col-span-3' }}"
                             x-data="{ search: '', selected: {{ Js::from($selectedRfqSupplierIds) }}, suppliers: {{ Js::from($rfqSupplierOptions) }} }"
                         >
                             <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
@@ -797,7 +836,7 @@
                                     </div>
                                 </div>
 
-                                <div class="grid max-h-44 gap-1 overflow-y-auto p-2 sm:grid-cols-2 xl:grid-cols-3">
+                                <div class="grid max-h-44 gap-1 overflow-y-auto p-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                                     @foreach($suppliers as $s)
                                         <label
                                             x-show="!search || {{ Js::from(str($s->name)->lower()->toString()) }}.includes(search.trim().toLowerCase())"
@@ -807,18 +846,18 @@
                                             <span class="min-w-0 break-words font-medium">{{ $s->name }}</span>
                                         </label>
                                     @endforeach
-                                    <p x-show="!suppliers.some(supplier => supplier.name.toLowerCase().includes(search.trim().toLowerCase()))" x-cloak class="p-3 text-sm text-neutral-500 dark:text-neutral-400 sm:col-span-2 xl:col-span-3">No accredited suppliers match your search.</p>
+                                    <p x-show="!suppliers.some(supplier => supplier.name.toLowerCase().includes(search.trim().toLowerCase()))" x-cloak class="p-3 text-sm text-neutral-500 dark:text-neutral-400 sm:col-span-2 xl:col-span-3 2xl:col-span-4">No accredited suppliers match your search.</p>
                                 </div>
                             </div>
-                            <p class="mt-1.5 text-xs text-neutral-500 dark:text-neutral-400">Choose at least one supplier to receive the RFQ invitation.</p>
-                            @error('supplier_ids')<p class="mt-1 text-xs font-medium text-danger-600" role="alert">{{ $message }}</p>@enderror
-                        </div>
-
-                        <div class="md:col-span-3 flex justify-end gap-3 pt-2">
-                            <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow hover:bg-primary-700">
-                                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                            <div class="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <p class="text-xs text-neutral-500 dark:text-neutral-400">Choose at least one supplier to receive the RFQ invitation.</p>
+                                    @error('supplier_ids')<p class="mt-1 text-xs font-medium text-danger-600 dark:text-danger-400" role="alert">{{ $message }}</p>@enderror
+                                </div>
+                                <x-ui.button type="submit" icon="envelope" data-loading-text="Publishing RFQ...">
                                 Publish Sourcing RFQ &amp; Dispatch Invitations
-                            </button>
+                                </x-ui.button>
+                            </div>
                         </div>
                     </form>
                 </div>

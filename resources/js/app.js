@@ -4888,6 +4888,21 @@ Alpine.data('procurementWorkspace', ({
     deliveryDateChangeReason: String(approvalCorrection?.reason || ''),
 
     init() {
+        const validTabs = ['enterprise_s2p', 'orders_revisions', 'legacy_canvass', 'sourcing_rfqs', 'evaluations', 'doa_approvals', 'audit_trail'];
+        const requestedTab = new URLSearchParams(window.location.search).get('tab');
+
+        if (validTabs.includes(requestedTab)) this.activeTab = requestedTab;
+
+        this.$watch('activeTab', (tab) => {
+            if (!validTabs.includes(tab)) return;
+
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', tab);
+            if (tab !== 'sourcing_rfqs') url.searchParams.delete('purchase_request_id');
+            url.hash = '';
+            window.history.replaceState(window.history.state, '', url);
+        });
+
         if (this.approvalCorrection) {
             this.$nextTick(() => this.$dispatch('open-modal', 'reschedule-po-delivery'));
         }
