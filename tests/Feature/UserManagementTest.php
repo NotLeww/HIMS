@@ -756,7 +756,9 @@ class UserManagementTest extends TestCase
     public function test_pending_invitation_can_be_cancelled_and_its_challenge_is_invalidated(): void
     {
         Notification::fake();
+        $creator = $this->admin();
         $admin = $this->admin();
+        $this->actingAs($creator);
         $pending = User::factory()->create([
             'status' => UserStatus::PendingActivation,
             'password' => null,
@@ -800,14 +802,16 @@ class UserManagementTest extends TestCase
         $this->assertNotNull($pending->activation_cancellation_notice_sent_at);
         $this->assertDatabaseMissing('account_activation_challenges', ['user_id' => $pending->id]);
 
-        Notification::assertSentTo($pending, AccountActivationCancelled::class, function ($notification) use ($pending): bool {
+        Notification::assertSentTo($pending, AccountActivationCancelled::class, function ($notification) use ($creator, $pending): bool {
             $mail = $notification->toMail($pending);
             $html = view($mail->view['html'], $mail->viewData)->render();
 
             return $mail->view['html'] === 'emails.auth.account-activation-cancelled'
                 && $mail->viewData['reason'] === 'Incorrect Email Address'
                 && $mail->viewData['details'] === 'The registered address needs correction.'
+                && $mail->viewData['creatorEmail'] === $creator->email
                 && str_contains($html, 'background:#991b1b')
+                && str_contains($html, 'mailto:'.$creator->email)
                 && str_contains($html, 'The registered address needs correction.');
         });
 

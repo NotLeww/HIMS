@@ -14,6 +14,7 @@ class AccountActivationCancelled extends Notification
     public function __construct(
         private readonly ActivationCancellationReason $reason,
         private readonly ?string $details,
+        private readonly ?string $creatorEmail,
     ) {}
 
     /** @return list<string> */
@@ -29,6 +30,7 @@ class AccountActivationCancelled extends Notification
             'name' => $notifiable->name,
             'reason' => $this->reason->label(),
             'details' => $this->details,
+            'creatorEmail' => $this->creatorEmail,
         ];
 
         return (new MailMessage)

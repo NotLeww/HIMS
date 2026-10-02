@@ -7,6 +7,7 @@ use App\Enums\AuditAction;
 use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Models\AuditLog;
 use App\Models\User;
 use App\Notifications\AccountActivationCancelled;
 use App\Notifications\AccountCreated;
@@ -325,9 +326,20 @@ class UserAccountService
         }
 
         try {
+            $creatorEmail = AuditLog::query()
+                ->with('actor:id,email')
+                ->where('action', AuditAction::CreatedUser->value)
+                ->where('target_type', $user->getMorphClass())
+                ->where('target_id', (string) $user->getKey())
+                ->oldest('id')
+                ->first()
+                ?->actor
+                ?->email;
+
             $user->notify(new AccountActivationCancelled(
                 $user->activation_cancellation_reason,
                 $user->activation_cancellation_details,
+                $creatorEmail,
             ));
         } catch (Throwable $exception) {
             Log::warning('Account activation cancellation notice could not be sent.', [

@@ -9,4 +9,9 @@ Reason: {{ $reason }}
 Additional Details: {{ $details }}
 @endif
 
-If you believe this was done in error, please contact your HIMS administrator.
+Questions about this cancellation?
+@if (filled($creatorEmail))
+Contact the administrator who created your account: {{ $creatorEmail }}
+@else
+Please contact your HIMS administrator for assistance.
+@endif

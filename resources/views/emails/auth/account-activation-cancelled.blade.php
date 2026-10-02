@@ -33,9 +33,14 @@
                             @endif
                         </div>
 
-                        <div style="padding:18px;background:#f8fafc;border:1px solid #e5eaf0;border-radius:10px;">
-                            <div style="font-size:14px;font-weight:700;color:#172033;">Need clarification?</div>
-                            <div style="margin-top:7px;color:#4b5565;font-size:13px;line-height:21px;">If you believe this was done in error, please contact your HIMS administrator.</div>
+                        <div style="padding:18px;background:#f8fafc;border:1px solid #dbe3ec;border-radius:10px;">
+                            <div style="font-size:15px;font-weight:700;color:#172033;">Questions about this cancellation?</div>
+                            @if (filled($creatorEmail))
+                                <div style="margin-top:6px;color:#4b5565;font-size:13px;line-height:21px;">Contact the administrator who created your account:</div>
+                                <a href="mailto:{{ $creatorEmail }}" style="display:inline-block;margin-top:10px;color:#174c86;font-size:14px;font-weight:700;line-height:21px;text-decoration:underline;text-underline-offset:3px;word-break:break-all;">{{ $creatorEmail }}</a>
+                            @else
+                                <div style="margin-top:6px;color:#4b5565;font-size:13px;line-height:21px;">Please contact your HIMS administrator for assistance.</div>
+                            @endif
                         </div>
                     </td>
                 </tr>
