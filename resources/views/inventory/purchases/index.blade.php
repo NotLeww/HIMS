@@ -772,14 +772,46 @@
                             <label class="mb-1 block text-xs font-semibold uppercase tracking-wider text-neutral-600">Target Quantity</label>
                             <input type="number" name="target_quantity" min="1" value="500" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-primary-500" required />
                         </div>
-                        <div>
-                            <label class="mb-1 block text-xs font-semibold uppercase tracking-wider text-neutral-600">Invited Accredited Suppliers</label>
-                            <select name="supplier_ids[]" multiple class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-primary-500 h-24" required>
-                                @foreach($suppliers as $s)
-                                    <option value="{{ $s->id }}" selected>{{ $s->name }} ({{ $s->effectiveAccreditationStatus()->value }})</option>
-                                @endforeach
-                            </select>
-                            <p class="mt-1 text-xs text-neutral-400">Hold Ctrl/Cmd to select multiple accredited suppliers.</p>
+                        @php
+                            $selectedRfqSupplierIds = collect(old('supplier_ids', $suppliers->modelKeys()))->map(fn ($id) => (int) $id)->values();
+                            $rfqSupplierOptions = $suppliers->map(fn ($supplier) => ['id' => $supplier->id, 'name' => $supplier->name])->values();
+                        @endphp
+                        <div
+                            class="md:col-span-3"
+                            x-data="{ search: '', selected: {{ Js::from($selectedRfqSupplierIds) }}, suppliers: {{ Js::from($rfqSupplierOptions) }} }"
+                        >
+                            <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                                <label for="rfq-supplier-search" class="text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">Invited Accredited Suppliers</label>
+                                <span class="text-xs font-medium text-neutral-500 dark:text-neutral-400" aria-live="polite"><span class="tabular-nums" x-text="selected.length">{{ $selectedRfqSupplierIds->count() }}</span> selected</span>
+                            </div>
+
+                            <div class="rounded-lg border border-neutral-300 bg-white shadow-xs dark:border-neutral-700 dark:bg-neutral-900">
+                                <div class="flex flex-col gap-2 border-b border-neutral-200 p-2.5 sm:flex-row dark:border-neutral-700">
+                                    <div class="relative min-w-0 flex-1">
+                                        <x-ui.icon name="magnifying-glass" class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-neutral-400" />
+                                        <input id="rfq-supplier-search" type="search" x-model.debounce.150ms="search" placeholder="Search accredited suppliers..." class="min-h-9 w-full rounded-md border border-neutral-300 py-1.5 pl-9 pr-3 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100" />
+                                    </div>
+                                    <div class="flex shrink-0 gap-1.5">
+                                        <button type="button" x-on:click="selected = suppliers.map(supplier => supplier.id)" class="min-h-9 rounded-md px-3 text-xs font-semibold text-primary-700 hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-primary-300 dark:hover:bg-primary-950/50">Select all</button>
+                                        <button type="button" x-on:click="selected = []" class="min-h-9 rounded-md px-3 text-xs font-semibold text-neutral-600 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-neutral-300 dark:hover:bg-neutral-800">Clear</button>
+                                    </div>
+                                </div>
+
+                                <div class="grid max-h-44 gap-1 overflow-y-auto p-2 sm:grid-cols-2 xl:grid-cols-3">
+                                    @foreach($suppliers as $s)
+                                        <label
+                                            x-show="!search || {{ Js::from(str($s->name)->lower()->toString()) }}.includes(search.trim().toLowerCase())"
+                                            class="flex min-h-10 cursor-pointer items-center gap-2.5 rounded-md border border-transparent px-2.5 py-2 text-sm text-neutral-800 transition-colors hover:bg-neutral-50 has-[:checked]:border-primary-200 has-[:checked]:bg-primary-50 dark:text-neutral-200 dark:hover:bg-neutral-800/70 dark:has-[:checked]:border-primary-800 dark:has-[:checked]:bg-primary-950/50"
+                                        >
+                                            <input type="checkbox" name="supplier_ids[]" value="{{ $s->id }}" x-model.number="selected" @checked($selectedRfqSupplierIds->contains($s->id)) @if($loop->first) x-bind:required="selected.length === 0" @endif class="h-4 w-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500 dark:border-neutral-600 dark:bg-neutral-800" />
+                                            <span class="min-w-0 break-words font-medium">{{ $s->name }}</span>
+                                        </label>
+                                    @endforeach
+                                    <p x-show="!suppliers.some(supplier => supplier.name.toLowerCase().includes(search.trim().toLowerCase()))" x-cloak class="p-3 text-sm text-neutral-500 dark:text-neutral-400 sm:col-span-2 xl:col-span-3">No accredited suppliers match your search.</p>
+                                </div>
+                            </div>
+                            <p class="mt-1.5 text-xs text-neutral-500 dark:text-neutral-400">Choose at least one supplier to receive the RFQ invitation.</p>
+                            @error('supplier_ids')<p class="mt-1 text-xs font-medium text-danger-600" role="alert">{{ $message }}</p>@enderror
                         </div>
 
                         <div class="md:col-span-3 flex justify-end gap-3 pt-2">
