@@ -204,7 +204,7 @@ class LoadingIndicatorTest extends TestCase
         $this->actingAs($manager, AuthenticationContext::WEB_GUARD)
             ->get(route('inventory.storage-locations'))
             ->assertOk()
-            ->assertSee('Location registry')
+            ->assertSee('Storage Areas')
             ->assertDontSee('locations-api-status');
 
         // Purchase orders are server-rendered so status, authorization, and
