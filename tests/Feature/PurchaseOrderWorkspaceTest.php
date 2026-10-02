@@ -463,6 +463,7 @@ class PurchaseOrderWorkspaceTest extends TestCase
 
     public function test_existing_approval_actions_enforce_maker_checker_and_audit_the_decision(): void
     {
+        $this->withoutVite();
         $issuer = User::factory()->inventoryManager()->create();
         $approver = User::factory()->inventoryManager()->create();
         $item = $this->item();
@@ -479,14 +480,42 @@ class PurchaseOrderWorkspaceTest extends TestCase
         $po = PurchaseOrder::firstOrFail();
         $chain = $po->approvalChain;
 
+        $this->actingAs($approver)
+            ->get(route('inventory.purchases', ['tab' => 'doa_approvals']))
+            ->assertOk()
+            ->assertSee('Commitment amount')
+            ->assertDontSee('Purchase order total');
+
+        $po->lines()->create([
+            'item_id' => $item->id,
+            'line_number' => 2,
+            'ordered_quantity' => 1,
+            'unit_price' => 125.50,
+            'total_line_amount' => 125.50,
+        ]);
+        $this->actingAs($approver)
+            ->get(route('inventory.purchases', ['tab' => 'doa_approvals']))
+            ->assertOk()
+            ->assertSee('Purchase order total');
+
         $this->actingAs($issuer)
             ->post(route('inventory.purchases.approval-chains.approve', $chain))
             ->assertSessionHasErrors('approval');
         $this->assertSame('pending_approval', $po->fresh()->status);
 
         $this->actingAs($approver)
-            ->post(route('inventory.purchases.approval-chains.approve', ['chain' => $chain, 'approval_page' => 1]), ['decision_notes' => 'Budget and need verified.'])
-            ->assertRedirect(route('inventory.purchases', ['tab' => 'doa_approvals', 'approval_page' => 1]).'#approval-chain-'.$chain->id)
+            ->post(route('inventory.purchases.approval-chains.approve', [
+                'chain' => $chain,
+                'approval_page' => 1,
+                'approval_search' => $po->po_number,
+                'approval_type' => 'purchase_order',
+            ]), ['decision_notes' => 'Budget and need verified.'])
+            ->assertRedirect(route('inventory.purchases', [
+                'tab' => 'doa_approvals',
+                'approval_page' => 1,
+                'approval_search' => $po->po_number,
+                'approval_type' => 'purchase_order',
+            ]).'#approval-chain-'.$chain->id)
             ->assertSessionHas('success');
         $this->assertSame('approved', $po->fresh()->status);
         $approvalReference = $chain->steps()->firstOrFail()->digital_signature_token;

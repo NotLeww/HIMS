@@ -142,7 +142,49 @@ class ProcurementController extends Controller implements HasMiddleware
         $categories = ProcurementCategory::where('is_active', true)->orderBy('name')->get();
 
         // Pending & Active Approval Chains
+        $approvalSearch = trim((string) $request->string('approval_search'));
+        $approvalStatus = in_array($request->string('approval_status')->toString(), ['pending', 'approved', 'rejected', 'cancelled'], true)
+            ? $request->string('approval_status')->toString()
+            : '';
+        $approvalType = ApprovalChainType::tryFrom($request->string('approval_type')->toString())?->value ?? '';
+        $approvalFilters = array_filter([
+            'approval_search' => $approvalSearch,
+            'approval_status' => $approvalStatus,
+            'approval_type' => $approvalType,
+        ]);
         $approvalChains = ApprovalChain::with(['steps.approver', 'purchaseOrder.lines.item', 'purchaseOrder.supplier', 'purchaseRequest.lines.item'])
+            ->when($approvalStatus, fn ($query) => $query->where('status', $approvalStatus))
+            ->when($approvalType, fn ($query) => $query->where('chain_type', $approvalType))
+            ->when($approvalSearch, function ($query) use ($approvalSearch): void {
+                $like = "%{$approvalSearch}%";
+
+                $query->where(function ($query) use ($approvalSearch, $like): void {
+                    if (ctype_digit($approvalSearch)) {
+                        $query->whereKey((int) $approvalSearch);
+                    } else {
+                        $query->whereRaw('1 = 0');
+                    }
+
+                    $query
+                        ->orWhere(function ($query) use ($like): void {
+                            $query->where('chain_type', ApprovalChainType::PurchaseOrder->value)
+                                ->whereHas('purchaseOrder', function ($query) use ($like): void {
+                                    $query->where('po_number', 'like', $like)
+                                        ->orWhereHas('supplier', fn ($query) => $query->where('name', 'like', $like))
+                                        ->orWhereHas('lines.item', fn ($query) => $query->where('name', 'like', $like));
+                                });
+                        })
+                        ->orWhere(function ($query) use ($like): void {
+                            $query->where('chain_type', ApprovalChainType::PurchaseRequest->value)
+                                ->whereHas('purchaseRequest', function ($query) use ($like): void {
+                                    $query->where('pr_number', 'like', $like)
+                                        ->orWhere('title', 'like', $like)
+                                        ->orWhereHas('lines', fn ($query) => $query->where('item_description', 'like', $like))
+                                        ->orWhereHas('lines.item', fn ($query) => $query->where('name', 'like', $like));
+                                });
+                        });
+                });
+            })
             ->latest('id')
             ->paginate(10, ['*'], 'approval_page')
             ->withQueryString();
@@ -237,6 +279,7 @@ class ProcurementController extends Controller implements HasMiddleware
             'costCenters',
             'categories',
             'approvalChains',
+            'approvalFilters',
             'purchaseOrders',
             'itemProcurementContext',
             'supplierCatalogTerms',
@@ -589,10 +632,7 @@ class ProcurementController extends Controller implements HasMiddleware
      */
     public function approveStepWeb(Request $request, ApprovalChain $chain): RedirectResponse
     {
-        $returnUrl = route('inventory.purchases', [
-            'tab' => 'doa_approvals',
-            'approval_page' => max(1, $request->integer('approval_page', 1)),
-        ]).'#approval-chain-'.$chain->id;
+        $returnUrl = $this->approvalReturnUrl($request, $chain);
         $validated = $request->validate([
             'decision_notes' => ['nullable', 'string', 'max:255'],
         ]);
@@ -611,10 +651,7 @@ class ProcurementController extends Controller implements HasMiddleware
      */
     public function rejectStepWeb(Request $request, ApprovalChain $chain): RedirectResponse
     {
-        $returnUrl = route('inventory.purchases', [
-            'tab' => 'doa_approvals',
-            'approval_page' => max(1, $request->integer('approval_page', 1)),
-        ]).'#approval-chain-'.$chain->id;
+        $returnUrl = $this->approvalReturnUrl($request, $chain);
         $validated = $request->validate([
             'rejection_reason' => ['required', 'string', 'max:255'],
         ]);
@@ -626,6 +663,20 @@ class ProcurementController extends Controller implements HasMiddleware
         } catch (DomainException $e) {
             return redirect($returnUrl)->withErrors(['approval' => $e->getMessage()]);
         }
+    }
+
+    private function approvalReturnUrl(Request $request, ApprovalChain $chain): string
+    {
+        $status = $request->string('approval_status')->toString();
+        $type = $request->string('approval_type')->toString();
+
+        return route('inventory.purchases', array_filter([
+            'tab' => 'doa_approvals',
+            'approval_page' => max(1, $request->integer('approval_page', 1)),
+            'approval_search' => trim($request->string('approval_search')->toString()),
+            'approval_status' => in_array($status, ['pending', 'approved', 'rejected', 'cancelled'], true) ? $status : null,
+            'approval_type' => ApprovalChainType::tryFrom($type)?->value,
+        ], fn ($value): bool => $value !== null && $value !== '')).'#approval-chain-'.$chain->id;
     }
 
     /**

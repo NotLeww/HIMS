@@ -2165,9 +2165,10 @@ const startLoadingIndicators = () => {
 
 startLoadingIndicators();
 
-Alpine.data('demandForecastDashboard', ({ initialForecast, endpoint }) => ({
+Alpine.data('demandForecastDashboard', ({ initialForecast, endpoint, statisticalItems = [] }) => ({
     forecast: initialForecast,
     endpoint,
+    statisticalItems,
     analysisDays: String(initialForecast?.analysis_days ?? 90),
     forecastDays: String(initialForecast?.forecast_days ?? 30),
     selectedItemId: '',
@@ -2200,6 +2201,9 @@ Alpine.data('demandForecastDashboard', ({ initialForecast, endpoint }) => ({
     chartAnimating: false,
     hoveredMiniItem: null,
     miniTooltipStyle: '',
+    pageSize: 10,
+    aiPage: 1,
+    statisticalPage: 1,
 
     hasOverallData() {
         if (!this.forecast || this.allItems().length === 0) return false;
@@ -2287,10 +2291,14 @@ Alpine.data('demandForecastDashboard', ({ initialForecast, endpoint }) => ({
         });
         ['selectedItemId', 'category', 'risk'].forEach((property) => {
             this.$watch(property, () => {
+                this.aiPage = 1;
+                this.statisticalPage = 1;
                 this.triggerFilterTransition();
             });
         });
         this.$watch('search', () => {
+            this.aiPage = 1;
+            this.statisticalPage = 1;
             this.$nextTick(() => this.clearActivePoint());
         });
         window.addEventListener('resize', () => {
@@ -2846,6 +2854,7 @@ Alpine.data('demandForecastDashboard', ({ initialForecast, endpoint }) => ({
         this.chartAnimationProgress = 0;
         this.chartAnimating = true;
         this.clearActivePoint();
+        this.aiPage = 1;
         this.forecast = forecast;
 
         this.$nextTick(() => {
@@ -3556,6 +3565,16 @@ Alpine.data('demandForecastDashboard', ({ initialForecast, endpoint }) => ({
     activeTab: 'ai',
     selectedAnalysisItem: null,
 
+    showForecastTab(tab) {
+        this.activeTab = tab;
+        this.$nextTick(() => {
+            document.getElementById('forecast-detail-tabs')?.scrollIntoView({
+                behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+                block: 'start',
+            });
+        });
+    },
+
     openAnalysisModal(item) {
         this.selectedAnalysisItem = item;
         this.$dispatch('open-modal', 'ai-forecast-explanation-modal');
@@ -3592,19 +3611,42 @@ Alpine.data('demandForecastDashboard', ({ initialForecast, endpoint }) => ({
         return this.insight();
     },
 
-    itemMatchesFilter(item) {
-        const needle = this.search.trim().toLowerCase();
-        const matchesCategory = this.category === '' || String(item.category_id ?? '') === String(this.category);
-        const matchesRisk = this.risk === '' || item.risk_level === this.risk;
-        const matchesSelected = !this.selectedItemId || String(item.item_id) === String(this.selectedItemId);
-        const searchable = `${item.item_name ?? ''} ${item.sku ?? ''} ${item.category ?? ''}`.toLowerCase();
-        return matchesCategory && matchesRisk && matchesSelected && (needle === '' || searchable.includes(needle));
+    aiTableItems() {
+        const items = this.filteredItems();
+        if (!this.selectedItemId) return items;
+
+        return items.filter((item) => String(item.item_id) === String(this.selectedItemId));
     },
 
-    statMatchesFilter(name, sku) {
+    aiItemVisible(item) {
+        const index = this.aiTableItems().findIndex((candidate) => String(candidate.item_id) === String(item.item_id));
+        return index >= (this.aiPage - 1) * this.pageSize && index < this.aiPage * this.pageSize;
+    },
+
+    filteredStatisticalItems() {
         const needle = this.search.trim().toLowerCase();
-        if (!needle) return true;
-        return `${name} ${sku}`.toLowerCase().includes(needle);
+        if (!needle) return this.statisticalItems;
+
+        return this.statisticalItems.filter((item) => `${item.name} ${item.sku}`.toLowerCase().includes(needle));
+    },
+
+    statisticalItemVisible(id) {
+        const index = this.filteredStatisticalItems().findIndex((item) => String(item.id) === String(id));
+        return index >= (this.statisticalPage - 1) * this.pageSize && index < this.statisticalPage * this.pageSize;
+    },
+
+    paginationPages(total, current) {
+        if (total <= 5) return Array.from({ length: total }, (_, index) => index + 1);
+
+        const pages = [1];
+        const start = Math.max(2, current - 1);
+        const end = Math.min(total - 1, current + 1);
+        if (start > 2) pages.push('…');
+        for (let page = start; page <= end; page += 1) pages.push(page);
+        if (end < total - 1) pages.push('…');
+        pages.push(total);
+
+        return pages;
     },
 
     itemsRequiringReorderCount() {

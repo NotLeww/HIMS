@@ -1126,6 +1126,50 @@
                         </div>
                     </header>
 
+                    <div class="border-b border-neutral-200 bg-white px-3 py-3 sm:px-4 dark:border-neutral-800 dark:bg-neutral-900/90">
+                        <form method="GET" action="{{ route('inventory.purchases') }}" class="grid gap-3 lg:grid-cols-[minmax(15rem,1fr)_minmax(10rem,0.32fr)_minmax(12rem,0.38fr)_auto] lg:items-end">
+                            <input type="hidden" name="tab" value="doa_approvals">
+                            <label class="block min-w-0">
+                                <span class="mb-1 block text-xs font-semibold text-neutral-700 dark:text-neutral-300">Search approvals</span>
+                                <input
+                                    type="search"
+                                    name="approval_search"
+                                    value="{{ $approvalFilters['approval_search'] ?? '' }}"
+                                    placeholder="Chain #, PR/PO, supplier, or item"
+                                    class="w-full rounded-lg border-neutral-300 bg-white text-sm text-neutral-900 shadow-sm placeholder:text-neutral-400 focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-950 dark:text-white"
+                                >
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-semibold text-neutral-700 dark:text-neutral-300">Status</span>
+                                <select name="approval_status" class="w-full rounded-lg border-neutral-300 bg-white pl-3 pr-10 text-sm text-neutral-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-950 dark:text-white">
+                                    <option value="">All statuses</option>
+                                    @foreach(['pending' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected', 'cancelled' => 'Cancelled'] as $value => $label)
+                                        <option value="{{ $value }}" @selected(($approvalFilters['approval_status'] ?? '') === $value)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="block">
+                                <span class="mb-1 block text-xs font-semibold text-neutral-700 dark:text-neutral-300">Chain type</span>
+                                <select name="approval_type" class="w-full rounded-lg border-neutral-300 bg-white pl-3 pr-10 text-sm text-neutral-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-950 dark:text-white">
+                                    <option value="">All chain types</option>
+                                    @foreach(\App\Enums\ApprovalChainType::cases() as $type)
+                                        <option value="{{ $type->value }}" @selected(($approvalFilters['approval_type'] ?? '') === $type->value)>{{ $type->label() }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <x-ui.button type="submit" size="sm" icon="funnel">Apply filters</x-ui.button>
+                                @if($approvalFilters)
+                                    <x-ui.button href="{{ route('inventory.purchases', ['tab' => 'doa_approvals']) }}" variant="secondary" size="sm">Clear</x-ui.button>
+                                @endif
+                            </div>
+                        </form>
+                        <p class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                            Showing <span class="font-semibold tabular-nums text-neutral-700 dark:text-neutral-300">{{ $approvalChains->firstItem() ?? 0 }}–{{ $approvalChains->lastItem() ?? 0 }}</span>
+                            of <span class="font-semibold tabular-nums text-neutral-700 dark:text-neutral-300">{{ $approvalChains->total() }}</span> approval chains
+                        </p>
+                    </div>
+
                     <div class="space-y-3 p-3 sm:p-4">
                         @forelse($approvalChains as $chain)
                             @php
@@ -1171,7 +1215,7 @@
                                     </div>
                                     <div class="flex items-center justify-between gap-4 sm:justify-end sm:border-l sm:border-neutral-300/70 sm:pl-4 dark:sm:border-neutral-700">
                                         <div class="text-left sm:text-right">
-                                            <p class="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Commitment</p>
+                                            <p class="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Commitment amount</p>
                                             <p class="text-base font-black tabular-nums text-neutral-950 sm:text-lg dark:text-white">₱{{ number_format($chain->total_commitment_amount, 2) }}</p>
                                         </div>
                                         <x-ui.badge :status="$chain->status" dot class="px-3 py-1.5 font-bold uppercase tracking-wide">{{ $chain->status }}</x-ui.badge>
@@ -1307,12 +1351,14 @@
                                                         </tr>
                                                     @endforelse
                                                 </tbody>
-                                                <tfoot class="border-t border-primary-100 bg-primary-50/70 dark:border-primary-900/50 dark:bg-primary-950/25">
-                                                    <tr>
-                                                        <td colspan="4" class="px-3 py-2 text-right text-xs font-semibold text-neutral-700 dark:text-neutral-300">Purchase order total</td>
-                                                        <td class="px-3 py-2 text-right text-sm font-black tabular-nums text-primary-700 dark:text-primary-300">₱{{ number_format($targetPo->grandTotal(), 2) }}</td>
-                                                    </tr>
-                                                </tfoot>
+                                                @if($targetPo->lines->count() > 1)
+                                                    <tfoot class="border-t border-primary-100 bg-primary-50/70 dark:border-primary-900/50 dark:bg-primary-950/25">
+                                                        <tr>
+                                                            <td colspan="4" class="px-3 py-2 text-right text-xs font-semibold text-neutral-700 dark:text-neutral-300">Purchase order total</td>
+                                                            <td class="px-3 py-2 text-right text-sm font-black tabular-nums text-primary-700 dark:text-primary-300">₱{{ number_format($targetPo->grandTotal(), 2) }}</td>
+                                                        </tr>
+                                                    </tfoot>
+                                                @endif
                                             </table>
                                         </div>
                                     </section>
@@ -1360,12 +1406,14 @@
                                                         </tr>
                                                     @endforelse
                                                 </tbody>
-                                                <tfoot class="border-t border-primary-100 bg-primary-50/70 dark:border-primary-900/50 dark:bg-primary-950/25">
-                                                    <tr>
-                                                        <td colspan="5" class="px-3 py-2 text-right text-xs font-semibold text-neutral-700 dark:text-neutral-300">Total requested amount</td>
-                                                        <td class="px-3 py-2 text-right text-sm font-black tabular-nums text-primary-700 dark:text-primary-300">₱{{ number_format((float) $targetPr->total_estimated_amount, 2) }}</td>
-                                                    </tr>
-                                                </tfoot>
+                                                @if($targetPr->lines->count() > 1)
+                                                    <tfoot class="border-t border-primary-100 bg-primary-50/70 dark:border-primary-900/50 dark:bg-primary-950/25">
+                                                        <tr>
+                                                            <td colspan="5" class="px-3 py-2 text-right text-xs font-semibold text-neutral-700 dark:text-neutral-300">Total requested amount</td>
+                                                            <td class="px-3 py-2 text-right text-sm font-black tabular-nums text-primary-700 dark:text-primary-300">₱{{ number_format((float) $targetPr->total_estimated_amount, 2) }}</td>
+                                                        </tr>
+                                                    </tfoot>
+                                                @endif
                                             </table>
                                         </div>
                                     </section>
@@ -1395,7 +1443,7 @@
                                                     ]) }})"
                                                 >Update Delivery Date &amp; Approve</x-ui.button>
                                             @else
-                                                <form method="POST" action="{{ route('inventory.purchases.approval-chains.approve', ['chain' => $chain, 'approval_page' => $approvalChains->currentPage()]) }}"
+                                                <form method="POST" action="{{ route('inventory.purchases.approval-chains.approve', array_merge(['chain' => $chain, 'approval_page' => $approvalChains->currentPage()], $approvalFilters)) }}"
                                                       data-confirm-title="Authorize procurement approval step"
                                                       data-confirm-message="Are you sure you want to authorize this approval step for Chain #{{ $chain->id }} (₱{{ number_format($chain->total_commitment_amount, 2) }})?"
                                                       data-confirm-label="Authorize Step">
@@ -1403,7 +1451,7 @@
                                                     <x-ui.button type="submit" size="sm" icon="check-circle" data-loading-text="Authorizing...">Authorize Step</x-ui.button>
                                                 </form>
                                             @endif
-                                            <form method="POST" action="{{ route('inventory.purchases.approval-chains.reject', ['chain' => $chain, 'approval_page' => $approvalChains->currentPage()]) }}"
+                                            <form method="POST" action="{{ route('inventory.purchases.approval-chains.reject', array_merge(['chain' => $chain, 'approval_page' => $approvalChains->currentPage()], $approvalFilters)) }}"
                                                   data-confirm-title="Reject procurement approval step"
                                                   data-confirm-message="Are you sure you want to reject this approval chain? The procurement commitment will be halted."
                                                   data-confirm-label="Reject Step"
@@ -1423,8 +1471,11 @@
                                 <span class="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
                                     <x-ui.icon name="shield-check" class="h-5 w-5" />
                                 </span>
-                                <p class="mt-3 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No approval chains require review</p>
-                                <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">New purchase-order approvals will appear here.</p>
+                                <p class="mt-3 text-sm font-semibold text-neutral-800 dark:text-neutral-200">{{ $approvalFilters ? 'No approval chains match these filters' : 'No approval chains require review' }}</p>
+                                <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ $approvalFilters ? 'Try changing or clearing the filters.' : 'New procurement approvals will appear here.' }}</p>
+                                @if($approvalFilters)
+                                    <a href="{{ route('inventory.purchases', ['tab' => 'doa_approvals']) }}" class="mt-3 inline-flex text-xs font-semibold text-primary-700 hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:text-primary-300 dark:hover:text-primary-200">Clear filters</a>
+                                @endif
                             </div>
                         @endforelse
                     </div>

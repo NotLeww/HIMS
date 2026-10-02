@@ -746,9 +746,69 @@ class EnterpriseProcurementTest extends TestCase
             ->get(route('inventory.purchases', ['tab' => 'doa_approvals']))
             ->assertOk()
             ->assertSee('Requested items')
+            ->assertSee('Commitment amount')
             ->assertSee('Sterile Examination Gloves')
             ->assertSee('Powder-free nitrile gloves')
-            ->assertSee('12,500.00');
+            ->assertSee('12,500.00')
+            ->assertDontSee('Total requested amount');
+    }
+
+    public function test_approval_chain_filters_search_status_and_type(): void
+    {
+        $this->withoutVite();
+        [$costCenter, , $requester] = $this->createCostCenterWithBudget(100000.00);
+        $approver = $this->createSuperAdmin();
+        $makeRequest = fn (string $number, string $title): PurchaseRequest => PurchaseRequest::create([
+            'pr_number' => $number,
+            'requester_id' => $requester->id,
+            'cost_center_id' => $costCenter->id,
+            'title' => $title,
+            'status' => RequisitionStatus::PendingApproval,
+            'total_estimated_amount' => 12500.00,
+        ]);
+
+        $match = $makeRequest('PR-2026-FILTER-MATCH', 'Filtered clinical supplies');
+        $wrongStatus = $makeRequest('PR-2026-FILTER-APPROVED', 'Filtered approved supplies');
+        $notMatched = $makeRequest('PR-2026-HIDDEN', 'Unrelated supplies');
+        $visibleChain = ApprovalChain::create([
+            'chain_type' => ApprovalChainType::PurchaseRequest,
+            'target_id' => $match->id,
+            'total_commitment_amount' => 12500,
+            'status' => 'pending',
+        ]);
+        $approvedChain = ApprovalChain::create([
+            'chain_type' => ApprovalChainType::PurchaseRequest,
+            'target_id' => $wrongStatus->id,
+            'total_commitment_amount' => 12500,
+            'status' => 'approved',
+        ]);
+        $otherTypeChain = ApprovalChain::create([
+            'chain_type' => ApprovalChainType::SourcingAward,
+            'target_id' => $match->id,
+            'total_commitment_amount' => 12500,
+            'status' => 'pending',
+        ]);
+        $unmatchedChain = ApprovalChain::create([
+            'chain_type' => ApprovalChainType::PurchaseRequest,
+            'target_id' => $notMatched->id,
+            'total_commitment_amount' => 12500,
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($approver)
+            ->get(route('inventory.purchases', [
+                'tab' => 'doa_approvals',
+                'approval_search' => 'FILTER',
+                'approval_status' => 'pending',
+                'approval_type' => ApprovalChainType::PurchaseRequest->value,
+            ]))
+            ->assertOk()
+            ->assertSee('Apply filters')
+            ->assertSee('Chain #'.$visibleChain->id)
+            ->assertDontSee('Chain #'.$approvedChain->id)
+            ->assertDontSee('Chain #'.$otherTypeChain->id)
+            ->assertDontSee('Chain #'.$unmatchedChain->id)
+            ->assertSee('Showing <span class="font-semibold tabular-nums text-neutral-700 dark:text-neutral-300">1–1</span>', false);
     }
 
     public function test_one_user_cannot_decide_multiple_steps_in_the_same_approval_chain(): void

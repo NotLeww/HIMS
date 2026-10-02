@@ -1031,6 +1031,41 @@ class AiDemandForecastTest extends TestCase
             ->assertDontSee('Historical consumption and forecast points are calculating or unavailable');
     }
 
+    public function test_demand_forecast_tables_render_pagination_for_all_three_tabs(): void
+    {
+        $manager = User::factory()->inventoryManager()->create();
+        $this->item();
+        $this->holdForecastWarmup();
+
+        $response = $this->actingAs($manager)->get(route('inventory.demand-forecast'));
+
+        $response->assertOk()
+            ->assertSee('AI forecast pagination')
+            ->assertSee('Statistical forecast pagination')
+            ->assertSee('Back to all risk levels')
+            ->assertSee("x-show=\"activeTab === 'ai' && risk\"", false)
+            ->assertSee("x-on:click=\"risk = ''\"", false)
+            ->assertSee('x-show="activeTab === \'ai\'"', false)
+            ->assertSee('x-show="activeTab === \'statistical\'"', false)
+            ->assertSee('x-show="(aiTableItems().length) > pageSize"', false)
+            ->assertSee('x-show="(filteredStatisticalItems().length) > pageSize"', false);
+
+        $script = file_get_contents(resource_path('js/app.js'));
+        $this->assertIsString($script);
+        $this->assertStringContainsString('pageSize: 10,', $script);
+        $this->assertStringContainsString('aiItemVisible(item)', $script);
+        $this->assertStringContainsString('statisticalItemVisible(id)', $script);
+        $this->assertStringContainsString('paginationPages(total, current)', $script);
+        $this->assertStringContainsString('showForecastTab(tab)', $script);
+        $this->assertStringContainsString("document.getElementById('forecast-detail-tabs')?.scrollIntoView", $script);
+
+        $view = file_get_contents(resource_path('views/inventory/demand_forecast/index.blade.php'));
+        $this->assertIsString($view);
+        $this->assertSame(2, substr_count($view, '<x-ui.client-pagination'));
+        $this->assertStringContainsString("x-on:click=\"showForecastTab('statistical')\"", $view);
+        $this->assertStringContainsString('$plans->onEachSide(1)->links()', $view);
+    }
+
     /**
      * Claim the lock the deferred Gemini warm-up runs under.
      *

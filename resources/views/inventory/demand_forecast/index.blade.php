@@ -5,6 +5,11 @@
         $dashboardForecastConfig = [
             'initialForecast' => $aiForecast,
             'endpoint' => route('inventory.demand-forecast.refresh'),
+            'statisticalItems' => $forecasts->map(fn (array $row) => [
+                'id' => $row['item']->id,
+                'name' => $row['item']->name,
+                'sku' => $row['item']->sku,
+            ])->values(),
         ];
     @endphp
 
@@ -676,7 +681,7 @@
                     </button>
 
                     <button type="button"
-                            x-on:click="activeTab = 'statistical'"
+                            x-on:click="showForecastTab('statistical')"
                             class="inline-flex items-center gap-1 text-xs font-semibold text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200 transition">
                         <span>Statistical plans &rarr;</span>
                     </button>
@@ -685,7 +690,7 @@
         </div>
 
         {{-- LEVEL 2 & 3: COMPACT TABBED DETAILED DATA SECTION --}}
-        <div class="rounded-xl border border-neutral-200 bg-white shadow-xs overflow-hidden dark:border-neutral-800 dark:bg-neutral-900">
+        <div id="forecast-detail-tabs" class="scroll-mt-20 rounded-xl border border-neutral-200 bg-white shadow-xs overflow-hidden dark:border-neutral-800 dark:bg-neutral-900">
             {{-- TAB NAVIGATION BAR --}}
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-neutral-200 px-4 py-2.5 bg-neutral-50/75 dark:border-neutral-800 dark:bg-neutral-800/50 gap-2">
                 <div class="flex items-center gap-2 overflow-x-auto">
@@ -703,7 +708,7 @@
                             :class="activeTab === 'statistical' ? 'bg-white text-primary-700 shadow-2xs dark:bg-neutral-800 dark:text-primary-300' : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'">
                         <x-ui.icon name="chart-bar" class="h-4 w-4" />
                         <span>Statistical Forecast by Item</span>
-                        <span class="rounded-full bg-neutral-200/80 px-2 py-0.5 text-xs font-bold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300">{{ $forecasts->count() }}</span>
+                        <span class="rounded-full bg-neutral-200/80 px-2 py-0.5 text-xs font-bold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300" x-text="filteredStatisticalItems().length"></span>
                     </button>
                     <button type="button"
                             x-on:click="activeTab = 'plans'"
@@ -715,11 +720,24 @@
                     </button>
                 </div>
 
-                <p class="text-xs text-neutral-500 dark:text-neutral-400 hidden sm:block">Click any row to focus on the chart above</p>
+                <div class="flex shrink-0 items-center justify-end">
+                    <button type="button"
+                            x-show="activeTab === 'ai' && risk"
+                            x-cloak
+                            x-on:click="risk = ''"
+                            class="inline-flex items-center gap-1 text-xs font-semibold text-primary-600 transition hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
+                        <x-ui.icon name="arrow-left" class="h-3.5 w-3.5" />
+                        <span>Back to all risk levels</span>
+                    </button>
+                    <p x-show="!(activeTab === 'ai' && risk)"
+                       class="hidden text-xs text-neutral-500 sm:block dark:text-neutral-400">
+                        Click any row to focus on the chart above
+                    </p>
+                </div>
             </div>
 
             {{-- TAB 1: AI FORECAST & RISK ANALYSIS TABLE --}}
-            <div x-show="activeTab === 'ai'" class="overflow-x-auto max-h-96 overflow-y-auto">
+            <div x-show="activeTab === 'ai'" class="overflow-x-auto">
                 <x-ui.table>
                     <x-ui.table.head>
                         <x-ui.table.th>Item</x-ui.table.th>
@@ -734,7 +752,7 @@
                     </x-ui.table.head>
                     <tbody>
                         @forelse ($aiItems as $item)
-                            <x-ui.table.row x-show="itemMatchesFilter({{ Js::from($item) }})">
+                            <x-ui.table.row x-show="aiItemVisible({{ Js::from($item) }})">
                                 <x-ui.table.td>
                                     <span class="font-semibold text-sm text-neutral-900 dark:text-neutral-100">{{ $item['item_name'] }}</span>
                                     <span class="block text-xs text-neutral-500">{{ $item['sku'] }}@if(!empty($item['category'])) · {{ $item['category'] }}@endif</span>
@@ -781,9 +799,16 @@
                     </tbody>
                 </x-ui.table>
             </div>
+            <div x-show="activeTab === 'ai'">
+                <x-ui.client-pagination
+                    label="AI forecast pagination"
+                    page="aiPage"
+                    count="aiTableItems().length"
+                />
+            </div>
 
             {{-- TAB 2: STATISTICAL FORECAST BY ITEM TABLE --}}
-            <div x-show="activeTab === 'statistical'" class="overflow-x-auto max-h-96 overflow-y-auto">
+            <div x-show="activeTab === 'statistical'" class="overflow-x-auto">
                 <x-ui.table>
                     <x-ui.table.head>
                         <x-ui.table.th>Item</x-ui.table.th>
@@ -802,7 +827,7 @@
                     <tbody>
                         @forelse ($forecasts as $row)
                             @php($item = $row['item'])
-                            <x-ui.table.row x-show="statMatchesFilter('{{ addslashes($item->name) }}', '{{ addslashes($item->sku) }}')">
+                            <x-ui.table.row x-show="statisticalItemVisible({{ $item->id }})">
                                 <x-ui.table.td>
                                     <span class="font-medium text-neutral-900 dark:text-neutral-100">{{ $item->name }}</span>
                                     <span class="block text-xs text-neutral-500">{{ $item->sku }}@if($item->supplier) · {{ $item->supplier->name }}@endif</span>
@@ -840,6 +865,13 @@
                         @endforelse
                     </tbody>
                 </x-ui.table>
+            </div>
+            <div x-show="activeTab === 'statistical'">
+                <x-ui.client-pagination
+                    label="Statistical forecast pagination"
+                    page="statisticalPage"
+                    count="filteredStatisticalItems().length"
+                />
             </div>
 
             {{-- TAB 3: SAVED PROCUREMENT PLANS TABLE --}}
