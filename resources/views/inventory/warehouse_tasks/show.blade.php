@@ -358,7 +358,13 @@
         @can(\App\Enums\Permission::ManageWarehouseTasks->value)
             @if (! $isClosed)
                 <x-ui.modal name="cancel-warehouse-task" title="Cancel warehouse task" maxWidth="md">
-                    <form method="POST" action="{{ route('inventory.warehouse-tasks.cancel', $warehouseTask) }}" class="space-y-5" x-data='{ reason: @js(old("reason", "")) }'>
+                    <form method="POST"
+                          action="{{ route('inventory.warehouse-tasks.cancel', $warehouseTask) }}"
+                          class="space-y-5"
+                          data-confirm-title="Cancel warehouse task?"
+                          data-confirm-message="Are you sure you want to cancel task {{ $warehouseTask->task_number }}? It will close without completing the stock movement, and the reason will remain in the operational record."
+                          data-confirm-label="Cancel Task"
+                          data-confirm-variant="danger">
                         @csrf
                         <div class="flex items-start gap-3 rounded-lg border border-danger-200 bg-danger-50 p-3.5 text-danger-900 dark:border-danger-900/70 dark:bg-danger-950/40 dark:text-danger-200">
                             <x-ui.icon name="exclamation-triangle" class="mt-0.5 h-5 w-5 shrink-0" />
@@ -369,12 +375,12 @@
                         </div>
                         <div>
                             <label for="task_cancel_reason" class="block text-sm font-semibold text-neutral-800 dark:text-neutral-200">Cancellation reason <span class="text-danger-600">*</span></label>
-                            <textarea id="task_cancel_reason" name="reason" x-model="reason" required maxlength="1000" rows="3" class="mt-1.5 w-full rounded-lg border-neutral-300 text-sm shadow-xs focus:border-danger-500 focus:ring-danger-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100" placeholder="Explain why this task must be cancelled"></textarea>
+                            <textarea id="task_cancel_reason" name="reason" required maxlength="1000" rows="3" class="mt-1.5 w-full rounded-lg border-neutral-300 text-sm shadow-xs focus:border-danger-500 focus:ring-danger-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100" placeholder="Explain why this task must be cancelled">{{ old('reason') }}</textarea>
                             <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Required · maximum 1,000 characters</p>
                         </div>
                         <div class="flex flex-col-reverse gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800 sm:flex-row sm:justify-end">
                             <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'cancel-warehouse-task')">Keep task</x-ui.button>
-                            <x-ui.button type="submit" variant="danger" data-loading-text="Cancelling..." x-bind:disabled="reason.trim().length === 0">Confirm cancellation</x-ui.button>
+                            <x-ui.button type="submit" variant="danger" data-loading-text="Cancelling...">Confirm cancellation</x-ui.button>
                         </div>
                     </form>
                 </x-ui.modal>

@@ -631,7 +631,15 @@
                     </div>
 
                     <div class="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800">
-                        <table class="min-w-full divide-y divide-neutral-200 text-left text-xs dark:divide-neutral-800">
+                        <table class="min-w-[760px] w-full table-fixed divide-y divide-neutral-200 text-left text-xs dark:divide-neutral-800">
+                            <colgroup>
+                                <col class="w-[23%]">
+                                <col class="w-[18%]">
+                                <col class="w-[20%]">
+                                <col class="w-[17%]">
+                                <col class="w-[12%]">
+                                <col class="w-[10%]">
+                            </colgroup>
                             <thead class="bg-neutral-50 font-semibold uppercase tracking-wider text-neutral-500 dark:bg-neutral-800/50 dark:text-neutral-400">
                                 <tr>
                                     <th class="px-3.5 py-2.5">Task #</th>
@@ -646,33 +654,34 @@
                                 @forelse($recentTasks as $task)
                                     <tr class="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/40">
                                         <td class="px-3.5 py-2.5 whitespace-nowrap">
-                                            <div class="font-mono font-bold text-neutral-900 dark:text-neutral-100">{{ $task->task_number }}</div>
+                                            <div class="truncate font-mono font-bold text-neutral-900 dark:text-neutral-100" title="{{ $task->task_number }}">{{ $task->task_number }}</div>
                                             <div class="text-[10px] text-neutral-400 font-mono">{{ $task->created_at?->format('M d, H:i') }}</div>
                                         </td>
                                         <td class="px-3.5 py-2.5 whitespace-nowrap">
-                                            <span class="inline-flex rounded px-1.5 py-0.5 text-[11px] font-bold uppercase
+                                            <span class="inline-flex max-w-full truncate rounded px-1.5 py-0.5 text-[11px] font-bold uppercase
                                                 @if($task->task_type->value === 'put_away') bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300
                                                 @elseif($task->task_type->value === 'pick') bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300
                                                 @else bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-300 @endif">
-                                                {{ $task->task_type->label() }}
+                                                <span class="truncate" title="{{ $task->task_type->label() }}">{{ $task->task_type->label() }}</span>
                                             </span>
                                         </td>
                                         <td class="px-3.5 py-2.5">
-                                            <div class="truncate max-w-[180px] font-semibold text-neutral-800 dark:text-neutral-200">{{ $task->item?->name ?? 'N/A' }}</div>
+                                            <div class="truncate font-semibold text-neutral-800 dark:text-neutral-200" title="{{ $task->item?->name ?? 'N/A' }}">{{ $task->item?->name ?? 'N/A' }}</div>
                                             <div class="text-[11px] text-neutral-500 dark:text-neutral-400">{{ $task->requested_quantity }} {{ $task->item?->unit ?? 'units' }}</div>
                                         </td>
-                                        <td class="px-3.5 py-2.5 whitespace-nowrap text-[11px] font-mono text-neutral-600 dark:text-neutral-400">
+                                        <td class="truncate px-3.5 py-2.5 whitespace-nowrap text-[11px] font-mono text-neutral-600 dark:text-neutral-400"
+                                            title="{{ $task->sourceLocation?->code ?? 'Not recorded' }} → {{ $task->destinationLocation?->code ?? 'Not recorded' }}">
                                             <span class="text-neutral-700 dark:text-neutral-300">{{ $task->sourceLocation?->code ?? 'Not recorded' }}</span>
                                             <span class="text-neutral-400 mx-1">&rarr;</span>
                                             <span class="text-neutral-700 dark:text-neutral-300">{{ $task->destinationLocation?->code ?? 'Not recorded' }}</span>
                                         </td>
                                         <td class="px-3.5 py-2.5 whitespace-nowrap">
-                                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold
+                                            <span class="inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-[11px] font-semibold
                                                 @if($task->status->value === 'completed') bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300
                                                 @elseif($task->status->value === 'in_progress') bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300
                                                 @elseif($task->status->value === 'cancelled') bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400
                                                 @else bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 @endif">
-                                                {{ $task->status->label() }}
+                                                <span class="truncate" title="{{ $task->status->label() }}">{{ $task->status->label() }}</span>
                                             </span>
                                         </td>
                                         <td class="px-3.5 py-2.5 text-right whitespace-nowrap">

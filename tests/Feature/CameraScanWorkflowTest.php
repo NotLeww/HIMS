@@ -610,6 +610,8 @@ class CameraScanWorkflowTest extends TestCase
         $scanResponse->assertOk()
             ->assertSee('camera-scanner-standby')
             ->assertSee('@hims-code-scanned.window', false)
-            ->assertSee('lookupBarcode', false);
+            ->assertSee('lookupBarcode', false)
+            ->assertSee('Recent Warehouse Tasks Registry')
+            ->assertSee('min-w-[760px] w-full table-fixed', false);
     }
 }

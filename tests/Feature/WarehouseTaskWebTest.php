@@ -125,7 +125,11 @@ class WarehouseTaskWebTest extends TestCase
             ->assertSee('cancel-warehouse-task')
             ->assertDontSee('Testing shortcut')
             ->assertDontSee('Scan expected identifier')
-            ->assertSee('x-bind:disabled="reason.trim().length === 0"', false);
+            ->assertSee('id="task_cancel_reason" name="reason" required', false)
+            ->assertSee('data-confirm-title="Cancel warehouse task?"', false)
+            ->assertSee('data-confirm-label="Cancel Task"', false)
+            ->assertSee('data-confirm-variant="danger"', false)
+            ->assertDontSee('x-bind:disabled="reason.trim().length === 0"', false);
     }
 
     public function test_operator_can_use_scan_workspace_without_manage_task_actions(): void
