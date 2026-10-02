@@ -36,7 +36,9 @@
             && auth()->user()?->can(\App\Enums\Permission::ExecuteWarehouseTasks->value);
         $errorModal = $errors->has('reason')
             ? 'cancel-warehouse-task'
-            : ($errors->has('assigned_to_id') || $errors->has('assignment') ? 'change-task-assignment' : null);
+            : ($errors->has('assigned_to_id') || $errors->has('assignment')
+                ? 'change-task-assignment'
+                : ($errors->has('copies') ? 'generate-task-label' : null));
     @endphp
 
     <x-slot name="header">
@@ -303,12 +305,19 @@
                         </div>
                         <div>
                             <label for="assigned_to_id" class="block text-sm font-semibold text-neutral-800 dark:text-neutral-200">Warehouse operator</label>
-                            <select id="assigned_to_id" name="assigned_to_id" required class="mt-1.5 min-h-10 w-full rounded-lg border-neutral-300 py-2 pl-3 pr-10 text-sm shadow-xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                            <select id="assigned_to_id" name="assigned_to_id" required
+                                    @if($errors->has('assigned_to_id') || $errors->has('assignment')) aria-invalid="true" aria-describedby="assigned_to_id-error" @endif
+                                    class="mt-1.5 min-h-10 w-full rounded-lg border-neutral-300 py-2 pl-3 pr-10 text-sm shadow-xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
                                 <option value="">Select operator</option>
                                 @foreach ($operators as $operator)
-                                    <option value="{{ $operator->id }}" @selected($warehouseTask->assigned_to_id === $operator->id)>{{ $operator->name }}</option>
+                                    <option value="{{ $operator->id }}" @selected((int) old('assigned_to_id', $warehouseTask->assigned_to_id) === $operator->id)>{{ $operator->name }}</option>
                                 @endforeach
                             </select>
+                            @if($errors->has('assigned_to_id') || $errors->has('assignment'))
+                                <p id="assigned_to_id-error" class="mt-1 text-xs font-medium text-danger-600 dark:text-danger-400">
+                                    {{ $errors->first('assigned_to_id') ?: $errors->first('assignment') }}
+                                </p>
+                            @endif
                         </div>
                         <div class="flex flex-col-reverse gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800 sm:flex-row sm:justify-end">
                             <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'change-task-assignment')">Close</x-ui.button>
@@ -330,8 +339,14 @@
                     </div>
                     <div>
                         <label for="task_label_copies" class="block text-sm font-semibold text-neutral-800 dark:text-neutral-200">Number of labels</label>
-                        <input id="task_label_copies" type="number" name="copies" min="1" max="20" value="1" required class="mt-1.5 min-h-10 w-full rounded-lg border-neutral-300 text-sm tabular-nums shadow-xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
-                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Generate between 1 and 20 printable copies.</p>
+                        <input id="task_label_copies" type="number" name="copies" min="1" max="20" value="{{ old('copies', 1) }}" required
+                               @if($errors->has('copies')) aria-invalid="true" aria-describedby="task_label_copies-error" @else aria-describedby="task_label_copies-hint" @endif
+                               class="mt-1.5 min-h-10 w-full rounded-lg border-neutral-300 text-sm tabular-nums shadow-xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                        @if($errors->has('copies'))
+                            <p id="task_label_copies-error" class="mt-1 text-xs font-medium text-danger-600 dark:text-danger-400">{{ $errors->first('copies') }}</p>
+                        @else
+                            <p id="task_label_copies-hint" class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Generate between 1 and 20 printable copies.</p>
+                        @endif
                     </div>
                     <div class="flex flex-col-reverse gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800 sm:flex-row sm:justify-end">
                         <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'generate-task-label')">Close</x-ui.button>
@@ -375,8 +390,14 @@
                         </div>
                         <div>
                             <label for="task_cancel_reason" class="block text-sm font-semibold text-neutral-800 dark:text-neutral-200">Cancellation reason <span class="text-danger-600">*</span></label>
-                            <textarea id="task_cancel_reason" name="reason" required maxlength="1000" rows="3" class="mt-1.5 w-full rounded-lg border-neutral-300 text-sm shadow-xs focus:border-danger-500 focus:ring-danger-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100" placeholder="Explain why this task must be cancelled">{{ old('reason') }}</textarea>
-                            <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Required · maximum 1,000 characters</p>
+                            <textarea id="task_cancel_reason" name="reason" required maxlength="1000" rows="3"
+                                      @if($errors->has('reason')) aria-invalid="true" aria-describedby="task_cancel_reason-error" @else aria-describedby="task_cancel_reason-hint" @endif
+                                      class="mt-1.5 w-full rounded-lg border-neutral-300 text-sm shadow-xs focus:border-danger-500 focus:ring-danger-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100" placeholder="Explain why this task must be cancelled">{{ old('reason') }}</textarea>
+                            @if($errors->has('reason'))
+                                <p id="task_cancel_reason-error" class="mt-1 text-xs font-medium text-danger-600 dark:text-danger-400">{{ $errors->first('reason') }}</p>
+                            @else
+                                <p id="task_cancel_reason-hint" class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Required · maximum 1,000 characters</p>
+                            @endif
                         </div>
                         <div class="flex flex-col-reverse gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800 sm:flex-row sm:justify-end">
                             <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'cancel-warehouse-task')">Keep task</x-ui.button>

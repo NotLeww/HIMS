@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Enums\WarehouseTaskStatus;
 use App\Models\InventoryItem;
 use App\Models\StorageLocation;
 use App\Models\User;
+use App\Models\WarehouseLabelPrint;
 use App\Models\WarehouseTask;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -129,7 +131,41 @@ class WarehouseTaskWebTest extends TestCase
             ->assertSee('data-confirm-title="Cancel warehouse task?"', false)
             ->assertSee('data-confirm-label="Cancel Task"', false)
             ->assertSee('data-confirm-variant="danger"', false)
+            ->assertSee('data-decision-confirmation', false)
             ->assertDontSee('x-bind:disabled="reason.trim().length === 0"', false);
+    }
+
+    public function test_manager_can_use_assignment_label_and_cancellation_modal_actions(): void
+    {
+        $manager = User::factory()->inventoryManager()->create();
+        $operator = User::factory()->warehouseStaff()->create();
+        $task = $this->createInProgressTask($manager);
+
+        $this->actingAs($manager)
+            ->post(route('inventory.warehouse-tasks.assign', $task), ['assigned_to_id' => $operator->id])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame($operator->id, $task->fresh()->assigned_to_id);
+
+        $this->actingAs($manager)
+            ->post(route('inventory.warehouse-tasks.label', $task), ['copies' => 2])
+            ->assertOk();
+
+        $label = WarehouseLabelPrint::query()->latest('id')->first();
+        $this->assertNotNull($label);
+        $this->assertSame(2, $label->copies);
+        $this->assertSame($task->id, $label->target_id);
+
+        $reason = 'Created in error during warehouse task verification.';
+        $this->actingAs($manager)
+            ->post(route('inventory.warehouse-tasks.cancel', $task), ['reason' => $reason])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $task->refresh();
+        $this->assertSame(WarehouseTaskStatus::Cancelled, $task->status);
+        $this->assertSame($reason, $task->override_reason);
     }
 
     public function test_operator_can_use_scan_workspace_without_manage_task_actions(): void
