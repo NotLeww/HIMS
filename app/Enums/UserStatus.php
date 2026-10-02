@@ -11,14 +11,20 @@ namespace App\Enums;
  */
 enum UserStatus: string
 {
+    case PendingActivation = 'pending_activation';
+    case Cancelled = 'cancelled';
     case Active = 'active';
     case Inactive = 'inactive';
+    case Archived = 'archived';
 
     public function label(): string
     {
         return match ($this) {
+            self::PendingActivation => 'Pending Activation',
+            self::Cancelled => 'Cancelled',
             self::Active => 'Active',
             self::Inactive => 'Inactive',
+            self::Archived => 'Archived',
         };
     }
 
@@ -27,10 +33,33 @@ enum UserStatus: string
         return $this === self::Active;
     }
 
+    public function isPendingActivation(): bool
+    {
+        return $this === self::PendingActivation;
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this === self::Cancelled;
+    }
+
+    public function isArchived(): bool
+    {
+        return $this === self::Archived;
+    }
+
     /**
      * @return array<string, string>
      */
     public static function options(): array
+    {
+        return collect([self::Active, self::Inactive])
+            ->mapWithKeys(fn (self $status) => [$status->value => $status->label()])
+            ->all();
+    }
+
+    /** @return array<string, string> */
+    public static function filterOptions(): array
     {
         return collect(self::cases())
             ->mapWithKeys(fn (self $status) => [$status->value => $status->label()])

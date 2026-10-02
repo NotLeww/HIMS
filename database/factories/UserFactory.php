@@ -30,8 +30,11 @@ class UserFactory extends Factory
      */
     public function definition(): array
     {
+        $firstName = preg_replace('/[^\p{L}]/u', '', fake()->firstName()) ?: 'Test';
+        $lastName = preg_replace('/[^\p{L}]/u', '', fake()->lastName()) ?: 'User';
+
         return [
-            'name' => fake()->name(),
+            'name' => "{$firstName} {$lastName}",
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
@@ -40,6 +43,7 @@ class UserFactory extends Factory
             'role' => UserRole::Viewer,
             'status' => UserStatus::Active,
             'mfa_enabled' => false,
+            'session_timeout_reminder_enabled' => true,
             'employee_id' => 'EMP-'.fake()->unique()->numberBetween(1000, 9999),
             'department' => fake()->randomElement(['Pharmacy', 'Central Supply', 'Laboratory', 'Nursing']),
             'phone' => '09'.fake()->numerify('#########'),
@@ -91,8 +95,37 @@ class UserFactory extends Factory
         return $this->role(UserRole::Viewer);
     }
 
+    public function auditor(): static
+    {
+        return $this->role(UserRole::Auditor);
+    }
+
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => ['status' => UserStatus::Inactive]);
+    }
+
+    public function unconsented(): static
+    {
+        return $this->afterCreating(function (User $user) {
+            $user->consents()->delete();
+        });
+    }
+
+    public function configure(): static
+    {
+        return $this->afterCreating(function (User $user) {
+            if (\Illuminate\Support\Facades\Schema::hasTable('user_consents')) {
+                \App\Models\UserConsent::firstOrCreate([
+                    'user_id' => $user->id,
+                    'consent_type' => \App\Models\UserConsent::TYPE_PRIVACY_POLICY,
+                    'policy_version' => config('privacy.policy_version', 'v1.0'),
+                ], [
+                    'status' => \App\Models\UserConsent::STATUS_CONSENTED,
+                    'consented_at' => now(),
+                    'source' => 'factory_setup',
+                ]);
+            }
+        });
     }
 }

@@ -6,9 +6,17 @@ enum PurchaseOrderStatus: string
 {
     case Draft = 'draft';
     case Submitted = 'submitted';
+    case PendingApproval = 'pending_approval';
     case Approved = 'approved';
+    case Dispatched = 'dispatched';
+    case Acknowledged = 'acknowledged';
+    case UnderInspection = 'under_inspection';
+    case RejectedDelivery = 'rejected_delivery';
     case PartiallyFulfilled = 'partially_fulfilled';
     case Fulfilled = 'fulfilled';
+    /** Legacy completed status retained for historical purchase orders. */
+    case Received = 'received';
+    case Amended = 'amended';
     case Cancelled = 'cancelled';
 
     public function label(): string
@@ -16,9 +24,16 @@ enum PurchaseOrderStatus: string
         return match ($this) {
             self::Draft => 'Draft',
             self::Submitted => 'Submitted',
+            self::PendingApproval => 'Pending Approval',
             self::Approved => 'Approved',
+            self::Dispatched => 'Dispatched',
+            self::Acknowledged => 'Acknowledged by Vendor',
+            self::UnderInspection => 'Delivered / Under Inspection',
+            self::RejectedDelivery => 'Delivery Rejected / Awaiting Replacement',
             self::PartiallyFulfilled => 'Partially Fulfilled',
-            self::Fulfilled => 'Fulfilled',
+            self::Fulfilled => 'Fulfilled / Closed',
+            self::Received => 'Received',
+            self::Amended => 'Amended (Revised)',
             self::Cancelled => 'Cancelled',
         };
     }
@@ -31,11 +46,16 @@ enum PurchaseOrderStatus: string
     public function allowedTransitions(): array
     {
         return match ($this) {
-            self::Draft => [self::Submitted, self::Cancelled],
-            self::Submitted => [self::Approved, self::Draft, self::Cancelled],
-            self::Approved => [self::PartiallyFulfilled, self::Fulfilled, self::Cancelled],
-            self::PartiallyFulfilled => [self::PartiallyFulfilled, self::Fulfilled, self::Cancelled],
-            self::Fulfilled, self::Cancelled => [],
+            self::Draft => [self::PendingApproval, self::Submitted, self::Cancelled],
+            self::Submitted => [self::PendingApproval, self::Approved, self::Draft, self::Cancelled],
+            self::PendingApproval => [self::Approved, self::Draft, self::Cancelled],
+            self::Approved => [self::Dispatched, self::Acknowledged, self::UnderInspection, self::RejectedDelivery, self::PartiallyFulfilled, self::Fulfilled, self::Amended, self::Cancelled],
+            self::Dispatched => [self::Acknowledged, self::UnderInspection, self::RejectedDelivery, self::PartiallyFulfilled, self::Fulfilled, self::Amended, self::Cancelled],
+            self::Acknowledged => [self::UnderInspection, self::RejectedDelivery, self::PartiallyFulfilled, self::Fulfilled, self::Amended, self::Cancelled],
+            self::UnderInspection => [self::UnderInspection, self::RejectedDelivery, self::PartiallyFulfilled, self::Fulfilled, self::Amended, self::Cancelled],
+            self::RejectedDelivery => [self::UnderInspection, self::RejectedDelivery, self::PartiallyFulfilled, self::Fulfilled, self::Amended, self::Cancelled],
+            self::PartiallyFulfilled => [self::UnderInspection, self::RejectedDelivery, self::PartiallyFulfilled, self::Fulfilled, self::Amended, self::Cancelled],
+            self::Fulfilled, self::Received, self::Amended, self::Cancelled => [],
         };
     }
 
@@ -45,15 +65,37 @@ enum PurchaseOrderStatus: string
     }
 
     /**
-     * A purchase order may only receive goods once it has been approved.
+     * A purchase order may receive goods once approved, dispatched, or acknowledged.
      */
     public function canReceiveStock(): bool
     {
-        return in_array($this, [self::Approved, self::PartiallyFulfilled], true);
+        return in_array($this, [self::Approved, self::Dispatched, self::Acknowledged, self::UnderInspection, self::RejectedDelivery, self::PartiallyFulfilled], true);
     }
 
     public function isOpen(): bool
     {
-        return ! in_array($this, [self::Fulfilled, self::Cancelled], true);
+        return ! in_array($this, [self::Fulfilled, self::Received, self::Amended, self::Cancelled], true);
+    }
+
+    /** @return array<int, string> */
+    public static function openValues(): array
+    {
+        return array_values(array_map(
+            fn (self $status): string => $status->value,
+            array_filter(self::cases(), fn (self $status): bool => $status->isOpen()),
+        ));
+    }
+
+    /** @return array<int, string> */
+    public static function issuedOpenValues(): array
+    {
+        return array_map(fn (self $status): string => $status->value, [
+            self::Approved,
+            self::Dispatched,
+            self::Acknowledged,
+            self::UnderInspection,
+            self::RejectedDelivery,
+            self::PartiallyFulfilled,
+        ]);
     }
 }

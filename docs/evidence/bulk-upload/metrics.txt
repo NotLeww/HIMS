@@ -1,0 +1,6 @@
+Environment: Windows; PHP 8.2.12; Laravel 12.63.0; SQLite :memory:; array cache; sync queue; memory_limit=512M
+Command: php artisan test tests/Feature/BulkUploadPerformanceTest.php --stop-on-failure
+
+BULK_METRIC format=CSV records=10000 bytes=458911 duration=1.910s peak_memory=104857600 queries=101 successful=10000 rejected=0 result=PASS
+BULK_METRIC format=JSON records=10000 bytes=798895 duration=1.226s peak_memory=119537664 queries=101 successful=10000 rejected=0 result=PASS
+BULK_METRIC format=XLSX records=10000 bytes=178821 duration=1.357s peak_memory=125829120 queries=101 successful=10000 rejected=0 result=PASS

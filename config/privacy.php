@@ -1,0 +1,68 @@
+<?php
+
+return [
+    /*
+    |--------------------------------------------------------------------------
+    | Hospital / Healthcare Facility Identity
+    |--------------------------------------------------------------------------
+    |
+    | Used in privacy notices, data processing registers, and compliance reports.
+    | Defaults represent the institutional identity of DJNRMHS HIMS.
+    |
+    */
+    'hospital_name' => env('HOSPITAL_NAME', 'Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium (DJNRMHS)'),
+    'hospital_short_name' => env('HOSPITAL_SHORT_NAME', 'DJNRMHS'),
+    'system_name' => env('SYSTEM_NAME', 'Hospital Information Management System (HIMS)'),
+    'hospital_address' => env('HOSPITAL_ADDRESS', 'Tala, Caloocan City, Metro Manila, Philippines'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Data Protection Officer (DPO) Contact Details
+    |--------------------------------------------------------------------------
+    |
+    | Contact information published in compliance with RA 10173 IRR Section 22.
+    |
+    */
+    'dpo_name' => env('DPO_NAME', 'Office of the Data Protection Officer'),
+    'dpo_email' => env('DPO_EMAIL') ?: 'privacy@djnrmhs.gov.ph',
+    'dpo_phone' => env('DPO_PHONE') ?: '+63 (2) 8962-8209',
+
+    /*
+    |--------------------------------------------------------------------------
+    | National Privacy Commission Registration Reference
+    |--------------------------------------------------------------------------
+    */
+    // Never publish a placeholder as if it were an issued NPC registration.
+    'npc_registration_number' => env('NPC_REGISTRATION_NUMBER'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Data Retention Thresholds (Days)
+    |--------------------------------------------------------------------------
+    |
+    | Retention periods for ephemeral and operational data.
+    | Note: Audit logs are append-only and never purged automatically.
+    |
+    */
+    'retention' => [
+        'ai_chat_history_days' => (int) env('RETENTION_AI_CHAT_DAYS', 30),
+        'temporary_chat_attachments_days' => (int) env('RETENTION_CHAT_ATTACHMENTS_DAYS', 30),
+        'dsar_package_days' => (int) env('RETENTION_DSAR_PACKAGE_DAYS', 7),
+        'expired_notifications_days' => (int) env('RETENTION_NOTIFICATIONS_DAYS', 90),
+        'resolved_recovery_records_days' => (int) env('RETENTION_RECOVERY_RECORDS_DAYS', 180),
+        'session_lifetime_minutes' => (int) env('SESSION_LIFETIME', 4),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Privacy Policy Governance & Versioning
+    |--------------------------------------------------------------------------
+    |
+    | Centralized policy versioning reference. Material updates require renewed
+    | consent from workforce members upon subsequent authenticated sessions.
+    |
+    */
+    'policy_version' => env('PRIVACY_POLICY_VERSION', 'v1.0'),
+    'policy_effective_date' => env('PRIVACY_POLICY_EFFECTIVE_DATE', 'September 2026'),
+    'policy_document_ref' => env('PRIVACY_POLICY_DOCUMENT_REF', 'DPA-2012-HIMS-POL'),
+];

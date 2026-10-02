@@ -33,11 +33,19 @@ Route::prefix('admin')->name('admin.')->group(function () {
             ->defaults('auth_panel', AuthenticationPanel::Admin->value)
             ->middleware('throttle:3,1')
             ->name('login.mfa.resend');
+        Route::post('login/mfa/continue', [LoginMfaController::class, 'continueSession'])
+            ->defaults('auth_panel', AuthenticationPanel::Admin->value)
+            ->middleware('throttle:10,1')
+            ->name('login.mfa.continue');
+        Route::post('login/mfa/cancel', [LoginMfaController::class, 'cancel'])
+            ->defaults('auth_panel', AuthenticationPanel::Admin->value)
+            ->name('login.mfa.cancel');
         Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
             ->defaults('auth_panel', AuthenticationPanel::Admin->value)
             ->name('password.request');
         Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
             ->defaults('auth_panel', AuthenticationPanel::Admin->value)
+            ->middleware('throttle:3,1')
             ->name('password.email');
         Route::get('reset-password-otp', [PasswordResetOtpController::class, 'show'])
             ->defaults('auth_panel', AuthenticationPanel::Admin->value)

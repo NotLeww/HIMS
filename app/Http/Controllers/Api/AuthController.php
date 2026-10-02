@@ -11,6 +11,7 @@ use App\Services\LoginLockoutService;
 use App\Support\AuthenticationPanel;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Http\Request;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -19,8 +20,15 @@ class AuthController extends Controller
         $request->validate([
             'email' => 'required|email',
             'password' => 'required|string',
-            'device_name' => 'nullable|string',
+            'device_name' => 'nullable|string|max:255',
         ]);
+
+        if ((bool) config('auth.device_security.enabled', true)) {
+            return response()->json([
+                'message' => 'Direct API token sign-in is unavailable while single-device security is enabled. Sign in through HIMS.',
+                'code' => 'DEVICE_SECURITY_REQUIRED',
+            ], 428);
+        }
 
         $email = $request->string('email')->toString();
         $throttleKey = $lockouts->throttleKey('api', $email, $request->ip());
@@ -56,7 +64,7 @@ class AuthController extends Controller
         /** @var User $user */
         $user = $result['user'];
 
-        if ($user->authenticatorMfaEnabled() || $user->mfa_enabled) {
+        if ($user->authenticatorMfaEnabled() || $user->mfa_enabled || $user->sms_mfa_enabled) {
             $loginUrl = route(AuthenticationPanel::forRole($user->role)->loginRoute());
 
             return response()->json([
@@ -100,6 +108,13 @@ class AuthController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
+        $token = $user->currentAccessToken();
+
+        if (! $token instanceof PersonalAccessToken) {
+            return response()->json([
+                'message' => 'A bearer token is required for this endpoint.',
+            ], 400);
+        }
 
         // Token revocation does not dispatch Laravel's web Logout event.
         $audit->log(
@@ -111,7 +126,7 @@ class AuthController extends Controller
         );
 
         // Revoke current token
-        $user->currentAccessToken()->delete();
+        $token->delete();
 
         return response()->json(null, 204);
     }

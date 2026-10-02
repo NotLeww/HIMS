@@ -1,0 +1,68 @@
+{
+    "generated_at": "2026-09-28T10:30:00+08:00",
+    "source": "Isolated Laravel test database populated before calling the production export endpoints",
+    "filter": {
+        "category": "Evidence Medical Supplies",
+        "location": "Evidence Pharmacy Store",
+        "stock_status": "in_stock"
+    },
+    "record_counts": {
+        "database_matching_records": 1,
+        "json_records": 1,
+        "csv_records": 1,
+        "excluded_control_records_exported": 0
+    },
+    "database_record": {
+        "sku": "000012345678",
+        "barcode_value": "000000987654321",
+        "gtin": "00012345678905",
+        "name": "Evidence Infusion Set, \"Latex-Free\"",
+        "unit": "set",
+        "quantity_on_hand": 125,
+        "reserved_quantity": 5,
+        "reorder_level": 40,
+        "unit_cost": 19.95,
+        "total_value": 2493.75
+    },
+    "json_record": {
+        "sku": "000012345678",
+        "barcode_value": "000000987654321",
+        "gtin": "00012345678905",
+        "name": "Evidence Infusion Set, \"Latex-Free\"",
+        "category": "Evidence Medical Supplies",
+        "quantity_on_hand": 125,
+        "reserved_quantity": 5,
+        "reorder_level": 40,
+        "unit": "set",
+        "unit_cost": 19.95,
+        "total_value": 2493.75,
+        "status": "In Stock"
+    },
+    "csv_record": {
+        "SKU": "000012345678",
+        "Item Description": "Evidence Infusion Set, \"Latex-Free\"",
+        "Barcode": "000000987654321",
+        "GTIN": "00012345678905",
+        "Category": "Evidence Medical Supplies",
+        "Unit of Measure": "set",
+        "Units On Hand": "125",
+        "Reserved Units": "5",
+        "Reorder Level": "40",
+        "Unit Cost (₱)": "19.95",
+        "Total Value (₱)": "2493.75",
+        "Stock Status": "In Stock"
+    },
+    "checks": {
+        "record_counts_match": true,
+        "leading_zero_sku_preserved": true,
+        "leading_zero_barcode_preserved": true,
+        "leading_zero_gtin_preserved": true,
+        "quantity_matches": true,
+        "unit_cost_matches": true,
+        "calculated_value_matches": true,
+        "filter_excluded_control_record": true,
+        "excel_identifiers_are_text_cells": true,
+        "pdf_is_valid": true,
+        "json_is_valid": true
+    }
+}

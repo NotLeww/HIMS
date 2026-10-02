@@ -36,16 +36,47 @@ class AdminAuthenticationTest extends TestCase
             ->assertSee('Admin Login')
             ->assertSee('Administrative access')
             ->assertSee('Keep hospital operations organized and accountable.')
-            ->assertSee('Access is limited to the administration modules assigned to your account.')
+            ->assertDontSee('Access is limited to the administration modules assigned to your account.')
             ->assertSee('User access')
             ->assertSee('Operations')
             ->assertSee('Audit records')
             ->assertSee('Email address')
             ->assertSee('Password')
-            ->assertSee('Keep me signed in')
+            ->assertSee('Forgot password?')
+            ->assertSee('Activate account')
             ->assertSee('Sign in as Admin')
+            ->assertDontSee('Keep me signed in')
             ->assertDontSee('Highest privilege tier')
             ->assertDontSee('Privileged system access');
+    }
+
+    public function test_super_admin_login_associates_invalid_credentials_with_the_field_error(): void
+    {
+        $superAdmin = User::factory()->superAdministrator()->create([
+            'password' => bcrypt('password'),
+        ]);
+
+        $this->from(route('super-admin.login'))
+            ->post(route('super-admin.login.store'), [
+                'email' => $superAdmin->email,
+                'password' => 'incorrect-password',
+            ])
+            ->assertRedirect(route('super-admin.login'))
+            ->assertSessionHasErrors('email');
+
+        $this->get(route('super-admin.login'))
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="email"',
+                'aria-invalid="true"',
+                'aria-describedby="login-email-error"',
+                'id="login-email-error"',
+                'id="password"',
+                'aria-invalid="true"',
+                'aria-describedby="login-email-error"',
+            ], escape: false);
+
+        $this->assertGuest(AuthenticationContext::SUPER_ADMIN_GUARD);
     }
 
     public function test_staff_login_keeps_its_existing_visual_identity(): void
@@ -53,7 +84,9 @@ class AdminAuthenticationTest extends TestCase
         $this->get(route('login'))
             ->assertOk()
             ->assertSee('Staff Sign in')
-            ->assertSee('Secure staff portal')
+            ->assertSee('bg-neutral-50 dark:bg-neutral-950', false)
+            ->assertSee('bg-neutral-100/95 dark:bg-neutral-900', false)
+            ->assertSee('data-theme-toggle', false)
             ->assertDontSee('Administrative access')
             ->assertDontSee('Privileged system access');
     }
@@ -104,7 +137,8 @@ class AdminAuthenticationTest extends TestCase
             $this->post(route('admin.login.store'), [
                 'email' => $user->email,
                 'password' => 'password',
-            ])->assertSessionHasErrors(['email' => trans('auth.failed')]);
+            ])->assertSessionHasNoErrors()
+                ->assertSessionHas('wrong_panel.message');
 
             $this->assertGuest(AuthenticationContext::ADMIN_GUARD);
         }
@@ -131,7 +165,8 @@ class AdminAuthenticationTest extends TestCase
             $this->post(route('login'), [
                 'email' => $user->email,
                 'password' => 'password',
-            ])->assertSessionHasErrors(['email' => trans('auth.failed')]);
+            ])->assertSessionHasNoErrors()
+                ->assertSessionHas('wrong_panel.message');
 
             $this->assertGuest(AuthenticationContext::WEB_GUARD);
         }
@@ -143,7 +178,8 @@ class AdminAuthenticationTest extends TestCase
             $this->post(route('super-admin.login.store'), [
                 'email' => $user->email,
                 'password' => 'password',
-            ])->assertSessionHasErrors(['email' => trans('auth.failed')]);
+            ])->assertSessionHasNoErrors()
+                ->assertSessionHas('wrong_panel.message');
 
             $this->assertGuest(AuthenticationContext::SUPER_ADMIN_GUARD);
         }
@@ -200,7 +236,7 @@ class AdminAuthenticationTest extends TestCase
             ->assertSee('Super Admin Dashboard')
             ->assertSee('Audit Trail');
 
-        $this->get(route('admin.audit-logs.index'))
+        $this->get(route('super-admin.audit-logs.index'))
             ->assertOk()
             ->assertSee('Audit Trail');
     }
@@ -239,7 +275,7 @@ class AdminAuthenticationTest extends TestCase
 
         $this->assertGuest(AuthenticationContext::ADMIN_GUARD);
         $this->get(route('admin.login'))
-            ->assertSee('Access is limited to the administration modules assigned to your account.')
+            ->assertDontSee('Access is limited to the administration modules assigned to your account.')
             ->assertDontSee('Your session has expired due to inactivity. Please log in again.');
     }
 
@@ -263,7 +299,7 @@ class AdminAuthenticationTest extends TestCase
             ->assertSessionMissing('session_timeout');
 
         $this->get(route('admin.login'))
-            ->assertSee('Access is limited to the administration modules assigned to your account.')
+            ->assertDontSee('Access is limited to the administration modules assigned to your account.')
             ->assertDontSee('Your session has expired due to inactivity. Please log in again.');
 
         $this->app['auth']->forgetGuards();

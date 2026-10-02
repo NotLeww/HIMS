@@ -5,19 +5,36 @@ namespace Tests\Feature;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Models\UserConsent;
+use App\Services\Privacy\ConsentService;
 use App\Support\AuthenticationContext;
 use Database\Seeders\SuperAdminSeeder;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class SuperAdminProvisioningTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const EMAIL = 'zediskaaa@gmail.com';
+    private const EMAIL = 'protected.super-admin@example.test';
 
-    private const INITIAL_PASSWORD = 'SuperAdminZediskaaa123!';
+    private const INITIAL_PASSWORD = 'SyntheticSuperAdmin123!';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config()->set('account_provisioning.super_admin', [
+            'name' => 'Protected Super Administrator',
+            'email' => self::EMAIL,
+            'phone' => null,
+            'department' => 'Administration',
+            'password' => self::INITIAL_PASSWORD,
+        ]);
+    }
 
     /**
      * @return array<string, string>
@@ -28,11 +45,10 @@ class SuperAdminProvisioningTest extends TestCase
             'surname' => 'Account',
             'first_name' => 'Test',
             'email' => $email,
-            'password' => 'Password123!',
-            'password_confirmation' => 'Password123!',
             'role' => $role->value,
             'department' => 'Administration',
             'phone' => '09171234567',
+            'current_password' => self::INITIAL_PASSWORD,
         ];
     }
 
@@ -48,6 +64,7 @@ class SuperAdminProvisioningTest extends TestCase
             'status' => $user->status->value,
             'department' => $user->department,
             'phone' => $user->phone,
+            'current_password' => self::INITIAL_PASSWORD,
         ];
     }
 
@@ -55,7 +72,10 @@ class SuperAdminProvisioningTest extends TestCase
     {
         $this->seed(SuperAdminSeeder::class);
 
-        return User::query()->where('email', self::EMAIL)->firstOrFail();
+        $user = User::query()->where('email', self::EMAIL)->firstOrFail();
+        app(ConsentService::class)->recordConsent($user, UserConsent::TYPE_PRIVACY_POLICY);
+
+        return $user;
     }
 
     public function test_seeder_provisions_the_exact_protected_account_with_a_hashed_password(): void
@@ -128,8 +148,9 @@ class SuperAdminProvisioningTest extends TestCase
 
         $this->actingAs($administrator)->get(route('admin.users.create'))
             ->assertOk()
-            ->assertDontSee('value="administrator"', false)
-            ->assertDontSee('value="super_administrator"', false);
+            ->assertViewHas('createRoles', fn ($roles) => ! collect($roles)->contains(
+                fn (UserRole $role) => $role->isAdministrator()
+            ));
     }
 
     public function test_normal_admin_cannot_create_admin_or_super_admin_by_direct_request(): void
@@ -142,7 +163,7 @@ class SuperAdminProvisioningTest extends TestCase
             $this->actingAs($administrator)
                 ->post(route('admin.users.store'), $this->validUserPayload($role, $email))
                 ->assertSessionHasErrors('role')
-                ->assertSessionMissing('account_created_success');
+                ->assertSessionMissing('success');
 
             $this->assertDatabaseMissing('users', ['email' => $email]);
         }
@@ -191,20 +212,32 @@ class SuperAdminProvisioningTest extends TestCase
         $email = 'new.admin@example.com';
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->post(route('admin.users.store'), $this->validUserPayload(UserRole::Administrator, $email))
+            ->post(route('super-admin.users.store'), $this->validUserPayload(UserRole::Administrator, $email))
             ->assertSessionHasNoErrors()
-            ->assertRedirect(route('admin.users.index'));
+            ->assertRedirect(route('super-admin.users.index'));
 
         $administrator = User::query()->where('email', $email)->firstOrFail();
+        $this->assertSame(UserStatus::PendingActivation, $administrator->status);
+        $this->assertNull($administrator->password);
+
         $payload = $this->validUpdatePayload($administrator, UserRole::Administrator);
         $payload['first_name'] = 'Updated';
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->put(route('admin.users.update', $administrator), $payload)
+            ->put(route('super-admin.users.update', $administrator), $payload)
             ->assertSessionHasNoErrors();
 
+        // Continue this management-boundary test from the state produced by
+        // the separately covered user-owned activation flow.
+        $administrator->forceFill([
+            'status' => UserStatus::Active,
+            'password' => Hash::make('ActivatedAdmin1!'),
+        ])->saveQuietly();
+
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->patch(route('admin.users.toggle-status', $administrator))
+            ->patch(route('super-admin.users.toggle-status', $administrator), [
+                'current_password' => self::INITIAL_PASSWORD,
+            ])
             ->assertSessionHasNoErrors();
 
         $administrator->refresh();
@@ -219,10 +252,10 @@ class SuperAdminProvisioningTest extends TestCase
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
             ->post(
-                route('admin.users.store'),
+                route('super-admin.users.store'),
                 $this->validUserPayload(UserRole::SuperAdministrator, $email)
             )->assertSessionHasErrors('role')
-            ->assertSessionMissing('account_created_success');
+            ->assertSessionMissing('success');
 
         $this->assertDatabaseMissing('users', ['email' => $email]);
         $this->assertSame(1, User::superAdministrators()->count());
@@ -259,8 +292,8 @@ class SuperAdminProvisioningTest extends TestCase
                 'email' => 'changed@example.com',
                 'current_password' => self::INITIAL_PASSWORD,
             ])->assertSessionHasNoErrors()
-            ->assertSessionHas('profile_success', 'Email updated successfully.')
-            ->assertRedirect(route('profile.edit'));
+            ->assertSessionHas('status', 'Email updated. Check your new address to reactivate your account before signing in.')
+            ->assertRedirect(route('super-admin.login'));
 
         $this->assertSame('changed@example.com', $superAdmin->refresh()->email);
 
@@ -276,5 +309,115 @@ class SuperAdminProvisioningTest extends TestCase
             'is_protected' => true,
         ]);
         $this->assertSame(1, User::query()->where('is_protected', true)->count());
+    }
+
+    public function test_artisan_command_can_provision_additional_super_admin(): void
+    {
+        Notification::fake();
+
+        $this->artisan('hims:create-super-admin', [
+            '--name' => 'Command Super Administrator',
+            '--email' => 'command.super-admin@example.test',
+            '--phone' => '09170000000',
+            '--password' => 'SyntheticCommandAdmin123!',
+        ])->assertSuccessful();
+
+        $user = User::query()->where('email', 'command.super-admin@example.test')->firstOrFail();
+
+        $this->assertSame('Command Super Administrator', $user->name);
+        $this->assertSame('Command', $user->first_name);
+        $this->assertSame('Super', $user->middle_name);
+        $this->assertSame('Administrator', $user->surname);
+        $this->assertSame('09170000000', $user->phone);
+        $this->assertSame(UserRole::SuperAdministrator, $user->role);
+        $this->assertSame(UserStatus::Active, $user->status);
+        $this->assertFalse($user->is_protected);
+        $this->assertNull($user->email_verified_at);
+        $this->assertStringStartsWith('SA-', $user->employee_id);
+        $this->assertTrue(Hash::check('SyntheticCommandAdmin123!', $user->password));
+        Notification::assertSentTo($user, VerifyEmail::class);
+    }
+
+    public function test_non_protected_super_admin_can_edit_phone_without_losing_its_role(): void
+    {
+        $superAdmin = User::factory()->superAdministrator()->create([
+            'password' => Hash::make(self::INITIAL_PASSWORD),
+            'phone' => '09170000000',
+            'is_protected' => false,
+        ]);
+
+        $response = $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.users.edit', $superAdmin));
+
+        $response->assertOk();
+        $this->assertMatchesRegularExpression(
+            '/<option value="super_administrator"\s+selected>/',
+            $response->getContent(),
+        );
+
+        $payload = $this->validUpdatePayload($superAdmin, UserRole::SuperAdministrator);
+        $payload['phone'] = '09179999999';
+
+        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->put(route('super-admin.users.update', $superAdmin), $payload)
+            ->assertSessionHasNoErrors();
+
+        $superAdmin->refresh();
+
+        $this->assertSame('09179999999', $superAdmin->phone);
+        $this->assertSame(UserRole::SuperAdministrator, $superAdmin->role);
+    }
+
+    public function test_general_account_edit_cannot_demote_a_non_protected_super_admin(): void
+    {
+        $superAdmin = User::factory()->superAdministrator()->create([
+            'password' => Hash::make(self::INITIAL_PASSWORD),
+            'phone' => '09170000000',
+            'is_protected' => false,
+        ]);
+
+        $payload = $this->validUpdatePayload($superAdmin, UserRole::Administrator);
+        $payload['phone'] = '09179999999';
+
+        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->put(route('super-admin.users.update', $superAdmin), $payload)
+            ->assertSessionHasErrors('role');
+
+        $superAdmin->refresh();
+
+        $this->assertSame('09170000000', $superAdmin->phone);
+        $this->assertSame(UserRole::SuperAdministrator, $superAdmin->role);
+    }
+
+    public function test_artisan_command_validates_weak_password(): void
+    {
+        $this->artisan('hims:create-super-admin', [
+            '--name' => 'Invalid Super Admin',
+            '--email' => 'invalid@example.com',
+            '--password' => 'weak',
+        ])->assertFailed();
+
+        $this->assertDatabaseMissing('users', ['email' => 'invalid@example.com']);
+    }
+
+    public function test_user_form_renders_role_permissions_modal_instead_of_inline_list(): void
+    {
+        $superAdmin = $this->provisionedSuperAdmin();
+
+        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.users.create'))
+            ->assertOk()
+            ->assertSee('form-role-permissions-modal')
+            ->assertSee('View Role Permissions')
+            ->assertSee('Permissions shown are limited to the selected role.')
+            ->assertDontSee('This role can');
+
+        $viewer = User::factory()->viewer()->create();
+        $this->get(route('super-admin.users.edit', $viewer))
+            ->assertOk()
+            ->assertSee('form-role-permissions-modal')
+            ->assertSee('View Role Permissions')
+            ->assertSee('Permissions shown are limited to the selected role.')
+            ->assertDontSee('This role can');
     }
 }

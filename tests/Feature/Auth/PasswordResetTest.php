@@ -105,6 +105,38 @@ class PasswordResetTest extends TestCase
         $this->assertSame($originalPasswordHash, $user->refresh()->password);
     }
 
+    public function test_live_password_reset_verification_returns_a_json_error_for_an_invalid_code(): void
+    {
+        $user = User::factory()->create();
+        $notification = $this->requestOtp($user);
+        $incorrectOtp = $notification->otp === '000000' ? '999999' : '000000';
+
+        $this->postJson(route('password.otp.verify'), [
+            'email' => $user->email,
+            'otp' => $incorrectOtp,
+        ])->assertUnprocessable()->assertJson([
+            'success' => false,
+            'message' => 'This verification code is invalid or has expired.',
+            'errors' => ['otp' => ['This verification code is invalid or has expired.']],
+        ]);
+    }
+
+    public function test_live_password_reset_verification_returns_the_secure_redirect_after_exchange(): void
+    {
+        $user = User::factory()->create();
+        $notification = $this->requestOtp($user);
+
+        $response = $this->postJson(route('password.otp.verify'), [
+            'email' => $user->email,
+            'otp' => $notification->otp,
+        ])->assertOk()->assertJson(['success' => true]);
+
+        $this->assertStringContainsString('/reset-password/', $response->json('redirect_url'));
+        $exchangedTokenHash = DB::table('password_reset_tokens')->where('email', $user->email)->value('token');
+        $this->assertIsString($exchangedTokenHash);
+        $this->assertFalse(Hash::check($notification->otp, $exchangedTokenHash));
+    }
+
     public function test_expired_otp_is_rejected_and_removed(): void
     {
         $user = User::factory()->create();
@@ -161,6 +193,27 @@ class PasswordResetTest extends TestCase
         $this->assertTrue($user->password_changed_at->isToday());
         $this->assertSame(1, PasswordHistory::query()->whereBelongsTo($user)->count());
         $this->assertDatabaseMissing('password_reset_tokens', ['email' => $user->email]);
+    }
+
+    public function test_password_reset_does_not_activate_an_unverified_account(): void
+    {
+        $user = User::factory()->unverified()->create();
+        $notification = $this->requestOtp($user);
+        $token = $this->tokenFromRedirect($this->verifyOtp($user, $notification));
+
+        $this->post(route('password.store'), [
+            'token' => $token,
+            'email' => $user->email,
+            'password' => 'NewPassword1!',
+            'password_confirmation' => 'NewPassword1!',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertFalse($user->fresh()->hasVerifiedEmail());
+        $this->post(route('login'), [
+            'email' => $user->email,
+            'password' => 'NewPassword1!',
+        ])->assertSessionHasErrors('email');
+        $this->assertGuest();
     }
 
     public function test_current_password_cannot_be_reused_after_valid_otp_verification(): void

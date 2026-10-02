@@ -4,18 +4,25 @@ namespace Tests\Feature;
 
 use App\Enums\MovementType;
 use App\Enums\Permission;
+use App\Enums\PurchaseOrderStatus;
 use App\Enums\UserRole;
 use App\Models\InventoryItem;
 use App\Models\ItemBatch;
 use App\Models\ItemCategory;
 use App\Models\ItemStockLevel;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderLine;
 use App\Models\StockMovement;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Models\WarehouseTask;
+use App\Services\Inventory\GoodsReceiptService;
+use App\Services\Inventory\QualityControlService;
 use App\Services\InventoryReportService;
+use App\Services\Warehouse\WarehouseTaskService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -40,6 +47,33 @@ class InventoryReportTest extends TestCase
     private function reports(): InventoryReportService
     {
         return app(InventoryReportService::class);
+    }
+
+    public function test_stock_status_uses_one_aggregate_query_as_the_catalogue_grows(): void
+    {
+        for ($i = 0; $i < 50; $i++) {
+            InventoryItem::create([
+                'name' => "Load item {$i}",
+                'sku' => "LOAD-{$i}",
+                'quantity_on_hand' => $i,
+                'reorder_level' => 10,
+                'unit_cost' => 2,
+            ]);
+        }
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+
+        try {
+            $buckets = $this->reports()->stockStatus();
+            $this->assertCount(1, DB::getQueryLog());
+        } finally {
+            DB::disableQueryLog();
+        }
+
+        $this->assertSame(50, array_sum(array_column($buckets, 'items')));
+        $this->assertSame(1, $buckets['out_of_stock']['items']);
+        $this->assertSame(10, $buckets['low_stock']['items']);
     }
 
     private function location(string $name = 'Main Store', string $code = 'MAIN-01', ?int $capacity = null): StorageLocation
@@ -104,6 +138,26 @@ class InventoryReportTest extends TestCase
             ->assertDontSee('This area will contain inventory summaries');
     }
 
+    public function test_the_screen_renders_compact_tabbed_sections_and_preserves_print_compatibility(): void
+    {
+        $financialReader = User::factory()->inventoryManager()->create();
+        $nonFinancialReader = User::factory()->viewer()->create();
+
+        $response = $this->actingAs($financialReader)->get('/inventory/reports');
+
+        $response->assertStatus(200)
+            ->assertSee('Valuation &amp; Locations', false)
+            ->assertSee('Procurement &amp; Spending', false)
+            ->assertSee('Movements &amp; Consumption', false)
+            ->assertSee('Expiry Risk Batches', false)
+            ->assertSee('print:!block', false);
+
+        // A viewer without ViewProcurementSensitiveData does not see the procurement spending tab
+        $this->actingAs($nonFinancialReader)->get('/inventory/reports')
+            ->assertStatus(200)
+            ->assertDontSee('Procurement &amp; Spending', false);
+    }
+
     /**
      * The gate moved from InventoryController to ReportController when the
      * screen was split out, so assert it followed rather than assuming it did.
@@ -132,8 +186,7 @@ class InventoryReportTest extends TestCase
         $this->actingAs($this->reader())
             ->get('/inventory/reports?days=90')
             ->assertStatus(200)
-            ->assertSee('Last 90 days')
-            ->assertSee('90-day window');
+            ->assertSee('Last 90 days');
     }
 
     /**
@@ -167,10 +220,10 @@ class InventoryReportTest extends TestCase
 
     /**
      * The buckets are worked out from the quantities, not read off
-     * `inventory_items.status`. That column is a cache written when stock moves
-     * through the service, so an item created by hand and never moved keeps
-     * whatever status it was created with — and the report would then disagree
-     * with the item screen sitting next to it.
+     * `inventory_items.status`. That column is the item's lifecycle, so a row
+     * carrying anything else there — as these fixtures deliberately do — must
+     * not move the item between buckets, or the report would disagree with the
+     * item screen sitting next to it.
      */
     public function test_stock_status_is_derived_from_quantities_not_the_cached_column(): void
     {
@@ -494,6 +547,14 @@ class InventoryReportTest extends TestCase
         $location = $this->location();
         $item = $this->stockedItem('N95 Respirator Mask', 'PPE-N95', 0, 45.00, location: $location);
         $supplier = Supplier::create(['name' => 'Jeffrey Corporation', 'status' => 'active']);
+        StorageLocation::create([
+            'name' => 'Receiving Quarantine', 'code' => 'LOC-QUARANTINE', 'status' => 'active',
+            'is_quarantine' => true,
+        ]);
+        StorageLocation::create([
+            'name' => 'Receiving Staging', 'code' => 'LOC-STAGING', 'status' => 'active',
+            'is_receiving_staging' => true,
+        ]);
 
         $purchaseOrder = PurchaseOrder::create([
             'po_number' => 'PO-20260808120000',
@@ -502,22 +563,1084 @@ class InventoryReportTest extends TestCase
             'quantity' => 500,
             'unit_cost' => 41.50,
             'total_amount' => 20750,
-            'status' => 'pending',
+            'status' => PurchaseOrderStatus::Approved->value,
             'requested_at' => now(),
         ]);
+        $poLine = PurchaseOrderLine::create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'item_id' => $item->id,
+            'line_number' => 1,
+            'ordered_quantity' => 500,
+            'received_quantity' => 0,
+            'unit_price' => 41.50,
+            'total_line_amount' => 20750,
+            'purchase_unit' => $item->unit,
+            'conversion_factor' => 1,
+        ]);
+        $operator = $this->reader();
 
-        $this->actingAs($this->reader())
+        $this->actingAs($operator)
             ->post("/inventory/purchases/{$purchaseOrder->id}/receive")
-            ->assertRedirect('/inventory/purchases');
+            ->assertRedirect(route('inventory.receiving.index', ['purchase_order_id' => $purchaseOrder->id]));
+        $this->assertSame(0, $item->fresh()->quantity_on_hand);
+
+        $grn = app(GoodsReceiptService::class)->receiveOrder($purchaseOrder, [
+            'lines' => [['po_line_id' => $poLine->id, 'received_quantity' => 500,
+                'item_condition' => 'good', 'batch_number' => 'LOT-N95-REPORT', 'expiry_date' => now()->addYear()->toDateString()]],
+        ], $operator);
+        $line = $grn->lines()->firstOrFail();
+        $reportBeforeQc = $this->reports()->build(30);
+        $this->assertSame(0, $reportBeforeQc['summary']['units_on_hand']);
+        $this->assertSame(500, $reportBeforeQc['receivingReconciliation']->first()['pending_qc']);
+
+        app(QualityControlService::class)->releaseLot($line->inspections()->firstOrFail(), 500, $location->id, $operator);
+        $reportBeforePutAway = $this->reports()->build(30);
+        $this->assertSame(0, $reportBeforePutAway['summary']['units_on_hand']);
+        $this->assertSame(500, $reportBeforePutAway['receivingReconciliation']->first()['awaiting_put_away_base']);
+        $task = WarehouseTask::where('item_id', $item->id)->firstOrFail();
+        $tasks = app(WarehouseTaskService::class);
+        $tasks->start($task, $operator);
+        $tasks->scan($task, 'LOC-STAGING', $operator);
+        $tasks->scan($task, $item->sku, $operator);
+        $tasks->scan($task, $location->code, $operator);
+        $tasks->complete($task, 500, $operator);
 
         $report = $this->reports()->build(30);
 
         $this->assertSame(500, $report['summary']['units_on_hand']);
         $this->assertSame(500, $report['stockStatus']['in_stock']['units']);
-        $this->assertSame(500, $report['movementTotals']['units_in']);
+        $this->assertSame(500, $report['receivingReconciliation']->first()['available_base']);
         $this->assertSame(20750.0, $report['spend']['received']['value']);
         // Delivered, so nothing is left owing on it.
         $this->assertSame(0, $report['spend']['outstanding']['orders']);
         $this->assertSame(500, $report['stockByLocation']->first()['units']);
+    }
+
+    // ------------------------------------------------- Report Generator & Export Tests
+
+    public function test_generate_report_validates_required_fields(): void
+    {
+        $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate')
+            ->assertSessionHasErrors(['report_type', 'format']);
+
+        $this->actingAs($this->reader())
+            ->getJson('/inventory/reports/generate?report_type=stock_status&format=json&sort_by=unsafe&sort_direction=sideways')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['sort_by', 'sort_direction']);
+    }
+
+    public function test_report_sort_controls_apply_ascending_and_descending_with_active_filters(): void
+    {
+        $reader = $this->reader();
+        $category = ItemCategory::create(['name' => 'Sorted Supplies', 'code' => 'SORT-SUP']);
+        $location = $this->location('Sorting Store', 'SORT-01');
+        $item = $this->stockedItem('Sorted Item', 'SORT-ITEM', 30, 2.00, location: $location, category: $category);
+
+        foreach ([5, 20, 10] as $quantity) {
+            StockMovement::create([
+                'item_id' => $item->id,
+                'to_location_id' => $location->id,
+                'movement_type' => MovementType::StockIn,
+                'quantity' => $quantity,
+                'unit_cost' => $item->unit_cost,
+                'moved_at' => now()->subDay(),
+            ]);
+        }
+
+        $query = http_build_query([
+            'report_type' => 'movement_history',
+            'format' => 'json',
+            'period' => '30',
+            'category_id' => $category->id,
+            'storage_location_id' => $location->id,
+            'movement_type' => MovementType::StockIn->value,
+            'sort_by' => 'units',
+        ]);
+
+        $ascending = $this->actingAs($reader)
+            ->getJson('/inventory/reports/generate?'.$query.'&sort_direction=asc')
+            ->assertOk();
+        $descending = $this->actingAs($reader)
+            ->getJson('/inventory/reports/generate?'.$query.'&sort_direction=desc')
+            ->assertOk();
+
+        $this->assertSame([5, 10, 20], array_column($ascending->json('data'), 'quantity'));
+        $this->assertSame([20, 10, 5], array_column($descending->json('data'), 'quantity'));
+        $this->assertSame('Units (ASC)', $ascending->json('meta.filter_labels.Sorted By'));
+
+        $cleared = $this->actingAs($reader)
+            ->getJson('/inventory/reports/generate?report_type=movement_history&format=json&period=30&sort_by=units&sort_direction=asc')
+            ->assertOk();
+
+        $this->assertGreaterThanOrEqual(3, count($cleared->json('data')));
+    }
+
+    public function test_procurement_order_sort_control_sorts_by_po_number(): void
+    {
+        $reader = $this->reader();
+        $supplier = Supplier::create(['name' => 'Sort Supplier', 'status' => 'active']);
+
+        foreach (['PO-SORT-20', 'PO-SORT-03', 'PO-SORT-11'] as $number) {
+            PurchaseOrder::create([
+                'po_number' => $number,
+                'supplier_id' => $supplier->id,
+                'quantity' => 1,
+                'unit_cost' => 10,
+                'total_amount' => 10,
+                'status' => PurchaseOrderStatus::Approved,
+                'requested_at' => now()->subDay(),
+            ]);
+        }
+
+        $base = '/inventory/reports/generate?report_type=procurement_expense&format=json&period=30&supplier_id='.
+            $supplier->id.'&sort_by=orders&sort_direction=';
+
+        $ascending = $this->actingAs($reader)->getJson($base.'asc')->assertOk();
+        $descending = $this->actingAs($reader)->getJson($base.'desc')->assertOk();
+
+        $this->assertSame(['PO-SORT-03', 'PO-SORT-11', 'PO-SORT-20'], array_column($ascending->json('data'), 'po_number'));
+        $this->assertSame(['PO-SORT-20', 'PO-SORT-11', 'PO-SORT-03'], array_column($descending->json('data'), 'po_number'));
+    }
+
+    public function test_generate_report_validates_custom_date_ranges(): void
+    {
+        // Missing from/to dates when custom period selected
+        $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=movement_history&format=json&period=custom')
+            ->assertSessionHasErrors(['from', 'to']);
+
+        // Start date after end date
+        $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=movement_history&format=json&period=custom&from=2026-09-10&to=2026-09-01')
+            ->assertSessionHasErrors(['to']);
+
+        // Start date in future
+        $futureDate = now()->addMonth()->format('Y-m-d');
+        $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=movement_history&format=json&period=custom&from='.$futureDate.'&to='.$futureDate)
+            ->assertSessionHasErrors(['from']);
+    }
+
+    public function test_historical_movement_report_matches_custom_period_filters_and_csv_export(): void
+    {
+        $reader = $this->reader();
+        $location = $this->location('Historical Store', 'HIST-01');
+        $medicine = ItemCategory::create(['name' => 'Historical Medicines', 'code' => 'HIST-MED']);
+        $supply = ItemCategory::create(['name' => 'Historical Supplies', 'code' => 'HIST-SUP']);
+        $historicalItem = $this->stockedItem('Archived Historical Medicine', 'HIST-MED-01', 20, 3.00, location: $location, category: $medicine);
+        $otherItem = $this->stockedItem('Other Historical Supply', 'HIST-SUP-01', 20, 2.00, location: $location, category: $supply);
+        $from = today()->subDays(60);
+        $to = today()->subDays(30);
+
+        foreach ([
+            [$historicalItem, MovementType::Issuance, 7, today()->subDays(45)],
+            [$historicalItem, MovementType::StockIn, 5, today()->subDays(45)],
+            [$otherItem, MovementType::Issuance, 13, today()->subDays(45)],
+            [$historicalItem, MovementType::Issuance, 11, today()->subDays(75)],
+        ] as [$item, $type, $quantity, $movedAt]) {
+            StockMovement::create([
+                'item_id' => $item->id,
+                'from_location_id' => $location->id,
+                'movement_type' => $type,
+                'quantity' => $quantity,
+                'unit_cost' => $item->unit_cost,
+                'moved_at' => $movedAt,
+            ]);
+        }
+
+        $historicalItem->update(['status' => 'archived', 'archived_at' => now()]);
+
+        $expected = StockMovement::query()
+            ->whereBetween('moved_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])
+            ->where('movement_type', MovementType::Issuance)
+            ->whereHas('item', fn ($query) => $query->where('category_id', $medicine->id))
+            ->get();
+        $query = http_build_query([
+            'report_type' => 'movement_history',
+            'period' => 'custom',
+            'from' => $from->format('Y-m-d'),
+            'to' => $to->format('Y-m-d'),
+            'category_id' => $medicine->id,
+            'storage_location_id' => $location->id,
+            'movement_type' => MovementType::Issuance->value,
+        ]);
+
+        $json = $this->actingAs($reader)->getJson('/inventory/reports/generate?format=json&'.$query)->assertOk();
+
+        $this->assertCount($expected->count(), $json->json('data'));
+        $this->assertSame((int) $expected->sum('quantity'), $json->json('summary')['Total Units Moved']);
+        $this->assertSame('Archived Historical Medicine', $json->json('data.0.item'));
+        $this->assertSame('₱21.00', $json->json('summary')['Total Movements Value']);
+        $this->assertSame(
+            $from->format('M d, Y').' — '.$to->format('M d, Y').' (Custom Range)',
+            $json->json('meta.period.description'),
+        );
+
+        $csv = $this->actingAs($reader)->get('/inventory/reports/generate?format=csv&'.$query)->assertOk()->streamedContent();
+
+        $this->assertStringContainsString('Archived Historical Medicine', $csv);
+        $this->assertStringContainsString('"Total Movements",1', $csv);
+        $this->assertStringContainsString('"Total Units Moved",7', $csv);
+        $this->assertStringNotContainsString('Other Historical Supply', $csv);
+    }
+
+    public function test_generate_report_exports_json_format_with_metadata(): void
+    {
+        $location = $this->location();
+        $this->stockedItem('N95 Respirator Mask', 'PPE-N95', 100, 45.00, location: $location);
+
+        $response = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=json&period=30');
+
+        $response->assertStatus(200)
+            ->assertHeader('Content-Type', 'application/json')
+            ->assertJsonPath('meta.report_type', 'stock_status')
+            ->assertJsonPath('meta.hospital_name', config('privacy.hospital_name'))
+            ->assertJsonStructure([
+                'meta' => ['report_type', 'report_title', 'generated_at', 'generated_by', 'period', 'filters'],
+                'summary',
+                'columns',
+                'data',
+                'totals',
+            ]);
+    }
+
+    public function test_generate_report_exports_csv_format_with_utf8_bom(): void
+    {
+        $location = $this->location();
+        $itemName = "Surgical Gloves, \"Powder-Free\"\nLarge";
+        $this->stockedItem($itemName, 'PPE-GLV', 200, 15.00, location: $location);
+
+        $response = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=csv&period=30');
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('text/csv', (string) $response->headers->get('Content-Type'));
+        $this->assertStringContainsString('attachment;', (string) $response->headers->get('Content-Disposition'));
+
+        $content = $response->streamedContent();
+        // UTF-8 BOM must be the first 3 bytes
+        $this->assertSame("\xEF\xBB\xBF", substr($content, 0, 3));
+        $this->assertStringContainsString('Dr. Jose N. Rodriguez Memorial Hospital', $content);
+        $this->assertStringContainsString('PPE-GLV', $content);
+
+        $handle = fopen('php://memory', 'r+');
+        fwrite($handle, substr($content, 3));
+        rewind($handle);
+        $exportedRow = null;
+        while (($row = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
+            if (($row[0] ?? null) === 'PPE-GLV') {
+                $exportedRow = $row;
+                break;
+            }
+        }
+        fclose($handle);
+
+        $this->assertNotNull($exportedRow);
+        $this->assertSame($itemName, $exportedRow[1]);
+    }
+
+    public function test_csv_export_neutralizes_formula_like_text_but_preserves_negative_numbers(): void
+    {
+        $location = $this->location();
+        $this->stockedItem('=HYPERLINK("https://invalid.example")', 'FORMULA-001', 5, -1.25, location: $location);
+
+        $content = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=csv&period=30')
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertStringContainsString("'=HYPERLINK", $content);
+        $this->assertStringNotContainsString("'-1.25", $content);
+    }
+
+    public function test_stock_exports_preserve_database_identifiers_units_and_public_fields(): void
+    {
+        $location = $this->location();
+        $item = $this->stockedItem('Infusion Set', '000012345678', 25, 19.95, location: $location);
+        $item->update([
+            'barcode_value' => '000000987654321',
+            'gtin' => '00012345678905',
+            'unit' => 'set',
+        ]);
+
+        $json = $this->actingAs($this->reader())
+            ->getJson('/inventory/reports/generate?report_type=stock_status&format=json&period=30')
+            ->assertOk()
+            ->assertJsonPath('columns.barcode_value', 'Barcode')
+            ->assertJsonPath('columns.gtin', 'GTIN')
+            ->assertJsonPath('columns.unit', 'Unit of Measure')
+            ->assertJsonPath('data.0.sku', '000012345678')
+            ->assertJsonPath('data.0.barcode_value', '000000987654321')
+            ->assertJsonPath('data.0.gtin', '00012345678905')
+            ->assertJsonPath('data.0.unit', 'set');
+
+        $this->assertArrayNotHasKey('id', $json->json('data.0'));
+        $this->assertArrayNotHasKey('status_key', $json->json('data.0'));
+
+        $csv = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=csv&period=30')
+            ->assertOk()
+            ->streamedContent();
+
+        $handle = fopen('php://memory', 'r+');
+        fwrite($handle, substr($csv, 3));
+        rewind($handle);
+        $exported = null;
+        while (($row = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
+            if (($row[0] ?? null) === '000012345678') {
+                $exported = $row;
+                break;
+            }
+        }
+        fclose($handle);
+
+        $this->assertNotNull($exported);
+        $this->assertSame('000000987654321', $exported[2]);
+        $this->assertSame('00012345678905', $exported[3]);
+        $this->assertSame('set', $exported[5]);
+
+        $excel = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=excel&period=30')
+            ->assertOk();
+
+        $excel->assertSee('mso-number-format:', false)
+            ->assertSee('x:str', false)
+            ->assertSee('000012345678')
+            ->assertSee('000000987654321')
+            ->assertSee('00012345678905');
+    }
+
+    public function test_comprehensive_export_includes_every_matching_movement(): void
+    {
+        $location = $this->location();
+        $item = $this->stockedItem('Complete Ledger Item', 'LEDGER-ALL', 100, 2.50, location: $location);
+
+        foreach (range(1, 55) as $offset) {
+            StockMovement::create([
+                'item_id' => $item->id,
+                'from_location_id' => $location->id,
+                'movement_type' => MovementType::Issuance,
+                'quantity' => 1,
+                'unit_cost' => 2.50,
+                'moved_at' => now()->subMinutes($offset),
+            ]);
+        }
+
+        $this->actingAs($this->reader())
+            ->getJson('/inventory/reports/generate?report_type=all&format=json&period=30')
+            ->assertOk()
+            ->assertJsonPath('sections.movements.summary.Total Movements', 55)
+            ->assertJsonCount(55, 'sections.movements.rows');
+    }
+
+    public function test_generate_report_exports_excel_format(): void
+    {
+        $location = $this->location();
+        $this->stockedItem('Sterile Syringe', 'SYR-10ML', 500, 8.50, location: $location);
+
+        $response = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=valuation&format=excel&period=30');
+
+        $response->assertStatus(200)
+            ->assertHeader('Content-Type', 'application/vnd.ms-excel; charset=UTF-8')
+            ->assertSee('Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium')
+            ->assertSee('Inventory Valuation')
+            ->assertSee('Summary Overview');
+    }
+
+    public function test_generate_report_exports_valid_pdf_with_report_data(): void
+    {
+        $location = $this->location();
+        $this->stockedItem('Paracetamol 500mg', 'PHARMA-PARA', 1000, 1.25, location: $location);
+
+        $response = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=pdf&period=30');
+
+        $response->assertStatus(200)
+            ->assertHeader('Content-Type', 'application/pdf');
+
+        $this->assertStringContainsString('attachment;', (string) $response->headers->get('Content-Disposition'));
+        $this->assertStringStartsWith('%PDF-', $response->getContent());
+        $this->assertStringContainsString('/Subtype/Image', $response->getContent());
+        $this->assertStringContainsString('Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium', $response->getContent());
+        $this->assertStringContainsString('Tala, Caloocan City, Metro Manila, Philippines', $response->getContent());
+        $this->assertStringContainsString('(Page 1 of 1) Tj', $response->getContent());
+        $this->assertStringContainsString('(Paracetamol) Tj', $response->getContent());
+        $this->assertStringContainsString('(500mg) Tj', $response->getContent());
+    }
+
+    public function test_print_report_uses_the_configured_organization_branding_and_logo(): void
+    {
+        $response = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=print&period=30');
+
+        $response->assertOk()
+            ->assertSee(config('privacy.hospital_name'))
+            ->assertSee(config('privacy.hospital_address'))
+            ->assertSee(config('privacy.system_name'))
+            ->assertSee('data:image/png;base64,', false)
+            ->assertSee('official logo')
+            ->assertSee('size: A4 landscape', false)
+            ->assertSee('display: table-header-group', false)
+            ->assertSee('display: table-row-group', false)
+            ->assertSee('overflow-wrap: anywhere', false);
+    }
+
+    public function test_generate_all_reports_compiles_complete_dossier(): void
+    {
+        $location = $this->location();
+        $this->stockedItem('Amoxicillin 500mg', 'MED-AMOX', 300, 5.00, location: $location);
+
+        $response = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=all&format=json&period=30');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('meta.report_type', 'all')
+            ->assertJsonStructure([
+                'meta',
+                'summary',
+                'sections' => [
+                    'stock_status',
+                    'valuation',
+                    'stock_by_location',
+                    'expiry',
+                    'movements',
+                    'consumed',
+                    'movements_by_type',
+                ],
+            ]);
+    }
+
+    public function test_generate_report_filters_by_category_and_location(): void
+    {
+        $catA = ItemCategory::create(['name' => 'Antibiotics', 'code' => 'ANTI']);
+        $catB = ItemCategory::create(['name' => 'Disposables', 'code' => 'DISP']);
+
+        $locMain = $this->location('Main Pharmacy', 'PHARM-MAIN');
+        $locWard = $this->location('Ward Store', 'WARD-01');
+
+        $itemA = $this->stockedItem('Amoxicillin', 'MED-AMOX', 100, 5.00, category: $catA, location: $locMain);
+        $itemB = $this->stockedItem('Gauze Bandage', 'SUP-GAUZE', 200, 2.00, category: $catB, location: $locWard);
+
+        // Filter by Category A
+        $responseCat = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=json&category_id='.$catA->id);
+
+        $responseCat->assertStatus(200);
+        $dataCat = $responseCat->json('data');
+        $this->assertCount(1, $dataCat);
+        $this->assertSame('Amoxicillin', $dataCat[0]['name']);
+
+        // Filter by Storage Location Ward
+        $responseLoc = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_by_location&format=json&storage_location_id='.$locWard->id);
+
+        $responseLoc->assertStatus(200);
+        $dataLoc = $responseLoc->json('data');
+        $this->assertCount(1, $dataLoc);
+        $this->assertSame('Ward Store', $dataLoc[0]['location']);
+    }
+
+    public function test_procurement_report_generation_requires_financial_permission(): void
+    {
+        $viewer = User::factory()->viewer()->create();
+        $manager = User::factory()->inventoryManager()->create();
+
+        // Viewer lacks ViewProcurementSensitiveData -> 403 Forbidden
+        $this->actingAs($viewer)
+            ->get('/inventory/reports/generate?report_type=procurement_expense&format=json')
+            ->assertStatus(403);
+
+        $this->actingAs($viewer)
+            ->get('/inventory/reports/generate?report_type=spend_by_supplier&format=json')
+            ->assertStatus(403);
+
+        // Manager with permission -> 200 OK
+        $this->actingAs($manager)
+            ->get('/inventory/reports/generate?report_type=procurement_expense&format=json')
+            ->assertStatus(200);
+    }
+
+    public function test_empty_results_handled_cleanly_without_500_errors(): void
+    {
+        $emptyCategory = ItemCategory::create(['name' => 'Non-Existent Category', 'code' => 'NONE']);
+
+        $response = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=json&category_id='.$emptyCategory->id);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('is_empty', true)
+            ->assertJsonPath('data', []);
+
+        // PDF format also handles empty results cleanly.
+        $pdf = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=pdf&category_id='.$emptyCategory->id)
+            ->assertStatus(200)
+            ->assertHeader('Content-Type', 'application/pdf');
+
+        $this->assertStringContainsString('(No items found matching the selected stock status criteria.) Tj', $pdf->getContent());
+    }
+
+    public function test_generate_report_supports_today_and_all_time_periods(): void
+    {
+        $responseToday = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=json&period=1');
+
+        $responseToday->assertStatus(200)
+            ->assertJsonPath('meta.period.description', 'Today ('.now()->format('M d, Y').')');
+
+        $responseAllTime = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=json&period=all');
+
+        $responseAllTime->assertStatus(200)
+            ->assertJsonPath('meta.period.description', 'All Time (up to '.now()->format('M d, Y').')');
+    }
+
+    public function test_generate_report_rejects_future_end_date_and_inverted_range(): void
+    {
+        // Future end date
+        $futureTo = now()->addDays(5)->format('Y-m-d');
+        $validFrom = now()->subDays(5)->format('Y-m-d');
+
+        $this->actingAs($this->reader())
+            ->getJson('/inventory/reports/generate?report_type=stock_status&format=json&period=custom&from='.$validFrom.'&to='.$futureTo)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['to']);
+
+        // Inverted range (from > to)
+        $fromLater = now()->subDays(2)->format('Y-m-d');
+        $toEarlier = now()->subDays(10)->format('Y-m-d');
+
+        $this->actingAs($this->reader())
+            ->getJson('/inventory/reports/generate?report_type=stock_status&format=json&period=custom&from='.$fromLater.'&to='.$toEarlier)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['to']);
+    }
+
+    public function test_dashboard_index_accepts_custom_date_range(): void
+    {
+        $from = now()->subDays(45)->format('Y-m-d');
+        $to = now()->subDays(15)->format('Y-m-d');
+
+        $response = $this->actingAs($this->reader())
+            ->get('/inventory/reports?period=custom&from='.$from.'&to='.$to);
+
+        $response->assertStatus(200)
+            ->assertSee('custom date range')
+            ->assertSee('Report Generator & Timeline Controls', false);
+    }
+
+    public function test_generate_report_filters_by_item_category_supplier_movement_type_and_status(): void
+    {
+        $catA = ItemCategory::create(['name' => 'Antibiotics', 'code' => 'ABX']);
+        $catB = ItemCategory::create(['name' => 'Analgesics', 'code' => 'ANL']);
+
+        $itemA = InventoryItem::create([
+            'name' => 'Amoxicillin 500mg',
+            'sku' => 'MED-ABX-01',
+            'unit' => 'capsule',
+            'unit_cost' => 4.50,
+            'category_id' => $catA->id,
+            'quantity_on_hand' => 50,
+            'reorder_level' => 10,
+        ]);
+
+        $itemB = InventoryItem::create([
+            'name' => 'Ibuprofen 400mg',
+            'sku' => 'MED-ANL-01',
+            'unit' => 'tablet',
+            'unit_cost' => 2.00,
+            'category_id' => $catB->id,
+            'quantity_on_hand' => 0,
+            'reorder_level' => 20,
+        ]);
+
+        // Filter by category Antibiotics
+        $responseCat = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=json&category_id='.$catA->id);
+
+        $responseCat->assertStatus(200)
+            ->assertJsonFragment(['sku' => 'MED-ABX-01'])
+            ->assertJsonMissing(['sku' => 'MED-ANL-01']);
+
+        // Filter by status out_of_stock
+        $responseStatus = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=stock_status&format=json&status=out_of_stock');
+
+        $responseStatus->assertStatus(200)
+            ->assertJsonFragment(['sku' => 'MED-ANL-01'])
+            ->assertJsonMissing(['sku' => 'MED-ABX-01']);
+    }
+
+    public function test_stock_status_filter_does_not_remove_procurement_rows_from_comprehensive_export(): void
+    {
+        $supplier = Supplier::create(['name' => 'Accuracy Supplier', 'status' => 'active']);
+        $item = $this->stockedItem('Accuracy Item', 'ACCURACY-01', 10, 5.00);
+
+        PurchaseOrder::create([
+            'po_number' => 'PO-ACCURACY-001',
+            'supplier_id' => $supplier->id,
+            'item_id' => $item->id,
+            'quantity' => 2,
+            'unit_cost' => 5.00,
+            'total_amount' => 10.00,
+            'status' => PurchaseOrderStatus::Approved->value,
+            'requested_at' => now(),
+        ]);
+
+        $this->actingAs($this->reader())
+            ->getJson('/inventory/reports/generate?report_type=all&format=json&period=30&status=in_stock')
+            ->assertOk()
+            ->assertJsonPath('sections.procurement.rows.0.po_number', 'PO-ACCURACY-001');
+    }
+
+    public function test_generate_expiry_exposure_with_batch_stock_levels_and_storage_locations(): void
+    {
+        $location = StorageLocation::create([
+            'name' => 'Pharmacy Cold Vault Alpha',
+            'code' => 'PCVA-01',
+            'status' => 'active',
+        ]);
+
+        $category = ItemCategory::create(['name' => 'Vaccines & Biologicals', 'code' => 'VAC']);
+
+        $item = InventoryItem::create([
+            'name' => 'Rabies Human Diploid Vaccine',
+            'sku' => 'BIO-RAB-01',
+            'unit' => 'vial',
+            'unit_cost' => 850.00,
+            'category_id' => $category->id,
+            'quantity_on_hand' => 40,
+            'reorder_level' => 10,
+            'status' => 'active',
+        ]);
+
+        $batch = ItemBatch::create([
+            'item_id' => $item->id,
+            'batch_number' => 'BATCH-RAB-2026',
+            'expiry_date' => now()->addDays(5),
+            'unit_cost' => 850.00,
+            'initial_quantity' => 40,
+            'status' => 'active',
+        ]);
+
+        ItemStockLevel::create([
+            'item_id' => $item->id,
+            'item_batch_id' => $batch->id,
+            'storage_location_id' => $location->id,
+            'quantity' => 40,
+            'reserved_quantity' => 0,
+        ]);
+
+        // 1. JSON format: verify 200 OK and correct location resolution on model relationship
+        $jsonRes = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=expiry_exposure&format=json&period=30');
+
+        $jsonRes->assertStatus(200)
+            ->assertJsonPath('meta.report_type', 'expiry_exposure')
+            ->assertJsonPath('is_empty', false);
+
+        $data = $jsonRes->json('data');
+        $this->assertNotEmpty($data);
+        $this->assertEquals('BATCH-RAB-2026', $data[0]['batch_number']);
+        $this->assertEquals('Pharmacy Cold Vault Alpha', $data[0]['location']);
+        $this->assertEquals(40, $data[0]['units']);
+
+        // 2. CSV format: verify 200 OK and location in stream
+        $csvRes = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=expiry_exposure&format=csv&period=30');
+
+        $csvRes->assertStatus(200);
+        $csvContent = $csvRes->streamedContent();
+        $this->assertStringContainsString('Pharmacy Cold Vault Alpha', $csvContent);
+        $this->assertStringContainsString('BATCH-RAB-2026', $csvContent);
+
+        // 3. Excel format: verify 200 OK and location in HTML/XML table
+        $excelRes = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=expiry_exposure&format=excel&period=30');
+
+        $excelRes->assertStatus(200)
+            ->assertHeader('Content-Type', 'application/vnd.ms-excel; charset=UTF-8')
+            ->assertSee('Pharmacy Cold Vault Alpha')
+            ->assertSee('BATCH-RAB-2026');
+
+        // 4. Print/PDF format: verify 200 OK and printable HTML
+        $printRes = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=expiry_exposure&format=print&period=30');
+
+        $printRes->assertStatus(200)
+            ->assertSee('Pharmacy Cold Vault Alpha')
+            ->assertSee('BATCH-RAB-2026');
+
+        // 5. All Reports compile: verify location resolution in nested expiry section
+        $allRes = $this->actingAs($this->reader())
+            ->get('/inventory/reports/generate?report_type=all&format=json&period=30');
+
+        $allRes->assertStatus(200);
+        $expiryRows = $allRes->json('sections.expiry.rows');
+        $this->assertNotEmpty($expiryRows);
+        $this->assertEquals('Pharmacy Cold Vault Alpha', $expiryRows[0]['location']);
+    }
+
+    public function test_all_report_types_execute_end_to_end_across_all_formats_without_relationship_errors(): void
+    {
+        $user = User::factory()->inventoryManager()->create();
+
+        $location = StorageLocation::create([
+            'name' => 'Central Pharmacy Staging',
+            'code' => 'CPS-01',
+            'capacity' => 500,
+            'status' => 'active',
+        ]);
+
+        $category = ItemCategory::create(['name' => 'General Medicine', 'code' => 'GEN-MED']);
+
+        $supplier = Supplier::create([
+            'name' => 'Apex Healthcare Pharma Inc.',
+            'status' => 'active',
+        ]);
+
+        $item = InventoryItem::create([
+            'name' => 'Paracetamol 500mg Tablets',
+            'sku' => 'GEN-PARA-500',
+            'unit' => 'box',
+            'unit_cost' => 120.00,
+            'category_id' => $category->id,
+            'quantity_on_hand' => 150,
+            'reorder_level' => 30,
+            'status' => 'active',
+        ]);
+
+        $batch = ItemBatch::create([
+            'item_id' => $item->id,
+            'batch_number' => 'BATCH-PARA-2026',
+            'expiry_date' => now()->addDays(20),
+            'unit_cost' => 120.00,
+            'initial_quantity' => 150,
+            'status' => 'active',
+        ]);
+
+        ItemStockLevel::create([
+            'item_id' => $item->id,
+            'item_batch_id' => $batch->id,
+            'storage_location_id' => $location->id,
+            'quantity' => 150,
+            'reserved_quantity' => 0,
+        ]);
+
+        StockMovement::create([
+            'item_id' => $item->id,
+            'item_batch_id' => $batch->id,
+            'from_location_id' => null,
+            'to_location_id' => $location->id,
+            'user_id' => $user->id,
+            'movement_type' => MovementType::StockIn->value,
+            'quantity' => 150,
+            'unit_cost' => 120.00,
+            'moved_at' => now()->subDays(2),
+        ]);
+
+        StockMovement::create([
+            'item_id' => $item->id,
+            'item_batch_id' => $batch->id,
+            'from_location_id' => $location->id,
+            'to_location_id' => null,
+            'user_id' => $user->id,
+            'movement_type' => MovementType::Issuance->value,
+            'quantity' => 25,
+            'unit_cost' => 120.00,
+            'moved_at' => now()->subDay(),
+        ]);
+
+        PurchaseOrder::create([
+            'po_number' => 'PO-2026-TEST-99',
+            'supplier_id' => $supplier->id,
+            'item_id' => $item->id,
+            'status' => 'received',
+            'quantity' => 150,
+            'unit_cost' => 120.00,
+            'total_amount' => 18000.00,
+            'requested_at' => now()->subDays(5),
+            'received_at' => now()->subDays(2),
+        ]);
+
+        $reportTypes = [
+            'stock_status',
+            'valuation',
+            'stock_by_location',
+            'expiry_exposure',
+            'movement_history',
+            'procurement_expense',
+            'spend_by_supplier',
+            'most_consumed',
+            'movements_by_type',
+            'all',
+        ];
+
+        $formats = ['json', 'csv', 'excel', 'print'];
+
+        foreach ($reportTypes as $reportType) {
+            foreach ($formats as $format) {
+                $response = $this->actingAs($user)
+                    ->get("/inventory/reports/generate?report_type={$reportType}&format={$format}&period=30");
+
+                $this->assertEquals(200, $response->getStatusCode(), "Failed testing {$reportType} with format {$format}");
+            }
+
+            // Also test with custom date range
+            $from = now()->subDays(10)->format('Y-m-d');
+            $to = now()->format('Y-m-d');
+            $customRes = $this->actingAs($user)
+                ->get("/inventory/reports/generate?report_type={$reportType}&format=json&period=custom&from={$from}&to={$to}");
+
+            $this->assertEquals(200, $customRes->getStatusCode(), "Failed testing {$reportType} with custom date range");
+        }
+    }
+
+    public function test_dashboard_filters_use_location_balances_for_kpis_and_stock_status(): void
+    {
+        $main = $this->location('Main Pharmacy', 'MAIN-PH');
+        $ward = $this->location('Ward Store', 'WARD-ST');
+        $category = ItemCategory::create(['name' => 'Medicines', 'code' => 'MED']);
+        $item = $this->stockedItem('Filtered Medicine', 'MED-FILTER', 100, 10.00, 50, category: $category);
+
+        ItemStockLevel::create([
+            'item_id' => $item->id,
+            'storage_location_id' => $main->id,
+            'quantity' => 30,
+            'reserved_quantity' => 5,
+        ]);
+        ItemStockLevel::create([
+            'item_id' => $item->id,
+            'storage_location_id' => $ward->id,
+            'quantity' => 70,
+            'reserved_quantity' => 15,
+        ]);
+
+        $report = $this->reports()->build(30, filters: [
+            'category_id' => $category->id,
+            'storage_location_id' => $main->id,
+        ]);
+
+        $this->assertSame(1, $report['summary']['items']);
+        $this->assertSame(30, $report['summary']['units_on_hand']);
+        $this->assertSame(5, $report['summary']['reserved_units']);
+        $this->assertSame(300.0, $report['summary']['stock_value']);
+        $this->assertSame(1, $report['stockStatus']['low_stock']['items']);
+        $this->assertSame(30, $report['stockByLocation']->sole()['units']);
+    }
+
+    public function test_chart_drilldown_matches_the_active_period_category_location_and_movement_type(): void
+    {
+        $reader = $this->reader();
+        $main = $this->location('Main Pharmacy', 'MAIN-PH');
+        $ward = $this->location('Ward Store', 'WARD-ST');
+        $medicine = ItemCategory::create(['name' => 'Medicines', 'code' => 'MED']);
+        $supply = ItemCategory::create(['name' => 'Supplies', 'code' => 'SUP']);
+        $matching = $this->stockedItem('Matching Medicine', 'MED-MATCH', 40, 5.00, location: $main, category: $medicine);
+        $other = $this->stockedItem('Other Supply', 'SUP-OTHER', 40, 5.00, location: $ward, category: $supply);
+
+        foreach ([
+            [$matching, $main, MovementType::Issuance, now()->subDay()],
+            [$matching, $main, MovementType::StockIn, now()->subDay()],
+            [$other, $ward, MovementType::Issuance, now()->subDay()],
+            [$matching, $main, MovementType::Issuance, now()->subDays(90)],
+        ] as [$item, $location, $type, $movedAt]) {
+            StockMovement::create([
+                'item_id' => $item->id,
+                'from_location_id' => $location->id,
+                'movement_type' => $type,
+                'quantity' => 4,
+                'unit_cost' => 5.00,
+                'moved_at' => $movedAt,
+            ]);
+        }
+
+        $originalIssuance = $this->reports()->build(30)['movementsByType']
+            ->first(fn (array $row): bool => $row['type'] === MovementType::Issuance);
+        $filteredIssuance = $this->reports()->build(30, filters: [
+            'category_id' => $medicine->id,
+            'storage_location_id' => $main->id,
+            'movement_type' => MovementType::Issuance->value,
+        ])['movementsByType']->sole();
+
+        $this->assertSame(2, $originalIssuance['movements']);
+        $this->assertSame(8, $originalIssuance['units']);
+        $this->assertSame(1, $filteredIssuance['movements']);
+        $this->assertSame(4, $filteredIssuance['units']);
+
+        $page = $this->actingAs($reader)->get('/inventory/reports?period=30'
+            .'&category_id='.$medicine->id
+            .'&storage_location_id='.$main->id
+            .'&movement_type=issuance');
+
+        $page->assertOk()
+            ->assertSee('open-chart-drilldown', false)
+            ->assertSee('chartDrilldownModal()', false)
+            ->assertSee('Loading drill-down records...')
+            ->assertSee('No data found')
+            ->assertSee('x-on:keydown.escape.window="if (isOpen) closeModal()"', false)
+            ->assertSee('aria-label="Close chart details"', false)
+            ->assertSee('this.abortController?.abort();', false)
+            ->assertDontSee('id="chart-drilldown"', false);
+
+        $this->assertSame(1, preg_match_all('/id="chart-drilldown-modal-title"/', $page->getContent()));
+
+        preg_match_all('/data-drilldown-url="([^"]+)"/', $page->getContent(), $matches);
+        $movementUrl = collect($matches[1] ?? [])
+            ->map(fn (string $url) => html_entity_decode($url, ENT_QUOTES | ENT_HTML5))
+            ->first(fn (string $url) => str_contains($url, 'report_type=movement_history'));
+
+        $this->assertNotNull($movementUrl);
+        parse_str((string) parse_url($movementUrl, PHP_URL_QUERY), $query);
+        $this->assertSame('30', $query['period']);
+        $this->assertSame((string) $medicine->id, $query['category_id']);
+        $this->assertSame((string) $main->id, $query['storage_location_id']);
+        $this->assertSame('issuance', $query['movement_type']);
+
+        $this->actingAs($reader)->getJson($movementUrl)
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.item', 'Matching Medicine')
+            ->assertJsonMissing(['item' => 'Other Supply']);
+    }
+
+    public function test_empty_and_large_filtered_dashboard_datasets_render_without_fabricated_values(): void
+    {
+        $emptyCategory = ItemCategory::create(['name' => 'Empty Category', 'code' => 'EMPTY']);
+
+        $this->actingAs($this->reader())
+            ->getJson('/inventory/reports/generate?report_type=stock_status&format=json&period=30&category_id='.$emptyCategory->id)
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonPath('is_empty', true);
+
+        $now = now();
+        $rows = collect(range(1, 150))->map(fn (int $index) => [
+            'name' => 'Scale Item '.$index,
+            'sku' => 'SCALE-'.$index,
+            'quantity_on_hand' => 2,
+            'reserved_quantity' => 1,
+            'reorder_level' => 0,
+            'unit_cost' => 3,
+            'status' => 'active',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ])->all();
+        InventoryItem::insert($rows);
+
+        $response = $this->actingAs($this->reader())
+            ->getJson('/inventory/reports/generate?report_type=stock_status&format=json&period=30&status=in_stock');
+
+        $response->assertOk()
+            ->assertJsonCount(150, 'data')
+            ->assertJsonFragment(['name' => 'Scale Item 1']);
+
+        $this->actingAs($this->reader())
+            ->get('/inventory/reports')
+            ->assertOk()
+            ->assertSee('displayLimit: 100', false)
+            ->assertSee('overflow-y-auto overscroll-contain', false);
+    }
+
+    public function test_chart_drilldown_modal_provides_responsive_card_and_table_views_without_horizontal_scrollbars(): void
+    {
+        $this->actingAs($this->reader())
+            ->get('/inventory/reports')
+            ->assertOk()
+            ->assertSee("viewMode: 'cards'", false)
+            ->assertSee('Search drill-down records...', false)
+            ->assertSee("viewMode === 'cards'", false)
+            ->assertSee("viewMode === 'table'", false)
+            ->assertSee('overflow-x-hidden', false)
+            ->assertSee('table-fixed', false);
+    }
+
+    public function test_chart_drilldown_modal_preserves_page_scroll_position_and_prevents_scroll_to_top(): void
+    {
+        $this->actingAs($this->reader())
+            ->get('/inventory/reports')
+            ->assertOk()
+            ->assertSee('savedScrollY: null', false)
+            ->assertSee('preventScroll: true', false)
+            ->assertSee('x-on:wheel.prevent', false)
+            ->assertSee('x-on:touchmove.prevent', false)
+            ->assertDontSee("classList.add('overflow-hidden')", false)
+            ->assertDontSee("classList.remove('overflow-hidden')", false);
+    }
+
+    public function test_supplier_spend_drilldown_remains_financially_authorized(): void
+    {
+        $supplier = Supplier::create(['name' => 'Protected Vendor', 'status' => 'active']);
+
+        $this->actingAs(User::factory()->viewer()->create())
+            ->getJson('/inventory/reports/generate?report_type=procurement_expense&format=json&period=30&supplier_id='.$supplier->id)
+            ->assertForbidden();
+    }
+
+    public function test_api_dashboard_uses_the_same_kpi_calculations_as_reports(): void
+    {
+        InventoryItem::create([
+            'name' => 'API KPI Item',
+            'sku' => 'API-KPI-1',
+            'quantity_on_hand' => 8,
+            'reserved_quantity' => 3,
+            'reorder_level' => 10,
+            'unit_cost' => 12.50,
+            'total_value' => 999999,
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($this->reader())
+            ->getJson('/api/v1/dashboard-summary')
+            ->assertOk()
+            ->assertJsonPath('total_items', 1)
+            ->assertJsonPath('total_on_hand', 8)
+            ->assertJsonPath('reserved_units', 3)
+            ->assertJsonPath('low_stock_items', 1)
+            ->assertJsonPath('total_inventory_value', 100);
+    }
+
+    public function test_the_screen_renders_only_one_generate_report_header_button_and_configuration_modal(): void
+    {
+        $response = $this->actingAs($this->reader())
+            ->get('/inventory/reports');
+
+        $response->assertStatus(200);
+
+        // Verify there is only ONE "Generate Report" trigger button on the page (in the page header)
+        $content = $response->getContent();
+        $generateButtonMatches = preg_match_all('/>\s*Generate Report\s*</', $content);
+        $this->assertSame(1, $generateButtonMatches, 'Expected exactly one "Generate Report" button in the page markup.');
+
+        // Verify the Print button has been removed from the header
+        $response->assertDontSee('onclick="window.print()"', false);
+
+        // Verify the header button triggers the overlay modal
+        $response->assertSee('open-report-modal', false);
+
+        // Verify Dashboard Timeline filter is present in header actions
+        $response->assertSee('Dashboard Timeline', false)
+            ->assertSee('Preset Windows', false)
+            ->assertSee('Apply to Dashboard', false);
+
+        // Verify modal structure and overlay configuration
+        $response->assertSee('id="report-generator"', false)
+            ->assertSee('x-show="isOpen"', false)
+            ->assertSee('role="dialog"', false)
+            ->assertSee('aria-modal="true"', false)
+            ->assertSee('Report Generator & Timeline Controls', false)
+            ->assertSee('1. Report Module & Timeline Window', false)
+            ->assertSee('Report Module', false)
+            ->assertSee('Timeline / Window', false)
+            ->assertSee('From Date', false)
+            ->assertSee('To Date', false)
+            ->assertSee('2. Dynamic Filters & Sorting', false)
+            ->assertSee("['all', 'stock_status', 'valuation', 'stock_by_location', 'expiry_exposure', 'movement_history', 'most_consumed', 'movements_by_type']", false)
+            ->assertSee('3. Export Format', false)
+            ->assertSee('Generate & Export Report', false)
+            ->assertSee('Cancel', false);
     }
 }

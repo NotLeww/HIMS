@@ -66,14 +66,13 @@ DB_PORT=4000
 DB_DATABASE=hims
 DB_USERNAME=4KmzKfKNbxxxxxx.root
 DB_PASSWORD=your-password-here
-MYSQL_ATTR_SSL_CA="D:/HIMS/HIMS/storage/certs/isrgrootx1.pem"
+MYSQL_ATTR_SSL_CA=storage/certs/isrgrootx1.pem
 ```
 
 Two things that will cost you an hour if you get them wrong:
 
-- **`MYSQL_ATTR_SSL_CA` must be an absolute path.** PDO does not resolve paths
-  relative to the project root. Use forward slashes even on Windows.
-- **Quote the path** if it contains spaces.
+- **`MYSQL_ATTR_SSL_CA` may be project-relative.** HIMS resolves relative paths
+  from the project root before passing them to PDO.
 
 TLS is mandatory on TiDB Cloud Serverless — the connection is refused without a
 valid CA. The certificate (Let's Encrypt ISRG Root X1) is committed at

@@ -1,8 +1,14 @@
 import './bootstrap';
+import './offline-sync';
 
 import Alpine from 'alpinejs';
+import { himsTheme, registerThemeWithAlpine } from './theme';
 
 window.Alpine = Alpine;
+window.himsTheme = himsTheme;
+
+himsTheme.init();
+registerThemeWithAlpine(Alpine);
 
 const loadingButtons = new WeakMap();
 
@@ -74,6 +80,306 @@ const resetButtonLoading = (button) => {
     loadingButtons.delete(button);
 };
 
+const startMetricSummaryTooltips = () => {
+    const tooltipId = 'hims-metric-summary-tooltip';
+    const descriptions = new WeakMap();
+    let tooltip = null;
+    let tooltipLabel = null;
+    let tooltipBody = null;
+    let activeTrigger = null;
+    let pointerActive = false;
+    let hideTimer = null;
+
+    const triggerFor = (target) => target instanceof Element
+        ? target.closest('[data-metric-summary], [data-metric-details]')
+        : null;
+
+    const ensureTooltip = () => {
+        if (tooltip) return tooltip;
+
+        tooltip = document.createElement('div');
+        tooltip.id = tooltipId;
+        tooltip.hidden = true;
+        tooltip.setAttribute('role', 'tooltip');
+        tooltip.className = 'pointer-events-none fixed z-[70] w-64 scale-95 rounded-lg border border-neutral-200/90 bg-white/95 p-3 text-left opacity-0 shadow-lg backdrop-blur-xs transition duration-150 ease-out motion-reduce:transition-none dark:border-neutral-700/80 dark:bg-neutral-900/95 dark:shadow-2xl';
+
+        tooltipLabel = document.createElement('p');
+        tooltipLabel.className = 'text-[10px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400';
+
+        tooltipBody = document.createElement('div');
+        tooltipBody.className = 'mt-1 text-xs leading-relaxed text-neutral-700 dark:text-neutral-200';
+        tooltip.append(tooltipLabel, tooltipBody);
+        document.body.append(tooltip);
+
+        return tooltip;
+    };
+
+    const detailsFor = (trigger) => {
+        if (!trigger.dataset.metricDetails) return [];
+
+        try {
+            const details = JSON.parse(trigger.dataset.metricDetails);
+            return Array.isArray(details) ? details.filter((detail) => typeof detail === 'string' && detail.trim()) : [];
+        } catch {
+            return [];
+        }
+    };
+
+    const placeAtPointer = (event) => {
+        const gutter = 8;
+        const offset = 14;
+        const width = tooltip.offsetWidth;
+        const height = tooltip.offsetHeight;
+        let left = event.clientX + offset;
+        let top = event.clientY - height - offset;
+
+        if (left + width > window.innerWidth - gutter) left = event.clientX - width - offset;
+        if (top < gutter) top = event.clientY + offset;
+
+        tooltip.style.left = `${Math.max(gutter, Math.min(left, window.innerWidth - width - gutter))}px`;
+        tooltip.style.top = `${Math.max(gutter, Math.min(top, window.innerHeight - height - gutter))}px`;
+    };
+
+    const placeAtCard = (trigger) => {
+        const gutter = 8;
+        const offset = 12;
+        const rect = trigger.getBoundingClientRect();
+        const width = tooltip.offsetWidth;
+        const height = tooltip.offsetHeight;
+        const left = Math.max(gutter, Math.min(
+            rect.left + ((rect.width - width) / 2),
+            window.innerWidth - width - gutter,
+        ));
+        const preferredTop = rect.top - height - offset;
+        const top = preferredTop >= gutter ? preferredTop : rect.bottom + offset;
+
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${Math.max(gutter, Math.min(top, window.innerHeight - height - gutter))}px`;
+    };
+
+    const show = (trigger, place) => {
+        const summary = trigger.dataset.metricSummary?.trim();
+        const details = detailsFor(trigger);
+        if (!summary && details.length === 0) return;
+
+        clearTimeout(hideTimer);
+        ensureTooltip();
+
+        if (activeTrigger && activeTrigger !== trigger) {
+            const previousDescription = descriptions.get(activeTrigger);
+            if (previousDescription) activeTrigger.setAttribute('aria-describedby', previousDescription);
+            else activeTrigger.removeAttribute('aria-describedby');
+        }
+
+        activeTrigger = trigger;
+        if (!descriptions.has(trigger)) descriptions.set(trigger, trigger.getAttribute('aria-describedby'));
+        trigger.setAttribute('aria-describedby', [descriptions.get(trigger), tooltipId].filter(Boolean).join(' '));
+        tooltipLabel.textContent = trigger.dataset.metricTitle?.trim() || (details.length > 0 ? 'Included records' : 'Summary');
+        tooltipBody.replaceChildren();
+
+        if (summary) {
+            const description = document.createElement('p');
+            description.textContent = summary;
+            tooltipBody.append(description);
+        }
+
+        if (details.length > 0) {
+            const list = document.createElement('ul');
+            list.className = `${summary ? 'mt-2 border-t border-neutral-200/80 pt-2 dark:border-neutral-700/80 ' : ''}space-y-1.5`;
+            details.forEach((detail) => {
+                const item = document.createElement('li');
+                item.className = 'flex gap-2';
+                const marker = document.createElement('span');
+                marker.setAttribute('aria-hidden', 'true');
+                marker.className = 'mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary-500';
+                const text = document.createElement('span');
+                text.textContent = detail;
+                item.append(marker, text);
+                list.append(item);
+            });
+            tooltipBody.append(list);
+        }
+        tooltip.hidden = false;
+        tooltip.style.visibility = 'hidden';
+        place();
+        tooltip.style.visibility = 'visible';
+        window.requestAnimationFrame(() => {
+            tooltip.classList.remove('scale-95', 'opacity-0');
+            tooltip.classList.add('scale-100', 'opacity-100');
+        });
+    };
+
+    const hide = () => {
+        if (!activeTrigger || !tooltip) return;
+
+        const previousDescription = descriptions.get(activeTrigger);
+        if (previousDescription) activeTrigger.setAttribute('aria-describedby', previousDescription);
+        else activeTrigger.removeAttribute('aria-describedby');
+        activeTrigger = null;
+        pointerActive = false;
+        tooltip.classList.remove('scale-100', 'opacity-100');
+        tooltip.classList.add('scale-95', 'opacity-0');
+        hideTimer = window.setTimeout(() => { tooltip.hidden = true; }, 150);
+    };
+
+    document.addEventListener('pointerover', (event) => {
+        if (event.pointerType === 'touch') return;
+        const trigger = triggerFor(event.target);
+        if (!trigger || trigger === activeTrigger) return;
+        pointerActive = true;
+        show(trigger, () => placeAtPointer(event));
+    });
+
+    document.addEventListener('pointermove', (event) => {
+        if (event.pointerType !== 'touch' && pointerActive && activeTrigger) placeAtPointer(event);
+    });
+
+    document.addEventListener('pointerout', (event) => {
+        if (!pointerActive || !activeTrigger || activeTrigger.contains(event.relatedTarget)) return;
+        hide();
+    });
+
+    document.addEventListener('focusin', (event) => {
+        const trigger = triggerFor(event.target);
+        if (!trigger || !event.target.matches(':focus-visible')) return;
+        pointerActive = false;
+        show(trigger, () => placeAtCard(trigger));
+    });
+
+    document.addEventListener('focusout', (event) => {
+        if (activeTrigger?.contains(event.relatedTarget)) return;
+        if (activeTrigger?.contains(event.target)) hide();
+    });
+};
+
+/**
+ * Keep Alpine-powered modal dialogs usable without a mouse. Native <dialog>
+ * elements already provide modal focus containment, so this only covers the
+ * existing role="dialog" overlays used by Blade/Alpine screens.
+ */
+const startAccessibleDialogs = () => {
+    const selector = '[role="dialog"][aria-modal="true"]:not(dialog)';
+    const states = new WeakMap();
+    let scheduled = false;
+
+    const isVisible = (dialog) => dialog instanceof HTMLElement
+        && !dialog.hidden
+        && dialog.getAttribute('aria-hidden') !== 'true'
+        && window.getComputedStyle(dialog).display !== 'none'
+        && dialog.getClientRects().length > 0;
+
+    const focusableElements = (dialog) => Array.from(dialog.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    )).filter((element) => element instanceof HTMLElement
+        && element.getClientRects().length > 0
+        && element.getAttribute('aria-hidden') !== 'true');
+
+    const visibleDialogs = () => Array.from(document.querySelectorAll(selector)).filter(isVisible);
+
+    const ensureName = (dialog) => {
+        if (dialog.hasAttribute('aria-label') || dialog.hasAttribute('aria-labelledby')) return;
+
+        const heading = dialog.querySelector('h1, h2, h3, h4, h5, h6');
+        if (!(heading instanceof HTMLElement)) return;
+
+        if (!heading.id) {
+            heading.id = `hims-dialog-title-${Math.random().toString(36).slice(2, 10)}`;
+        }
+        dialog.setAttribute('aria-labelledby', heading.id);
+    };
+
+    const activate = (dialog) => {
+        const state = states.get(dialog);
+        if (state?.active) return;
+
+        ensureName(dialog);
+        states.set(dialog, {
+            active: true,
+            returnFocus: document.activeElement instanceof HTMLElement && !dialog.contains(document.activeElement)
+                ? document.activeElement
+                : state?.returnFocus ?? null,
+        });
+
+        window.requestAnimationFrame(() => {
+            if (!isVisible(dialog) || dialog.contains(document.activeElement)) return;
+
+            const initial = dialog.querySelector('[data-dialog-initial-focus], [autofocus]')
+                ?? focusableElements(dialog)[0];
+            if (initial instanceof HTMLElement) {
+                initial.focus();
+                return;
+            }
+
+            dialog.setAttribute('tabindex', '-1');
+            dialog.focus();
+        });
+    };
+
+    const deactivate = (dialog) => {
+        const state = states.get(dialog);
+        if (!state?.active) return;
+
+        states.set(dialog, { ...state, active: false });
+        if (state.returnFocus instanceof HTMLElement && document.contains(state.returnFocus)) {
+            state.returnFocus.focus();
+        }
+    };
+
+    const sync = () => {
+        scheduled = false;
+        document.querySelectorAll(selector).forEach((dialog) => {
+            if (isVisible(dialog)) activate(dialog);
+            else deactivate(dialog);
+        });
+    };
+
+    const scheduleSync = () => {
+        if (scheduled) return;
+        scheduled = true;
+        window.requestAnimationFrame(sync);
+    };
+
+    new MutationObserver(scheduleSync).observe(document.body, {
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style', 'class', 'hidden', 'aria-hidden'],
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Tab') return;
+
+        const dialogs = visibleDialogs();
+        const dialog = dialogs[dialogs.length - 1];
+        if (!(dialog instanceof HTMLElement)) return;
+
+        const focusable = focusableElements(dialog);
+        if (focusable.length === 0) {
+            event.preventDefault();
+            dialog.focus();
+            return;
+        }
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+            event.preventDefault();
+            first.focus();
+        }
+    }, true);
+
+    sync();
+};
+
+const focusFirstInvalidField = () => {
+    const invalid = document.querySelector('[aria-invalid="true"]');
+    if (!(invalid instanceof HTMLElement)) return;
+
+    window.requestAnimationFrame(() => invalid.focus());
+};
+
 /**
  * Browser-side companion to the server-enforced inactivity middleware.
  *
@@ -85,6 +391,7 @@ const resetButtonLoading = (button) => {
 const startSessionMonitor = () => {
     const timeoutSeconds = Number(document.body.dataset.sessionTimeoutSeconds);
     const configuredWarningSeconds = Number(document.body.dataset.sessionWarningSeconds);
+    const warningEnabled = document.body.dataset.sessionWarningEnabled !== 'false';
     const activityUrl = document.body.dataset.sessionActivityUrl;
     const expiredUrl = document.body.dataset.sessionExpiredUrl;
     const warningDialog = document.querySelector('[data-session-warning]');
@@ -110,6 +417,7 @@ const startSessionMonitor = () => {
     const activityKey = 'hims:session:last-activity';
     const manualLogoutKey = 'hims:session:manual-logout';
     const expiredKey = 'hims:session:expired';
+    const sessionReplacedKey = 'hims:session:replaced';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     const nativeFetch = window.fetch.bind(window);
     let lastActivityAt = Date.now();
@@ -123,6 +431,14 @@ const startSessionMonitor = () => {
     let warningOpen = false;
     let previouslyFocusedElement = null;
     let lastAnnouncedSecond = null;
+
+    try {
+        window.localStorage.removeItem(manualLogoutKey);
+        window.localStorage.removeItem(expiredKey);
+        window.localStorage.removeItem(sessionReplacedKey);
+    } catch {
+        // Storage can be unavailable in privacy-restricted contexts.
+    }
 
     const readSharedActivity = () => {
         try {
@@ -247,7 +563,7 @@ const startSessionMonitor = () => {
     };
 
     const showWarning = () => {
-        if (expirationStarted || warningDismissed || warningOpen) return;
+        if (!warningEnabled || expirationStarted || warningDismissed || warningOpen) return;
 
         warningOpen = true;
         previouslyFocusedElement = document.activeElement;
@@ -276,7 +592,9 @@ const startSessionMonitor = () => {
             return;
         }
 
-        if (remaining <= warningMs) {
+        if (!warningEnabled) {
+            closeWarning();
+        } else if (remaining <= warningMs) {
             showWarning();
         } else {
             warningDismissed = false;
@@ -360,7 +678,7 @@ const startSessionMonitor = () => {
         heartbeatTimer = window.setTimeout(sendHeartbeat, Math.min(500, maxWaitRemaining));
     };
 
-    const recordActivity = () => {
+    const recordActivity = (event) => {
         // Interacting with the warning, including dismissing it, must not
         // silently extend the session. Only Continue Session may do that.
         if (expirationStarted || warningOpen) return;
@@ -369,6 +687,11 @@ const startSessionMonitor = () => {
         warningDismissed = false;
         writeSharedActivity(lastActivityAt);
         scheduleExpiration();
+
+        // The destination request records activity itself. Avoid racing it
+        // with a redundant session write while the next page is loading.
+        if (event.target instanceof Element && event.target.closest('a[href]')) return;
+
         queueHeartbeat();
     };
 
@@ -433,10 +756,22 @@ const startSessionMonitor = () => {
     window.addEventListener('storage', (event) => {
         if (event.key === manualLogoutKey) {
             stopSessionMonitor();
+            document.documentElement.style.display = 'none';
+            const loginUrl = document.body.dataset.loginUrl || '/login';
+            window.location.replace(loginUrl);
+            return;
+        }
+
+        if (event.key === sessionReplacedKey) {
+            stopSessionMonitor();
+            document.documentElement.style.display = 'none';
+            const loginUrl = document.body.dataset.loginUrl || '/login';
+            window.location.replace(loginUrl);
             return;
         }
 
         if (event.key === expiredKey) {
+            document.documentElement.style.display = 'none';
             expire(false);
             return;
         }
@@ -453,7 +788,24 @@ const startSessionMonitor = () => {
     });
 
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) scheduleExpiration();
+        if (!document.hidden) {
+            try {
+                if (window.localStorage.getItem(manualLogoutKey) || window.localStorage.getItem(sessionReplacedKey)) {
+                    document.documentElement.style.display = 'none';
+                    const loginUrl = document.body.dataset.loginUrl || '/login';
+                    window.location.replace(loginUrl);
+                    return;
+                }
+                if (window.localStorage.getItem(expiredKey)) {
+                    document.documentElement.style.display = 'none';
+                    expire(false);
+                    return;
+                }
+            } catch {
+                // Storage may be restricted.
+            }
+            scheduleExpiration();
+        }
     });
 
     document.addEventListener('submit', (event) => {
@@ -478,8 +830,18 @@ const startSessionMonitor = () => {
     window.fetch = async (...args) => {
         const response = await nativeFetch(...args);
         const passwordExpiredLocation = response.headers.get('X-HIMS-Password-Expired');
+        const sessionReplaced = response.headers.get('X-Session-Replaced');
         const redirectedToLogin = response.redirected
             && new URL(response.url, window.location.origin).pathname.endsWith('/login');
+
+        if (sessionReplaced) {
+            try {
+                window.localStorage.setItem(sessionReplacedKey, String(Date.now()));
+            } catch {}
+            const loginUrl = document.body.dataset.loginUrl || '/login';
+            window.location.replace(loginUrl);
+            return response;
+        }
 
         if (passwordExpiredLocation) {
             window.location.assign(passwordExpiredLocation);
@@ -510,6 +872,16 @@ const startSessionMonitor = () => {
         },
         (error) => {
             const passwordExpiredLocation = error.response?.headers?.['x-hims-password-expired'];
+            const sessionReplaced = error.response?.headers?.['x-session-replaced'];
+
+            if (sessionReplaced) {
+                try {
+                    window.localStorage.setItem(sessionReplacedKey, String(Date.now()));
+                } catch {}
+                const loginUrl = document.body.dataset.loginUrl || '/login';
+                window.location.replace(loginUrl);
+                return Promise.reject(error);
+            }
 
             if (passwordExpiredLocation) {
                 window.location.assign(passwordExpiredLocation);
@@ -521,6 +893,8 @@ const startSessionMonitor = () => {
         },
     );
 };
+
+const superAdminPasswordVerifiedForms = new WeakSet();
 
 /**
  * One confirmation gate for consequential native form submissions.
@@ -535,6 +909,10 @@ const startDecisionConfirmations = () => {
     const message = dialog?.querySelector('[data-decision-message]');
     const cancelButton = dialog?.querySelector('[data-decision-cancel]');
     const confirmButton = dialog?.querySelector('[data-decision-confirm]');
+    const iconContainer = dialog?.querySelector('[data-decision-icon-container]');
+    const iconWarning = dialog?.querySelector('[data-decision-icon-warning]');
+    const iconDanger = dialog?.querySelector('[data-decision-icon-danger]');
+    const iconInfo = dialog?.querySelector('[data-decision-icon-info]');
 
     if (typeof HTMLDialogElement === 'undefined'
         || !(dialog instanceof HTMLDialogElement)
@@ -549,9 +927,25 @@ const startDecisionConfirmations = () => {
     let pending = null;
     let processing = false;
 
-    const decisionFor = (form) => {
+    const decisionFor = (form, submitter = null) => {
+        if (form.matches('[data-confirm-sms-mfa]')) {
+            const enabled = form.querySelector('input[name="sms_mfa_enabled"]')?.value === '1';
+            const originallyEnabled = form.dataset.originalSmsMfa === '1';
+
+            if (enabled === originallyEnabled) return null;
+
+            return {
+                title: 'Confirm SMS authentication change',
+                message: enabled
+                    ? 'Future sign-ins will require an SMS code sent to your registered mobile number.'
+                    : 'Disable SMS verification for future sign-ins?',
+                label: enabled ? 'Enable SMS' : 'Disable SMS',
+                variant: enabled ? 'primary' : 'warning',
+            };
+        }
+
         if (form.matches('[data-confirm-mfa]')) {
-            const enabled = form.querySelector('input[name="mfa_enabled"][type="checkbox"]')?.checked ?? false;
+            const enabled = form.querySelector('input[name="mfa_enabled"]')?.value === '1';
             const originallyEnabled = form.dataset.originalMfa === '1';
 
             if (enabled === originallyEnabled) return null;
@@ -562,6 +956,7 @@ const startDecisionConfirmations = () => {
                     ? 'Are you sure you want to turn on MFA?'
                     : 'Are you sure you want to turn off MFA?',
                 label: enabled ? 'Turn On MFA' : 'Turn Off MFA',
+                variant: enabled ? 'primary' : 'warning',
             };
         }
 
@@ -576,16 +971,34 @@ const startDecisionConfirmations = () => {
                 title: 'Confirm account change',
                 message: 'Are you sure you want to change your sign-in email address?',
                 label: 'Change Email',
+                variant: 'primary',
             };
         }
 
-        const confirmationMessage = form.dataset.confirmMessage?.trim();
+        const confirmationMessage = submitter?.dataset?.confirmMessage?.trim()
+            || form.dataset.confirmMessage?.trim();
         if (!confirmationMessage) return null;
 
+        const title = submitter?.dataset?.confirmTitle?.trim()
+            || form.dataset.confirmTitle?.trim()
+            || 'Confirm action';
+
+        const label = submitter?.dataset?.confirmLabel?.trim()
+            || form.dataset.confirmLabel?.trim()
+            || 'Confirm';
+
+        const variant = submitter?.dataset?.confirmVariant?.trim()
+            || form.dataset.confirmVariant?.trim()
+            || (submitter?.matches('[data-confirm-destructive], .bg-danger-600, .text-danger-700')
+                || form.matches('[data-confirm-destructive]')
+                ? 'danger'
+                : 'primary');
+
         return {
-            title: form.dataset.confirmTitle?.trim() || 'Confirm action',
+            title,
             message: confirmationMessage,
-            label: form.dataset.confirmLabel?.trim() || 'Confirm',
+            label,
+            variant,
         };
     };
 
@@ -594,6 +1007,14 @@ const startDecisionConfirmations = () => {
         cancelButton.disabled = false;
         confirmButton.disabled = false;
         confirmButton.removeAttribute('aria-busy');
+        confirmButton.classList.remove('bg-danger-600', 'border-danger-600', 'hover:bg-danger-700', 'hover:border-danger-700', 'active:bg-danger-700', 'focus-visible:ring-danger-500');
+        confirmButton.classList.add('bg-primary-600', 'border-primary-600', 'hover:bg-primary-700', 'hover:border-primary-700', 'active:bg-primary-800', 'focus-visible:ring-primary-500');
+        if (iconContainer) {
+            iconContainer.className = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning-50 text-warning-700';
+            iconDanger?.classList.add('hidden');
+            iconWarning?.classList.remove('hidden');
+            iconInfo?.classList.add('hidden');
+        }
     };
 
     const closeDialog = ({ restoreFocus = true } = {}) => {
@@ -622,6 +1043,15 @@ const startDecisionConfirmations = () => {
             }
         }
 
+        if (form instanceof HTMLFormElement && form.matches('[data-confirm-sms-mfa]')) {
+            const checkbox = form.querySelector('input[name="sms_mfa_enabled"][type="checkbox"]');
+
+            if (checkbox instanceof HTMLInputElement) {
+                checkbox.checked = form.dataset.originalSmsMfa === '1';
+                checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        }
+
         closeDialog();
     };
 
@@ -645,6 +1075,13 @@ const startDecisionConfirmations = () => {
                 return;
             }
 
+            if (form.matches('[data-super-admin-deactivate]') && typeof window.__openSuperAdminPasswordModal === 'function') {
+                confirmedForms.delete(form);
+                resetDialog();
+                window.__openSuperAdminPasswordModal(form, submitter);
+                return;
+            }
+
             try {
                 form.requestSubmit(submitter ?? undefined);
             } catch {
@@ -658,39 +1095,73 @@ const startDecisionConfirmations = () => {
         });
     };
 
-    // This listener is registered before the session and loading listeners so
-    // Cancel has no side effects and no loading UI can appear prematurely.
+    // This listener is registered in the capture phase so form-level listeners
+    // and loading indicators do not fire until after user confirmation.
     document.addEventListener('submit', (event) => {
         const form = event.target;
         if (!(form instanceof HTMLFormElement)) return;
 
-        if (confirmedForms.has(form)) {
+        if (confirmedForms.has(form) || superAdminPasswordVerifiedForms.has(form)) {
             confirmedForms.delete(form);
             return;
         }
 
-        const decision = decisionFor(form);
+        const submitter = event.submitter instanceof HTMLButtonElement
+            || event.submitter instanceof HTMLInputElement
+            ? event.submitter
+            : null;
+
+        const decision = decisionFor(form, submitter);
         if (!decision) return;
 
         event.preventDefault();
+        event.stopImmediatePropagation();
 
         if (dialog.open || processing) return;
 
         pending = {
             form,
-            submitter: event.submitter instanceof HTMLButtonElement
-                || event.submitter instanceof HTMLInputElement
-                ? event.submitter
-                : null,
+            submitter,
             focusedBeforeOpen: document.activeElement,
         };
 
         title.textContent = decision.title;
         message.textContent = decision.message;
         confirmButton.textContent = decision.label;
+
+        const isDanger = decision.variant === 'danger';
+        const isInfo = decision.variant === 'info';
+
+        if (iconContainer) {
+            if (isDanger) {
+                iconContainer.className = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-danger-50 text-danger-700';
+                iconDanger?.classList.remove('hidden');
+                iconWarning?.classList.add('hidden');
+                iconInfo?.classList.add('hidden');
+            } else if (isInfo) {
+                iconContainer.className = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-700';
+                iconDanger?.classList.add('hidden');
+                iconWarning?.classList.add('hidden');
+                iconInfo?.classList.remove('hidden');
+            } else {
+                iconContainer.className = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning-50 text-warning-700';
+                iconDanger?.classList.add('hidden');
+                iconWarning?.classList.remove('hidden');
+                iconInfo?.classList.add('hidden');
+            }
+        }
+
+        if (isDanger) {
+            confirmButton.classList.remove('bg-primary-600', 'border-primary-600', 'hover:bg-primary-700', 'hover:border-primary-700', 'active:bg-primary-800', 'focus-visible:ring-primary-500');
+            confirmButton.classList.add('bg-danger-600', 'border-danger-600', 'hover:bg-danger-700', 'hover:border-danger-700', 'active:bg-danger-700', 'focus-visible:ring-danger-500');
+        } else {
+            confirmButton.classList.remove('bg-danger-600', 'border-danger-600', 'hover:bg-danger-700', 'hover:border-danger-700', 'active:bg-danger-700', 'focus-visible:ring-danger-500');
+            confirmButton.classList.add('bg-primary-600', 'border-primary-600', 'hover:bg-primary-700', 'hover:border-primary-700', 'active:bg-primary-800', 'focus-visible:ring-primary-500');
+        }
+
         dialog.showModal();
         window.requestAnimationFrame(() => cancelButton.focus());
-    });
+    }, true);
 
     cancelButton.addEventListener('click', cancel);
     confirmButton.addEventListener('click', confirm);
@@ -705,7 +1176,324 @@ const startDecisionConfirmations = () => {
 };
 
 startDecisionConfirmations();
+
+/**
+ * Current-password confirmation gate for sensitive Super Admin account management actions.
+ * Intercepts:
+ * - Create user account (data-super-admin-password="create")
+ * - Edit account details (data-super-admin-password="edit")
+ * - Deactivate user account (data-super-admin-deactivate="true")
+ */
+const startSuperAdminPasswordConfirmation = () => {
+    const dialog = document.querySelector('[data-super-admin-password-modal]');
+    if (!dialog || !(dialog instanceof HTMLDialogElement)) return;
+
+    const form = dialog.querySelector('[data-super-admin-password-form]');
+    const input = dialog.querySelector('[data-super-admin-password-input]');
+    const errorEl = dialog.querySelector('[data-super-admin-password-error]');
+    const cancelButton = dialog.querySelector('[data-super-admin-password-cancel]');
+    const confirmButton = dialog.querySelector('[data-super-admin-password-confirm]');
+    const confirmUrl = dialog.dataset.confirmUrl;
+
+    if (!form || !input || !errorEl || !cancelButton || !confirmButton || !confirmUrl) return;
+
+    let pendingAction = null;
+    let isVerifying = false;
+
+    const resetModal = () => {
+        isVerifying = false;
+        input.value = '';
+        input.disabled = false;
+        errorEl.textContent = '';
+        errorEl.classList.add('hidden');
+        cancelButton.disabled = false;
+        confirmButton.disabled = false;
+        confirmButton.removeAttribute('aria-busy');
+        resetButtonLoading(confirmButton);
+    };
+
+    const closeModal = ({ restoreFocus = true } = {}) => {
+        const focusedBeforeOpen = pendingAction?.focusedBeforeOpen;
+        if (dialog.open) dialog.close();
+        pendingAction = null;
+        resetModal();
+
+        if (restoreFocus && focusedBeforeOpen instanceof HTMLElement && document.contains(focusedBeforeOpen)) {
+            focusedBeforeOpen.focus();
+        }
+    };
+
+    const openModalFor = (targetForm, submitter = null) => {
+        if (dialog.open || isVerifying) return;
+
+        pendingAction = {
+            targetForm,
+            submitter,
+            focusedBeforeOpen: document.activeElement,
+        };
+
+        resetModal();
+        dialog.showModal();
+        window.requestAnimationFrame(() => input.focus());
+    };
+
+    // Expose openModalFor to window for coordination with decision confirmation
+    window.__openSuperAdminPasswordModal = openModalFor;
+
+    const handlePasswordSubmit = async (e) => {
+        e.preventDefault();
+        if (isVerifying || !pendingAction) return;
+
+        const password = input.value.trim();
+        if (!password) {
+            errorEl.textContent = 'Current password is required.';
+            errorEl.classList.remove('hidden');
+            input.focus();
+            return;
+        }
+
+        isVerifying = true;
+        input.disabled = true;
+        cancelButton.disabled = true;
+        confirmButton.disabled = true;
+        confirmButton.setAttribute('aria-busy', 'true');
+        setButtonLoading(confirmButton, 'Verifying...');
+        errorEl.textContent = '';
+        errorEl.classList.add('hidden');
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+
+        try {
+            const response = await fetch(confirmUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ current_password: password }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                const message = data.errors?.current_password?.[0]
+                    || data.message
+                    || 'Current password is incorrect.';
+                errorEl.textContent = message;
+                errorEl.classList.remove('hidden');
+                isVerifying = false;
+                input.disabled = false;
+                cancelButton.disabled = false;
+                confirmButton.disabled = false;
+                confirmButton.removeAttribute('aria-busy');
+                resetButtonLoading(confirmButton);
+                input.value = '';
+                input.focus();
+                return;
+            }
+
+            // Password verified successfully!
+            const { targetForm, submitter } = pendingAction;
+            superAdminPasswordVerifiedForms.add(targetForm);
+
+            // Inject the single-use confirmation token
+            let tokenInput = targetForm.querySelector('input[name="super_admin_confirmation_token"]');
+            if (!tokenInput) {
+                tokenInput = document.createElement('input');
+                tokenInput.type = 'hidden';
+                tokenInput.name = 'super_admin_confirmation_token';
+                targetForm.appendChild(tokenInput);
+            }
+            tokenInput.value = data.token || '';
+
+            // Also keep current_password in hidden input if direct verification is fallback
+            let passInput = targetForm.querySelector('input[name="current_password"][data-injected-confirmation]');
+            if (!passInput) {
+                passInput = document.createElement('input');
+                passInput.type = 'hidden';
+                passInput.name = 'current_password';
+                passInput.setAttribute('data-injected-confirmation', 'true');
+                targetForm.appendChild(passInput);
+            }
+            passInput.value = password;
+
+            resetButtonLoading(confirmButton);
+            setButtonLoading(confirmButton, loadingLabelFor(submitter, targetForm));
+
+            window.requestAnimationFrame(() => {
+                if (!targetForm.isConnected) {
+                    superAdminPasswordVerifiedForms.delete(targetForm);
+                    closeModal({ restoreFocus: false });
+                    return;
+                }
+                try {
+                    targetForm.requestSubmit(submitter ?? undefined);
+                } catch {
+                    try {
+                        targetForm.requestSubmit();
+                    } catch {
+                        superAdminPasswordVerifiedForms.delete(targetForm);
+                        closeModal({ restoreFocus: false });
+                    }
+                }
+            });
+        } catch {
+            errorEl.textContent = 'Unable to verify password. Please check your connection and try again.';
+            errorEl.classList.remove('hidden');
+            isVerifying = false;
+            input.disabled = false;
+            cancelButton.disabled = false;
+            confirmButton.disabled = false;
+            confirmButton.removeAttribute('aria-busy');
+            resetButtonLoading(confirmButton);
+            input.focus();
+        }
+    };
+
+    form.addEventListener('submit', handlePasswordSubmit);
+    cancelButton.addEventListener('click', () => {
+        if (!isVerifying) closeModal();
+    });
+    dialog.addEventListener('cancel', (e) => {
+        e.preventDefault();
+        if (!isVerifying) closeModal();
+    });
+    dialog.addEventListener('click', (e) => {
+        if (e.target === dialog && !isVerifying) closeModal();
+    });
+    window.addEventListener('pageshow', () => closeModal({ restoreFocus: false }));
+
+    // Capture-phase listener for forms that directly require password confirmation (Create & Edit)
+    document.addEventListener('submit', (event) => {
+        const targetForm = event.target;
+        if (!(targetForm instanceof HTMLFormElement)) return;
+
+        if (superAdminPasswordVerifiedForms.has(targetForm)) {
+            superAdminPasswordVerifiedForms.delete(targetForm);
+            return;
+        }
+
+        const isDirectPasswordForm = targetForm.matches('[data-super-admin-password]');
+        if (!isDirectPasswordForm) return;
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        const submitter = event.submitter instanceof HTMLButtonElement
+            || event.submitter instanceof HTMLInputElement
+            ? event.submitter
+            : null;
+
+        openModalFor(targetForm, submitter);
+    }, true);
+};
+
+startSuperAdminPasswordConfirmation();
 startSessionMonitor();
+
+const startAuditLocationConsent = () => {
+    const endpoint = document.body.dataset.auditLocationUrl;
+
+    if (!endpoint || !navigator.geolocation) {
+        return;
+    }
+
+    const store = async (position) => {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy,
+            }),
+        });
+
+        if (!response.ok) throw new Error(`Location store failed with ${response.status}`);
+    };
+
+    const capture = () => {
+        navigator.geolocation.getCurrentPosition(
+            (position) => store(position).catch(() => {}),
+            () => {},
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+        );
+    };
+
+    if (navigator.permissions?.query) {
+        navigator.permissions.query({ name: 'geolocation' })
+            .then((permission) => {
+                if (permission.state === 'denied') {
+                    return;
+                }
+
+                if (permission.state === 'prompt' || permission.state === 'granted') {
+                    capture();
+                }
+
+                permission.addEventListener('change', () => {
+                    if (permission.state === 'granted') {
+                        capture();
+                    }
+                });
+            })
+            .catch(() => {
+                capture();
+            });
+        return;
+    }
+
+    capture();
+};
+
+startAuditLocationConsent();
+
+const initLoginLocationCapture = () => {
+    const form = document.querySelector('[data-login-form]');
+    if (!form || !navigator.geolocation) return;
+
+    const latInput = form.querySelector('[data-login-latitude]');
+    const lngInput = form.querySelector('[data-login-longitude]');
+    const accInput = form.querySelector('[data-login-accuracy]');
+
+    if (!latInput || !lngInput) return;
+
+    const capture = () => {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                latInput.value = position.coords.latitude;
+                lngInput.value = position.coords.longitude;
+                if (accInput) accInput.value = position.coords.accuracy;
+            },
+            () => {},
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+        );
+    };
+
+    if (navigator.permissions?.query) {
+        navigator.permissions.query({ name: 'geolocation' })
+            .then((permission) => {
+                if (permission.state === 'granted' || permission.state === 'prompt') {
+                    capture();
+                }
+            })
+            .catch(() => capture());
+    } else {
+        capture();
+    }
+};
+
+initLoginLocationCapture();
 
 /**
  * Display a server-issued login cooldown without making the browser a security
@@ -791,18 +1579,277 @@ const startLoginCooldown = () => {
 
 startLoginCooldown();
 
+Alpine.data('himsOtpVerification', ({ length = 6, initial = '', initialError = '' } = {}) => ({
+    length,
+    digits: Array.from({ length }, (_, index) => String(initial)[index] || ''),
+    state: initialError ? 'error' : (String(initial).replace(/\D/g, '').length === length ? 'ready' : 'idle'),
+    message: initialError || '',
+    shaking: false,
+    successCount: 0,
+
+    get validating() {
+        return this.state === 'verifying';
+    },
+
+    set validating(value) {
+        if (value && this.state !== 'verifying') this.state = 'verifying';
+        else if (!value && this.state === 'verifying') this.syncState();
+    },
+
+    get isVerified() {
+        return this.state === 'verified';
+    },
+
+    get isComplete() {
+        return this.code.length === this.length && this.digits.every((digit) => digit !== '' && /\d/.test(digit));
+    },
+
+    get canSubmit() {
+        return this.state === 'ready';
+    },
+
+    get code() {
+        return this.digits.join('');
+    },
+
+    init() {
+        if (!this.message && this.state !== 'error') {
+            this.syncState();
+        }
+        this.$nextTick(() => {
+            const firstEmpty = this.digits.findIndex((digit) => digit === '');
+            this.focusDigit(firstEmpty === -1 ? 0 : firstEmpty);
+        });
+    },
+
+    inputs() {
+        return Array.from(this.$root.querySelectorAll('[data-otp-digit]'));
+    },
+
+    focusDigit(index) {
+        const input = this.inputs()[Math.max(0, Math.min(this.length - 1, index))];
+        if (input instanceof HTMLInputElement && !input.disabled) {
+            input.focus();
+            input.select();
+        }
+    },
+
+    syncState() {
+        if (this.state === 'verifying' || this.state === 'verified') return;
+
+        if (this.isComplete) {
+            this.state = 'ready';
+        } else {
+            this.state = 'idle';
+        }
+    },
+
+    digitClasses(index) {
+        if (index < this.successCount) {
+            return 'border-success-500 bg-success-50 text-success-800 ring-2 ring-success-500/20 dark:border-success-500 dark:bg-success-950/40 dark:text-success-300';
+        }
+
+        if (this.state === 'error') {
+            return 'border-danger-500 bg-danger-50 text-danger-800 ring-2 ring-danger-500/20 dark:border-danger-500 dark:bg-danger-950/40 dark:text-danger-300';
+        }
+
+        return 'border-neutral-300 dark:border-neutral-700';
+    },
+
+    beginCorrection(index, value) {
+        if (this.state !== 'error') return;
+
+        this.digits = Array(this.length).fill('');
+        this.digits[index] = value;
+        this.message = '';
+        this.shaking = false;
+        this.syncState();
+    },
+
+    handleInput(index, event) {
+        const characters = String(event.target.value).replace(/\D/g, '');
+        const value = characters.slice(-1);
+
+        if (this.state === 'error') {
+            this.beginCorrection(index, value);
+        } else {
+            this.digits[index] = value;
+            this.syncState();
+        }
+
+        if (value && index < this.length - 1) {
+            this.focusDigit(index + 1);
+        }
+    },
+
+    handleKeydown(index, event) {
+        if (event.key === 'Enter') {
+            if (this.state !== 'ready') {
+                event.preventDefault();
+            }
+            return;
+        }
+
+        if (event.key === 'Backspace') {
+            event.preventDefault();
+            if (this.state === 'error') {
+                this.message = '';
+                this.shaking = false;
+            }
+
+            if (this.digits[index]) {
+                this.digits[index] = '';
+                if (event.target instanceof HTMLInputElement) {
+                    event.target.value = '';
+                }
+            } else if (index > 0) {
+                this.focusDigit(index - 1);
+                this.digits[index - 1] = '';
+                const prevInput = this.inputs()[index - 1];
+                if (prevInput instanceof HTMLInputElement) {
+                    prevInput.value = '';
+                }
+            }
+
+            this.syncState();
+            return;
+        }
+
+        if (event.key === 'ArrowLeft' && index > 0) {
+            event.preventDefault();
+            this.focusDigit(index - 1);
+        } else if (event.key === 'ArrowRight' && index < this.length - 1) {
+            event.preventDefault();
+            this.focusDigit(index + 1);
+        } else if (event.key.length === 1 && !/\d/.test(event.key)) {
+            event.preventDefault();
+        }
+    },
+
+    handlePaste(index, event) {
+        const characters = event.clipboardData?.getData('text').replace(/\D/g, '').slice(0, this.length) || '';
+        if (!characters) return;
+
+        event.preventDefault();
+
+        if (this.state === 'error') {
+            this.message = '';
+            this.shaking = false;
+            this.digits = Array(this.length).fill('');
+            index = 0;
+        }
+
+        if (characters.length === this.length) {
+            this.digits = Array(this.length).fill('');
+            index = 0;
+        }
+
+        characters.split('').forEach((character, offset) => {
+            if (index + offset < this.length) {
+                this.digits[index + offset] = character;
+            }
+        });
+
+        const nextEmpty = this.digits.findIndex((digit) => digit === '');
+        this.focusDigit(nextEmpty === -1 ? this.length - 1 : nextEmpty);
+
+        this.syncState();
+    },
+
+    async verify() {
+        if (this.state === 'verifying' || this.state === 'verified') return;
+        if (this.state !== 'ready' || !this.isComplete) return;
+
+        this.state = 'verifying';
+        this.message = '';
+
+        try {
+            const response = await fetch(this.$root.action, {
+                method: this.$root.method || 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: new FormData(this.$root),
+            });
+            const data = await response.json();
+
+            if (response.ok && data.success && data.redirect_url) {
+                await this.confirmSuccess(data.redirect_url);
+                return;
+            }
+
+            if (data.redirect_url && [401, 403, 423, 429].includes(response.status)) {
+                window.himsNavigate(data.redirect_url, { showOverlay: false });
+                return;
+            }
+
+            this.showError(data.errors?.otp?.[0] || data.message || 'The verification code could not be confirmed.');
+        } catch {
+            this.showError('Unable to verify the code right now. Check your connection and try again.');
+        }
+    },
+
+    showError(message) {
+        this.state = 'error';
+        this.message = message;
+        this.shaking = false;
+        this.successCount = 0;
+        this.$nextTick(() => {
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                window.requestAnimationFrame(() => { this.shaking = true; });
+            }
+            this.focusDigit(0);
+        });
+    },
+
+    async confirmSuccess(redirectUrl) {
+        this.state = 'verified';
+        this.message = '';
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        if (reducedMotion) {
+            this.successCount = this.length;
+        } else {
+            for (let index = 1; index <= this.length; index += 1) {
+                this.successCount = index;
+                if (index < this.length) {
+                    await new Promise((resolve) => window.setTimeout(resolve, 45));
+                }
+            }
+        }
+
+        window.himsNavigate(redirectUrl, { showOverlay: false });
+    },
+}));
+
 /**
  * Shared visual feedback for native page submissions, internal navigation,
  * and foreground API requests. Passive polling and session heartbeats stay
  * quiet.
  */
 const startLoadingIndicators = () => {
+    const navigationStorageKey = 'hims:navigation-pending';
     const overlay = document.querySelector('[data-hims-loading-overlay]');
     const overlayMessage = overlay?.querySelector('[data-hims-loading-message]');
     const processingForms = new WeakSet();
+    const processingDownloads = new WeakSet();
     const nativeFetch = window.fetch.bind(window);
     let activeApiRequests = 0;
     let pageTransitionPending = false;
+
+    const continueAfterPaint = (callback) => window.requestAnimationFrame(callback);
+
+    const forgetPageTransition = () => {
+        pageTransitionPending = false;
+        document.documentElement.classList.remove('hims-navigation-pending');
+
+        try {
+            window.sessionStorage.removeItem(navigationStorageKey);
+        } catch {
+            // There is no persisted marker to clear.
+        }
+    };
 
     const showOverlay = (message) => {
         if (!(overlay instanceof HTMLElement)) return;
@@ -827,7 +1874,7 @@ const startLoadingIndicators = () => {
 
     const reset = () => {
         activeApiRequests = 0;
-        pageTransitionPending = false;
+        forgetPageTransition();
 
         document.querySelectorAll('[data-hims-loading-active]').forEach((button) => {
             resetButtonLoading(button);
@@ -841,6 +1888,12 @@ const startLoadingIndicators = () => {
             link.removeAttribute('aria-busy');
             link.removeAttribute('data-hims-navigation-active');
         });
+        document.querySelectorAll('[data-hims-download-active]').forEach((link) => {
+            link.removeAttribute('aria-busy');
+            link.removeAttribute('aria-disabled');
+            link.removeAttribute('data-hims-download-active');
+            processingDownloads.delete(link);
+        });
 
         if (overlay instanceof HTMLElement) {
             overlay.hidden = true;
@@ -849,14 +1902,35 @@ const startLoadingIndicators = () => {
         document.body.removeAttribute('aria-busy');
     };
 
-    // Never inherit a visible or busy state from cached/restored page markup.
-    reset();
+    document.addEventListener('hims-loading-start', (event) => {
+        activeApiRequests += 1;
+        showOverlay(event.detail?.message || 'Loading data...');
+    });
 
-    const continueAfterPaint = (callback) => {
-        window.requestAnimationFrame(() => {
-            window.requestAnimationFrame(callback);
-        });
+    document.addEventListener('hims-loading-stop', () => {
+        activeApiRequests = Math.max(0, activeApiRequests - 1);
+        hideOverlay();
+    });
+
+    const finishDestinationLoad = () => {
+        forgetPageTransition();
+        hideOverlay();
     };
+
+    if (document.documentElement.classList.contains('hims-navigation-pending')) {
+        pageTransitionPending = true;
+        showOverlay('Loading page...');
+
+        const revealDestination = () => continueAfterPaint(finishDestinationLoad);
+        if (document.readyState !== 'loading') {
+            revealDestination();
+        } else {
+            document.addEventListener('DOMContentLoaded', revealDestination, { once: true });
+        }
+    } else {
+        // Never inherit a visible or busy state from cached/restored page markup.
+        reset();
+    }
 
     const requestUsesVisibleLoader = (input, options = {}) => {
         try {
@@ -927,25 +2001,25 @@ const startLoadingIndicators = () => {
         if (submitter) {
             const label = loadingLabelFor(submitter, form);
             setButtonLoading(submitter, label);
-            showOverlay(label);
+            if (form.matches('[data-show-overlay]') || submitter.matches('[data-show-overlay]')) {
+                showOverlay(label);
+            }
         } else {
             showOverlay('Processing request...');
         }
 
         pageTransitionPending = true;
 
-        continueAfterPaint(() => {
-            if (!form.isConnected) {
-                reset();
-                return;
-            }
+        if (!form.isConnected) {
+            reset();
+            return;
+        }
 
-            try {
-                HTMLFormElement.prototype.submit.call(form);
-            } catch {
-                reset();
-            }
-        });
+        try {
+            HTMLFormElement.prototype.submit.call(form);
+        } catch {
+            reset();
+        }
     });
 
     document.addEventListener('click', (event) => {
@@ -972,6 +2046,76 @@ const startLoadingIndicators = () => {
             return;
         }
 
+        const isDownloadLink = link.matches('[data-hims-download], [download]')
+            || /\/(export|download)(\/|$)/i.test(url.pathname)
+            || /\.(csv|xlsx|xls|pdf|json|zip|txt)(\?|$)/i.test(url.pathname);
+
+        if (isDownloadLink) {
+            event.preventDefault();
+            if (processingDownloads.has(link)) return;
+
+            processingDownloads.add(link);
+            activeApiRequests += 1;
+            link.setAttribute('aria-busy', 'true');
+            link.setAttribute('aria-disabled', 'true');
+            link.setAttribute('data-hims-download-active', '');
+            showOverlay(link.dataset.loadingText || (url.pathname.includes('export') ? 'Preparing export...' : 'Preparing document...'));
+
+            void (async () => {
+                let objectUrl = null;
+
+                try {
+                    const response = await nativeFetch(url.href, {
+                        credentials: 'same-origin',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    });
+                    const disposition = response.headers.get('Content-Disposition') || '';
+
+                    if (!response.ok || !disposition.toLowerCase().includes('attachment')) {
+                        throw new Error(`Download request failed with status ${response.status}.`);
+                    }
+
+                    let serverFilename = '';
+                    const filenameMatch = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^;"']+)["']?/i);
+                    if (filenameMatch && filenameMatch[1]) {
+                        serverFilename = decodeURIComponent(filenameMatch[1].trim());
+                    }
+
+                    objectUrl = URL.createObjectURL(await response.blob());
+                    const download = document.createElement('a');
+                    const downloadName = serverFilename
+                        || (link.dataset.downloadName || '')
+                        || url.pathname.split('/').filter(Boolean).pop()
+                        || 'document';
+                    download.href = objectUrl;
+                    download.download = downloadName;
+                    download.hidden = true;
+                    download.setAttribute('data-no-loading', '');
+                    document.body.append(download);
+                    download.click();
+                    download.remove();
+                } catch {
+                    window.dispatchEvent(new CustomEvent('notify', {
+                        detail: {
+                            type: 'error',
+                            title: 'Download failed',
+                            message: 'The document is missing or temporarily unavailable. Please try again or contact the records custodian.',
+                        },
+                    }));
+                } finally {
+                    if (objectUrl) URL.revokeObjectURL(objectUrl);
+                    activeApiRequests = Math.max(0, activeApiRequests - 1);
+                    processingDownloads.delete(link);
+                    link.removeAttribute('aria-busy');
+                    link.removeAttribute('aria-disabled');
+                    link.removeAttribute('data-hims-download-active');
+                    hideOverlay();
+                }
+            })();
+
+            return;
+        }
+
         event.preventDefault();
         if (pageTransitionPending) return;
 
@@ -980,23 +2124,1588 @@ const startLoadingIndicators = () => {
         link.setAttribute('data-hims-navigation-active', '');
         showOverlay('Loading page...');
 
-        continueAfterPaint(() => {
-            try {
-                window.location.assign(url.href);
-            } catch {
-                reset();
-            }
-        });
+        try {
+            window.location.assign(url.href);
+        } catch {
+            reset();
+        }
     });
 
     window.addEventListener('pageshow', (event) => {
-        if (event.persisted) reset();
+        if (event.persisted) {
+            if (document.querySelector('[data-session-activity-url]')) {
+                return;
+            }
+
+            continueAfterPaint(reset);
+        }
     });
 
-    window.addEventListener('pagehide', reset);
+    window.himsNavigate = (url, { message = 'Loading page...', replace = false, showOverlay: shouldShowOverlay = true } = {}) => {
+        if (pageTransitionPending) return;
+
+        if (shouldShowOverlay) {
+            pageTransitionPending = true;
+            showOverlay(message);
+        } else {
+            pageTransitionPending = true;
+        }
+
+        try {
+            if (replace) {
+                window.location.replace(url);
+            } else {
+                window.location.assign(url);
+            }
+        } catch {
+            reset();
+        }
+    };
 };
 
 startLoadingIndicators();
+
+Alpine.data('demandForecastDashboard', ({ initialForecast, endpoint, statisticalItems = [] }) => ({
+    forecast: initialForecast,
+    endpoint,
+    statisticalItems,
+    analysisDays: String(initialForecast?.analysis_days ?? 90),
+    forecastDays: String(initialForecast?.forecast_days ?? 30),
+    selectedItemId: '',
+    category: '',
+    risk: '',
+    search: '',
+    loading: !initialForecast && Boolean(endpoint),
+    filterLoading: false,
+    filterLoadingTimeout: null,
+    error: '',
+    success: '',
+    activePoint: null,
+    isDragging: false,
+    isHovering: false,
+    isFocused: false,
+    pointerX: null,
+    pointerY: null,
+    tooltipX: null,
+    tooltipY: null,
+    filtersOpen: false,
+    showActual: true,
+    showForecast: true,
+    forecastCache: {},
+    forecastRequest: null,
+    forecastRequestId: 0,
+    failedForecastDays: null,
+    chartAnimation: null,
+    chartAnimationFrame: null,
+    chartAnimationProgress: 1,
+    chartAnimating: false,
+    hoveredMiniItem: null,
+    miniTooltipStyle: '',
+    pageSize: 10,
+    aiPage: 1,
+    statisticalPage: 1,
+
+    hasOverallData() {
+        if (!this.forecast || this.allItems().length === 0) return false;
+        const hist = this.aggregateSeries('historical_series');
+        const fore = this.aggregateSeries('forecast_series');
+        return hist.length > 0 || fore.length > 0;
+    },
+
+    currentState() {
+        if (this.loading || this.filterLoading) return 'loading';
+        if (this.error) return 'error';
+        if (!this.hasOverallData()) return 'empty';
+        return 'success';
+    },
+
+    isLoading() {
+        return this.currentState() === 'loading';
+    },
+
+    isSuccess() {
+        return this.currentState() === 'success';
+    },
+
+    isEmpty() {
+        return this.currentState() === 'empty';
+    },
+
+    isError() {
+        return this.currentState() === 'error';
+    },
+
+    triggerFilterTransition() {
+        this.clearActivePoint();
+        if (this.filterLoadingTimeout) clearTimeout(this.filterLoadingTimeout);
+        this.filterLoading = true;
+        this.$nextTick(() => {
+            this.resetActivePointToTransition();
+            this.filterLoadingTimeout = setTimeout(() => {
+                this.filterLoading = false;
+                this.filterLoadingTimeout = null;
+            }, 180);
+        });
+    },
+
+    init() {
+        if (this.forecast) {
+            this.forecastCache[this.forecastCacheKey(this.forecast.forecast_days)] = this.forecast;
+            if (this.endpoint) {
+                setTimeout(() => {
+                    [7, 14, 60, 90].forEach(async (days) => {
+                        const cacheKey = this.forecastCacheKey(days);
+                        if (this.forecastCache[cacheKey]) return;
+                        try {
+                            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                            const response = await fetch(this.endpoint, {
+                                method: 'POST',
+                                credentials: 'same-origin',
+                                headers: {
+                                    Accept: 'application/json',
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': csrfToken || '',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                },
+                                body: JSON.stringify({
+                                    analysis_days: Number(this.analysisDays),
+                                    forecast_days: days,
+                                    return_to: 'dashboard',
+                                    reuse_cached: true,
+                                }),
+                            });
+                            const data = await response.json().catch(() => ({}));
+                            if (data?.forecast) {
+                                this.forecastCache[cacheKey] = data.forecast;
+                            }
+                        } catch (_) {}
+                    });
+                }, 500);
+            }
+        } else if (this.endpoint) {
+            this.loading = true;
+            this.updateForecastPeriod(this.forecastDays);
+        }
+        this.$nextTick(() => {
+            this.resetActivePointToTransition();
+        });
+        ['selectedItemId', 'category', 'risk'].forEach((property) => {
+            this.$watch(property, () => {
+                this.aiPage = 1;
+                this.statisticalPage = 1;
+                this.triggerFilterTransition();
+            });
+        });
+        this.$watch('search', () => {
+            this.aiPage = 1;
+            this.statisticalPage = 1;
+            this.$nextTick(() => this.clearActivePoint());
+        });
+        window.addEventListener('resize', () => {
+            if (this.activePoint) {
+                this.calculateTooltipPosition();
+            }
+        });
+    },
+
+    clearActivePoint() {
+        this.activePoint = null;
+        this.pointerX = null;
+        this.pointerY = null;
+        this.tooltipX = null;
+        this.tooltipY = null;
+    },
+
+    activeFilterCount() {
+        return [this.category, this.risk, this.search.trim()].filter(Boolean).length;
+    },
+
+    activeCategoryName() {
+        if (!this.category) return '';
+        const match = this.allItems().find((item) => String(item.category_id) === String(this.category));
+        if (match?.category) return match.category;
+        const select = document.getElementById('dashboard-forecast-modal-category')
+            || document.getElementById('dashboard-forecast-category');
+        if (select && select.selectedOptions && select.selectedOptions[0]) {
+            return select.selectedOptions[0].text;
+        }
+        return 'Category';
+    },
+
+    clearFilters() {
+        this.selectedItemId = '';
+        this.category = '';
+        this.risk = '';
+        this.search = '';
+        this.clearActivePoint();
+        this.$nextTick(() => {
+            this.resetActivePointToTransition();
+        });
+    },
+
+    toggleSeries(type) {
+        if (type === 'actual') {
+            this.showActual = !this.showActual;
+            if (!this.showActual && !this.showForecast) {
+                this.showForecast = true;
+            }
+        } else if (type === 'forecast') {
+            this.showForecast = !this.showForecast;
+            if (!this.showForecast && !this.showActual) {
+                this.showActual = true;
+            }
+        }
+        this.resetActivePointToTransition();
+    },
+
+    resetActivePointToTransition() {
+        const points = this.allChartPoints();
+        if (points.length === 0) {
+            this.activePoint = null;
+            return;
+        }
+
+        const hist = this.historicalPoints();
+        const target = hist.length > 0 ? hist[hist.length - 1] : points[0];
+        this.setActivePoint(target);
+    },
+
+    allItems() {
+        return Array.isArray(this.forecast?.items) ? this.forecast.items : [];
+    },
+
+    filteredItems() {
+        const needle = this.search.trim().toLocaleLowerCase();
+
+        return this.allItems().filter((item) => {
+            const matchesCategory = this.category === ''
+                || String(item.category_id ?? '') === String(this.category);
+            const matchesRisk = this.risk === '' || item.risk_level === this.risk;
+            const searchable = `${item.item_name ?? ''} ${item.sku ?? ''} ${item.category ?? ''}`
+                .toLocaleLowerCase();
+
+            return matchesCategory && matchesRisk && (needle === '' || searchable.includes(needle));
+        });
+    },
+
+    selectedItem() {
+        if (!this.selectedItemId) return null;
+        return this.allItems().find((item) => String(item.item_id) === String(this.selectedItemId)) || null;
+    },
+
+    selectItem(id) {
+        const newId = String(id || '');
+        this.selectedItemId = this.selectedItemId === newId ? '' : newId;
+        this.$nextTick(() => {
+            this.resetActivePointToTransition();
+        });
+    },
+
+    topItems() {
+        const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3, none: 4 };
+        return [...this.filteredItems()].sort((a, b) => {
+            const prioA = priorityOrder[a.reorder_priority] ?? (a.risk_level === 'high' ? 1 : (a.risk_level === 'medium' ? 2 : 3));
+            const prioB = priorityOrder[b.reorder_priority] ?? (b.risk_level === 'high' ? 1 : (b.risk_level === 'medium' ? 2 : 3));
+            if (prioA !== prioB) return prioA - prioB;
+            return (b.predicted_demand || 0) - (a.predicted_demand || 0);
+        }).slice(0, 6);
+    },
+
+    modalItem: null,
+    selectedAnalysisItem: null,
+
+    highRiskCount() {
+        return this.filteredItems().filter((item) => item.risk_level === 'high').length;
+    },
+
+    moderateRiskCount() {
+        return this.filteredItems().filter((item) => item.risk_level === 'medium').length;
+    },
+
+    lowRiskCount() {
+        return this.filteredItems().filter((item) => item.risk_level === 'low').length;
+    },
+
+    itemsRequiringReorderCount() {
+        return this.filteredItems().filter((item) => Number(item.recommended_reorder_quantity || 0) > 0).length;
+    },
+
+    insightText() {
+        return this.insight();
+    },
+
+    openAnalysisModal(item) {
+        this.selectedAnalysisItem = item;
+        this.modalItem = item;
+        this.$dispatch('open-modal', 'ai-forecast-explanation-modal');
+    },
+
+    openCurrentInsightModal() {
+        const item = this.selectedItem()
+            || this.filteredItems().find((i) => i.risk_level === 'high')
+            || this.filteredItems()[0];
+        if (item) {
+            this.openAnalysisModal(item);
+        }
+    },
+
+    lowStockRiskCount() {
+        return this.filteredItems().filter((item) => (
+            item.projected_stock_status === 'low_stock'
+            || item.projected_stock_status === 'out_of_stock'
+        )).length;
+    },
+
+    predictedDemand() {
+        return this.filteredItems().reduce(
+            (total, item) => total + Number(item.predicted_demand || 0),
+            0,
+        );
+    },
+
+    recommendedReorder() {
+        return this.filteredItems().reduce(
+            (total, item) => total + Number(item.recommended_reorder_quantity || 0),
+            0,
+        );
+    },
+
+    confidenceLabel() {
+        const items = this.filteredItems();
+        if (items.length === 0) return 'No data';
+
+        const threshold = Math.ceil(items.length / 2);
+        const high = items.filter((item) => item.confidence === 'high').length;
+        const low = items.filter((item) => item.confidence === 'low').length;
+
+        if (high >= threshold) return 'High';
+        if (low >= threshold) return 'Low';
+
+        return 'Medium';
+    },
+
+    highDemandCount() {
+        return this.filteredItems().filter((item) => (
+            item.demand_trend === 'increasing'
+            || (Number(item.predicted_demand || 0) > Number(item.historical_consumption || 0) && Number(item.predicted_demand || 0) > 0)
+        )).length;
+    },
+
+    stableRiskCount() {
+        return this.filteredItems().filter((item) => (
+            item.risk_level === 'low'
+            && (item.projected_stock_status === 'sufficient' || item.projected_stock_status === 'uncertain')
+        )).length;
+    },
+
+    confidenceBreakdown() {
+        const items = this.filteredItems();
+        return {
+            high: items.filter((item) => item.confidence === 'high').length,
+            medium: items.filter((item) => item.confidence === 'medium').length,
+            low: items.filter((item) => item.confidence === 'low').length,
+        };
+    },
+
+    topRiskItems(limit = 3) {
+        const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3, none: 4 };
+        return [...this.filteredItems()].sort((a, b) => {
+            const prioA = priorityOrder[a.reorder_priority] ?? (a.risk_level === 'high' ? 1 : (a.risk_level === 'medium' ? 2 : 3));
+            const prioB = priorityOrder[b.reorder_priority] ?? (b.risk_level === 'high' ? 1 : (b.risk_level === 'medium' ? 2 : 3));
+            if (prioA !== prioB) return prioA - prioB;
+            const deficitA = Math.max(0, Number(a.predicted_demand || 0) - Number(a.current_stock || 0));
+            const deficitB = Math.max(0, Number(b.predicted_demand || 0) - Number(b.current_stock || 0));
+            if (deficitA !== deficitB) return deficitB - deficitA;
+            return Number(b.predicted_demand || 0) - Number(a.predicted_demand || 0);
+        }).slice(0, limit);
+    },
+
+    setMiniHover(item, event) {
+        this.hoveredMiniItem = item;
+        if (!item || !event) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        const tipWidth = 270;
+        const tipHeight = 135;
+        const gutter = 12;
+
+        let x = rect.left + (rect.width / 2) - (tipWidth / 2);
+        if (x + tipWidth > window.innerWidth - gutter) {
+            x = window.innerWidth - tipWidth - gutter;
+        }
+        if (x < gutter) x = gutter;
+
+        let y = rect.top - tipHeight - 8;
+        if (y < gutter) {
+            y = rect.bottom + 8;
+        }
+
+        this.miniTooltipStyle = `position: fixed; left: ${Math.round(x)}px; top: ${Math.round(y)}px; z-index: 70;`;
+    },
+
+    clearMiniHover() {
+        this.hoveredMiniItem = null;
+    },
+
+    summaryPredictedDemand() {
+        const sel = this.selectedItem();
+        return sel ? Number(sel.predicted_demand || 0) : this.predictedDemand();
+    },
+
+    summaryPredictedDailyDemand() {
+        return this.summaryPredictedDemand()
+            / Math.max(1, Number(this.forecast?.forecast_days || 1));
+    },
+
+    summaryCurrentStock() {
+        const sel = this.selectedItem();
+        if (sel) return Number(sel.current_stock || 0);
+        return this.filteredItems().reduce((total, item) => total + Number(item.current_stock || 0), 0);
+    },
+
+    summaryStockRisk() {
+        const sel = this.selectedItem();
+        if (sel) return sel.risk_level || 'low';
+        if (this.highRiskCount() > 0) return 'high';
+        if (this.lowStockRiskCount() > 0) return 'medium';
+        return 'low';
+    },
+
+    summaryRecommendedReorder() {
+        const sel = this.selectedItem();
+        return sel ? Number(sel.recommended_reorder_quantity || 0) : this.recommendedReorder();
+    },
+
+    aggregateSeries(field) {
+        const totals = new Map();
+        const windowDays = field === 'historical_series'
+            ? Number(this.forecast?.analysis_days || 90)
+            : Number(this.forecast?.forecast_days || 30);
+
+        this.filteredItems().forEach((item) => {
+            const series = Array.isArray(item[field]) ? item[field] : [];
+            const fallbackDays = Math.max(1, Math.ceil(windowDays / Math.max(1, series.length)));
+
+            series.forEach((point, index) => {
+                const date = String(point.period_start || '');
+                if (date === '') return;
+
+                const inferredDays = Math.max(1, Math.min(fallbackDays, windowDays - (index * fallbackDays)));
+                const days = Math.max(1, Number(point.days || inferredDays));
+                const current = totals.get(date) || { quantity: 0, days };
+                current.quantity += Number(point.quantity || 0);
+                current.days = Math.max(current.days, days);
+                totals.set(date, current);
+            });
+        });
+
+        return Array.from(totals, ([date, point]) => ({
+            date,
+            quantity: point.quantity,
+            days: point.days,
+            rate: point.quantity / point.days,
+        })).sort((left, right) => left.date.localeCompare(right.date));
+    },
+
+    currentHistoricalSeries() {
+        const sel = this.selectedItem();
+        if (sel) {
+            const series = Array.isArray(sel.historical_series) ? sel.historical_series : [];
+            const windowDays = Number(this.forecast?.analysis_days || 90);
+            const fallbackDays = Math.max(1, Math.ceil(windowDays / Math.max(1, series.length)));
+
+            return series
+                .filter((p) => p.period_start)
+                .map((p, index) => {
+                    const inferredDays = Math.max(1, Math.min(fallbackDays, windowDays - (index * fallbackDays)));
+                    const days = Math.max(1, Number(p.days || inferredDays));
+                    const quantity = Number(p.quantity || 0);
+                    return {
+                        date: p.period_start,
+                        quantity,
+                        days,
+                        rate: quantity / days,
+                    };
+                })
+                .sort((a, b) => a.date.localeCompare(b.date));
+        }
+        return this.aggregateSeries('historical_series');
+    },
+
+    currentForecastSeries() {
+        const sel = this.selectedItem();
+        if (sel) {
+            const series = Array.isArray(sel.forecast_series) ? sel.forecast_series : [];
+            const windowDays = Number(this.forecast?.forecast_days || 30);
+            const fallbackDays = Math.max(1, Math.ceil(windowDays / Math.max(1, series.length)));
+
+            return series
+                .filter((p) => p.period_start)
+                .map((p, index) => {
+                    const inferredDays = Math.max(1, Math.min(fallbackDays, windowDays - (index * fallbackDays)));
+                    const days = Math.max(1, Number(p.days || inferredDays));
+                    const quantity = Number(p.quantity || 0);
+                    return {
+                        date: p.period_start,
+                        quantity,
+                        days,
+                        rate: quantity / days,
+                    };
+                })
+                .sort((a, b) => a.date.localeCompare(b.date));
+        }
+        return this.aggregateSeries('forecast_series');
+    },
+
+    historicalSeries() {
+        return this.currentHistoricalSeries();
+    },
+
+    forecastSeries() {
+        return this.currentForecastSeries();
+    },
+
+    hasChartData() {
+        return this.currentHistoricalSeries().length > 0 && this.currentForecastSeries().length > 0;
+    },
+
+    chartMaximum() {
+        const hist = this.currentHistoricalSeries();
+        const fore = this.currentForecastSeries();
+        const histMax = Math.max(...hist.map((point) => Number(point.rate || 0)), 0);
+        const foreMax = Math.max(...fore.map((point) => Number(point.rate || 0)), 0);
+        const rawMaximum = Math.max(histMax, foreMax, 1);
+
+        return this.niceAxisStep(rawMaximum / 4) * 4;
+    },
+
+    niceAxisStep(value) {
+        const magnitude = 10 ** Math.floor(Math.log10(Math.max(Number(value) || 0, Number.EPSILON)));
+        const normalized = value / magnitude;
+        const niceNormalized = normalized <= 1
+            ? 1
+            : (normalized <= 2 ? 2 : (normalized <= 2.5 ? 2.5 : (normalized <= 5 ? 5 : 10)));
+
+        return niceNormalized * magnitude;
+    },
+
+    chartTicks() {
+        const maximum = this.chartMaximum();
+        const step = maximum / 4;
+
+        return Array.from({ length: 5 }, (_, index) => {
+            const y = 40 + ((165 / 4) * index);
+
+            return {
+                value: maximum - (step * index),
+                y,
+                top: (y / 240) * 100,
+            };
+        });
+    },
+
+    chartY(value) {
+        return Math.round((205 - ((Number(value) / this.chartMaximum()) * 165)) * 10) / 10;
+    },
+
+    captureChartGeometry() {
+        return {
+            historical: this.historicalPoints(),
+            forecast: this.forecastPoints(),
+            historicalLine: this.historicalRenderPoints(),
+            transitionX: this.transitionX(),
+            ticks: this.chartTicks(),
+        };
+    },
+
+    sampleChartPoints(points, count) {
+        if (!Array.isArray(points) || points.length === 0 || count <= 0) return [];
+        if (points.length === 1 || count === 1) {
+            return Array.from({ length: count }, () => ({ ...points[0] }));
+        }
+
+        return Array.from({ length: count }, (_, index) => {
+            const position = (index / (count - 1)) * (points.length - 1);
+            const leftIndex = Math.floor(position);
+            const rightIndex = Math.min(points.length - 1, Math.ceil(position));
+            const fraction = position - leftIndex;
+            const left = points[leftIndex];
+            const right = points[rightIndex];
+
+            return {
+                ...right,
+                x: left.x + ((right.x - left.x) * fraction),
+                y: left.y + ((right.y - left.y) * fraction),
+            };
+        });
+    },
+
+    interpolateChartPoints(fromPoints, toPoints) {
+        if (!this.chartAnimation) return toPoints;
+
+        const count = Math.max(fromPoints.length, toPoints.length);
+        if (count === 0) return [];
+
+        const from = this.sampleChartPoints(fromPoints.length > 0 ? fromPoints : toPoints, count);
+        const to = this.sampleChartPoints(toPoints.length > 0 ? toPoints : fromPoints, count);
+        const progress = this.chartAnimationProgress;
+
+        return to.map((point, index) => ({
+            ...point,
+            index,
+            x: Math.round((from[index].x + ((point.x - from[index].x) * progress)) * 10) / 10,
+            y: Math.round((from[index].y + ((point.y - from[index].y) * progress)) * 10) / 10,
+        }));
+    },
+
+    displayHistoricalPoints() {
+        if (!this.chartAnimation) return this.historicalPoints();
+        return this.interpolateChartPoints(
+            this.chartAnimation.from.historical,
+            this.chartAnimation.to.historical,
+        );
+    },
+
+    displayForecastPoints() {
+        if (!this.chartAnimation) return this.forecastPoints();
+        return this.interpolateChartPoints(
+            this.chartAnimation.from.forecast,
+            this.chartAnimation.to.forecast,
+        );
+    },
+
+    displayForecastRenderPoints() {
+        return this.forecastRenderPoints(
+            this.displayForecastPoints(),
+            this.displayHistoricalRenderPoints(),
+            this.displayTransitionX(),
+        );
+    },
+
+    displayHistoricalRenderPoints() {
+        if (!this.chartAnimation) return this.historicalRenderPoints();
+        return this.interpolateChartPoints(
+            this.chartAnimation.from.historicalLine,
+            this.chartAnimation.to.historicalLine,
+        );
+    },
+
+    displayTransitionX() {
+        if (!this.chartAnimation) return this.transitionX();
+
+        const { from, to } = this.chartAnimation;
+        return from.transitionX + ((to.transitionX - from.transitionX) * this.chartAnimationProgress);
+    },
+
+    displayChartTicks() {
+        if (!this.chartAnimation) return this.chartTicks();
+
+        const { from, to } = this.chartAnimation;
+        return to.ticks.map((tick, index) => ({
+            ...tick,
+            value: from.ticks[index].value
+                + ((tick.value - from.ticks[index].value) * this.chartAnimationProgress),
+            top: from.ticks[index].top
+                + ((tick.top - from.ticks[index].top) * this.chartAnimationProgress),
+        }));
+    },
+
+    displayHistoricalAreaPath() {
+        const shape = this.displayHistoricalRenderPoints();
+        if (shape.length === 0) return '';
+
+        const baseline = 205;
+        return `M ${shape[0].x} ${baseline} L ${shape[0].x} ${shape[0].y} ${shape
+            .slice(1)
+            .map((point) => `L ${point.x} ${point.y}`)
+            .join(' ')} L ${shape[shape.length - 1].x} ${baseline} Z`;
+    },
+
+    displayForecastAreaPath() {
+        const historical = this.displayHistoricalRenderPoints();
+        const forecast = this.chartLinePoints(this.displayForecastRenderPoints(), 725);
+        if (forecast.length === 0) return '';
+
+        const baseline = 205;
+        const startX = this.displayTransitionX();
+        const startY = historical.length > 0 ? historical[historical.length - 1].y : forecast[0].y;
+
+        return `M ${startX} ${baseline} L ${startX} ${startY} ${forecast
+            .map((point) => `L ${point.x} ${point.y}`)
+            .join(' ')} L ${forecast[forecast.length - 1].x} ${baseline} Z`;
+    },
+
+    applyForecast(forecast) {
+        if (!forecast) return;
+
+        const from = this.chartAnimation
+            ? {
+                historical: this.displayHistoricalPoints(),
+                forecast: this.displayForecastPoints(),
+                historicalLine: this.displayHistoricalRenderPoints(),
+                transitionX: this.displayTransitionX(),
+                ticks: this.displayChartTicks(),
+            }
+            : this.captureChartGeometry();
+        if (this.chartAnimationFrame) cancelAnimationFrame(this.chartAnimationFrame);
+
+        // Hold the old geometry through Alpine's update, then interpolate it
+        // into the newly calculated period rather than replacing the SVG.
+        this.chartAnimation = { from, to: from };
+        this.chartAnimationProgress = 0;
+        this.chartAnimating = true;
+        this.clearActivePoint();
+        this.aiPage = 1;
+        this.forecast = forecast;
+
+        this.$nextTick(() => {
+            const to = this.captureChartGeometry();
+            const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (reduceMotion) {
+                this.chartAnimation = null;
+                this.chartAnimationProgress = 1;
+                this.chartAnimating = false;
+                this.resetActivePointToTransition();
+                return;
+            }
+
+            this.chartAnimation = { from, to };
+            const startedAt = performance.now();
+            const duration = 280;
+
+            const animate = (now) => {
+                const elapsed = Math.min(1, (now - startedAt) / duration);
+                this.chartAnimationProgress = 1 - ((1 - elapsed) ** 3);
+
+                if (elapsed < 1) {
+                    this.chartAnimationFrame = requestAnimationFrame(animate);
+                    return;
+                }
+
+                this.chartAnimation = null;
+                this.chartAnimationFrame = null;
+                this.chartAnimationProgress = 1;
+                this.chartAnimating = false;
+                this.$nextTick(() => this.resetActivePointToTransition());
+            };
+
+            this.chartAnimationFrame = requestAnimationFrame(animate);
+        });
+    },
+
+    chartAnalysisDays() {
+        return Math.max(1, Number(this.forecast?.analysis_days || 90));
+    },
+
+    chartForecastDays() {
+        return Math.max(1, Number(this.forecast?.forecast_days || 30));
+    },
+
+    /**
+     * One horizontal scale for the whole chart.
+     *
+     * The two regions used to be handed half the plot each whatever they
+     * measured: ninety days of history across 420px and ninety days of forecast
+     * across 255px. A given slope therefore drew 1.65x steeper on the left, so a
+     * level forecast read as a fall and a real climb read as flat. Both windows
+     * now share a single px-per-day, which puts the boundary wherever the two
+     * window lengths put it rather than at a fixed halfway mark.
+     */
+    chartPxPerDay() {
+        const plotWidth = 675; // 50 to 725, matching the grid lines.
+
+        return plotWidth / (this.chartAnalysisDays() + this.chartForecastDays());
+    },
+
+    transitionX() {
+        return 50 + (this.chartPxPerDay() * this.chartAnalysisDays());
+    },
+
+    historicalPoints() {
+        const series = this.currentHistoricalSeries();
+        if (series.length === 0) return [];
+
+        const originX = 50;
+        const pxPerDay = this.chartPxPerDay();
+        let elapsedDays = 0;
+
+        return series.map((point) => {
+            const days = Math.max(1, Number(point.days || 1));
+            const quantity = Number(point.quantity || 0);
+            const rate = point.rate != null ? Number(point.rate) : (quantity / days);
+
+            // Each bucket is plotted where its period opens, so the first point
+            // lands on the window start and the line begins at the left edge of
+            // the plot. Plotting at the period end instead left the first
+            // bucket's whole width empty and the line looked cut off.
+            const x = originX + (pxPerDay * elapsedDays);
+            elapsedDays += days;
+
+            return {
+                x: Math.round(x * 10) / 10,
+                y: this.chartY(rate),
+                date: point.date,
+                formattedDate: this.formatPeriodLabel(point.date, days),
+                quantity,
+                days,
+                value: rate,
+                type: 'actual',
+                label: 'Historical Demand',
+            };
+        });
+    },
+
+    forecastPoints() {
+        const series = this.currentForecastSeries();
+        if (series.length === 0) return [];
+
+        const originX = 50;
+        const pxPerDay = this.chartPxPerDay();
+
+        // Each value represents a complete forecast bucket, so plot it at the
+        // bucket end. forecastRenderPoints() adds the explicit boundary anchor.
+        let elapsedDays = this.chartAnalysisDays();
+
+        return series.map((point) => {
+            const days = Math.max(1, Number(point.days || 1));
+            const quantity = Number(point.quantity || 0);
+            const rate = point.rate != null ? Number(point.rate) : (quantity / days);
+
+            elapsedDays += days;
+            const x = originX + (pxPerDay * elapsedDays);
+
+            return {
+                x: Math.round(x * 10) / 10,
+                y: this.chartY(rate),
+                date: point.date,
+                formattedDate: this.formatPeriodLabel(point.date, days),
+                quantity,
+                days,
+                value: rate,
+                type: 'forecast',
+                label: 'AI Forecast',
+                confidence: this.selectedItem()?.confidence ?? this.confidenceLabel().toLowerCase(),
+            };
+        });
+    },
+
+    forecastRenderPoints(
+        forecast = this.forecastPoints(),
+        historical = this.historicalRenderPoints(),
+        transition = this.transitionX(),
+    ) {
+        if (forecast.length === 0) return [];
+
+        const latestHistorical = historical[historical.length - 1];
+        if (!latestHistorical) return forecast;
+
+        return [{
+            ...forecast[0],
+            x: transition,
+            y: latestHistorical.y,
+            value: latestHistorical.value,
+            quantity: 0,
+            type: 'forecast-start',
+        }, ...forecast];
+    },
+
+    historicalRenderPoints() {
+        const hist = this.historicalPoints();
+        if (hist.length === 0) return [];
+
+        const fore = this.forecastPoints();
+        if (fore.length === 0) return hist;
+
+        const last = hist[hist.length - 1];
+        return [...hist, {
+            ...last,
+            x: this.transitionX(),
+            date: fore[0].date,
+            type: 'history-end',
+            label: 'Historical Demand',
+        }];
+    },
+
+    allChartPoints() {
+        const hist = this.historicalPoints();
+        const fore = this.forecastPoints();
+
+        const timelineMap = new Map();
+
+        // 1. Add historical points
+        if (this.showActual || !this.showForecast) {
+            hist.forEach((p) => timelineMap.set(p.date, p));
+        }
+
+        // 2. Add future points: prioritize forecast point for primary positioning if forecast is visible
+        if (this.showForecast) {
+            fore.forEach((p) => timelineMap.set(p.date, p));
+        }
+
+        const points = Array.from(timelineMap.values()).sort((a, b) => a.x - b.x);
+        return points.length > 0 ? points : [...hist, ...fore];
+    },
+
+    seriesPath(points) {
+        if (!Array.isArray(points) || points.length === 0) return '';
+        return points.map((point, index) => (
+            `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`
+        )).join(' ');
+    },
+
+    /**
+     * Keep animated stroke and fill geometry pinned to the window edge.
+     * Markers and hover continue to use the actual bucket arrays, so any
+     * temporary edge point never becomes selectable.
+     */
+    chartLinePoints(points, edgeX) {
+        if (!Array.isArray(points) || points.length === 0) return [];
+
+        const last = points[points.length - 1];
+        if (last.x >= edgeX) return points;
+
+        return [...points, { ...last, x: edgeX }];
+    },
+
+    chartStartLabel(series) {
+        const s = series || this.currentHistoricalSeries();
+        return s.length > 0 ? this.formatShortDate(s[0].date) : '';
+    },
+
+    chartEndLabel(series) {
+        const s = series || this.currentForecastSeries();
+        if (s.length === 0) return '';
+
+        // The horizon ends on the final bucket's last day, not on the day that
+        // bucket opens. Reading the last period_start labelled the chart with a
+        // date up to a fortnight short of where the forecast actually stops.
+        const last = s[s.length - 1];
+        const end = new Date(`${last.date}T00:00:00`);
+        if (Number.isNaN(end.getTime())) return this.formatShortDate(last.date);
+
+        end.setDate(end.getDate() + Math.max(1, Number(last.days || 1)) - 1);
+
+        return new Intl.DateTimeFormat(undefined, {
+            month: 'short',
+            day: 'numeric',
+        }).format(end);
+    },
+
+    chartTransitionLabel() {
+        const forecast = this.currentForecastSeries();
+        if (forecast.length > 0) return this.formatShortDate(forecast[0].date);
+
+        const hist = this.currentHistoricalSeries();
+        return hist.length > 0 ? this.formatShortDate(hist[hist.length - 1].date) : 'Today';
+    },
+
+    onChartPointerDown(event) {
+        this.isDragging = true;
+        this.isHovering = true;
+        try {
+            event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {}
+        this.handlePointerPosition(event);
+    },
+
+    onChartPointerMove(event) {
+        this.isHovering = true;
+        this.handlePointerPosition(event);
+    },
+
+    onChartPointerUp(event) {
+        this.isDragging = false;
+        try {
+            if (event.currentTarget?.hasPointerCapture?.(event.pointerId)) {
+                event.currentTarget.releasePointerCapture(event.pointerId);
+            }
+        } catch {}
+    },
+
+    onChartPointerCancel(event) {
+        this.onChartPointerUp(event);
+    },
+
+    onChartMouseMove(event) {
+        this.isHovering = true;
+        this.handlePointerPosition(event);
+    },
+
+    onChartMouseLeave() {
+        this.isDragging = false;
+        this.isHovering = false;
+    },
+
+    onChartPointerLeave(event) {
+        if (event && event.pointerType === 'touch') {
+            this.isDragging = false;
+            return;
+        }
+        this.isDragging = false;
+        this.isHovering = false;
+        this.pointerX = null;
+        this.pointerY = null;
+    },
+
+    handlePointerPosition(event) {
+        const svg = event.currentTarget || this.$refs.chartSvg;
+        if (!svg) return;
+        const rect = svg.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+
+        const clientX = event.clientX;
+        const clientY = event.clientY;
+        if (clientX !== undefined && clientY !== undefined) {
+            this.pointerX = clientX - rect.left;
+            this.pointerY = clientY - rect.top;
+        }
+
+        const rawX = ((clientX - rect.left) / rect.width) * 760;
+        const svgX = Math.max(50, Math.min(725, rawX));
+
+        const closest = this.getNearestPoint(svgX);
+        if (closest) {
+            this.setActivePoint(closest);
+        }
+
+        this.calculateTooltipPosition(rect);
+    },
+
+    getNearestPoint(svgX) {
+        const points = this.allChartPoints();
+        if (points.length === 0) return null;
+
+        let closest = points[0];
+        let minDiff = Math.abs(svgX - points[0].x);
+
+        for (let i = 1; i < points.length; i++) {
+            const diff = Math.abs(svgX - points[i].x);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closest = points[i];
+            }
+        }
+
+        return closest;
+    },
+
+    setActivePoint(point) {
+        if (!point) return;
+
+        const isFuture = point.x >= (this.transitionX() - 2) || point.type === 'forecast';
+        const forecastPoints = this.forecastPoints();
+
+        const forecastPoint = forecastPoints.find((p) => p.date === point.date)
+            || (point.type === 'forecast' ? point : null);
+
+        const primary = (isFuture && this.showForecast && forecastPoint) ? forecastPoint : point;
+
+        this.activePoint = {
+            ...primary,
+            isFuture,
+            forecastPoint,
+            formattedDate: this.formatPeriodLabel(point.date, point.days),
+            percentageX: Math.round((primary.x / 760) * 1000) / 10,
+            percentageY: Math.round((primary.y / 240) * 1000) / 10,
+        };
+    },
+
+    calculateTooltipPosition(providedRect = null) {
+        if (!this.activePoint) return;
+
+        const container = this.$refs?.chartContainer || this.$el?.querySelector('.relative.min-w-0') || this.$el;
+        const svg = this.$refs?.chartSvg || container?.querySelector('svg');
+        const rect = providedRect || svg?.getBoundingClientRect() || container?.getBoundingClientRect();
+        if (!rect || rect.width <= 0 || rect.height <= 0) return;
+
+        const pointCssX = (this.activePoint.x / 760) * rect.width;
+        const activeY = (this.activePoint.isFuture && this.activePoint.forecastPoint?.y !== undefined)
+            ? this.activePoint.forecastPoint.y
+            : this.activePoint.y;
+        const pointCssY = (activeY / 240) * rect.height;
+
+        // Anchor to the pointer cursor when within bounds; otherwise anchor to the hovered data point.
+        const hasPointer = this.pointerX !== null && this.pointerY !== null
+            && this.pointerX >= 0 && this.pointerX <= rect.width
+            && this.pointerY >= 0 && this.pointerY <= rect.height;
+
+        const anchorX = hasPointer ? this.pointerX : pointCssX;
+        const anchorY = hasPointer ? this.pointerY : pointCssY;
+
+        const inspectorEl = this.$refs?.chartInspector || container?.querySelector('[data-chart-inspector]');
+        const tipWidth = inspectorEl?.offsetWidth || 240;
+        const tipHeight = inspectorEl?.offsetHeight || 110;
+
+        const gutter = 8;
+        const offset = 14;
+
+        // Horizontal boundary detection:
+        // Default to placing tooltip to the right of cursor/point.
+        // If placing right exceeds chart container or viewport width, flip to the left.
+        let targetX = anchorX + offset;
+        const overflowsContainerRight = (targetX + tipWidth) > (rect.width - gutter);
+        const overflowsViewportRight = (rect.left + targetX + tipWidth) > (window.innerWidth - gutter);
+
+        if (overflowsContainerRight || overflowsViewportRight) {
+            targetX = anchorX - offset - tipWidth;
+        }
+
+        // Boundary safety: if left placement overflows left side, clamp within safe boundaries.
+        const overflowsContainerLeft = targetX < gutter;
+        const overflowsViewportLeft = (rect.left + targetX) < gutter;
+
+        if (overflowsContainerLeft || overflowsViewportLeft) {
+            const minX = Math.max(gutter, gutter - rect.left);
+            const maxX = Math.min(rect.width - tipWidth - gutter, window.innerWidth - gutter - tipWidth - rect.left);
+            if (maxX >= minX) {
+                targetX = Math.max(minX, Math.min(maxX, targetX));
+            } else {
+                targetX = Math.max(0, (rect.width - tipWidth) / 2);
+            }
+        }
+
+        // Vertical boundary detection:
+        // Default to placing tooltip above cursor/point to keep the hovered line/point visible.
+        // If placing above exceeds chart top or viewport top, flip below.
+        let targetY = anchorY - offset - tipHeight;
+        const overflowsContainerTop = targetY < gutter;
+        const overflowsViewportTop = (rect.top + targetY) < gutter;
+
+        if (overflowsContainerTop || overflowsViewportTop) {
+            targetY = anchorY + offset;
+        }
+
+        // If placing below exceeds chart bottom or viewport bottom, check if above is viable or clamp.
+        const overflowsContainerBottom = (targetY + tipHeight) > (rect.height - gutter);
+        const overflowsViewportBottom = (rect.top + targetY + tipHeight) > (window.innerHeight - gutter);
+
+        if (overflowsContainerBottom || overflowsViewportBottom) {
+            const candidateAbove = anchorY - offset - tipHeight;
+            if (candidateAbove >= gutter && (rect.top + candidateAbove) >= gutter) {
+                targetY = candidateAbove;
+            } else {
+                const minY = Math.max(gutter, gutter - rect.top);
+                const maxY = Math.min(rect.height - tipHeight - gutter, window.innerHeight - gutter - tipHeight - rect.top);
+                if (maxY >= minY) {
+                    targetY = Math.max(minY, Math.min(maxY, targetY));
+                } else {
+                    targetY = Math.max(0, (rect.height - tipHeight) / 2);
+                }
+            }
+        }
+
+        this.tooltipX = Math.round(targetX);
+        this.tooltipY = Math.round(targetY);
+    },
+
+    tooltipStyle() {
+        if (!this.activePoint) return 'display: none;';
+        if (this.tooltipX !== null && this.tooltipY !== null) {
+            return `left: ${this.tooltipX}px; top: ${this.tooltipY}px; transform: none;`;
+        }
+        const pctX = this.activePoint.percentageX ?? 50;
+        const pctY = this.activePoint.percentageY ?? 50;
+        const transformX = pctX > 55 ? 'calc(-100% - 14px)' : '14px';
+        const transformY = pctY < 40 ? '14px' : 'calc(-100% - 14px)';
+        return `left: ${pctX}%; top: ${pctY}%; transform: translate(${transformX}, ${transformY});`;
+    },
+
+    stepPoint(direction) {
+        this.isFocused = true;
+        this.isHovering = true;
+        this.pointerX = null;
+        this.pointerY = null;
+        const points = this.allChartPoints();
+        if (points.length === 0) return;
+        const currentIndex = points.findIndex(
+            (p) => p.date === this.activePoint?.date && p.type === this.activePoint?.type
+        );
+        const nextIndex = Math.max(
+            0,
+            Math.min(points.length - 1, (currentIndex >= 0 ? currentIndex : 0) + direction)
+        );
+        this.setActivePoint(points[nextIndex]);
+        this.$nextTick(() => {
+            this.calculateTooltipPosition();
+        });
+    },
+
+    historicalDailyRate() {
+        const series = this.currentHistoricalSeries();
+        return series.reduce((total, point) => total + point.quantity, 0)
+            / Math.max(1, Number(this.forecast?.analysis_days || 1));
+    },
+
+    predictedDailyRate() {
+        const series = this.currentForecastSeries();
+        return series.reduce((total, point) => total + point.quantity, 0)
+            / Math.max(1, Number(this.forecast?.forecast_days || 1));
+    },
+
+    trendLabel() {
+        const historical = this.historicalDailyRate();
+        const predicted = this.predictedDailyRate();
+
+        if (historical === 0) return predicted > 0 ? 'New recorded demand signal' : 'No demand change';
+
+        const percent = Math.round(Math.abs(((predicted - historical) / historical) * 100));
+        if (predicted > historical) return `${percent}% higher predicted daily demand`;
+        if (predicted < historical) return `${percent}% lower predicted daily demand`;
+
+        return 'Predicted daily demand is stable';
+    },
+
+    insight() {
+        const sel = this.selectedItem();
+        if (sel) {
+            return sel.explanation || `${sel.item_name} has predicted demand of ${this.formatNumber(sel.predicted_demand)} units. Current stock is ${this.formatNumber(sel.current_stock)} units.`;
+        }
+
+        const count = this.filteredItems().length;
+        if (count === 0) return 'No forecast items match the current filters.';
+
+        const highRisk = this.highRiskCount();
+        const lowStock = this.lowStockRiskCount();
+        const reorder = this.recommendedReorder();
+        const periodText = this.forecast?.forecast_period ? this.forecast.forecast_period.toLowerCase() : 'the forecast period';
+        const hasLimitedData = this.filteredItems().some((item) => item.limited_data);
+
+        if (highRisk > 0 || lowStock > 0) {
+            return `${highRisk} ${highRisk === 1 ? 'item is' : 'items are'} currently at high demand risk, with ${lowStock} projected to reach low or no stock during ${periodText}.`;
+        }
+
+        if (hasLimitedData && this.confidenceLabel() === 'Low') {
+            return 'Forecast coverage is limited because some items do not have sufficient historical demand data.';
+        }
+
+        return `No high-risk items are currently projected during the selected forecast period. Total predicted demand is ${this.formatNumber(this.predictedDemand())} units.`;
+    },
+
+    clearFilters() {
+        this.selectedItemId = '';
+        this.category = '';
+        this.risk = '';
+        this.search = '';
+        this.$nextTick(() => {
+            this.resetActivePointToTransition();
+        });
+    },
+
+    riskClasses(risk) {
+        return {
+            high: 'bg-danger-50 text-danger-700 ring-danger-600/20 dark:bg-rose-950/80 dark:text-rose-300 dark:ring-rose-500/40',
+            medium: 'bg-warning-50 text-warning-700 ring-warning-600/20 dark:bg-amber-950/80 dark:text-amber-300 dark:ring-amber-500/40',
+            low: 'bg-success-50 text-success-700 ring-success-600/20 dark:bg-emerald-950/80 dark:text-emerald-300 dark:ring-emerald-500/40',
+        }[risk] || 'bg-neutral-100 text-neutral-700 ring-neutral-500/20 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-neutral-700';
+    },
+
+    sourceClasses() {
+        return this.forecast?.source === 'ai'
+            ? 'bg-primary-50 text-primary-700 ring-primary-600/20 dark:bg-primary-950/80 dark:text-primary-300 dark:ring-primary-500/40'
+            : 'bg-warning-50 text-warning-700 ring-warning-600/20 dark:bg-warning-950/80 dark:text-warning-300 dark:ring-warning-500/40';
+    },
+
+    formatNumber(value, maximumFractionDigits = 0) {
+        return new Intl.NumberFormat(undefined, { maximumFractionDigits }).format(Number(value || 0));
+    },
+
+    formatDate(value) {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return 'Unknown time';
+
+        return new Intl.DateTimeFormat(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+        }).format(date);
+    },
+
+    formatDateLabel(value) {
+        if (!value) return '';
+        const date = new Date(`${value}T00:00:00`);
+        if (Number.isNaN(date.getTime())) return String(value);
+
+        return new Intl.DateTimeFormat(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        }).format(date);
+    },
+
+    formatPeriodLabel(value, days = 1) {
+        const start = new Date(`${value}T00:00:00`);
+        if (Number.isNaN(start.getTime())) return String(value || '');
+
+        const duration = Math.max(1, Number(days || 1));
+        if (duration <= 1) return this.formatDateLabel(value);
+
+        const end = new Date(start);
+        end.setDate(end.getDate() + duration - 1);
+
+        return `${this.formatDateLabel(value)} – ${new Intl.DateTimeFormat(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        }).format(end)}`;
+    },
+
+    formatShortDate(value) {
+        if (!value) return '';
+        const date = new Date(`${value}T00:00:00`);
+        if (Number.isNaN(date.getTime())) return '';
+
+        return new Intl.DateTimeFormat(undefined, {
+            month: 'short',
+            day: 'numeric',
+        }).format(date);
+    },
+
+    forecastCacheKey(days) {
+        return `${Number(this.analysisDays)}:${Number(days)}`;
+    },
+
+    loadingPeriodLabel() {
+        return this.loading ? `Updating ${Number(this.forecastDays)}-day forecast` : '';
+    },
+
+    retryForecast() {
+        const days = this.failedForecastDays || Number(this.forecastDays) || 30;
+        this.forecastDays = String(days);
+        this.updateForecastPeriod(days, true);
+    },
+
+    async updateForecastPeriod(value, force = false) {
+        const days = Number(value);
+        const allowedPeriods = [7, 14, 30, 60, 90];
+        if (!allowedPeriods.includes(days)) {
+            this.forecastDays = String(this.forecast?.forecast_days ?? 30);
+            return;
+        }
+
+        this.forecastDays = String(days);
+        if (!force && Number(this.forecast?.forecast_days) === days) {
+            if (this.forecastRequest) {
+                this.forecastRequest.abort();
+                this.forecastRequest = null;
+                this.forecastRequestId += 1;
+                this.loading = false;
+            }
+            this.error = '';
+            this.failedForecastDays = null;
+            return;
+        }
+
+        const cacheKey = this.forecastCacheKey(days);
+        if (!force && this.forecastCache[cacheKey]) {
+            this.forecastRequest?.abort();
+            this.forecastRequest = null;
+            this.forecastRequestId += 1;
+            this.loading = false;
+            this.error = '';
+            this.success = `${days}-day forecast updated.`;
+            this.failedForecastDays = null;
+            this.applyForecast(this.forecastCache[cacheKey]);
+            return;
+        }
+
+        this.forecastRequest?.abort();
+        const request = new AbortController();
+        const requestId = ++this.forecastRequestId;
+        this.forecastRequest = request;
+        this.loading = true;
+        this.error = '';
+        this.success = '';
+
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+            const response = await fetch(this.endpoint, {
+                method: 'POST',
+                credentials: 'same-origin',
+                signal: request.signal,
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken || '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({
+                    analysis_days: Number(this.analysisDays),
+                    forecast_days: days,
+                    return_to: 'dashboard',
+                    reuse_cached: !force,
+                }),
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok || !payload.forecast) {
+                throw new Error(payload.message || 'The forecast could not be generated.');
+            }
+            if (requestId !== this.forecastRequestId) return;
+
+            this.forecastCache[cacheKey] = payload.forecast;
+            this.failedForecastDays = null;
+            this.success = `${days}-day forecast updated.`;
+            this.applyForecast(payload.forecast);
+        } catch (error) {
+            if (error instanceof DOMException && error.name === 'AbortError') return;
+            if (requestId !== this.forecastRequestId) return;
+
+            this.failedForecastDays = days;
+            this.forecastDays = String(this.forecast?.forecast_days ?? 30);
+            this.error = `Unable to update the ${days}-day forecast. Please try again.`;
+        } finally {
+            if (requestId === this.forecastRequestId) {
+                this.loading = false;
+                this.forecastRequest = null;
+            }
+        }
+    },
+
+    activeTab: 'ai',
+    selectedAnalysisItem: null,
+
+    showForecastTab(tab) {
+        this.activeTab = tab;
+        this.$nextTick(() => {
+            document.getElementById('forecast-detail-tabs')?.scrollIntoView({
+                behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+                block: 'start',
+            });
+        });
+    },
+
+    openAnalysisModal(item) {
+        this.selectedAnalysisItem = item;
+        this.$dispatch('open-modal', 'ai-forecast-explanation-modal');
+    },
+
+    openCurrentInsightModal() {
+        const target = this.selectedItem()
+            || this.topItems()[0]
+            || this.filteredItems()[0]
+            || (this.allItems().length > 0 ? this.allItems()[0] : null);
+        if (target) {
+            this.openAnalysisModal(target);
+        } else {
+            this.$dispatch('open-modal', 'ai-forecast-explanation-modal');
+        }
+    },
+
+    insightText() {
+        if (this.allItems().length === 0) {
+            return 'No AI forecast generated yet for this period. Click Refresh AI Forecast or adjust parameters to generate demand insights.';
+        }
+        const sel = this.selectedItem();
+        if (sel) {
+            return sel.explanation || `${sel.item_name} has predicted demand of ${this.formatNumber(sel.predicted_demand)} units. Current stock is ${this.formatNumber(sel.current_stock)} units.`;
+        }
+        const top = this.topItems()[0];
+        if (top && top.explanation) {
+            const highRisk = this.highRiskCount();
+            if (highRisk > 0) {
+                return `${highRisk} ${highRisk === 1 ? 'item is' : 'items are'} at high stockout risk. ${top.item_name}: ${top.explanation}`;
+            }
+            return `${top.item_name}: ${top.explanation}`;
+        }
+        return this.insight();
+    },
+
+    aiTableItems() {
+        const items = this.filteredItems();
+        if (!this.selectedItemId) return items;
+
+        return items.filter((item) => String(item.item_id) === String(this.selectedItemId));
+    },
+
+    aiItemVisible(item) {
+        const index = this.aiTableItems().findIndex((candidate) => String(candidate.item_id) === String(item.item_id));
+        return index >= (this.aiPage - 1) * this.pageSize && index < this.aiPage * this.pageSize;
+    },
+
+    filteredStatisticalItems() {
+        const needle = this.search.trim().toLowerCase();
+        if (!needle) return this.statisticalItems;
+
+        return this.statisticalItems.filter((item) => `${item.name} ${item.sku}`.toLowerCase().includes(needle));
+    },
+
+    statisticalItemVisible(id) {
+        const index = this.filteredStatisticalItems().findIndex((item) => String(item.id) === String(id));
+        return index >= (this.statisticalPage - 1) * this.pageSize && index < this.statisticalPage * this.pageSize;
+    },
+
+    paginationPages(total, current) {
+        if (total <= 5) return Array.from({ length: total }, (_, index) => index + 1);
+
+        const pages = [1];
+        const start = Math.max(2, current - 1);
+        const end = Math.min(total - 1, current + 1);
+        if (start > 2) pages.push('…');
+        for (let page = start; page <= end; page += 1) pages.push(page);
+        if (end < total - 1) pages.push('…');
+        pages.push(total);
+
+        return pages;
+    },
+
+    itemsRequiringReorderCount() {
+        return this.filteredItems().filter((item) => Number(item.recommended_reorder_quantity || 0) > 0).length;
+    },
+
+    moderateRiskCount() {
+        return this.filteredItems().filter((item) => item.risk_level === 'medium').length;
+    },
+
+    totalHistoricalUsage() {
+        const sel = this.selectedItem();
+        if (sel) return Number(sel.historical_consumption || 0);
+        return this.filteredItems().reduce((total, item) => total + Number(item.historical_consumption || 0), 0);
+    },
+
+    demandVelocityPercent() {
+        const hist = this.historicalDailyRate();
+        const pred = this.predictedDailyRate();
+        if (hist <= 0) return pred > 0 ? 100 : 0;
+        return Math.round(((pred - hist) / hist) * 100);
+    },
+
+    formatVelocity(val) {
+        if (val > 0) return `+${val}%`;
+        return `${val}%`;
+    },
+
+    velocityLabel() {
+        const vel = this.demandVelocityPercent();
+        if (vel > 15) return 'Surging demand';
+        if (vel > 5) return 'Rising vs history';
+        if (vel < -15) return 'Sharp decline';
+        if (vel < -5) return 'Decreasing trend';
+        return 'Stable consumption';
+    },
+
+    coverageValue() {
+        const sel = this.selectedItem();
+        if (sel) {
+            return sel.days_of_cover !== null && sel.days_of_cover !== undefined
+                ? this.formatNumber(sel.days_of_cover)
+                : '—';
+        }
+        const highRisk = this.highRiskCount();
+        if (highRisk > 0) return `${highRisk} at risk`;
+        return 'Adequate';
+    },
+
+    coverageSubtext() {
+        const sel = this.selectedItem();
+        if (sel) {
+            const reorderPt = Number(sel.reorder_point || 0);
+            const stock = Number(sel.current_stock || 0);
+            return stock <= reorderPt ? 'Below reorder point' : 'Above safety threshold';
+        }
+        return `${this.filteredItems().length} active items`;
+    },
+}));
 
 /**
  * Dashboard live updates via 30s polling.
@@ -1007,19 +3716,27 @@ startLoadingIndicators();
  */
 Alpine.data('dashboardLive', (endpoint) => ({
     intervalId: null,
+    request: null,
+    polling: false,
     statusLabel: '',
+    visibilityHandler: null,
 
     start() {
-        this.poll();
-        this.intervalId = setInterval(() => this.poll(), 30000);
-
-        document.addEventListener('visibilitychange', () => {
+        this.visibilityHandler = () => {
             if (document.hidden) {
                 this.pause();
             } else {
                 this.resume();
             }
-        });
+        };
+        document.addEventListener('visibilitychange', this.visibilityHandler);
+        if (!document.hidden) this.intervalId = setInterval(() => this.poll(), 30000);
+    },
+
+    destroy() {
+        this.pause();
+        this.request?.abort();
+        document.removeEventListener('visibilitychange', this.visibilityHandler);
     },
 
     pause() {
@@ -1041,51 +3758,274 @@ Alpine.data('dashboardLive', (endpoint) => ({
     },
 
     async poll() {
+        if (this.polling || document.hidden) return;
+        this.polling = true;
+        this.request = new AbortController();
+
         try {
             const response = await fetch(endpoint, {
+                signal: this.request.signal,
                 headers: {
                     Accept: 'application/json',
                     'X-Session-Activity': 'passive',
                 },
             });
-            if (!response.ok) return;
+            if (!response.ok) {
+                this.statusLabel = '— update unavailable';
+                return;
+            }
 
             const data = await response.json();
+            const format = new Intl.NumberFormat();
+            const updateMetricDetails = (tile, details) => {
+                if (!tile) return;
+                if (Array.isArray(details) && details.length > 0) tile.dataset.metricDetails = JSON.stringify(details);
+                else delete tile.dataset.metricDetails;
+            };
 
             this.$refs.alerts.innerHTML = data.alertsHtml;
 
             // Update stat tiles
+            const trackedItemsTile = this.$refs.trackedItemsTile;
             const lowStockTile = this.$refs.lowStockTile;
-            const openAlertTile = this.$refs.openAlertTile;
+            const expiryTile = this.$refs.expiryTile;
+            const inventoryValueTile = this.$refs.inventoryValueTile;
+
+            if (trackedItemsTile) {
+                trackedItemsTile.querySelector('[data-stat-value]').textContent = format.format(data.totalItems);
+                trackedItemsTile.querySelector('[data-stat-hint]').textContent = `${format.format(data.totalOnHand)} units on hand`;
+                updateMetricDetails(trackedItemsTile, data.trackedItemDetails);
+            }
 
             if (lowStockTile) {
                 const valueEl = lowStockTile.querySelector('[data-stat-value]');
                 const hintEl = lowStockTile.querySelector('[data-stat-hint]');
-                if (valueEl) valueEl.textContent = new Intl.NumberFormat().format(data.lowStockItems);
+                if (valueEl) valueEl.textContent = format.format(data.lowStockItems);
                 if (hintEl) {
                     hintEl.textContent = data.outOfStockItems > 0
-                        ? `${new Intl.NumberFormat().format(data.outOfStockItems)} fully out of stock`
+                        ? `${format.format(data.outOfStockItems)} fully out of stock`
                         : 'No items out of stock';
                 }
+                updateMetricDetails(lowStockTile, data.attentionItemDetails);
             }
 
-            if (openAlertTile) {
-                const valueEl = openAlertTile.querySelector('[data-stat-value]');
-                const hintEl = openAlertTile.querySelector('[data-stat-hint]');
-                if (valueEl) valueEl.textContent = new Intl.NumberFormat().format(data.openAlertCount);
+            if (expiryTile) {
+                const valueEl = expiryTile.querySelector('[data-stat-value]');
+                const hintEl = expiryTile.querySelector('[data-stat-hint]');
+                if (valueEl) valueEl.textContent = format.format(data.expiringSoonCount);
                 if (hintEl) {
-                    hintEl.textContent = data.openAlertCount > 0
-                        ? 'Awaiting acknowledgement'
-                        : 'Nothing outstanding';
+                    hintEl.textContent = data.criticalExpiryCount > 0
+                        ? `${format.format(data.criticalExpiryCount)} critical / near expiry`
+                        : (data.expiringSoonCount > 0
+                            ? '1–90 days remaining'
+                            : 'No batches expiring within 90 days');
                 }
+                updateMetricDetails(expiryTile, data.expiringBatchDetails);
+            }
+
+            if (inventoryValueTile && data.totalInventoryValue !== undefined) {
+                inventoryValueTile.querySelector('[data-stat-value]').textContent = `₱${new Intl.NumberFormat(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                }).format(data.totalInventoryValue)}`;
+                updateMetricDetails(inventoryValueTile, data.inventoryValueDetails);
             }
 
             const now = new Date();
             this.statusLabel = `— refreshed ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
         } catch (error) {
-            console.error('Dashboard poll failed:', error);
+            if (error.name !== 'AbortError') this.statusLabel = '— update unavailable';
+        } finally {
+            this.request = null;
+            this.polling = false;
         }
     }
+}));
+
+/**
+ * Global multi-entity search and live autocomplete across HIMS.
+ *
+ * Debounced, cancelable fetch with role-aware results, grouped categories,
+ * keyboard arrow navigation, and passive session heartbeat.
+ */
+Alpine.data('himsGlobalSearch', ({ endpoint, initialQuery = '' }) => ({
+    query: initialQuery,
+    categories: [],
+    flatItems: [],
+    activeIndex: -1,
+    open: false,
+    loading: false,
+    loaded: false,
+    failed: false,
+    errorMessage: '',
+    debounceTimer: null,
+    request: null,
+    debounceDelay: 250,
+
+    init() {
+        if (this.query.trim().length >= 2) {
+            this.fetchResults(this.query.trim());
+        }
+    },
+
+    queue(value) {
+        this.query = value;
+        window.clearTimeout(this.debounceTimer);
+        this.request?.abort();
+        this.request = null;
+        this.failed = false;
+        this.errorMessage = '';
+
+        const trimmed = value.trim();
+        if (trimmed.length < 2) {
+            this.reset();
+            return;
+        }
+
+        this.open = true;
+        this.loading = true;
+        this.debounceTimer = window.setTimeout(
+            () => this.fetchResults(trimmed),
+            this.debounceDelay,
+        );
+    },
+
+    async fetchResults(term) {
+        const controller = new AbortController();
+        this.request = controller;
+
+        try {
+            const url = new URL(endpoint, window.location.origin);
+            url.searchParams.set('query', term);
+
+            const response = await fetch(url, {
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-Session-Activity': 'passive',
+                },
+                signal: controller.signal,
+            });
+
+            if (!response.ok) throw new Error(`Search request failed with status ${response.status}`);
+
+            const data = await response.json();
+
+            if (this.query.trim() !== term) return;
+
+            this.categories = Array.isArray(data.categories) ? data.categories : [];
+            this.rebuildFlatItems();
+            this.loaded = true;
+            this.open = true;
+            this.activeIndex = this.flatItems.length > 0 ? 0 : -1;
+        } catch (error) {
+            if (error.name === 'AbortError') return;
+
+            this.categories = [];
+            this.flatItems = [];
+            this.activeIndex = -1;
+            this.loaded = true;
+            this.failed = true;
+            this.errorMessage = 'Failed to load search results. Please try again.';
+        } finally {
+            if (this.request === controller) {
+                this.request = null;
+                this.loading = false;
+            }
+        }
+    },
+
+    rebuildFlatItems() {
+        const items = [];
+        for (const category of this.categories) {
+            if (Array.isArray(category.items)) {
+                for (const item of category.items) {
+                    items.push(item);
+                }
+            }
+        }
+        this.flatItems = items;
+    },
+
+    move(direction) {
+        if (!this.open) {
+            if (this.query.trim().length >= 2) {
+                this.open = true;
+            }
+            return;
+        }
+
+        if (this.flatItems.length === 0) return;
+
+        if (this.activeIndex < 0) {
+            this.activeIndex = direction > 0 ? 0 : this.flatItems.length - 1;
+        } else {
+            this.activeIndex = (this.activeIndex + direction + this.flatItems.length) % this.flatItems.length;
+        }
+
+        this.$nextTick(() => {
+            const el = document.getElementById(`global-search-item-${this.activeIndex}`);
+            if (el) {
+                el.scrollIntoView({ block: 'nearest' });
+            }
+        });
+    },
+
+    selectActive(event) {
+        if (!this.open || this.activeIndex < 0 || !this.flatItems[this.activeIndex]) {
+            return;
+        }
+
+        event.preventDefault();
+        this.navigate(this.flatItems[this.activeIndex].url);
+    },
+
+    navigate(url) {
+        if (!url) return;
+        this.open = false;
+        window.himsNavigate(url);
+    },
+
+    clear() {
+        this.query = '';
+        this.reset();
+        const input = this.$el.querySelector('input[type="search"]') || document.getElementById('global-search');
+        if (input) {
+            input.focus();
+        }
+    },
+
+    onFocus() {
+        if (this.query.trim().length >= 2) {
+            this.open = true;
+            if (!this.loaded && !this.loading) {
+                this.queue(this.query);
+            }
+        }
+    },
+
+    close() {
+        this.open = false;
+        this.activeIndex = -1;
+    },
+
+    reset() {
+        window.clearTimeout(this.debounceTimer);
+        this.request?.abort();
+        this.request = null;
+        this.categories = [];
+        this.flatItems = [];
+        this.activeIndex = -1;
+        this.loading = false;
+        this.loaded = false;
+        this.failed = false;
+        this.open = false;
+    },
+
+    destroy() {
+        this.reset();
+    },
 }));
 
 /**
@@ -1212,4 +4152,1040 @@ Alpine.data('auditSearchAutocomplete', ({ endpoint, formId, initialQuery = '' })
     },
 }));
 
+Alpine.data('himsAiAssistant', ({
+    endpoint,
+    conversationsEndpoint = '/dashboard/ai-assistant/conversations',
+    activeEndpoint = '/dashboard/ai-assistant/conversations/active',
+    conversationShowBase = '/dashboard/ai-assistant/conversations',
+    knownItems = []
+}) => ({
+    isOpen: false,
+    endpoint,
+    conversationsEndpoint,
+    activeEndpoint,
+    conversationShowBase,
+    knownItems: Array.isArray(knownItems) ? knownItems : [],
+
+    // Active conversation state
+    conversationId: null,
+    conversationTitle: '',
+    messages: [],
+    input: '',
+    isLoading: false,
+    loadingStatus: 'Looking into that...',
+    errorMessage: '',
+    selectedFile: null,
+    isDraggingOver: false,
+    allowedExtensions: ['pdf', 'csv', 'xlsx', 'docx', 'txt', 'jpg', 'jpeg', 'png'],
+    maxFileSize: 35 * 1024 * 1024, // 35MB
+
+    // History and navigation state
+    viewMode: 'chat', // 'chat' | 'history'
+    conversationsList: [],
+    isHistoryLoading: false,
+    showNewChatConfirm: false,
+    hasRestoredActive: false,
+
+    init() {
+        this.restoreActiveConversation();
+    },
+
+    async restoreActiveConversation() {
+        if (this.hasRestoredActive) return;
+        try {
+            const resp = await fetch(this.activeEndpoint, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.status === 'success' && data.conversation) {
+                    this.conversationId = data.conversation.id;
+                    this.conversationTitle = data.conversation.title;
+                    this.messages = Array.isArray(data.conversation.messages) ? data.conversation.messages : [];
+                }
+            }
+        } catch (e) {
+            // Silently fallback to clean empty chat state
+        } finally {
+            this.hasRestoredActive = true;
+        }
+    },
+
+    toggle() {
+        this.isOpen = !this.isOpen;
+        if (this.isOpen) {
+            if (!this.hasRestoredActive) {
+                this.restoreActiveConversation();
+            }
+            this.$nextTick(() => {
+                this.scrollToBottom();
+                if (this.viewMode === 'chat') {
+                    this.$refs.chatInput?.focus();
+                }
+            });
+        }
+    },
+
+    close() {
+        // CLOSE CHATBOT ≠ NEW CHAT: Only hide the UI, preserve current conversation
+        this.isOpen = false;
+        this.viewMode = 'chat';
+        this.showNewChatConfirm = false;
+    },
+
+    requestNewChat() {
+        if (this.messages.length > 0) {
+            this.showNewChatConfirm = true;
+        } else {
+            this.startNewChat();
+        }
+    },
+
+    cancelNewChat() {
+        this.showNewChatConfirm = false;
+    },
+
+    startNewChat() {
+        this.showNewChatConfirm = false;
+        this.conversationId = null;
+        this.conversationTitle = '';
+        this.messages.forEach(m => {
+            if (m.attachment?.previewUrl && m.attachment.previewUrl.startsWith('blob:') && typeof URL !== 'undefined' && URL.revokeObjectURL) {
+                try {
+                    URL.revokeObjectURL(m.attachment.previewUrl);
+                } catch (e) {}
+            }
+        });
+        this.messages = [];
+        this.errorMessage = '';
+        this.removeFile(true);
+        this.viewMode = 'chat';
+        this.$nextTick(() => {
+            this.$refs.chatInput?.focus();
+        });
+    },
+
+    clearChat() {
+        this.requestNewChat();
+    },
+
+    async toggleHistory() {
+        if (this.viewMode === 'history') {
+            this.viewMode = 'chat';
+            this.$nextTick(() => this.scrollToBottom());
+        } else {
+            this.viewMode = 'history';
+            await this.loadConversations();
+        }
+    },
+
+    async loadConversations() {
+        this.isHistoryLoading = true;
+        try {
+            const resp = await fetch(this.conversationsEndpoint, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                this.conversationsList = Array.isArray(data.conversations) ? data.conversations : [];
+            }
+        } catch (e) {
+            console.error('Failed to load conversations', e);
+        } finally {
+            this.isHistoryLoading = false;
+        }
+    },
+
+    get groupedConversations() {
+        const groups = {};
+        for (const conv of this.conversationsList) {
+            const group = conv.date_group || 'Previous';
+            if (!groups[group]) {
+                groups[group] = [];
+            }
+            groups[group].push(conv);
+        }
+        return groups;
+    },
+
+    async selectConversation(id) {
+        if (this.conversationId === id && this.messages.length > 0) {
+            this.viewMode = 'chat';
+            this.$nextTick(() => this.scrollToBottom());
+            return;
+        }
+
+        this.isLoading = true;
+        this.viewMode = 'chat';
+        try {
+            const url = `${this.conversationShowBase}/${id}`;
+            const resp = await fetch(url, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.status === 'success' && data.conversation) {
+                    this.conversationId = data.conversation.id;
+                    this.conversationTitle = data.conversation.title;
+                    this.messages = Array.isArray(data.conversation.messages) ? data.conversation.messages : [];
+                    this.$nextTick(() => this.scrollToBottom());
+                }
+            }
+        } catch (e) {
+            this.errorMessage = 'Failed to load selected conversation.';
+        } finally {
+            this.isLoading = false;
+        }
+    },
+
+    scrollToBottom() {
+        this.$nextTick(() => {
+            const container = this.$refs.messagesContainer;
+            if (container) {
+                container.scrollTop = container.scrollHeight;
+            }
+        });
+    },
+
+    formatTime() {
+        return new Intl.DateTimeFormat(undefined, {
+            hour: 'numeric',
+            minute: '2-digit',
+        }).format(new Date());
+    },
+
+    copiedIndex: null,
+
+    async copyMessage(content, index) {
+        if (!content) return;
+        try {
+            await navigator.clipboard.writeText(content);
+            this.copiedIndex = index;
+            setTimeout(() => {
+                if (this.copiedIndex === index) {
+                    this.copiedIndex = null;
+                }
+            }, 2000);
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+        }
+    },
+
+    formatBytes(bytes) {
+        if (!bytes || bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    },
+
+    validateAndSetFile(file) {
+        if (!file) return;
+
+        if (file.size === 0) {
+            this.errorMessage = 'The attached file is empty (0 bytes).';
+            return;
+        }
+
+        if (file.size > this.maxFileSize) {
+            this.errorMessage = 'File size exceeds the 35MB limit.';
+            return;
+        }
+
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        if (!this.allowedExtensions.includes(ext)) {
+            this.errorMessage = `Unsupported file type (.${ext}). Supported: PDF, CSV, XLSX, DOCX, TXT, JPG, PNG.`;
+            return;
+        }
+
+        let typeCategory = 'document';
+        let previewUrl = null;
+        if (['csv', 'xlsx'].includes(ext)) {
+            typeCategory = 'spreadsheet';
+        } else if (['jpg', 'jpeg', 'png'].includes(ext)) {
+            typeCategory = 'image';
+            if (typeof URL !== 'undefined' && URL.createObjectURL) {
+                try {
+                    previewUrl = URL.createObjectURL(file);
+                } catch (e) {}
+            }
+        } else if (ext === 'txt') {
+            typeCategory = 'text';
+        }
+
+        this.selectedFile = {
+            file,
+            name: file.name,
+            size: this.formatBytes(file.size),
+            rawSize: file.size,
+            type: typeCategory,
+            extension: ext,
+            previewUrl,
+        };
+        this.errorMessage = '';
+    },
+
+    handleFileSelect(event) {
+        const file = event.target.files?.[0];
+        if (file) {
+            this.validateAndSetFile(file);
+        }
+        if (this.$refs.fileInput) {
+            this.$refs.fileInput.value = '';
+        }
+    },
+
+    handleFileDrop(event) {
+        this.isDraggingOver = false;
+        const dt = event.dataTransfer;
+        if (dt && dt.files && dt.files.length > 0) {
+            this.validateAndSetFile(dt.files[0]);
+        }
+    },
+
+    removeFile(revokeUrl = true) {
+        if (revokeUrl && this.selectedFile?.previewUrl && typeof URL !== 'undefined' && URL.revokeObjectURL) {
+            try {
+                URL.revokeObjectURL(this.selectedFile.previewUrl);
+            } catch (e) {}
+        }
+        this.selectedFile = null;
+        if (this.$refs.fileInput) {
+            this.$refs.fileInput.value = '';
+        }
+    },
+
+    triggerFileInput() {
+        this.$refs.fileInput?.click();
+    },
+
+    formatMarkdown(text) {
+        if (!text) return '';
+
+        // 1. Strip emojis, symbols, and pictographs, then sanitize HTML entities
+        let escaped = text
+            .replace(/[\p{Extended_Pictographic}\uFE0E\uFE0F\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}\u{1F100}-\u{1F64F}\u{1F680}-\u{1F6FF}]/gu, '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+
+        // 2. Protect multi-line code blocks
+        const codeBlocks = [];
+        escaped = escaped.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+            const id = `___CODEBLOCK_${codeBlocks.length}___`;
+            codeBlocks.push(`<pre class="my-2.5 overflow-x-auto rounded-xl bg-neutral-900 p-3 text-[11px] font-mono leading-relaxed text-neutral-100 shadow-inner border border-neutral-800"><code>${code.trim()}</code></pre>`);
+            return id;
+        });
+
+        // 3. Render inline codes / identifiers as seamless consistent text (no badge, pill, or background)
+        const inlineCodes = [];
+        escaped = escaped.replace(/`([^`]+)`/g, (match, code) => {
+            const id = `___INLINECODE_${inlineCodes.length}___`;
+            inlineCodes.push(`<span class="font-medium text-neutral-900">${code}</span>`);
+            return id;
+        });
+
+        // 4. Parse Tables
+        escaped = escaped.replace(/((?:^|\n)\|[^\n]+\|\r?\n\|[\s:-|-]+\|\r?\n(?:\|[^\n]+\|\r?\n?)+)/g, (match) => {
+            const lines = match.trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            if (lines.length < 2) return match;
+
+            const headerCells = lines[0].split('|').slice(1, -1).map(c => c.trim());
+            const bodyRows = lines.slice(2);
+
+            let html = '<div class="my-3 overflow-x-auto rounded-xl border border-neutral-200/80 shadow-xs"><table class="min-w-full divide-y divide-neutral-200 text-left text-xs">';
+            html += '<thead class="bg-neutral-100/80 font-semibold text-neutral-900"><tr>';
+            for (const h of headerCells) {
+                html += `<th class="px-3 py-2 text-[10px] font-bold tracking-wider text-neutral-700 uppercase">${h}</th>`;
+            }
+            html += '</tr></thead><tbody class="divide-y divide-neutral-100 bg-white">';
+            for (const row of bodyRows) {
+                const cells = row.split('|').slice(1, -1).map(c => c.trim());
+                html += '<tr class="hover:bg-neutral-50/70 transition-colors">';
+                for (const cell of cells) {
+                    html += `<td class="px-3 py-2 text-neutral-800 text-[11px]">${cell}</td>`;
+                }
+                html += '</tr>';
+            }
+            html += '</tbody></table></div>';
+            return '\n' + html + '\n';
+        });
+
+        // 5. Headings:
+        // # H1
+        escaped = escaped.replace(/^#\s+(.*?)$/gm, '<h3 class="mt-4 mb-2 text-sm font-bold text-neutral-900 tracking-tight flex items-center gap-1.5 border-b border-neutral-200/60 pb-1.5">$1</h3>');
+        // ## H2
+        escaped = escaped.replace(/^##\s+(.*?)$/gm, '<h4 class="mt-3.5 mb-1.5 text-xs sm:text-sm font-bold text-neutral-900 tracking-tight flex items-center gap-1.5">$1</h4>');
+        // ### H3
+        escaped = escaped.replace(/^###\s+(.*?)$/gm, '<h5 class="mt-3 mb-1 text-xs font-bold text-neutral-900 flex items-center gap-1.5 text-primary-950">$1</h5>');
+        // #### H4
+        escaped = escaped.replace(/^####\s+(.*?)$/gm, '<h6 class="mt-2.5 mb-1 text-xs font-semibold text-neutral-800 uppercase tracking-wider">$1</h6>');
+
+        // 6. Blockquotes: > quote
+        escaped = escaped.replace(/^>\s+(.*?)$/gm, '<blockquote class="my-2 border-l-3 border-primary-500 bg-primary-50/40 py-1.5 px-3 rounded-r-lg text-xs italic text-neutral-700">$1</blockquote>');
+
+        // 7. Lists (Must be parsed before bold & italic so asterisks in bullets do not interfere with inline markup):
+        // Process unordered lists (- item or * item)
+        escaped = escaped.replace(/(?:^|\n)((?:[ \t]*[-*]\s+.*(?:\n|$))+)/g, (match) => {
+            const items = match.trim().split('\n').map(line => {
+                const content = line.replace(/^[ \t]*[-*]\s+/, '').trim();
+                return `<li class="relative pl-1 leading-relaxed">${content}</li>`;
+            });
+            return '\n<ul class="my-2 ml-4 list-disc space-y-1 text-neutral-700 text-xs leading-relaxed marker:text-primary-500">' + items.join('') + '</ul>\n';
+        });
+
+        // Process ordered lists (1. item, 2. item)
+        escaped = escaped.replace(/(?:^|\n)((?:[ \t]*\d+\.\s+.*(?:\n|$))+)/g, (match) => {
+            const items = match.trim().split('\n').map(line => {
+                const content = line.replace(/^[ \t]*\d+\.\s+/, '').trim();
+                return `<li class="relative pl-1 leading-relaxed">${content}</li>`;
+            });
+            return '\n<ol class="my-2 ml-4 list-decimal space-y-1 text-neutral-700 text-xs leading-relaxed marker:font-semibold marker:text-neutral-500">' + items.join('') + '</ol>\n';
+        });
+
+        // 8. Bold & Italic & Strikethrough (Selective emphasis on necessary terms):
+        // Bold + Italic: ***text***
+        escaped = escaped.replace(/\*\*\*([^\*\n]+?)\*\*\*/g, '<strong class="font-bold text-neutral-950 font-semibold"><em class="italic">$1</em></strong>');
+        // Bold: **text** or __text__
+        escaped = escaped.replace(/\*\*([^\*\n]+?)\*\*/g, '<strong class="font-bold text-neutral-950 font-semibold">$1</strong>');
+        escaped = escaped.replace(/__([^_\n]+?)__/g, '<strong class="font-bold text-neutral-950 font-semibold">$1</strong>');
+        // Italic: *text* or _text_ (non-whitespace bounded)
+        escaped = escaped.replace(/(?<!\*)\*([^\*\n\s](?:[^\*\n]*?[^\*\n\s])?)\*(?!\*)/g, '<em class="italic text-neutral-800">$1</em>');
+        escaped = escaped.replace(/(?<!_)_([^_\n\s](?:[^_\n]*?[^_\n\s])?)_(?!_)/g, '<em class="italic text-neutral-800">$1</em>');
+        // Strikethrough: ~~text~~
+        escaped = escaped.replace(/~~([^~\n]+?)~~/g, '<del class="line-through text-neutral-500">$1</del>');
+
+        // 9. Links: [Title](url)
+        escaped = escaped.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, title, url) => {
+            const safeUrl = url.startsWith('/') || /^https?:\/\//i.test(url) ? url : '#';
+            return `<a href="${safeUrl}" class="inline-flex items-center gap-1 font-semibold text-primary-600 underline hover:text-primary-800 transition-colors" target="_self">${title}</a>`;
+        });
+
+        // 10. Process paragraphs and line breaks:
+        const paragraphs = escaped.split(/\n\s*\n/);
+        const formatted = paragraphs.map(para => {
+            const trimmed = para.trim();
+            if (!trimmed) return '';
+            if (/^<(h[1-6]|ul|ol|table|blockquote|pre|div)\b/i.test(trimmed)) {
+                return trimmed;
+            }
+            const withBreaks = trimmed.replace(/\n/g, '<br>');
+            return `<p class="my-1.5 leading-relaxed text-neutral-700">${withBreaks}</p>`;
+        }).filter(p => p.length > 0).join('\n');
+
+        // 11. Restore protected inline codes and code blocks
+        let finalHtml = formatted;
+        inlineCodes.forEach((codeHtml, i) => {
+            finalHtml = finalHtml.replace(`___INLINECODE_${i}___`, codeHtml);
+        });
+        codeBlocks.forEach((codeHtml, i) => {
+            finalHtml = finalHtml.replace(`___CODEBLOCK_${i}___`, codeHtml);
+        });
+
+        return finalHtml;
+    },
+
+    /**
+     * Extract an item name from the prompt or from known items catalog.
+     */
+    extractItemName(text) {
+        if (!text) return null;
+        const trimmed = text.trim();
+
+        // 1. Check known items list if available
+        if (Array.isArray(this.knownItems) && this.knownItems.length > 0) {
+            const sorted = [...this.knownItems].sort((a, b) => b.length - a.length);
+            for (const item of sorted) {
+                if (!item || item.length < 3) continue;
+                const regex = new RegExp(`\\b${item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+                if (regex.test(trimmed)) {
+                    return item;
+                }
+                const simplified = item.replace(/\s*\([^)]*\)/g, '').trim();
+                if (simplified && simplified.length >= 3 && simplified !== item) {
+                    const simpleRegex = new RegExp(`\\b${simplified.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+                    if (simpleRegex.test(trimmed)) {
+                        return simplified;
+                    }
+                }
+            }
+        }
+
+        // 2. Pattern extraction from common query templates
+        const patterns = [
+            /\b(?:why is|why are)\s+(.+?)\s+(?:at high risk|considered high risk|considered low stock|high risk|low stock|low in stock|critical|at risk|failing|delayed|short)\b/i,
+            /\b(?:what is|what\'s|check|show|get)\s+(?:the\s+)?(?:predicted\s+demand|stock|quantity|level|status|lead time|details|record|info|history)\s+(?:for|of|on)\s+(.+?)(?:\?|\.|$)/i,
+            /\b(?:tell me about|information on|details on|status of|status on|update on)\s+(.+?)(?:\?|\.|$)/i,
+            /\bhow many\s+(.+?)\s+(?:do we have|are left|in stock|are in warehouse|available|on hand)\b/i,
+            /\b(?:review|inspect|check)\s+(.+?)(?:\?|\.|$)/i,
+        ];
+
+        const genericExclusions = [
+            'this item', 'that item', 'the item', 'these items', 'those items', 'an item', 'item', 'items',
+            'this', 'that', 'our inventory', 'the inventory', 'inventory', 'stock', 'it', 'everything', 'anything',
+        ];
+
+        for (const pattern of patterns) {
+            const match = trimmed.match(pattern);
+            if (match && match[1]) {
+                let candidate = match[1].trim().replace(/[?!.,;:]+$/, '').trim();
+                const lower = candidate.toLowerCase();
+                if (!genericExclusions.includes(lower) && candidate.length >= 2 && candidate.length <= 40) {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    },
+
+    /**
+     * Determine context-aware status message matching user's intent and attachment.
+     */
+    determineStatusMessage(text, attachment = null) {
+        const trimmed = (text || '').trim();
+        const normalized = trimmed.toLowerCase();
+
+        if (attachment) {
+            if (attachment.type === 'image') {
+                const detectedItem = this.extractItemName(trimmed);
+                if (detectedItem) return `Reviewing ${detectedItem}...`;
+                return 'Analyzing the attached image...';
+            }
+
+            if (attachment.type === 'spreadsheet') {
+                if (/\b(reorder|order|restock|replenish|procure|purchase|mag-reorder|i-reorder)\b/i.test(normalized)) {
+                    return 'Reviewing reorder needs...';
+                }
+                if (/\b(low stock|low in stock|low on stock|running out|paubos|critical stock|shortage)\b/i.test(normalized)) {
+                    return 'Checking low-stock items...';
+                }
+                if (/\b(forecast|demand|predicted|projection|trend)\b/i.test(normalized)) {
+                    return 'Analyzing demand data...';
+                }
+                const detectedItem = this.extractItemName(trimmed);
+                if (detectedItem) return `Reviewing ${detectedItem}...`;
+                return 'Reviewing your inventory file...';
+            }
+
+            if (['document', 'text'].includes(attachment.type)) {
+                if (/\b(summar(?:y|ize|ise|ies|izing)?|overview|status|sitwasyon|kalagayan|kabuuan|lagom)\b/i.test(normalized)) {
+                    return 'Preparing your inventory summary...';
+                }
+                const detectedItem = this.extractItemName(trimmed);
+                if (detectedItem) return `Reviewing ${detectedItem}...`;
+                return 'Reviewing your report...';
+            }
+        }
+
+        if (!trimmed) return 'Looking into that...';
+
+        // Conversational pleasantries, greetings, acknowledgments, and farewells
+        if (/\b(hi|hello|hey|kamusta|kumusta|good (morning|afternoon|evening)|magandang (araw|umaga|hapon|gabi))\b/i.test(normalized) &&
+            !/\b(stock|item|inventory|reorder|supplier|delivery|expiry|batch|order|requisition)\b/i.test(normalized)) {
+            return 'Replying...';
+        }
+        if (/\b(how are you|kamusta ka|kumusta ka)\b/i.test(normalized)) {
+            return 'Replying...';
+        }
+        if (/\b(salamat|thank you|thanks|noted|okay|alright|got it|sige|ok)\b/i.test(normalized)) {
+            return 'Replying...';
+        }
+        if (/\b(bye|goodbye|paalam|ingat|see you)\b/i.test(normalized)) {
+            return 'Replying...';
+        }
+
+        // 1. Item-specific inquiry
+        const detectedItem = this.extractItemName(trimmed);
+        if (detectedItem) {
+            return `Reviewing ${detectedItem}...`;
+        }
+
+        // 2. Expiry
+        if (/\b(expir(?:y|e|ed|ing)?|shelf life|spoiled|panis)\b/i.test(normalized)) {
+            return 'Checking expiring inventory...';
+        }
+
+        // 3. Reorder
+        if (/\b(reorder|order|restock|replenish|procure|purchase|mag-reorder|i-reorder)\b/i.test(normalized)) {
+            return 'Reviewing reorder needs...';
+        }
+
+        // 4. Out of stock / unavailable
+        if (/\b(out of stock|zero stock|depleted|walang stock|ubos|unavailable)\b/i.test(normalized)) {
+            return 'Checking unavailable items...';
+        }
+
+        // 5. Low stock / running out
+        if (/\b(low stock|low in stock|low on stock|running out|paubos|critical stock|shortage)\b/i.test(normalized)) {
+            return 'Checking low-stock items...';
+        }
+
+        // 6. Stock movement
+        if (/\b(movement|movements|stock movement|stock in|stock out|issued|dispensed|transferred)\b/i.test(normalized)) {
+            if (/\b(this month|monthly|buwan)\b/i.test(normalized)) {
+                return 'Reviewing recent stock movements...';
+            }
+            if (/\b(this week|weekly|linggo)\b/i.test(normalized)) {
+                return "Reviewing this week's inventory activity...";
+            }
+            return 'Reviewing recent stock movements...';
+        }
+
+        if (/\b(this week|what happened.*week|nangyari.*linggo)\b/i.test(normalized)) {
+            return "Reviewing this week's inventory activity...";
+        }
+
+        // 7. Demand forecast explanation
+        if (/\b(explain.*forecast|paliwanag.*forecast|meaning.*forecast)\b/i.test(normalized)) {
+            return 'Reviewing the demand forecast...';
+        }
+
+        // 8. Demand forecast / predicted demand
+        if (/\b(forecast|predicted demand|projection|projected|demand trend)\b/i.test(normalized)) {
+            return 'Checking demand forecast...';
+        }
+
+        // 9. Risk analysis
+        if (/\b(risk|at-risk|high risk|peligro|delikado)\b/i.test(normalized)) {
+            return 'Checking inventory risk...';
+        }
+
+        // 10. Inventory summary
+        if (/\b(summar(?:y|ize|ise|ies|izing)?|overview|status|sitwasyon|kalagayan|kabuuan|lagom)\b/i.test(normalized)) {
+            return 'Preparing your inventory summary...';
+        }
+
+        // 11. General inventory question
+        if (/\b(inventory|stock|supplies|gamot|items|bodega)\b/i.test(normalized)) {
+            return 'Reviewing inventory data...';
+        }
+
+        return 'Looking into that...';
+    },
+
+    async sendSuggested(text) {
+        this.input = text;
+        await this.sendMessage();
+    },
+
+    async sendMessage() {
+        const text = this.input.trim();
+        const attached = this.selectedFile ? { ...this.selectedFile } : null;
+
+        if ((!text && !attached) || this.isLoading) return;
+
+        this.errorMessage = '';
+        this.input = '';
+        this.removeFile(false);
+
+        this.loadingStatus = this.determineStatusMessage(text, attached);
+        this.isLoading = true;
+
+        const historyPayload = this.messages.slice(-6).map((m) => ({
+            role: m.role,
+            content: m.content,
+        }));
+
+        const userMsg = {
+            role: 'user',
+            content: text || (attached ? `Please analyze this attached file (${attached.name}).` : ''),
+            attachment: attached,
+            time: this.formatTime(),
+        };
+        this.messages.push(userMsg);
+        this.scrollToBottom();
+
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+            let response;
+
+            if (attached && attached.file) {
+                const formData = new FormData();
+                if (text) {
+                    formData.append('message', text);
+                }
+                if (this.conversationId) {
+                    formData.append('conversation_id', this.conversationId);
+                }
+                formData.append('attachment', attached.file);
+                formData.append('history', JSON.stringify(historyPayload));
+
+                response = await fetch(this.endpoint, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': csrfToken || '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-Session-Activity': 'passive',
+                    },
+                    body: formData,
+                });
+            } else {
+                response = await fetch(this.endpoint, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken || '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-Session-Activity': 'passive',
+                    },
+                    body: JSON.stringify({
+                        message: text,
+                        conversation_id: this.conversationId,
+                        history: historyPayload,
+                    }),
+                });
+            }
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(data.message || (data.errors && data.errors.attachment ? data.errors.attachment[0] : null) || 'The assistant is temporarily unavailable. Please try again.');
+            }
+
+            if (data.conversation_id) {
+                this.conversationId = data.conversation_id;
+            }
+            if (data.conversation_title) {
+                this.conversationTitle = data.conversation_title;
+            }
+
+            this.messages.push({
+                role: 'assistant',
+                content: data.reply || 'No response generated.',
+                time: this.formatTime(),
+                source: data.source || 'ai',
+                statusHint: data.status_hint || null,
+            });
+        } catch (err) {
+            this.errorMessage = err instanceof Error ? err.message : 'Unable to get an AI response right now.';
+            this.messages.push({
+                role: 'assistant',
+                content: "I'm unable to generate an AI response right now. Please try again.",
+                time: this.formatTime(),
+                isError: true,
+            });
+        } finally {
+            this.isLoading = false;
+            this.scrollToBottom();
+        }
+    },
+}));
+
+Alpine.data('shipmentTracking', () => ({
+    dockModalOpen: false,
+    selectedShipment: null,
+    selectedShipmentNumber: '',
+    selectedPickup: '',
+    selectedDestination: '',
+    isColdChain: false,
+
+    openDockArrival(shipment) {
+        this.selectedShipment = shipment.id;
+        this.selectedShipmentNumber = shipment.number;
+        this.selectedPickup = shipment.pickup;
+        this.selectedDestination = shipment.destination;
+        this.isColdChain = Boolean(shipment.cold_chain);
+        this.dockModalOpen = true;
+    },
+}));
+
+Alpine.data('procurementWorkspace', ({
+    activeTab = 'orders_revisions',
+    items = [],
+    suppliers = [],
+    supplierTerms = {},
+    initial = {},
+    approvalCorrection = null,
+} = {}) => ({
+    activeTab,
+    items,
+    suppliers,
+    supplierTerms,
+    itemId: String(initial.itemId || ''),
+    supplierId: String(initial.supplierId || ''),
+    quantity: Number(initial.quantity || 1),
+    deliveryDate: String(initial.deliveryDate || ''),
+    selectedPo: null,
+    selectedPoCxml: '',
+    selectedPoNumber: '',
+    showCxmlModal: false,
+    approvalCorrection,
+    revisedDeliveryDate: String(approvalCorrection?.revised_delivery_date || ''),
+    deliveryDateChangeReason: String(approvalCorrection?.reason || ''),
+
+    init() {
+        const validTabs = ['enterprise_s2p', 'orders_revisions', 'legacy_canvass', 'sourcing_rfqs', 'evaluations', 'doa_approvals', 'audit_trail'];
+        const requestedTab = new URLSearchParams(window.location.search).get('tab');
+
+        if (validTabs.includes(requestedTab)) this.activeTab = requestedTab;
+
+        this.$watch('activeTab', (tab) => {
+            if (!validTabs.includes(tab)) return;
+
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', tab);
+            if (tab !== 'sourcing_rfqs') url.searchParams.delete('purchase_request_id');
+            url.hash = '';
+            window.history.replaceState(window.history.state, '', url);
+        });
+
+        if (this.approvalCorrection) {
+            this.$nextTick(() => this.$dispatch('open-modal', 'reschedule-po-delivery'));
+        }
+    },
+
+    selectedItem() {
+        return this.items.find((item) => String(item.id) === String(this.itemId)) || null;
+    },
+
+    selectedSupplier() {
+        return this.suppliers.find((supplier) => String(supplier.id) === String(this.supplierId)) || null;
+    },
+
+    selectedTerms() {
+        const item = this.selectedItem();
+        const supplier = this.selectedSupplier();
+        if (!item || !supplier) return null;
+
+        return this.supplierTerms[`${supplier.id}:${item.id}`] || {
+            unit_cost: Number(item.catalog_unit_cost || 0),
+            currency: 'PHP',
+            minimum_order_quantity: 1,
+            lead_time_days: Number(supplier.lead_time_days || item.lead_time_days || 7),
+            price_source: 'item_catalog',
+        };
+    },
+
+    trustedUnitCost() {
+        return Number(this.selectedTerms()?.unit_cost || 0);
+    },
+
+    orderTotal() {
+        return Math.max(0, Number(this.quantity || 0)) * this.trustedUnitCost();
+    },
+
+    minimumOrderQuantity() {
+        return Math.max(1, Number(this.selectedTerms()?.minimum_order_quantity || 1));
+    },
+
+    expectedDeliveryLabel() {
+        if (this.deliveryDate) return this.formatDate(this.deliveryDate);
+
+        const date = new Date();
+        date.setHours(12, 0, 0, 0);
+        date.setDate(date.getDate() + Math.max(0, Number(this.selectedTerms()?.lead_time_days || 7)));
+
+        return new Intl.DateTimeFormat(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        }).format(date);
+    },
+
+    isStockLow() {
+        const item = this.selectedItem();
+        if (!item) return false;
+        return Number(item.current_stock || 0) <= Number(item.reorder_point || 0);
+    },
+
+
+    useSuggestedQuantity() {
+        const suggested = Number(this.selectedItem()?.suggested_order_quantity || 0);
+        if (suggested > 0) this.quantity = Math.max(suggested, this.minimumOrderQuantity());
+    },
+
+    openPurchaseOrderReview(form) {
+        if (!form) return;
+
+        if (!this.selectedItem()) {
+            const itemSelect = form.querySelector('[name="item_id"]');
+            if (itemSelect) {
+                itemSelect.focus();
+                itemSelect.reportValidity();
+            }
+            return;
+        }
+
+        if (!this.selectedSupplier()) {
+            const supplierSelect = form.querySelector('[name="supplier_id"]');
+            if (supplierSelect) {
+                supplierSelect.focus();
+                supplierSelect.reportValidity();
+            }
+            return;
+        }
+
+        if (this.trustedUnitCost() <= 0) {
+            const warningEl = form.querySelector('#po-cost-warning');
+            if (warningEl) {
+                warningEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            return;
+        }
+
+        // If any required field inside a collapsed <details> tag (e.g. cost center) is invalid,
+        // expand the details tag first so the browser can focus and show the constraint validation message.
+        const details = form.querySelectorAll('details');
+        if (!form.checkValidity()) {
+            details.forEach((d) => { d.open = true; });
+            form.reportValidity();
+            return;
+        }
+
+        this.$dispatch('open-modal', 'review-purchase-order');
+    },
+
+    openPurchaseOrderDetails(order) {
+        this.selectedPo = order;
+        this.$dispatch('open-modal', 'purchase-order-details');
+    },
+
+    openDeliveryApproval(order) {
+        this.approvalCorrection = {
+            id: order.id,
+            number: order.number,
+            approve_url: order.approve_url,
+            current_delivery_date: order.current_delivery_date,
+        };
+        this.revisedDeliveryDate = '';
+        this.deliveryDateChangeReason = '';
+        this.$dispatch('close-modal', 'purchase-order-details');
+        this.$nextTick(() => this.$dispatch('open-modal', 'reschedule-po-delivery'));
+    },
+
+    formatCurrency(value, currency = 'PHP') {
+        return new Intl.NumberFormat('en-PH', {
+            style: 'currency',
+            currency: currency || 'PHP',
+            minimumFractionDigits: 2,
+        }).format(Number(value || 0));
+    },
+
+    formatNumber(value, digits = 0) {
+        return new Intl.NumberFormat(undefined, {
+            minimumFractionDigits: digits,
+            maximumFractionDigits: digits,
+        }).format(Number(value || 0));
+    },
+
+    formatDate(value) {
+        if (!value) return 'Not specified';
+        const date = new Date(`${String(value).slice(0, 10)}T12:00:00`);
+        if (Number.isNaN(date.getTime())) return String(value);
+
+        return new Intl.DateTimeFormat(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        }).format(date);
+    },
+}));
+
+Alpine.data('himsToastNotifications', (initialToasts = []) => ({
+    toasts: [],
+
+    init() {
+        if (Array.isArray(initialToasts)) {
+            initialToasts.forEach((toast) => {
+                this.addToast(toast);
+            });
+        }
+    },
+
+    addToast(payload) {
+        if (!payload || !payload.message) return;
+
+        const duration = Number(payload.duration || 5000);
+        const toast = {
+            id: payload.id || `toast-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            type: payload.type || 'success',
+            title: payload.title || '',
+            message: payload.message,
+            visible: true,
+            progress: 100,
+            duration,
+            remaining: duration,
+            interval: null,
+            isPaused: false,
+        };
+
+        this.playImportantSound(toast.type);
+        this.startTimer(toast);
+        this.toasts.push(toast);
+    },
+
+    playImportantSound(type) {
+        if (!['warning', 'error', 'danger'].includes(type)) return;
+
+        const audio = document.querySelector('[data-important-notification-audio]');
+        if (!(audio instanceof HTMLAudioElement)) return;
+
+        audio.pause();
+
+        try {
+            audio.currentTime = 0;
+            const playback = audio.play();
+            playback?.catch(() => {});
+        } catch {
+            // The visual notification remains available when autoplay is blocked.
+        }
+    },
+
+    startTimer(toast) {
+        const step = 50;
+        toast.interval = setInterval(() => {
+            if (toast.isPaused) return;
+
+            toast.remaining -= step;
+            toast.progress = Math.max(0, (toast.remaining / toast.duration) * 100);
+
+            if (toast.remaining <= 0) {
+                this.dismiss(toast);
+            }
+        }, step);
+    },
+
+    pauseTimer(toast) {
+        toast.isPaused = true;
+    },
+
+    resumeTimer(toast) {
+        toast.isPaused = false;
+    },
+
+    dismiss(toast) {
+        if (toast.interval) clearInterval(toast.interval);
+        toast.visible = false;
+        setTimeout(() => {
+            this.toasts = this.toasts.filter((t) => t.id !== toast.id);
+        }, 300);
+    },
+}));
+
+if (document.querySelector('[data-hims-camera-scanner]')) {
+    const { himsCameraScanner, playScanAudio } = await import('./scanner');
+
+    window.playScanAudio = playScanAudio;
+    Alpine.data('himsCameraScanner', himsCameraScanner);
+}
+
 Alpine.start();
+startMetricSummaryTooltips();
+startAccessibleDialogs();
+focusFirstInvalidField();

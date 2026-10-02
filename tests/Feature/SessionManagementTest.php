@@ -31,6 +31,7 @@ class SessionManagementTest extends TestCase
             ->assertOk()
             ->assertSee('data-session-timeout-seconds="240"', false)
             ->assertSee('data-session-warning-seconds="60"', false)
+            ->assertSee('data-session-warning-enabled="true"', false)
             ->assertSee('data-session-warning', false)
             ->assertSee('aria-modal="true"', false)
             ->assertSee('aria-live="polite"', false)
@@ -42,13 +43,41 @@ class SessionManagementTest extends TestCase
             ->assertSee('Dismiss');
     }
 
+    public function test_disabling_the_reminder_does_not_disable_automatic_session_expiration(): void
+    {
+        $user = User::factory()->create([
+            'session_timeout_reminder_enabled' => false,
+        ]);
+
+        $this->actingAs($user)
+            ->get('/profile')
+            ->assertOk()
+            ->assertSee('data-session-warning-enabled="false"', false)
+            ->assertSee('preload="none"', false);
+
+        $response = $this
+            ->withSession([
+                EnforceSessionInactivity::LAST_ACTIVITY_AT => now()->subMinutes(4)->getTimestamp(),
+            ])
+            ->get('/dashboard');
+
+        $response
+            ->assertRedirect(route('login'))
+            ->assertSessionHas('session_timeout', true);
+        $this->assertGuest();
+    }
+
     public function test_session_warning_sound_is_available_from_the_public_asset_directory(): void
     {
         $soundPath = public_path('audio/session_sound.mp3');
 
         $this->assertFileExists($soundPath);
         $this->assertGreaterThan(0, filesize($soundPath));
-        $this->assertSame('ID3', file_get_contents($soundPath, false, null, 0, 3));
+        $header = file_get_contents($soundPath, false, null, 0, 3);
+        $this->assertTrue(
+            str_starts_with($header, 'ID3')
+            || (ord($header[0]) === 0xFF && (ord($header[1]) & 0xE0) === 0xE0),
+        );
     }
 
     public function test_login_starts_the_inactivity_clock(): void

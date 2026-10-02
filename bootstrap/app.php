@@ -1,20 +1,27 @@
 <?php
 
+use App\Http\Middleware\EnforceSecurityHeaders;
 use App\Http\Middleware\EnforceSessionInactivity;
+use App\Http\Middleware\EnforceSingleActiveSession;
 use App\Http\Middleware\EnsureAdministrator;
 use App\Http\Middleware\EnsureAuthenticationPanelRole;
 use App\Http\Middleware\EnsureMfaIsComplete;
 use App\Http\Middleware\EnsurePasswordIsCurrent;
+use App\Http\Middleware\EnsurePrivacyConsentIsCurrent;
 use App\Http\Middleware\EnsureSuperAdministrator;
 use App\Http\Middleware\EnsureUserIsActive;
+use App\Http\Middleware\PreventBackHistoryCache;
 use App\Support\AuthenticationContext;
+use App\Support\AuthenticationPanel;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Exceptions\InvalidSignatureException;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -23,6 +30,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Trust reverse proxies and tunnels (e.g. ngrok, cloudflare, local forwarders)
+        // so $request->ip() resolves the client's actual remote IP instead of 127.0.0.1.
+        $middleware->trustProxies(at: '*');
+
         // The Blade screens call /api/v1/* with the session cookie rather than a
         // bearer token. Without this, the api group never starts a session, so
         // auth:sanctum cannot resolve the logged-in user and every call 401s.
@@ -48,10 +59,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // account takes effect immediately, not at the end of their session.
         $middleware->web(append: [
             EnforceSessionInactivity::class,
+            EnforceSingleActiveSession::class,
             EnsureUserIsActive::class,
             EnsureAuthenticationPanelRole::class,
             EnsureMfaIsComplete::class,
             EnsurePasswordIsCurrent::class,
+            EnsurePrivacyConsentIsCurrent::class,
+            PreventBackHistoryCache::class,
+            EnforceSecurityHeaders::class,
         ]);
 
         $middleware->prependToPriorityList(
@@ -64,12 +79,40 @@ return Application::configure(basePath: dirname(__DIR__))
         // because the middleware only acts on the authenticated web guard.
         $middleware->api(append: [
             EnforceSessionInactivity::class,
+            EnforceSingleActiveSession::class,
             EnsureAuthenticationPanelRole::class,
             EnsureMfaIsComplete::class,
             EnsurePasswordIsCurrent::class,
+            EnsurePrivacyConsentIsCurrent::class,
+            PreventBackHistoryCache::class,
+            EnforceSecurityHeaders::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (InvalidSignatureException $exception, Request $request) {
+            if (! $request->routeIs('verification.verify') || $request->expectsJson()) {
+                return null;
+            }
+
+            $expired = is_numeric($request->query('expires'))
+                && (int) $request->query('expires') <= now()->timestamp;
+
+            $panel = AuthenticationPanel::tryFrom((string) $request->query('panel')) ?? AuthenticationPanel::Staff;
+
+            return response()->view('auth.verification-link-invalid', [
+                'expired' => $expired,
+                'panel' => $panel,
+            ], 403);
+        });
+
+        $exceptions->render(function (NotFoundHttpException $exception, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Not Found'], 404);
+            }
+
+            return null;
+        });
+
         // Keep Laravel's CSRF protection unchanged, but present browser token
         // mismatches with the branded recovery screen even when debug mode is
         // enabled locally. JSON callers retain Laravel's default response.
@@ -79,5 +122,63 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->view('errors.419', status: 419);
+        });
+
+        // Safe failure handling for domain-managed transaction recovery
+        $exceptions->render(function (\App\Exceptions\SafeOperationException $exception, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $exception->getMessage(),
+                    'error_id' => $exception->errorId,
+                    'module' => $exception->module,
+                ], 500);
+            }
+
+            return response()->view('errors.500', ['errorId' => $exception->errorId], 500);
+        });
+
+        // Safe failure handling for unhandled server exceptions (redacts stack traces/SQL queries)
+        $exceptions->render(function (Throwable $exception, Request $request) {
+            if ($exception instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                || $exception instanceof \Illuminate\Validation\ValidationException
+                || $exception instanceof \Illuminate\Auth\AuthenticationException
+                || $exception instanceof \Illuminate\Auth\Access\AuthorizationException
+                || $exception instanceof \Illuminate\Session\TokenMismatchException
+                || $exception instanceof \App\Exceptions\SafeOperationException) {
+                return null;
+            }
+
+            if (config('app.debug') && ! app()->environment('production', 'testing')) {
+                return null;
+            }
+
+            try {
+                $recovery = app(\App\Services\Recovery\SafeExecutionService::class)->recordFailure(
+                    exception: $exception,
+                    module: 'system',
+                    operation: 'http_request',
+                    context: ['path' => $request->path()],
+                    isRetryable: false,
+                    strategy: 'unhandled_exception_intercept'
+                );
+                $errorId = $recovery->error_id;
+            } catch (Throwable) {
+                $errorId = 'REC-' . strtoupper(\Illuminate\Support\Str::random(8));
+            }
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'An unexpected system error occurred. Operations were safely aborted.',
+                    'error_id' => $errorId,
+                ], 500);
+            }
+
+            return response()->view('errors.500', ['errorId' => $errorId], 500);
+        });
+
+        $exceptions->respond(function (\Symfony\Component\HttpFoundation\Response $response, Throwable $exception, Request $request) {
+            return PreventBackHistoryCache::applyHeaders($request, $response);
         });
     })->create();

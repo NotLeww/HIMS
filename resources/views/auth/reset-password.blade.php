@@ -1,10 +1,6 @@
 <x-guest-layout :title="$panel->label().' Password Reset'">
     <div class="space-y-7">
         <header>
-            <div class="mb-4 inline-flex items-center gap-2 rounded-full border border-primary-100 bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">
-                <span class="h-1.5 w-1.5 rounded-full bg-primary-500"></span>
-                {{ $panel->label() }} password recovery
-            </div>
             <h1 class="text-3xl font-semibold tracking-tight text-neutral-900">Choose a new password</h1>
             <p class="mt-3 text-sm leading-6 text-neutral-500">
                 Create a strong password for your {{ strtolower($panel->label()) }} account.
@@ -13,7 +9,7 @@
 
         <x-auth.wrong-panel-alert />
 
-        <form method="POST" action="{{ route($panel->passwordStoreRoute()) }}" class="space-y-5" x-data="{ password: '', passwordConfirmation: '' }">
+        <form method="POST" action="{{ route($panel->passwordStoreRoute()) }}" class="space-y-5" autocomplete="off" x-data="{ password: '', passwordConfirmation: '' }">
             @csrf
 
             <input type="hidden" name="token" value="{{ $request->route('token') }}">
@@ -28,7 +24,7 @@
                     :value="old('email', $request->email)"
                     required
                     autofocus
-                    autocomplete="username"
+                    autocomplete="off"
                 />
                 <x-input-error :messages="$errors->get('email')" class="mt-2 text-danger-600" />
             </div>

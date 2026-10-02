@@ -58,6 +58,16 @@ final class AuthenticationContext
         return self::isSuperAdmin() ? 'super-admin.dashboard' : 'dashboard';
     }
 
+    public static function auditLogRoute(string $action = 'index'): string
+    {
+        return self::administrationRoute('audit-logs.'.$action);
+    }
+
+    public static function administrationRoute(string $route): string
+    {
+        return (self::isSuperAdmin() ? 'super-admin.' : 'admin.').$route;
+    }
+
     public static function logoutRoute(): string
     {
         return match (self::authenticatedGuard()) {

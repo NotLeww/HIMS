@@ -2,20 +2,31 @@
 
 namespace Tests\Feature;
 
+use App\Contracts\SmsGateway;
+use App\Enums\ActivationCancellationReason;
 use App\Enums\AuditAction;
 use App\Enums\MovementType;
 use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Models\AccountActivationChallenge;
 use App\Models\AuditLog;
 use App\Models\InventoryItem;
+use App\Models\KpiProcessReview;
 use App\Models\StockMovement;
 use App\Models\User;
+use App\Models\UserActiveSession;
+use App\Notifications\AccountActivationCancelled;
+use App\Notifications\AccountCreated;
 use App\Services\UserAccountService;
 use App\Support\AuthenticationContext;
+use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -51,6 +62,16 @@ class UserManagementTest extends TestCase
             ->assertSee('Ben Santos');
     }
 
+    public function test_only_super_administrator_can_assign_the_auditor_role(): void
+    {
+        $service = app(UserAccountService::class);
+        $admin = $this->admin();
+        $superAdmin = User::factory()->superAdministrator()->create();
+
+        $this->assertNotContains(UserRole::Auditor, $service->assignableRoles($admin));
+        $this->assertContains(UserRole::Auditor, $service->assignableRoles($superAdmin));
+    }
+
     /**
      * Every non-administrator role, driven off the enum rather than a hand
      * written list — a role added later is covered without editing this test.
@@ -79,7 +100,7 @@ class UserManagementTest extends TestCase
                 'role' => UserRole::Administrator->value,
                 'phone' => '09171234567',
             ])->assertForbidden()
-                ->assertSessionMissing('account_created_success');
+                ->assertSessionMissing('success');
         }
 
         // Not one of those attempts created anything.
@@ -121,12 +142,25 @@ class UserManagementTest extends TestCase
         $staff = User::factory()->warehouseStaff()->create();
 
         $this->actingAs($staff)->get('/dashboard')->assertStatus(200);
+        UserActiveSession::updateOrCreate(
+            ['user_id' => $staff->id],
+            [
+                'guard' => 'web',
+                'session_id' => 'active-before-deactivation',
+                'last_active_at' => now(),
+            ],
+        );
+        $staff->createToken('active-before-deactivation');
+        $staff->forceFill(['remember_token' => 'remember-before-deactivation'])->saveQuietly();
 
         $this->actingAs($admin)
             ->from('/admin/users')
             ->patch("/admin/users/{$staff->id}/status")
             ->assertRedirect('/admin/users');
 
+        $this->assertDatabaseMissing('user_active_sessions', ['user_id' => $staff->id]);
+        $this->assertDatabaseMissing('personal_access_tokens', ['tokenable_id' => $staff->id]);
+        $this->assertNull($staff->fresh()->remember_token);
         $this->actingAs($staff->fresh())->get('/dashboard')->assertRedirect('/login');
         $this->assertGuest();
     }
@@ -151,6 +185,27 @@ class UserManagementTest extends TestCase
 
     public function test_an_administrator_creates_a_staff_account(): void
     {
+        Notification::fake();
+        $sms = new class implements SmsGateway
+        {
+            public ?string $destination = null;
+
+            public ?string $message = null;
+
+            public function available(): bool
+            {
+                return true;
+            }
+
+            public function send(string $mobileNumber, #[\SensitiveParameter] string $message): bool
+            {
+                $this->destination = $mobileNumber;
+                $this->message = $message;
+
+                return true;
+            }
+        };
+        $this->app->instance(SmsGateway::class, $sms);
         $admin = $this->admin();
 
         $response = $this->actingAs($admin)->post('/admin/users', [
@@ -158,8 +213,6 @@ class UserManagementTest extends TestCase
             'first_name' => 'Juan',
             'middle_name' => 'Santos',
             'email' => 'juan.delacruz@djnrmhs.test',
-            'password' => 'Password123!',
-            'password_confirmation' => 'Password123!',
             'role' => UserRole::InventoryManager->value,
             'employee_id' => 'EMP-9999', // A forged value must be ignored.
             'department' => 'Central Supply',
@@ -168,7 +221,7 @@ class UserManagementTest extends TestCase
 
         $response
             ->assertSessionHasNoErrors()
-            ->assertSessionHas('account_created_success', 'Account created successfully.')
+            ->assertSessionHas('success', 'Account created as Pending Activation. The user must activate it and create their own password from the login page.')
             ->assertRedirect('/admin/users');
 
         $created = User::where('email', 'juan.delacruz@djnrmhs.test')->firstOrFail();
@@ -178,18 +231,30 @@ class UserManagementTest extends TestCase
         $this->assertSame('Santos', $created->middle_name);
         $this->assertSame('Juan Santos Dela Cruz', $created->name);
         $this->assertSame(UserRole::InventoryManager, $created->role);
-        $this->assertSame(UserStatus::Active, $created->status);
+        $this->assertSame(UserStatus::PendingActivation, $created->status);
         $this->assertSame('EMP-0001', $created->employee_id);
 
-        // Stored hashed by the model's 'hashed' cast, never in the clear.
-        $this->assertNotSame('Password123!', $created->password);
-        $this->assertTrue(Hash::check('Password123!', $created->password));
+        $this->assertNull($created->password);
 
-        // Created by an administrator in person, so no verification email step.
-        $this->assertNotNull($created->email_verified_at);
+        $this->assertNull($created->email_verified_at);
+        Notification::assertSentTo($created, AccountCreated::class, function (AccountCreated $notification) use ($created): bool {
+            $mail = $notification->toMail($created);
+            $html = view($mail->view['html'], $mail->viewData)->render();
+
+            return $mail->view['html'] === 'emails.auth.account-created'
+                && str_contains($mail->viewData['activationUrl'], '/verify-email/'.$created->id.'/')
+                && str_contains($html, 'background:#174c86')
+                && str_contains($html, 'Activate HIMS Account');
+        });
+        $this->assertSame('09171234567', $sms->destination);
+        $this->assertSame(
+            'Your HIMS account has been created. To activate it, open the HIMS sign-in page, select Activate account, and verify using the code sent by email or SMS.',
+            $sms->message,
+        );
 
         $this->actingAs($admin)->get('/admin/users')
-            ->assertSee('Account created successfully.')
+            ->assertSee('himsToastNotifications', false)
+            ->assertSee('Account created as Pending Activation. The user must activate it and create their own password from the login page.')
             ->assertSee('Juan Santos Dela Cruz')
             ->assertSee('09171234567')
             ->assertSeeInOrder([
@@ -197,7 +262,7 @@ class UserManagementTest extends TestCase
             ]);
 
         $this->actingAs($admin)->get('/admin/users')
-            ->assertDontSee('Account created successfully.');
+            ->assertDontSee('Account created as Pending Activation. The user must activate it and create their own password from the login page.');
     }
 
     public function test_a_new_account_gets_exactly_its_role_permissions(): void
@@ -216,6 +281,9 @@ class UserManagementTest extends TestCase
         ])->assertRedirect('/admin/users');
 
         $pharmacy = User::where('email', 'cely@djnrmhs.test')->firstOrFail();
+
+        $this->assertFalse($pharmacy->hasPermission(Permission::ViewInventory));
+        $pharmacy->forceFill(['status' => UserStatus::Active, 'password' => Hash::make('Activated1!')])->save();
 
         // What the department actually does: read the shelf and dispense from it.
         $this->assertTrue($pharmacy->hasPermission(Permission::ViewInventory));
@@ -248,11 +316,11 @@ class UserManagementTest extends TestCase
             'department' => 'Warehouse',
             'phone' => '09171234567',
         ])->assertSessionHasErrors('email')
-            ->assertSessionMissing('account_created_success')
+            ->assertSessionMissing('success')
             ->assertSessionDoesntHaveErrors('employee_id');
     }
 
-    public function test_mismatched_password_confirmation_is_rejected(): void
+    public function test_admin_supplied_password_fields_are_ignored(): void
     {
         $this->actingAs($this->admin())->post('/admin/users', [
             'surname' => 'Account',
@@ -263,10 +331,10 @@ class UserManagementTest extends TestCase
             'role' => UserRole::Viewer->value,
             'department' => 'Warehouse',
             'phone' => '09171234567',
-        ])->assertSessionHasErrors('password')
-            ->assertSessionMissing('account_created_success');
+        ])->assertSessionHasNoErrors()
+            ->assertSessionHas('success');
 
-        $this->assertDatabaseMissing('users', ['email' => 'typo@djnrmhs.test']);
+        $this->assertNull(User::query()->where('email', 'typo@djnrmhs.test')->firstOrFail()->password);
     }
 
     public function test_a_database_failure_does_not_create_an_account_or_show_success(): void
@@ -291,7 +359,7 @@ class UserManagementTest extends TestCase
 
         $response
             ->assertServerError()
-            ->assertSessionMissing('account_created_success');
+            ->assertSessionMissing('success');
 
         $this->assertDatabaseMissing('users', [
             'email' => 'failed.creation@djnrmhs.test',
@@ -321,7 +389,7 @@ class UserManagementTest extends TestCase
 
         $this->actingAs($admin)->from('/admin/users/create')->post('/admin/users', [])
             ->assertRedirect('/admin/users/create')
-            ->assertSessionHasErrors(['surname', 'first_name', 'email', 'password', 'role', 'department', 'phone']);
+            ->assertSessionHasErrors(['surname', 'first_name', 'email', 'role', 'department', 'phone']);
 
         $this->assertSame($before, User::count());
 
@@ -340,6 +408,54 @@ class UserManagementTest extends TestCase
         $this->assertNull($created->middle_name);
         $this->assertSame('Ana Reyes', $created->name);
         $this->assertSame('09171234567', $created->phone);
+    }
+
+    public function test_name_parts_reject_numbers_and_special_characters_when_creating_or_updating_an_account(): void
+    {
+        $admin = $this->admin();
+        $invalidNames = [
+            'surname' => 'Reyes2',
+            'first_name' => 'Ana!',
+            'middle_name' => 'Marie-Jane',
+        ];
+
+        foreach ($invalidNames as $field => $value) {
+            $this->actingAs($admin)->post('/admin/users', array_merge([
+                'surname' => 'Reyes',
+                'first_name' => 'Ana',
+                'middle_name' => 'Marie',
+                'email' => "invalid-{$field}@djnrmhs.test",
+                'password' => 'Password123!',
+                'password_confirmation' => 'Password123!',
+                'role' => UserRole::Viewer->value,
+                'department' => 'Central Supply',
+                'phone' => '09170000001',
+            ], [$field => $value]))->assertSessionHasErrors($field);
+        }
+
+        $staff = User::factory()->warehouseStaff()->create([
+            'surname' => 'Reyes',
+            'first_name' => 'Ana',
+            'middle_name' => 'Marie',
+        ]);
+
+        foreach ($invalidNames as $field => $value) {
+            $this->actingAs($admin)->put("/admin/users/{$staff->id}", array_merge([
+                'surname' => 'Reyes',
+                'first_name' => 'Ana',
+                'middle_name' => 'Marie',
+                'email' => $staff->email,
+                'role' => $staff->role->value,
+                'status' => $staff->status->value,
+                'department' => $staff->department,
+                'phone' => $staff->phone,
+            ], [$field => $value]))->assertSessionHasErrors($field);
+        }
+
+        $staff->refresh();
+        $this->assertSame('Reyes', $staff->surname);
+        $this->assertSame('Ana', $staff->first_name);
+        $this->assertSame('Marie', $staff->middle_name);
     }
 
     public function test_a_missing_phone_number_prevents_user_creation(): void
@@ -422,10 +538,9 @@ class UserManagementTest extends TestCase
                 'phone' => $phone,
             ])->assertRedirect('/admin/users');
 
-            $this->assertDatabaseHas('users', [
-                'email' => $email,
-                'phone' => $phone,
-            ]);
+            $created = User::query()->where('email', $email)->firstOrFail();
+            $this->assertSame($phone, $created->phone);
+            $this->assertTrue(User::query()->wherePhoneNumber($phone)->whereKey($created->id)->exists());
         }
     }
 
@@ -445,7 +560,7 @@ class UserManagementTest extends TestCase
                 'role' => UserRole::Viewer->value,
                 'department' => 'Records Management',
                 'employee_id' => 'EMP-9001',
-                'phone' => '09171234567',
+                'phone' => '0917123456'.$number,
             ])->assertRedirect('/admin/users');
 
             $this->assertDatabaseHas('users', [
@@ -545,6 +660,400 @@ class UserManagementTest extends TestCase
         $this->assertTrue(Hash::check('BrandNewPass1!', $staff->password));
     }
 
+    public function test_changing_an_account_email_requires_verification_of_the_new_address(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $staff = User::factory()->create();
+        UserActiveSession::query()->create([
+            'user_id' => $staff->id,
+            'guard' => AuthenticationContext::WEB_GUARD,
+            'session_id' => 'old-session',
+            'ip_address' => '127.0.0.1',
+            'last_activity_at' => now(),
+        ]);
+
+        $this->actingAs($admin)->put("/admin/users/{$staff->id}", [
+            ...$staff->nameComponents(),
+            'email' => 'changed.account@example.com',
+            'role' => $staff->role->value,
+            'status' => $staff->status->value,
+            'department' => $staff->department,
+            'phone' => $staff->phone,
+        ])->assertSessionHasNoErrors();
+
+        $staff->refresh();
+
+        $this->assertSame('changed.account@example.com', $staff->email);
+        $this->assertNull($staff->email_verified_at);
+        $this->assertDatabaseMissing('user_active_sessions', ['user_id' => $staff->id]);
+        Notification::assertSentTo($staff, VerifyEmail::class);
+
+        $this->app['auth']->forgetGuards();
+        $this->flushSession();
+        $url = Notification::sent($staff, VerifyEmail::class)->last()->toMail($staff)->actionUrl;
+        $this->get($url)->assertRedirect(route('login'));
+
+        $this->post(route('login'), [
+            'email' => 'changed.account@example.com',
+            'password' => 'password',
+        ])->assertRedirect(route('dashboard', absolute: false));
+        $this->get(route('dashboard'))->assertOk();
+    }
+
+    public function test_user_management_shows_pending_verification_and_can_resend_activation(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $staff = User::factory()->unverified()->create();
+
+        $this->actingAs($admin)->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSee('Pending Email Verification')
+            ->assertSee(route('admin.users.verification.send', $staff), escape: false);
+
+        $this->post(route('admin.users.verification.send', $staff))
+            ->assertRedirect()
+            ->assertSessionHas('success', 'A new verification email was sent to '.$staff->email.'.');
+
+        Notification::assertSentTo($staff, VerifyEmail::class);
+    }
+
+    public function test_resend_for_pending_activation_sends_account_created_notification(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+            'email_verified_at' => null,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.verification.send', $pending))
+            ->assertRedirect()
+            ->assertSessionHas('success', 'A new activation email was sent to '.$pending->email.'.');
+
+        Notification::assertSentTo($pending, AccountCreated::class);
+        Notification::assertNotSentTo($pending, VerifyEmail::class);
+    }
+
+    public function test_resending_activation_is_rate_limited(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $staff = User::factory()->unverified()->create();
+        $this->actingAs($admin);
+
+        for ($attempt = 1; $attempt <= 6; $attempt++) {
+            $this->post(route('admin.users.verification.send', $staff))->assertRedirect();
+        }
+
+        $this->post(route('admin.users.verification.send', $staff))->assertTooManyRequests();
+        Notification::assertSentToTimes($staff, VerifyEmail::class, 6);
+    }
+
+    public function test_pending_invitation_can_be_cancelled_and_its_challenge_is_invalidated(): void
+    {
+        Notification::fake();
+        $creator = $this->admin();
+        $admin = $this->admin();
+        $this->actingAs($creator);
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+            'email_verified_at' => null,
+        ]);
+        AccountActivationChallenge::create([
+            'user_id' => $pending->id,
+            'channel' => 'email',
+            'otp_hash' => Hash::make('123456'),
+            'expires_at' => now()->addMinutes(5),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSee('Cancel Activation');
+
+        $this->from('/admin/users')
+            ->patch(route('admin.users.cancel-invitation', $pending), [
+                'cancel_user_id' => $pending->id,
+            ])
+            ->assertRedirect('/admin/users')
+            ->assertSessionHasErrors(['cancellation_reason'], null, 'cancelActivation');
+
+        $this
+            ->from('/admin/users')
+            ->patch(route('admin.users.cancel-invitation', $pending), [
+                'cancel_user_id' => $pending->id,
+                'cancellation_reason' => ActivationCancellationReason::IncorrectEmailAddress->value,
+                'cancellation_details' => 'The registered address needs correction.',
+            ])
+            ->assertRedirect('/admin/users')
+            ->assertSessionHas('success', "{$pending->name}'s account activation was cancelled.");
+
+        $pending->refresh();
+        $this->assertSame(UserStatus::Cancelled, $pending->status);
+        $this->assertSame(ActivationCancellationReason::IncorrectEmailAddress, $pending->activation_cancellation_reason);
+        $this->assertSame('The registered address needs correction.', $pending->activation_cancellation_details);
+        $this->assertSame($admin->id, $pending->activation_cancelled_by);
+        $this->assertNotNull($pending->activation_cancelled_at);
+        $this->assertNotNull($pending->activation_cancellation_notice_sent_at);
+        $this->assertDatabaseMissing('account_activation_challenges', ['user_id' => $pending->id]);
+
+        Notification::assertSentTo($pending, AccountActivationCancelled::class, function ($notification) use ($creator, $pending): bool {
+            $mail = $notification->toMail($pending);
+            $html = view($mail->view['html'], $mail->viewData)->render();
+
+            return $mail->view['html'] === 'emails.auth.account-activation-cancelled'
+                && $mail->viewData['reason'] === 'Incorrect Email Address'
+                && $mail->viewData['details'] === 'The registered address needs correction.'
+                && $mail->viewData['creatorEmail'] === $creator->email
+                && str_contains($html, 'background:#991b1b')
+                && str_contains($html, 'mailto:'.$creator->email)
+                && str_contains($html, 'The registered address needs correction.');
+        });
+
+        $log = AuditLog::where('action', AuditAction::AccountActivationCancelled->value)->latest('id')->firstOrFail();
+        $this->assertSame(UserStatus::PendingActivation->value, $log->old_values['status']);
+        $this->assertSame(UserStatus::Cancelled->value, $log->new_values['status']);
+        $this->assertSame('Incorrect Email Address', $log->new_values['reason']);
+
+        $this->patch(route('admin.users.cancel-invitation', $pending), [
+            'cancel_user_id' => $pending->id,
+            'cancellation_reason' => ActivationCancellationReason::DuplicateAccount->value,
+        ])->assertSessionHasErrors('status');
+
+        Notification::assertSentToTimes($pending, AccountActivationCancelled::class, 1);
+
+        $cancelledIndex = $this->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSee('Cancelled')
+            ->assertSee('Re-invite');
+        $this->assertFalse(str_contains(
+            $cancelledIndex->getContent(),
+            route('admin.users.verification.send', $pending),
+        ));
+
+        $this->get(route('admin.users.show', $pending))
+            ->assertOk()
+            ->assertSee('Incorrect Email Address')
+            ->assertSee('The registered address needs correction.')
+            ->assertSee($admin->name)
+            ->assertSee('Resend Cancellation Notice');
+
+        $this->from('/admin/users')
+            ->patch(route('admin.users.toggle-status', $pending))
+            ->assertRedirect('/admin/users')
+            ->assertSessionHas('success', "A new activation invitation was sent to {$pending->email}.");
+
+        $this->assertSame(UserStatus::PendingActivation, $pending->fresh()->status);
+        $this->assertNull($pending->fresh()->activation_cancellation_reason);
+        Notification::assertSentTo($pending, AccountCreated::class);
+        $this->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSee('himsToastNotifications', false)
+            ->assertSee("A new activation invitation was sent to {$pending->email}.")
+            ->assertSee('Resend');
+    }
+
+    public function test_other_cancellation_reason_requires_and_emails_custom_details(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+            'email_verified_at' => null,
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.users.cancel-invitation', $pending), [
+                'cancel_user_id' => $pending->id,
+                'cancellation_reason' => ActivationCancellationReason::Other->value,
+                'cancellation_details' => '   ',
+            ])
+            ->assertSessionHasErrors(['cancellation_details'], null, 'cancelActivation');
+
+        $this->patch(route('admin.users.cancel-invitation', $pending), [
+            'cancel_user_id' => $pending->id,
+            'cancellation_reason' => ActivationCancellationReason::Other->value,
+            'cancellation_details' => 'Account was requested for the wrong hospital unit.',
+        ])->assertSessionHasNoErrors();
+
+        Notification::assertSentTo($pending, AccountActivationCancelled::class, function ($notification) use ($pending): bool {
+            return $notification->toMail($pending)->viewData['details'] === 'Account was requested for the wrong hospital unit.';
+        });
+    }
+
+    public function test_cancelled_account_cannot_use_an_old_activation_code_or_sign_in(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+            'email_verified_at' => null,
+        ]);
+        AccountActivationChallenge::create([
+            'user_id' => $pending->id,
+            'channel' => 'email',
+            'otp_hash' => Hash::make('123456'),
+            'expires_at' => now()->addMinutes(5),
+        ]);
+
+        $this->actingAs($admin)->patch(route('admin.users.cancel-invitation', $pending), [
+            'cancel_user_id' => $pending->id,
+            'cancellation_reason' => ActivationCancellationReason::RequestWithdrawn->value,
+        ]);
+
+        $this->app['auth']->forgetGuards();
+        $this->flushSession();
+        $this->withSession([
+            'account_activation.identity' => [
+                'user_id' => $pending->id,
+                'channel' => 'email',
+            ],
+        ])->post(route('activation.verify.store'), ['otp' => '123456'])
+            ->assertRedirect(route('activation.start'))
+            ->assertSessionHasErrors('email');
+
+        $this->assertSame(UserStatus::Cancelled, $pending->fresh()->status);
+        $this->assertFalse($pending->fresh()->hasVerifiedEmail());
+        $this->post(route('login'), ['email' => $pending->email, 'password' => 'Password1!']);
+        $this->assertGuest();
+    }
+
+    public function test_unauthorized_user_cannot_cancel_or_resend_a_cancellation_notice(): void
+    {
+        Notification::fake();
+        $viewer = User::factory()->viewer()->create();
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+        ]);
+
+        $this->actingAs($viewer)
+            ->patch(route('admin.users.cancel-invitation', $pending), [
+                'cancel_user_id' => $pending->id,
+                'cancellation_reason' => ActivationCancellationReason::DuplicateAccount->value,
+            ])->assertForbidden();
+
+        $pending->forceFill([
+            'status' => UserStatus::Cancelled,
+            'activation_cancellation_reason' => ActivationCancellationReason::DuplicateAccount,
+            'activation_cancelled_at' => now(),
+        ])->saveQuietly();
+
+        $this->post(route('admin.users.cancellation-notification.send', $pending))->assertForbidden();
+        Notification::assertNothingSent();
+    }
+
+    public function test_active_account_cannot_use_pending_activation_cancellation(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $active = User::factory()->warehouseStaff()->create();
+
+        $this->actingAs($admin)
+            ->patch(route('admin.users.cancel-invitation', $active), [
+                'cancel_user_id' => $active->id,
+                'cancellation_reason' => ActivationCancellationReason::CreatedByMistake->value,
+            ])
+            ->assertSessionHasErrors('status');
+
+        $this->assertSame(UserStatus::Active, $active->fresh()->status);
+        Notification::assertNothingSent();
+    }
+
+    public function test_cancellation_email_failure_does_not_undo_cancellation(): void
+    {
+        $admin = $this->admin();
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+        ]);
+        Notification::shouldReceive('send')->once()->andThrow(new \RuntimeException('Synthetic mail failure'));
+        Log::spy();
+
+        $this->actingAs($admin)
+            ->patch(route('admin.users.cancel-invitation', $pending), [
+                'cancel_user_id' => $pending->id,
+                'cancellation_reason' => ActivationCancellationReason::CreatedByMistake->value,
+            ])
+            ->assertSessionHas('warning');
+
+        $pending->refresh();
+        $this->assertSame(UserStatus::Cancelled, $pending->status);
+        $this->assertNull($pending->activation_cancellation_notice_sent_at);
+        Log::shouldHaveReceived('warning')->once();
+    }
+
+    public function test_authorized_admin_can_resend_cancellation_notice_without_changing_status(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $cancelled = User::factory()->create([
+            'status' => UserStatus::Cancelled,
+            'password' => null,
+            'email_verified_at' => null,
+            'activation_cancellation_reason' => ActivationCancellationReason::WrongRoleOrDepartment,
+            'activation_cancellation_details' => 'The assigned unit was incorrect.',
+            'activation_cancelled_at' => now(),
+            'activation_cancelled_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.cancellation-notification.send', $cancelled))
+            ->assertSessionHas('success', 'The cancellation notice was sent to '.$cancelled->email.'.');
+
+        $this->assertSame(UserStatus::Cancelled, $cancelled->fresh()->status);
+        Notification::assertSentToTimes($cancelled, AccountActivationCancelled::class, 1);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::AccountActivationCancellationNoticeResent->value,
+            'user_id' => $admin->id,
+            'target_id' => (string) $cancelled->id,
+        ]);
+
+        $this->post(route('admin.users.verification.send', $cancelled))
+            ->assertSessionHasErrors('status');
+        Notification::assertSentToTimes($cancelled, AccountActivationCancelled::class, 1);
+    }
+
+    public function test_correcting_a_pending_activation_email_invalidates_the_code_and_notifies_only_the_new_address(): void
+    {
+        Notification::fake();
+        $admin = $this->admin();
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+            'email_verified_at' => null,
+            'phone' => '09123456789',
+        ]);
+        AccountActivationChallenge::create([
+            'user_id' => $pending->id,
+            'channel' => 'email',
+            'otp_hash' => Hash::make('123456'),
+            'expires_at' => now()->addMinutes(5),
+        ]);
+        $this->actingAs($admin)->put(route('admin.users.update', $pending), [
+            ...$pending->nameComponents(),
+            'email' => 'corrected.activation@example.test',
+            'role' => $pending->role->value,
+            'status' => UserStatus::PendingActivation->value,
+            'department' => $pending->department,
+            'phone' => $pending->phone,
+        ])->assertSessionHasNoErrors();
+
+        $pending->refresh();
+        $this->assertSame(UserStatus::PendingActivation, $pending->status);
+        $this->assertSame('corrected.activation@example.test', $pending->email);
+        $this->assertDatabaseMissing('account_activation_challenges', ['user_id' => $pending->id]);
+        Notification::assertSentTo($pending, AccountCreated::class);
+        $this->assertSame('corrected.activation@example.test', $pending->routeNotificationFor('mail'));
+    }
+
     public function test_an_invalid_phone_number_cannot_update_a_user(): void
     {
         $admin = $this->admin();
@@ -563,6 +1072,11 @@ class UserManagementTest extends TestCase
             ->assertSessionHasErrors('phone');
 
         $this->assertSame('09123456789', $staff->fresh()->phone);
+
+        $this->get("/admin/users/{$staff->id}/edit")
+            ->assertOk()
+            ->assertSee("\$nextTick(() => \$dispatch('open-modal', 'edit-user-modal'))", false)
+            ->assertSee('value="+639123456789"', false);
     }
 
     // ------------------------------------------------------------------ status
@@ -582,9 +1096,15 @@ class UserManagementTest extends TestCase
         $this->actingAs($admin)
             ->from('/admin/users')
             ->patch("/admin/users/{$staff->id}/status")
-            ->assertRedirect('/admin/users');
+            ->assertRedirect('/admin/users')
+            ->assertSessionHas('success', "{$staff->name}'s account was reactivated successfully.");
 
         $this->assertSame(UserStatus::Active, $staff->fresh()->status);
+
+        $this->get('/admin/users')
+            ->assertOk()
+            ->assertSee('himsToastNotifications', false)
+            ->assertSee('account was reactivated successfully.');
     }
 
     public function test_deactivation_preserves_employee_inventory_and_audit_ownership(): void
@@ -642,6 +1162,27 @@ class UserManagementTest extends TestCase
             ->assertStatus(405);
 
         $this->assertDatabaseHas('users', ['id' => $staff->id]);
+    }
+
+    public function test_the_database_refuses_to_delete_an_evaluator_with_process_review_history(): void
+    {
+        $staff = User::factory()->inventoryManager()->create();
+        $review = KpiProcessReview::create([
+            'review_number' => 'REV-RETENTION-001',
+            'title' => 'Retention Test Review',
+            'period_start' => now()->subMonth()->toDateString(),
+            'period_end' => now()->toDateString(),
+            'evaluator_id' => $staff->id,
+            'status' => 'draft',
+        ]);
+
+        try {
+            $staff->delete();
+            $this->fail('The database must preserve users referenced by process review history.');
+        } catch (QueryException) {
+            $this->assertDatabaseHas('users', ['id' => $staff->id]);
+            $this->assertDatabaseHas('kpi_process_reviews', ['id' => $review->id]);
+        }
     }
 
     // ------------------------------------------------------------- lockout guards
@@ -802,7 +1343,9 @@ class UserManagementTest extends TestCase
         $admin = $this->admin();
         $staff = User::factory()->create();
 
-        $this->actingAs($admin)->get('/admin/users/create')
+        $createResponse = $this->actingAs($admin)->get('/admin/users/create');
+
+        $createResponse
             ->assertStatus(200)
             ->assertSee('name="surname"', false)
             ->assertSee('name="first_name"', false)
@@ -818,14 +1361,57 @@ class UserManagementTest extends TestCase
             ->assertSee('pattern="09[0-9]{9}"', false)
             ->assertSee('placeholder="09XXXXXXXXX"', false)
             ->assertDontSee('name="name"', false);
+        $createContent = $createResponse->getContent();
+        $createNameFieldCount = collect(['surname', 'first_name', 'middle_name'])
+            ->sum(fn (string $field): int => substr_count($createContent, 'name="'.$field.'"'));
+        $this->assertSame($createNameFieldCount, substr_count($createContent, 'data-name-part-input='));
+        $createResponse->assertSee('x-on:input="sanitizeNamePart($event)"', false);
 
-        $this->actingAs($admin)->get("/admin/users/{$staff->id}/edit")
+        $editResponse = $this->actingAs($admin)->get("/admin/users/{$staff->id}/edit");
+
+        $editResponse
             ->assertStatus(200)
+            ->assertSee("\$nextTick(() => \$dispatch('open-modal', 'edit-user-modal'))", false)
+            ->assertSee('aria-modal="true"', false)
+            ->assertSee('action="'.route('admin.users.update', $staff).'"', false)
             ->assertSee('value="'.e($staff->surname).'"', false)
             ->assertSee('value="'.e($staff->first_name).'"', false)
             ->assertSee('value="'.e($staff->employee_id).'"', false)
             ->assertSee('value="'.e($staff->department).'" selected', false)
             ->assertSee('value="'.$staff->role->value.'"', false);
+        $editContent = $editResponse->getContent();
+        $editNameFieldCount = collect(['surname', 'first_name', 'middle_name'])
+            ->sum(fn (string $field): int => substr_count($editContent, 'name="'.$field.'"'));
+        $this->assertSame(3, $editNameFieldCount);
+        $this->assertSame($editNameFieldCount, substr_count($editContent, 'data-name-part-input='));
+    }
+
+    public function test_add_user_uses_a_modal_and_reopens_after_validation_failure(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSee("\$dispatch('open-modal', 'create-user-modal')", false)
+            ->assertSee('create-user-modal')
+            ->assertSee('action="'.route('admin.users.store').'"', false);
+
+        $this->get(route('admin.users.create'))
+            ->assertOk()
+            ->assertSee("\$nextTick(() => \$dispatch('open-modal', 'create-user-modal'))", false);
+
+        $this->from(route('admin.users.index'))->post(route('admin.users.store'), [
+            'form_context' => 'create_user',
+            'surname' => 'Modal',
+            'email' => 'modal.user@djnrmhs.test',
+        ])->assertRedirect(route('admin.users.index'))
+            ->assertSessionHasErrors(['first_name', 'role', 'department', 'phone']);
+
+        $this->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSee("\$nextTick(() => \$dispatch('open-modal', 'create-user-modal'))", false)
+            ->assertSee('value="Modal"', false)
+            ->assertSee('value="modal.user@djnrmhs.test"', false);
     }
 
     public function test_editing_updates_each_name_part_and_the_complete_name(): void
@@ -888,5 +1474,50 @@ class UserManagementTest extends TestCase
 
         $this->actingAs(User::factory()->warehouseStaff()->create())->get('/dashboard')
             ->assertDontSee('User Management');
+    }
+
+    public function test_user_management_renders_role_permissions_modal_and_compact_reference(): void
+    {
+        $admin = $this->admin();
+
+        $response = $this->actingAs($admin)->get('/admin/users');
+
+        $response->assertStatus(200)
+            ->assertSee('Role Permissions Reference')
+            ->assertSee('View Role Permissions')
+            ->assertSee('role-permissions-modal')
+            ->assertSee('Super Administrator')
+            ->assertSee('Runs the storeroom: items, procurement, forecasts.');
+    }
+
+    public function test_create_form_hides_password_fields_and_edit_form_shows_them(): void
+    {
+        $admin = $this->admin();
+        $staff = User::factory()->create();
+
+        $this->actingAs($admin)->get('/admin/users/create')
+            ->assertStatus(200)
+            ->assertDontSee('name="password"', false)
+            ->assertDontSee('name="password_confirmation"', false);
+
+        $this->actingAs($admin)->get("/admin/users/{$staff->id}/edit")
+            ->assertStatus(200)
+            ->assertSee('name="password"', false)
+            ->assertSee('name="password_confirmation"', false);
+    }
+
+    public function test_edit_form_hides_password_fields_for_pending_activation_accounts(): void
+    {
+        $admin = $this->admin();
+        $pending = User::factory()->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+            'email_verified_at' => null,
+        ]);
+
+        $this->actingAs($admin)->get("/admin/users/{$pending->id}/edit")
+            ->assertStatus(200)
+            ->assertDontSee('name="password"', false)
+            ->assertDontSee('name="password_confirmation"', false);
     }
 }

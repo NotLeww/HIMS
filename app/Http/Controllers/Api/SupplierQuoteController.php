@@ -2,19 +2,33 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSupplierQuoteRequest;
 use App\Http\Requests\UpdateSupplierQuoteRequest;
 use App\Http\Resources\SupplierQuoteResource;
 use App\Models\SupplierQuote;
+use App\Services\Procurement\ProcurementAuditService;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class SupplierQuoteController extends Controller
+class SupplierQuoteController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:'.Permission::ViewProcurementSensitiveData->value, only: ['index', 'show']),
+            new Middleware('can:'.Permission::ManageSourcing->value, only: ['store', 'update']),
+        ];
+    }
+
+    public function __construct(private readonly ProcurementAuditService $auditService) {}
+
     public function index(Request $request)
     {
         $perPage = (int) $request->query('per_page', 15);
-        $items = SupplierQuote::with(['supplier', 'procurementRequest'])->paginate($perPage);
+        $items = SupplierQuote::with(['supplier', 'procurementRequest'])->paginate(min(max($perPage, 1), 100));
 
         return SupplierQuoteResource::collection($items);
     }
@@ -29,6 +43,15 @@ class SupplierQuoteController extends Controller
         $data = $request->validated();
         $sq = SupplierQuote::create($data);
 
+        $this->auditService->record(
+            $request->user(),
+            'SupplierQuote',
+            $sq->id,
+            'submitted_supplier_quote',
+            null,
+            ['supplier_id' => $sq->supplier_id, 'quoted_price' => $sq->quoted_price]
+        );
+
         return (new SupplierQuoteResource($sq))->response()->setStatusCode(201);
     }
 
@@ -37,12 +60,5 @@ class SupplierQuoteController extends Controller
         $supplier_quote->update($request->validated());
 
         return new SupplierQuoteResource($supplier_quote);
-    }
-
-    public function destroy(SupplierQuote $supplier_quote)
-    {
-        $supplier_quote->delete();
-
-        return response()->json(null, 204);
     }
 }

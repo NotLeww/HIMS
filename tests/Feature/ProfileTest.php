@@ -4,8 +4,11 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Models\User;
+use App\Support\AuthenticationContext;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -23,6 +26,9 @@ class ProfileTest extends TestCase
 
         $response
             ->assertOk()
+            ->assertSee('Session Timeout Reminder')
+            ->assertSee('name="session_timeout_reminder_enabled"', false)
+            ->assertDontSee('type="checkbox" name="session_timeout_reminder_enabled"', false)
             ->assertSee('Last Name')
             ->assertSee('First Name')
             ->assertSee('Middle Name')
@@ -34,8 +40,124 @@ class ProfileTest extends TestCase
             ->assertDontSee('name="name"', false);
     }
 
+    public function test_profile_editor_opens_from_summary_and_reopens_after_validation_error(): void
+    {
+        $user = User::factory()->create(['email' => 'original@example.com']);
+
+        $this->actingAs($user)
+            ->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee("open-modal', 'edit-profile'", false)
+            ->assertSee("=== 'edit-profile'", false);
+
+        $this->from(route('profile.edit'))
+            ->patch(route('profile.update'), [
+                'surname' => $user->surname,
+                'first_name' => $user->first_name,
+                'middle_name' => $user->middle_name,
+                'email' => 'invalid-email',
+                'current_password' => 'password',
+            ])
+            ->assertRedirect(route('profile.edit'))
+            ->assertSessionHasErrors('email');
+
+        $this->assertSame('original@example.com', $user->fresh()->email);
+
+        $this->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('x-init="$nextTick(() => $dispatch(\'open-modal\', \'edit-profile\'))"', false);
+    }
+
+    public function test_administrator_settings_expose_the_configuration_dialogs(): void
+    {
+        $admin = User::factory()->administrator()->create();
+
+        $response = $this->actingAs($admin)
+            ->get(route('profile.edit'))
+            ->assertOk();
+
+        foreach ([
+            'edit-profile',
+            'update-profile-picture',
+            'change-password',
+            'manage-authenticator',
+            'configure-sms-mfa',
+            'configure-email-mfa',
+            'configure-session-reminder',
+            'submit-privacy-request',
+        ] as $dialog) {
+            $response->assertSee("open-modal', '".$dialog."'", false);
+            $response->assertSee("=== '".$dialog."'", false);
+        }
+    }
+
+    public function test_session_timeout_reminder_can_be_turned_off_and_on(): void
+    {
+        $user = User::factory()->create([
+            'session_timeout_reminder_enabled' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->patch(route('profile.session-timeout-reminder.update'), [
+                'session_timeout_reminder_enabled' => '0',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas(
+                'session_reminder_success',
+                'Session timeout reminders are now OFF. Automatic logout remains active.',
+            )
+            ->assertRedirect('/profile');
+
+        $this->assertFalse($user->refresh()->session_timeout_reminder_enabled);
+
+        $this->get('/profile')
+            ->assertOk()
+            ->assertSee('Session timeout reminders are now OFF. Automatic logout remains active.')
+            ->assertSeeInOrder(['Session Timeout Reminder', 'aria-label="Configure Session Timeout Reminder"', 'aria-checked="false"'], false)
+            ->assertSee('name="session_timeout_reminder_enabled" value="1"', false)
+            ->assertSee('data-session-warning-enabled="false"', false)
+            ->assertSee('preload="none"', false);
+
+        $this->patch(route('profile.session-timeout-reminder.update'), [
+            'session_timeout_reminder_enabled' => '1',
+        ])->assertSessionHasNoErrors()
+            ->assertSessionHas('session_reminder_success', 'Session timeout reminders are now ON.')
+            ->assertRedirect('/profile');
+
+        $this->assertTrue($user->refresh()->session_timeout_reminder_enabled);
+
+        $this->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSeeInOrder(['Session Timeout Reminder', 'aria-label="Configure Session Timeout Reminder"', 'aria-checked="true"'], false)
+            ->assertSee('name="session_timeout_reminder_enabled" value="0"', false);
+    }
+
+    public function test_invalid_session_timeout_reminder_value_is_rejected(): void
+    {
+        $user = User::factory()->create([
+            'session_timeout_reminder_enabled' => true,
+        ]);
+
+        $this->actingAs($user)
+            ->from('/profile')
+            ->patch(route('profile.session-timeout-reminder.update'), [
+                'session_timeout_reminder_enabled' => 'sometimes',
+            ])
+            ->assertRedirect('/profile')
+            ->assertSessionHasErrors('session_timeout_reminder_enabled')
+            ->assertSessionMissing('session_reminder_success');
+
+        $this->assertTrue($user->refresh()->session_timeout_reminder_enabled);
+
+        $this->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('x-init="$nextTick(() => $dispatch(\'open-modal\', \'configure-session-reminder\'))"', false)
+            ->assertSeeInOrder(['Session Timeout Reminder', 'aria-label="Configure Session Timeout Reminder"', 'aria-checked="true"'], false);
+    }
+
     public function test_profile_information_can_be_updated(): void
     {
+        Notification::fake();
         $user = User::factory()->create();
 
         $response = $this
@@ -50,9 +172,11 @@ class ProfileTest extends TestCase
 
         $response
             ->assertSessionHasNoErrors()
-            ->assertSessionHas('profile_success', 'Email updated successfully.')
+            ->assertSessionHas('status', 'Email updated. Check your new address to reactivate your account before signing in.')
             ->assertSessionMissing('success')
-            ->assertRedirect('/profile');
+            ->assertRedirect(route('login'));
+
+        $this->assertGuest();
 
         $user->refresh();
 
@@ -62,6 +186,7 @@ class ProfileTest extends TestCase
         $this->assertSame('Juan Santos Dela Cruz', $user->name);
         $this->assertSame('test@example.com', $user->email);
         $this->assertNull($user->email_verified_at);
+        Notification::assertSentTo($user, VerifyEmail::class);
 
         $profilePage = $this
             ->actingAs($user)
@@ -72,17 +197,7 @@ class ProfileTest extends TestCase
             ->assertSee('value="Dela Cruz"', false)
             ->assertSee('value="Juan"', false)
             ->assertSee('value="Santos"', false)
-            ->assertSee('Juan Santos Dela Cruz')
-            ->assertSee('Email updated')
-            ->assertSee('Email updated successfully.');
-
-        $this->assertSame(1, substr_count($profilePage->getContent(), 'Email updated successfully.'));
-
-        $this
-            ->actingAs($user)
-            ->get('/profile')
-            ->assertOk()
-            ->assertDontSee('Email updated successfully.');
+            ->assertSee('Juan Santos Dela Cruz');
     }
 
     public function test_current_password_is_required_to_change_email(): void
@@ -269,7 +384,7 @@ class ProfileTest extends TestCase
         $this->get('/profile')
             ->assertOk()
             ->assertSee('Current password is incorrect.')
-            ->assertDontSee('Email updated successfully.');
+            ->assertDontSee('Email updated. Check your new address to verify it.');
 
         $this->get('/profile')
             ->assertOk()
@@ -319,20 +434,11 @@ class ProfileTest extends TestCase
             'email' => $newEmail,
             'current_password' => 'password',
         ])->assertSessionHasNoErrors()
-            ->assertSessionHas('profile_success', 'Email updated successfully.')
-            ->assertRedirect('/profile');
+            ->assertSessionHas('status', 'Email updated. Check your new address to reactivate your account before signing in.')
+            ->assertRedirect(route(AuthenticationContext::loginRoute($guard)));
 
         $this->assertSame($newEmail, $user->refresh()->email);
-
-        $this->get('/profile')
-            ->assertOk()
-            ->assertSee('Email updated successfully.')
-            ->assertSee('value="'.$newEmail.'"', false);
-
-        $this->get('/profile')
-            ->assertOk()
-            ->assertDontSee('Email updated successfully.')
-            ->assertSee('value="'.$newEmail.'"', false);
+        $this->assertGuest($guard);
     }
 
     public function test_email_verification_status_is_unchanged_when_the_email_address_is_unchanged(): void
@@ -353,6 +459,29 @@ class ProfileTest extends TestCase
             ->assertRedirect('/profile');
 
         $this->assertNotNull($user->refresh()->email_verified_at);
+    }
+
+    public function test_changing_own_email_revokes_the_existing_authenticated_session(): void
+    {
+        Notification::fake();
+        $user = User::factory()->create();
+
+        $this->post(route('login'), [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertRedirect(route('dashboard', absolute: false));
+
+        $this->patch(route('profile.update'), [
+            ...$user->nameComponents(),
+            'email' => 'replacement@example.test',
+            'current_password' => 'password',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertNull($user->fresh()->email_verified_at);
+        $this->assertDatabaseMissing('user_active_sessions', ['user_id' => $user->id]);
+        Notification::assertSentTo($user, VerifyEmail::class);
+
+        $this->assertGuest();
     }
 
     public function test_middle_name_is_optional_and_full_name_omits_it_cleanly(): void
@@ -529,7 +658,7 @@ class ProfileTest extends TestCase
         }
     }
 
-    public function test_profile_explains_account_retention_and_has_no_delete_control(): void
+    public function test_profile_explains_retention_and_offers_a_reviewed_deletion_request(): void
     {
         $user = User::factory()->create();
 
@@ -538,7 +667,8 @@ class ProfileTest extends TestCase
             ->get('/profile')
             ->assertOk()
             ->assertSee('Account Retention')
-            ->assertSee('Your account cannot be permanently deleted.')
+            ->assertSee('Exercise Privacy Rights')
+            ->assertSee('required historical records will remain')
             ->assertDontSee('Delete Account');
     }
 
@@ -554,6 +684,26 @@ class ProfileTest extends TestCase
 
         $this->assertAuthenticatedAs($user);
         $this->assertDatabaseHas('users', ['id' => $user->id]);
+    }
+
+    public function test_profile_password_inputs_resist_browser_autofill_and_password_manager_shortcuts(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this
+            ->actingAs($user)
+            ->get('/profile');
+
+        $response
+            ->assertOk()
+            ->assertSee('id="profile_current_password"', false)
+            ->assertSee('id="update_password_current_password"', false)
+            ->assertSee('id="update_password_password"', false)
+            ->assertSee('id="update_password_password_confirmation"', false)
+            ->assertSee('style="-webkit-text-security: disc; text-security: disc;"', false)
+            ->assertSee('data-lpignore="true"', false)
+            ->assertSee('data-1p-ignore="true"', false)
+            ->assertDontSee('autocomplete="current-password"', false);
     }
 
     /**

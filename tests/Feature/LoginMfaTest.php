@@ -24,7 +24,17 @@ class LoginMfaTest extends TestCase
         $this->assertFalse($admin->mfa_enabled);
 
         $this->actingAs($admin, AuthenticationContext::ADMIN_GUARD)
-            ->patch(route('profile.mfa.update'), ['mfa_enabled' => true])
+            ->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSeeInOrder(['Email Multi-Factor Authentication', 'aria-label="Configure Email Multi-Factor Authentication"', 'aria-checked="false"'], false)
+            ->assertSee('name="mfa_enabled" value="1"', false)
+            ->assertDontSee('type="checkbox" name="mfa_enabled"', false)
+            ->assertSee('data-original-mfa="0"', false);
+
+        $this->patch(route('profile.mfa.update'), [
+            'mfa_enabled' => true,
+            'current_password' => 'password',
+        ])
             ->assertRedirect(route('profile.edit'))
             ->assertSessionHas('mfa_success');
 
@@ -32,15 +42,29 @@ class LoginMfaTest extends TestCase
         $this->get(route('profile.edit'))
             ->assertOk()
             ->assertSee('Multi-Factor Authentication')
-            ->assertSee('ON');
+            ->assertSeeInOrder(['Email Multi-Factor Authentication', 'aria-label="Configure Email Multi-Factor Authentication"', 'aria-checked="true"'], false)
+            ->assertSee('name="mfa_enabled" value="0"', false)
+            ->assertDontSee('type="checkbox" name="mfa_enabled"', false)
+            ->assertSee('data-original-mfa="1"', false);
 
-        $this->patch(route('profile.mfa.update'), ['mfa_enabled' => false])
+        $this->patch(route('profile.mfa.update'), [
+            'mfa_enabled' => false,
+            'current_password' => 'password',
+        ])
             ->assertRedirect(route('profile.edit'));
         $this->assertFalse($admin->fresh()->mfa_enabled);
 
+        $this->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSeeInOrder(['Email Multi-Factor Authentication', 'aria-label="Configure Email Multi-Factor Authentication"', 'aria-checked="false"'], false)
+            ->assertSee('data-original-mfa="0"', false);
+
         $superAdmin = User::factory()->superAdministrator()->create();
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->patch(route('profile.mfa.update'), ['mfa_enabled' => true])
+            ->patch(route('profile.mfa.update'), [
+                'mfa_enabled' => true,
+                'current_password' => 'password',
+            ])
             ->assertRedirect(route('profile.edit'));
         $this->assertTrue($superAdmin->fresh()->mfa_enabled);
     }
@@ -52,11 +76,58 @@ class LoginMfaTest extends TestCase
         $this->actingAs($staff, AuthenticationContext::WEB_GUARD)
             ->get(route('profile.edit'))
             ->assertOk()
-            ->assertDontSee('Multi-Factor Authentication');
+            ->assertDontSee('Multi-Factor Authentication')
+            ->assertDontSee('configure-email-mfa', false);
 
-        $this->patch(route('profile.mfa.update'), ['mfa_enabled' => true])
+        $this->patch(route('profile.mfa.update'), [
+            'mfa_enabled' => true,
+            'current_password' => 'password',
+        ])
             ->assertForbidden();
         $this->assertFalse($staff->fresh()->mfa_enabled);
+    }
+
+    public function test_invalid_email_mfa_setting_reopens_configuration_with_saved_status(): void
+    {
+        $admin = User::factory()->administrator()->create();
+
+        $this->actingAs($admin, AuthenticationContext::ADMIN_GUARD)
+            ->from(route('profile.edit'))
+            ->patch(route('profile.mfa.update'), [
+                'mfa_enabled' => 'invalid',
+                'current_password' => 'password',
+            ])
+            ->assertRedirect(route('profile.edit'))
+            ->assertSessionHasErrors('mfa_enabled');
+
+        $this->assertFalse($admin->fresh()->mfa_enabled);
+
+        $this->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('x-init="$nextTick(() => $dispatch(\'open-modal\', \'configure-email-mfa\'))"', false)
+            ->assertSeeInOrder(['Email Multi-Factor Authentication', 'aria-label="Configure Email Multi-Factor Authentication"', 'aria-checked="false"'], false)
+            ->assertSee('data-original-mfa="0"', false);
+    }
+
+    public function test_mfa_update_requires_valid_current_password(): void
+    {
+        $admin = User::factory()->administrator()->create();
+
+        $this->actingAs($admin, AuthenticationContext::ADMIN_GUARD)
+            ->from(route('profile.edit'))
+            ->patch(route('profile.mfa.update'), [
+                'mfa_enabled' => true,
+                'current_password' => 'wrong-password',
+            ])
+            ->assertRedirect(route('profile.edit'))
+            ->assertSessionHasErrors('current_password');
+
+        $this->assertFalse($admin->fresh()->mfa_enabled);
+
+        $this->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('x-init="$nextTick(() => $dispatch(\'open-modal\', \'configure-email-mfa\'))"', false)
+            ->assertSee('Could not update Email authentication');
     }
 
     public function test_admin_with_mfa_off_logs_in_without_an_otp(): void
@@ -160,6 +231,55 @@ class LoginMfaTest extends TestCase
         $this->travel(config('auth.login_mfa.expire') + 1)->minutes();
         $this->post(route('admin.login.mfa.verify'), ['otp' => $notification->otp])
             ->assertSessionHasErrors(['otp' => 'This verification code has expired. Request a new code.']);
+        $this->assertGuest(AuthenticationContext::ADMIN_GUARD);
+    }
+
+    public function test_live_verification_returns_json_errors_from_the_real_mfa_check(): void
+    {
+        $admin = $this->admin();
+        $notification = $this->beginMfa($admin, 'admin.login.store', 'admin.login.mfa');
+        $wrongOtp = $notification->otp === '000000' ? '999999' : '000000';
+
+        $this->postJson(route('admin.login.mfa.verify'), ['otp' => $wrongOtp])
+            ->assertUnprocessable()
+            ->assertJson([
+                'success' => false,
+                'message' => 'This verification code is invalid.',
+                'errors' => ['otp' => ['This verification code is invalid.']],
+            ]);
+
+        $this->assertGuest(AuthenticationContext::ADMIN_GUARD);
+    }
+
+    public function test_live_verification_returns_success_only_after_server_authentication(): void
+    {
+        $admin = $this->admin();
+        $notification = $this->beginMfa($admin, 'admin.login.store', 'admin.login.mfa');
+
+        $this->postJson(route('admin.login.mfa.verify'), ['otp' => $notification->otp])
+            ->assertOk()
+            ->assertJson([
+                'success' => true,
+                'redirect_url' => route('dashboard'),
+            ]);
+
+        $this->assertAuthenticatedAs($admin, AuthenticationContext::ADMIN_GUARD);
+        $this->assertNull(session(LoginMfaService::SESSION_KEY));
+    }
+
+    public function test_live_verification_reports_an_expired_code_without_authenticating(): void
+    {
+        $admin = $this->admin();
+        $notification = $this->beginMfa($admin, 'admin.login.store', 'admin.login.mfa');
+        $this->travel(config('auth.login_mfa.expire') + 1)->minutes();
+
+        $this->postJson(route('admin.login.mfa.verify'), ['otp' => $notification->otp])
+            ->assertStatus(410)
+            ->assertJson([
+                'success' => false,
+                'message' => 'This verification code has expired. Request a new code.',
+            ]);
+
         $this->assertGuest(AuthenticationContext::ADMIN_GUARD);
     }
 

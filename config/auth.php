@@ -120,10 +120,28 @@ return [
         'resend_cooldown' => (int) env('AUTH_LOGIN_MFA_RESEND_COOLDOWN', 60),
     ],
 
+    'account_activation' => [
+        'otp_expire' => (int) env('AUTH_ACCOUNT_ACTIVATION_OTP_EXPIRE', 5),
+        'max_attempts' => (int) env('AUTH_ACCOUNT_ACTIVATION_MAX_ATTEMPTS', 5),
+        'resend_cooldown' => (int) env('AUTH_ACCOUNT_ACTIVATION_RESEND_COOLDOWN', 60),
+        'setup_expire' => (int) env('AUTH_ACCOUNT_ACTIVATION_SETUP_EXPIRE', 15),
+    ],
+
+    'login_lockout' => [
+        // Preserve the established policy: five failures, a mandatory wait,
+        // then the next failure starts the progressive account lock.
+        'failure_threshold' => (int) env('AUTH_LOGIN_LOCKOUT_FAILURE_THRESHOLD', 6),
+        'attempt_window_seconds' => (int) env('AUTH_LOGIN_LOCKOUT_ATTEMPT_WINDOW', 900),
+        'pre_lock_wait_minutes' => (int) env('AUTH_LOGIN_LOCKOUT_PRE_LOCK_WAIT', 20),
+        'cycle_window_seconds' => (int) env('AUTH_LOGIN_LOCKOUT_CYCLE_WINDOW', 31536000),
+        'lock_durations_minutes' => [30, 60, 120, 240],
+    ],
+
     'authenticator' => [
         'issuer' => env('AUTH_AUTHENTICATOR_ISSUER', 'HIMS'),
         'window' => (int) env('AUTH_AUTHENTICATOR_WINDOW', 1),
         'setup_expire' => (int) env('AUTH_AUTHENTICATOR_SETUP_EXPIRE', 10),
+        'verification_timeout' => (int) env('AUTH_AUTHENTICATOR_VERIFICATION_TIMEOUT', 120),
     ],
 
     'password_expiration' => [
@@ -132,6 +150,20 @@ return [
 
     'password_history' => [
         'key' => env('AUTH_PASSWORD_HISTORY_KEY') ?: env('APP_KEY'),
+    ],
+
+    'device_security' => [
+        'enabled' => (bool) env('AUTH_DEVICE_SECURITY_ENABLED', true),
+        'trusted_device_lifetime_days' => (int) env('AUTH_TRUSTED_DEVICE_LIFETIME_DAYS', 30),
+        'approval_request_lifetime_minutes' => (int) env('AUTH_LOGIN_APPROVAL_LIFETIME_MINUTES', 5),
+        'device_rejection_cooldown_minutes' => (int) env('AUTH_DEVICE_COOLDOWN_MINUTES', 15),
+        'approval_creation_max_attempts' => (int) env('AUTH_DEVICE_APPROVAL_MAX_ATTEMPTS', 3),
+        'approval_creation_decay_seconds' => (int) env('AUTH_DEVICE_APPROVAL_DECAY_SECONDS', 60),
+        'approval_resend_cooldown_seconds' => (int) env('AUTH_DEVICE_APPROVAL_RESEND_COOLDOWN_SECONDS', 60),
+        'approval_poll_interval_seconds' => (int) env('AUTH_DEVICE_APPROVAL_POLL_INTERVAL_SECONDS', 3),
+        'approval_emails_enabled' => (bool) env('AUTH_DEVICE_APPROVAL_EMAILS_ENABLED', false),
+        'cookie_name' => env('AUTH_TRUSTED_DEVICE_COOKIE', 'hims_trusted_device'),
+        'cookie_secure' => env('SESSION_SECURE_COOKIE', env('APP_ENV') === 'production'),
     ],
 
     /*

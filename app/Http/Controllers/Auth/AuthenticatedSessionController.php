@@ -6,14 +6,18 @@ use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnforceSessionInactivity;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Notifications\LoginMfaOtp;
+use App\Services\DeviceSecurity\DeviceSecurityService;
 use App\Services\LoginLockoutService;
 use App\Services\LoginMfaService;
 use App\Services\PasswordExpirationService;
+use App\Services\Sms\SmsMfaChallengeService;
+use App\Services\Sms\SmsOtpDelivery;
 use App\Support\AuthenticationContext;
 use App\Support\AuthenticationPanel;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 use Throwable;
@@ -23,8 +27,12 @@ class AuthenticatedSessionController extends Controller
     /**
      * Display the login view.
      */
-    public function create(Request $request, LoginLockoutService $lockouts): View
+    public function create(Request $request, LoginLockoutService $lockouts, LoginMfaService $mfa): View
     {
+        if ($mfa->isExpired($request, AuthenticationContext::WEB_GUARD)) {
+            $mfa->clear($request);
+        }
+
         return view('auth.login', [
             'loginRestriction' => $lockouts->sessionRestriction($request, AuthenticationContext::WEB_GUARD),
         ]);
@@ -37,14 +45,40 @@ class AuthenticatedSessionController extends Controller
         LoginRequest $request,
         LoginMfaService $mfa,
         PasswordExpirationService $expiration,
+        SmsMfaChallengeService $sms,
+        DeviceSecurityService $deviceSecurity,
     ): RedirectResponse {
         $user = $request->validateCredentials();
+
+        $deviceResult = $deviceSecurity->handleLoginAttempt(
+            $request,
+            $user,
+            AuthenticationContext::WEB_GUARD,
+            $request->boolean('remember'),
+        );
+
+        if ($deviceResult->isWaitingApproval()) {
+            $deviceSecurity->rememberApprovalChallenge($request, $deviceResult->approvalRequest, $deviceResult->token);
+
+            return redirect()->route('auth.device-approval.waiting', [
+                'approvalRequest' => $deviceResult->approvalRequest->id,
+            ]);
+        }
+
+        if ($deviceResult->requiresEmailConfirmation()) {
+            $deviceSecurity->rememberApprovalChallenge($request, $deviceResult->approvalRequest, $deviceResult->token);
+
+            return redirect()->route('auth.device-approval.verify-email', [
+                'approvalRequest' => $deviceResult->approvalRequest->id,
+            ]);
+        }
 
         if ($user->authenticatorMfaEnabled()) {
             $pendingUser = $mfa->pendingUser($request, AuthenticationContext::WEB_GUARD);
 
             if ($pendingUser?->is($user)
-                && $mfa->challengeUsesAuthenticator($request, AuthenticationContext::WEB_GUARD)) {
+                && $mfa->challengeUsesAuthenticator($request, AuthenticationContext::WEB_GUARD)
+                && ! $mfa->isExpired($request, AuthenticationContext::WEB_GUARD)) {
                 return redirect()->route('login.mfa');
             }
 
@@ -95,6 +129,22 @@ class AuthenticatedSessionController extends Controller
             return redirect()->route('login.mfa');
         }
 
+        if ($user->sms_mfa_enabled) {
+            $pendingUser = $mfa->pendingUser($request, AuthenticationContext::WEB_GUARD);
+            if ($pendingUser?->is($user) && $mfa->challengeMethod($request, AuthenticationContext::WEB_GUARD) === LoginMfaService::METHOD_SMS) {
+                return redirect()->route('login.mfa');
+            }
+
+            $request->session()->regenerate();
+            $status = $sms->begin($request, $user, AuthenticationContext::WEB_GUARD, $request->boolean('remember'), $request->progressiveThrottleKey());
+
+            return $status === SmsOtpDelivery::SENT
+                ? redirect()->route('login.mfa')
+                : back()->withErrors(['email' => $status === SmsOtpDelivery::RATE_LIMITED
+                    ? 'Too many SMS code requests. Please wait before trying again.'
+                    : 'We could not send a verification code. Please try again.'])->onlyInput('email');
+        }
+
         if ($user->passwordHasExpired()) {
             $request->session()->regenerate();
             $expiration->begin(
@@ -111,6 +161,12 @@ class AuthenticatedSessionController extends Controller
         $request->login($user);
 
         $request->session()->regenerate();
+        $deviceSecurity->activateSession(
+            $user,
+            AuthenticationContext::WEB_GUARD,
+            $request,
+            $deviceSecurity->getValidTrustedDevice($user, $request),
+        );
         $request->session()->put(
             EnforceSessionInactivity::LAST_ACTIVITY_AT,
             now()->getTimestamp(),
@@ -125,14 +181,25 @@ class AuthenticatedSessionController extends Controller
     public function destroy(Request $request): RedirectResponse
     {
         $guard = AuthenticationContext::authenticatedGuard() ?? AuthenticationContext::WEB_GUARD;
+        $user = Auth::guard($guard)->user();
+
+        if ($user) {
+            app(DeviceSecurityService::class)->clearActiveSession($user);
+        }
 
         Auth::guard($guard)->logout();
 
         $request->session()->invalidate();
-
         $request->session()->regenerateToken();
+        Cookie::queue(Cookie::forget(EnforceSessionInactivity::CONTEXT_COOKIE));
 
-        return redirect('/');
+        return redirect()
+            ->route('login')
+            ->withHeaders([
+                'Cache-Control' => 'no-cache, no-store, must-revalidate, max-age=0',
+                'Pragma' => 'no-cache',
+                'Expires' => 'Fri, 01 Jan 1990 00:00:00 GMT',
+            ]);
     }
 
     /**
@@ -149,16 +216,33 @@ class AuthenticatedSessionController extends Controller
                 $request,
                 AuthenticationContext::WEB_GUARD,
             )) {
-            return redirect()->route('login');
+            return redirect()
+                ->route('login')
+                ->withHeaders([
+                    'Cache-Control' => 'no-cache, no-store, must-revalidate, max-age=0',
+                    'Pragma' => 'no-cache',
+                    'Expires' => 'Fri, 01 Jan 1990 00:00:00 GMT',
+                ]);
+        }
+
+        $user = Auth::guard(AuthenticationContext::WEB_GUARD)->user();
+        if ($user) {
+            app(DeviceSecurityService::class)->clearActiveSession($user);
         }
 
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+        Cookie::queue(Cookie::forget(EnforceSessionInactivity::CONTEXT_COOKIE));
 
         return redirect()
             ->route('login')
-            ->with('session_timeout', true);
+            ->with('session_timeout', true)
+            ->withHeaders([
+                'Cache-Control' => 'no-cache, no-store, must-revalidate, max-age=0',
+                'Pragma' => 'no-cache',
+                'Expires' => 'Fri, 01 Jan 1990 00:00:00 GMT',
+            ]);
     }
 }

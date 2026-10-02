@@ -1,6 +1,6 @@
 @props([
     'action',
-    'badge' => 'Secure staff portal',
+    'badge' => null,
     'heading' => 'Sign in to HIMS',
     'description' => 'Access procurement, inventory, and hospital supply operations from one workspace.',
     'submitLabel' => 'Sign in',
@@ -27,56 +27,39 @@
     }
 @endphp
 
-<div class="space-y-8">
+<div class="{{ $isSuperAdmin ? 'space-y-7' : 'space-y-8' }}">
     @if ($isSuperAdmin)
-        <header class="-mx-6 -mt-6 animate-fade-up border-b border-neutral-800 bg-neutral-950 px-6 py-7 text-white [animation-delay:320ms] sm:-mx-8 sm:-mt-8 sm:px-8">
-            <div class="flex items-start gap-4">
-                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-warning-500/30 bg-warning-500/10 text-warning-500 shadow-sm shadow-black/30">
-                    <x-ui.icon name="shield-check" class="h-6 w-6" />
-                </div>
-                <div class="min-w-0">
-                    <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-warning-500">{{ $badge }}</p>
-                    <h1 class="mt-2 text-3xl font-semibold tracking-tight text-white">{{ $heading }}</h1>
-                    <p class="mt-3 max-w-sm text-sm leading-6 text-neutral-300">{{ $description }}</p>
-                </div>
+        <header class="animate-fade-up [animation-delay:320ms]">
+            <div>
+                @if ($badge)
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">{{ $badge }}</p>
+                @endif
+                <h1 class="{{ $badge ? 'mt-2' : '' }} text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl dark:text-neutral-100">{{ $heading }}</h1>
             </div>
-            <div class="mt-5 flex items-center gap-2 border-t border-white/10 pt-4 text-xs text-neutral-400">
-                <span class="h-1.5 w-1.5 rounded-full bg-success-500"></span>
-                Highest privilege tier &middot; Activity is audited
-            </div>
+            <p class="mt-3 max-w-sm text-sm leading-6 text-neutral-600 dark:text-neutral-400">{{ $description }}</p>
         </header>
     @elseif ($isAdmin)
         <header class="animate-fade-up [animation-delay:320ms]">
             <div class="flex items-start gap-4">
-                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-primary-100 bg-primary-50 text-primary-700 shadow-sm">
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-primary-100 bg-primary-50 text-primary-700 shadow-sm dark:border-primary-900/60 dark:bg-primary-950/60 dark:text-primary-300">
                     <x-ui.icon name="users" class="h-6 w-6" />
                 </div>
                 <div class="min-w-0">
-                    <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-700">{{ $badge }}</p>
-                    <h1 class="mt-2 text-3xl font-semibold tracking-tight text-neutral-900">{{ $heading }}</h1>
-                    <p class="mt-3 max-w-sm text-sm leading-6 text-neutral-500">{{ $description }}</p>
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-700 dark:text-primary-300">{{ $badge }}</p>
+                    <h1 class="mt-2 text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">{{ $heading }}</h1>
+                    <p class="mt-3 max-w-sm text-sm leading-6 text-neutral-500 dark:text-neutral-400">{{ $description }}</p>
                 </div>
             </div>
-            @unless ($hasSessionTimeout)
-                <div class="mt-5 rounded-lg border border-primary-100 bg-primary-50/70 px-3.5 py-3 text-xs leading-5 text-primary-900">
-                    Access is limited to the administration modules assigned to your account.
-                </div>
-            @endunless
         </header>
     @else
         <header class="animate-fade-up [animation-delay:320ms]">
-            <div class="mb-4 inline-flex items-center gap-2 rounded-full border border-primary-100 bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">
-                <span class="h-1.5 w-1.5 rounded-full bg-primary-500"></span>
-                {{ $badge }}
-            </div>
-
-            <h1 class="text-3xl font-semibold tracking-tight text-neutral-900">{{ $heading }}</h1>
-            <p class="mt-3 max-w-sm text-sm leading-6 text-neutral-500">{{ $description }}</p>
+            <h1 class="text-3xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">{{ $heading }}</h1>
+            <p class="mt-3 max-w-sm text-sm leading-6 text-neutral-500 dark:text-neutral-400">{{ $description }}</p>
         </header>
     @endif
 
     <x-auth-session-status
-        class="animate-fade-up rounded-lg border border-success-100 bg-success-50 px-4 py-3 text-success-700 [animation-delay:380ms]"
+        class="animate-fade-up rounded-lg border border-success-100 bg-success-50 px-4 py-3 text-success-700 dark:border-success-900/60 dark:bg-success-950/40 dark:text-success-300 [animation-delay:380ms]"
         :status="session('status')"
     />
 
@@ -102,7 +85,25 @@
                     {{ sprintf('%02d:%02d', intdiv($restrictionSeconds, 60), $restrictionSeconds % 60) }}
                 </span>
             </p>
+            @if ($loginRestriction['status'] === \App\Services\LoginLockoutService::LOCKED)
+                <p class="mt-2 border-t border-danger-200 pt-2 text-xs leading-5 dark:border-rose-900/60">
+                    Need access before the timer ends? Email the Super Administrator at
+                    <a href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=zediskaaa%40gmail.com" target="_blank" rel="noopener noreferrer" class="font-semibold underline underline-offset-2 hover:no-underline">zediskaaa@gmail.com</a>
+                    to request an account unlock. Otherwise, you can sign in again when the timer reaches 00:00.
+                </p>
+            @endif
             <p class="sr-only" data-login-cooldown-live aria-live="polite" aria-atomic="true"></p>
+        </x-ui.alert>
+    @endif
+
+    @if (session('session_replaced'))
+        <x-ui.alert
+            variant="warning"
+            title="Session Ended"
+            dismissible
+            class="animate-fade-up [animation-delay:400ms]"
+        >
+            {{ session('session_replaced') }}
         </x-ui.alert>
     @endif
 
@@ -117,50 +118,54 @@
         </x-ui.alert>
     @endif
 
-    <form method="POST" action="{{ $action }}" class="animate-fade-up space-y-5 [animation-delay:440ms]" x-data="{ showPassword: false }" data-login-form>
+    <form method="POST" action="{{ $action }}" class="animate-fade-up space-y-5 [animation-delay:440ms]" x-data="{ showPassword: false }" autocomplete="off" data-login-form>
         @csrf
+        <input type="hidden" name="latitude" data-login-latitude>
+        <input type="hidden" name="longitude" data-login-longitude>
+        <input type="hidden" name="accuracy" data-login-accuracy>
 
         <div>
-            <x-input-label for="email" :value="__('Email address')" class="text-neutral-700" />
+            <x-input-label for="email" :value="__('Email address')" class="text-neutral-700 dark:text-neutral-300" />
             <x-text-input
                 id="email"
-                class="mt-2 block h-11 w-full rounded-lg bg-white px-3.5 text-sm text-neutral-900 shadow-sm placeholder:text-neutral-400 focus:ring-primary-500 {{ $errors->has('email') ? '!border-danger-500 focus:!border-danger-500' : 'border-neutral-300 focus:border-primary-500' }}"
+                class="mt-2 block h-11 w-full rounded-lg border-neutral-300 bg-white px-3.5 text-sm text-neutral-900 shadow-xs placeholder:text-neutral-500 transition-colors focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-400 dark:focus:border-primary-400 dark:focus:ring-primary-400/25 {{ $errors->has('email') ? '!border-danger-500 focus:!border-danger-500 focus:!ring-danger-500/20 dark:!border-danger-500 dark:focus:!ring-danger-400/25' : '' }}"
                 type="email"
                 name="email"
                 :value="$loginEmail"
                 placeholder="name@hospital.org"
+                :aria-invalid="$errors->has('email') ? 'true' : 'false'"
+                :aria-describedby="$errors->has('email') ? 'login-email-error' : null"
                 required
                 autofocus
-                autocomplete="username"
+                autocomplete="off"
             />
-            <x-input-error :messages="$errors->get('email')" class="mt-2 text-danger-600" />
+            <x-input-error id="login-email-error" :messages="$errors->get('email')" class="mt-2 text-danger-600" />
         </div>
 
         <div>
-            <div class="flex items-center justify-between gap-4">
-                <x-input-label for="password" :value="__('Password')" class="text-neutral-700" />
-
-                <a
-                    class="rounded text-xs font-medium text-primary-600 transition-colors hover:text-primary-700"
-                    href="{{ $forgotPasswordUrl }}"
-                >
-                    {{ __('Forgot password?') }}
-                </a>
-            </div>
+            <x-input-label for="password" :value="__('Password')" class="text-neutral-700 dark:text-neutral-300" />
 
             <div class="relative mt-2">
+                <style>
+                    #password::-ms-reveal,
+                    #password::-ms-clear {
+                        display: none;
+                    }
+                </style>
                 <x-text-input
                     id="password"
-                    class="block h-11 w-full rounded-lg bg-white px-3.5 pr-11 text-sm text-neutral-900 shadow-sm {{ $errors->has('email') || $errors->has('password') ? '!border-danger-500 focus:!border-danger-500' : 'border-neutral-300 focus:border-primary-500' }} focus:ring-primary-500"
+                    class="block h-11 w-full rounded-lg border-neutral-300 bg-white px-3.5 pr-11 text-sm text-neutral-900 shadow-xs placeholder:text-neutral-500 transition-colors focus:border-primary-600 focus:ring-2 focus:ring-primary-500/20 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-400 dark:focus:border-primary-400 dark:focus:ring-primary-400/25 {{ $errors->has('email') || $errors->has('password') ? '!border-danger-500 focus:!border-danger-500 focus:!ring-danger-500/20 dark:!border-danger-500 dark:focus:!ring-danger-400/25' : '' }}"
                     x-bind:type="showPassword ? 'text' : 'password'"
                     name="password"
+                    :aria-invalid="$errors->has('email') || $errors->has('password') ? 'true' : 'false'"
+                    :aria-describedby="$errors->has('password') ? 'login-password-error' : ($errors->has('email') ? 'login-email-error' : null)"
                     required
-                    autocomplete="current-password"
+                    autocomplete="new-password"
                 />
 
                 <button
                     type="button"
-                    class="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-neutral-400 transition-colors hover:text-neutral-700 focus-visible:ring-inset"
+                    class="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-neutral-400 transition-colors hover:text-neutral-600 focus-visible:ring-inset dark:text-neutral-500 dark:hover:text-neutral-200"
                     x-on:click="showPassword = !showPassword"
                     x-bind:aria-label="showPassword ? 'Hide password' : 'Show password'"
                     x-bind:aria-pressed="showPassword"
@@ -170,40 +175,33 @@
                     <x-ui.icon name="eye-slash" class="h-5 w-5" x-show="showPassword" x-cloak />
                 </button>
             </div>
-            <x-input-error :messages="$errors->get('password')" class="mt-2 text-danger-600" />
-        </div>
+            <x-input-error id="login-password-error" :messages="$errors->get('password')" class="mt-2 text-danger-600" />
 
-        <label for="remember_me" class="flex w-fit cursor-pointer items-center gap-2.5 text-sm text-neutral-600">
-            <input
-                id="remember_me"
-                type="checkbox"
-                class="rounded border-neutral-300 text-primary-600 shadow-sm focus:ring-primary-500"
-                name="remember"
-            >
-            <span>{{ __('Keep me signed in') }}</span>
-        </label>
+            <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <a
+                    class="rounded text-xs font-medium text-primary-700 transition-colors hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-100 dark:text-primary-400 dark:hover:text-primary-300 dark:focus-visible:ring-offset-neutral-900"
+                    href="{{ $forgotPasswordUrl }}"
+                >
+                    {{ __('Forgot password?') }}
+                </a>
+                @unless ($isSuperAdmin)
+                    <a
+                        class="rounded text-xs font-medium text-primary-700 transition-colors hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-100 dark:text-primary-400 dark:hover:text-primary-300 dark:focus-visible:ring-offset-neutral-900"
+                        href="{{ route('activation.start') }}"
+                    >
+                        {{ __('Activate account') }}
+                    </a>
+                @endunless
+            </div>
+        </div>
 
         <x-ui.button
             type="submit"
             size="lg"
-            icon="arrow-right-on-rectangle"
             data-loading-text="Signing in..."
-            class="w-full {{ $isSuperAdmin ? '!border-neutral-900 !bg-neutral-900 hover:!border-primary-950 hover:!bg-primary-950 focus-visible:!ring-warning-500' : '' }}"
+            class="w-full"
         >
             {{ $submitLabel }}
         </x-ui.button>
     </form>
-
-    <div class="flex items-center gap-2.5 border-t border-neutral-200 pt-6 text-xs leading-5 text-neutral-500">
-        <x-ui.icon name="shield-check" class="h-4 w-4 shrink-0 {{ $isSuperAdmin ? 'text-warning-600' : 'text-primary-600' }}" />
-        <p>
-            @if ($isSuperAdmin)
-                Privileged access is monitored, time-limited, and recorded.
-            @elseif ($isAdmin)
-                Administrative actions are role-scoped and auditable.
-            @else
-                For authorized hospital personnel only. Your session is securely protected.
-            @endif
-        </p>
-    </div>
 </div>

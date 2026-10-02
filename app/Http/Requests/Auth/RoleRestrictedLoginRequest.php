@@ -9,6 +9,7 @@ use App\Support\AuthenticationPanel;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
@@ -29,6 +30,9 @@ abstract class RoleRestrictedLoginRequest extends FormRequest
         return [
             'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'accuracy' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 
@@ -48,21 +52,17 @@ abstract class RoleRestrictedLoginRequest extends FormRequest
             ->where('email', $this->string('email')->toString())
             ->where('status', UserStatus::Active->value)
             ->first();
+
+        if ($user !== null && ! in_array($user->role->value, $this->allowedRoles(), true)) {
+            $this->rejectWrongPanel($user);
+        }
+
         $credentialsValid = $user !== null
             && Hash::check($this->string('password')->toString(), $user->password);
 
-        if ($credentialsValid && ! in_array($user->role->value, $this->allowedRoles(), true)) {
-            app(LoginLockoutService::class)->clearRestriction($this);
-            $this->flashWrongPanelAlert($user);
-
-            throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
-            ]);
-        }
-
         $this->ensureIsNotRateLimited();
 
-        if (! $credentialsValid || ! in_array($user->role->value, $this->allowedRoles(), true)) {
+        if (! $credentialsValid) {
             if ($user === null) {
                 Hash::make($this->string('password')->toString());
             }
@@ -78,6 +78,8 @@ abstract class RoleRestrictedLoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
+
+        $this->ensureEmailIsVerified($user);
 
         return $user;
     }
@@ -104,16 +106,18 @@ abstract class RoleRestrictedLoginRequest extends FormRequest
         return $this->throttleKey();
     }
 
-    /**
-     * Guide a valid account to its own panel without changing the generic
-     * authentication error. Verifying the password first avoids disclosing
-     * another account's role to somebody who only knows its email address.
-     */
-    private function flashWrongPanelAlert(User $account): void
+    private function rejectWrongPanel(User $account): never
     {
         $currentPanel = AuthenticationPanel::forGuard($this->guard());
         $correctPanel = AuthenticationPanel::forRole($account->role);
+        app(LoginLockoutService::class)->clearRestriction($this);
         $this->session()->flash('wrong_panel', $currentPanel->wrongPanelAlert($correctPanel));
+
+        throw new HttpResponseException(
+            redirect()
+                ->route($currentPanel->loginRoute())
+                ->withInput($this->only('email')),
+        );
     }
 
     private function validateProgressiveCredentials(): User
@@ -123,19 +127,22 @@ abstract class RoleRestrictedLoginRequest extends FormRequest
             $this->string('email')->toString(),
             $this->string('password')->toString(),
             $this->allowedRoles(),
+            detectWrongPanel: true,
         );
 
         if ($result['status'] === LoginLockoutService::SUCCESS) {
+            $this->ensureEmailIsVerified($result['user']);
+
             return $result['user'];
+        }
+
+        if ($result['status'] === LoginLockoutService::WRONG_PANEL
+            && ($result['user'] ?? null) instanceof User) {
+            $this->rejectWrongPanel($result['user']);
         }
 
         if ($result['status'] === LoginLockoutService::INVALID) {
             $lockouts->clearRestriction($this);
-
-            if (($result['other_panel_credentials_valid'] ?? false)
-                && ($result['user'] ?? null) instanceof User) {
-                $this->flashWrongPanelAlert($result['user']);
-            }
 
             throw ValidationException::withMessages([
                 'email' => $lockouts->message($result),
@@ -188,6 +195,20 @@ abstract class RoleRestrictedLoginRequest extends FormRequest
 
         throw ValidationException::withMessages([
             'email' => app(LoginLockoutService::class)->message($restriction),
+        ]);
+    }
+
+    private function ensureEmailIsVerified(User $user): void
+    {
+        if ($user->hasVerifiedEmail()) {
+            return;
+        }
+
+        app(LoginLockoutService::class)->clearRestriction($this);
+        RateLimiter::clear($this->throttleKey());
+
+        throw ValidationException::withMessages([
+            'email' => 'Your account is pending activation. Verify your email address first, or ask an administrator to resend the activation email.',
         ]);
     }
 

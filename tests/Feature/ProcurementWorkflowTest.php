@@ -2,17 +2,26 @@
 
 namespace Tests\Feature;
 
+use App\Enums\SupplierAccreditationStatus;
+use App\Models\AuditLog;
+use App\Models\CostCenter;
+use App\Models\CostCenterBudget;
 use App\Models\InventoryItem;
 use App\Models\ItemStockLevel;
+use App\Models\ProcurementAuditLog;
 use App\Models\ProcurementRequest;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderLine;
 use App\Models\StockMovement;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Models\SupplierQuote;
 use App\Models\User;
+use App\Models\WarehouseTask;
+use App\Services\Inventory\GoodsReceiptService;
+use App\Services\Inventory\QualityControlService;
+use App\Services\Warehouse\WarehouseTaskService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
@@ -45,6 +54,7 @@ class ProcurementWorkflowTest extends TestCase
         return InventoryItem::create([
             'name' => 'N95 Respirator Mask',
             'sku' => 'PPE-N95',
+            'unit' => 'piece',
             'quantity_on_hand' => 0,
             'reorder_level' => 100,
             'unit_cost' => 45,
@@ -54,7 +64,11 @@ class ProcurementWorkflowTest extends TestCase
 
     private function supplier(string $name = 'Jeffrey Corporation'): Supplier
     {
-        return Supplier::create(['name' => $name, 'status' => 'active']);
+        return Supplier::create([
+            'name' => $name,
+            'status' => 'active',
+            'accreditation_status' => SupplierAccreditationStatus::Approved,
+        ]);
     }
 
     private function request(?Supplier $supplier = null): ProcurementRequest
@@ -67,6 +81,28 @@ class ProcurementWorkflowTest extends TestCase
             'priority' => 'medium',
             'supplier_id' => $supplier?->id,
         ]);
+    }
+
+    private function costCenter(): CostCenter
+    {
+        $costCenter = CostCenter::create([
+            'name' => 'Central Supply',
+            'code' => 'CC-SUPPLY',
+            'department' => 'Inventory',
+            'is_active' => true,
+        ]);
+
+        CostCenterBudget::create([
+            'cost_center_id' => $costCenter->id,
+            'fiscal_year' => (int) now()->format('Y'),
+            'allocated_budget' => 1000000,
+            'soft_encumbered' => 0,
+            'hard_encumbered' => 0,
+            'spent_amount' => 0,
+            'currency' => 'PHP',
+        ]);
+
+        return $costCenter;
     }
 
     // ------------------------------------------------------ stage 3: the quote
@@ -256,15 +292,13 @@ class ProcurementWorkflowTest extends TestCase
     // ------------------------------------------------- the stage that follows
 
     /**
-     * The gap worth naming at the defense: nothing in the schema ties the
-     * approved requisition to the purchase order that answers it. This asserts
-     * the seam as it actually is, so the day it is closed this test fails and
-     * says so rather than quietly passing.
+     * Direct orders must ignore browser-owned commercial and workflow state.
      */
-    public function test_the_purchase_order_it_leads_to_is_not_linked_back_to_the_request(): void
+    public function test_direct_order_uses_trusted_pricing_and_enters_approval_without_changing_stock(): void
     {
         $procurementRequest = $this->request($supplier = $this->supplier());
         $officer = $this->procurementOfficer();
+        $costCenter = $this->costCenter();
 
         $this->actingAs($officer)
             ->post("/inventory/purchases/requests/{$procurementRequest->id}/approve", ['approved_by' => 'Dr. Ramirez'])
@@ -273,21 +307,31 @@ class ProcurementWorkflowTest extends TestCase
         $this->actingAs($officer)->post('/inventory/purchases/orders', [
             'supplier_id' => $supplier->id,
             'item_id' => $procurementRequest->item_id,
+            'cost_center_id' => $costCenter->id,
             'quantity' => 1000,
-            'unit_cost' => 41.50,
-        ])->assertRedirect('/inventory/purchases');
+            'unit_cost' => 0.01,
+            'status' => 'received',
+        ])->assertRedirect('/inventory/purchases')
+            ->assertSessionHas('success');
 
         $purchaseOrder = PurchaseOrder::firstOrFail();
 
-        // A new PO opens at pending — there is no approved state on this side.
-        $this->assertSame('pending', $purchaseOrder->status);
-        $this->assertSame(41500.0, (float) $purchaseOrder->total_amount);
-
-        // And it carries no column pointing at the requisition it came from.
-        $this->assertFalse(
-            Schema::hasColumn('purchase_orders', 'procurement_request_id'),
-            'purchase_orders gained a requisition link — wire storeOrder() to it and update this test.'
-        );
+        // The server owns pricing and starts the existing DOA approval chain.
+        $this->assertSame('pending_approval', $purchaseOrder->status);
+        $this->assertSame(45.0, (float) $purchaseOrder->unit_cost);
+        $this->assertSame(45000.0, (float) $purchaseOrder->total_amount);
+        $this->assertSame($officer->id, $purchaseOrder->created_by_user_id);
+        $this->assertSame(0, $procurementRequest->item->fresh()->quantity_on_hand);
+        $this->assertNotNull($purchaseOrder->approvalChain);
+        $this->assertDatabaseHas('procurement_audit_logs', [
+            'entity_name' => 'PurchaseOrder',
+            'entity_id' => $purchaseOrder->id,
+            'action_type' => 'issued_purchase_order',
+        ]);
+        $this->assertTrue(AuditLog::where('target_id', $purchaseOrder->id)
+            ->where('action', 'issued_purchase_order')->exists());
+        $this->assertSame(1, ProcurementAuditLog::where('entity_id', $purchaseOrder->id)
+            ->where('action_type', 'issued_purchase_order')->count());
     }
 
     // ------------------------------------------------- stage 6: the receiving
@@ -300,11 +344,24 @@ class ProcurementWorkflowTest extends TestCase
      */
     public function test_the_order_table_offers_a_receive_control(): void
     {
+        $purchaseOrder = PurchaseOrder::create([
+            'po_number' => 'PO-RECEIVE-CONTROL',
+            'supplier_id' => $this->supplier()->id,
+            'item_id' => $this->item()->id,
+            'quantity' => 25,
+            'unit_cost' => 45,
+            'total_amount' => 1125,
+            'status' => 'approved',
+            'requested_at' => now(),
+        ]);
+
         $this->actingAs($this->procurementOfficer())
             ->get('/inventory/purchases')
             ->assertStatus(200)
-            ->assertSee('renderReceiveForm', false)
-            ->assertSee('/inventory/purchases/${order.id}/receive', false)
+            ->assertSee('data-purchase-order-row', false)
+            ->assertSee('PO-RECEIVE-CONTROL')
+            ->assertSee(route('inventory.receiving.index', ['purchase_order_id' => $purchaseOrder->id]), false)
+            ->assertSee('Record delivery')
             ->assertDontSee('Live API');
     }
 
@@ -322,6 +379,18 @@ class ProcurementWorkflowTest extends TestCase
             'code' => 'MAIN-01',
             'status' => 'active',
         ]);
+        StorageLocation::create([
+            'name' => 'Receiving Quarantine',
+            'code' => 'LOC-QUARANTINE',
+            'status' => 'active',
+            'is_quarantine' => true,
+        ]);
+        StorageLocation::create([
+            'name' => 'Receiving Staging',
+            'code' => 'LOC-STAGING',
+            'status' => 'active',
+            'is_receiving_staging' => true,
+        ]);
 
         ItemStockLevel::create([
             'item_id' => $item->id,
@@ -337,32 +406,58 @@ class ProcurementWorkflowTest extends TestCase
             'quantity' => 500,
             'unit_cost' => 41.50,
             'total_amount' => 20750,
-            'status' => 'pending',
+            'status' => 'approved',
+        ]);
+        $line = PurchaseOrderLine::create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'item_id' => $item->id,
+            'line_number' => 1,
+            'ordered_quantity' => 500,
+            'unit_price' => 41.50,
+            'total_line_amount' => 20750,
+            'purchase_unit' => $item->unit,
+            'conversion_factor' => 1,
         ]);
 
         // Booking in a delivery is record_movements — the warehouse's job, not
         // procurement's, even though the order was procurement's to raise.
-        $this->actingAs(User::factory()->inventoryManager()->create())
+        $operator = User::factory()->inventoryManager()->create();
+        $this->actingAs($operator)
             ->post("/inventory/purchases/{$purchaseOrder->id}/receive")
-            ->assertRedirect('/inventory/purchases')
-            ->assertSessionHas('success');
+            ->assertRedirect(route('inventory.receiving.index', ['purchase_order_id' => $purchaseOrder->id]));
+
+        $this->assertSame(0, $item->fresh()->quantity_on_hand);
+        $grn = app(GoodsReceiptService::class)->receiveOrder($purchaseOrder, [
+            'lines' => [['po_line_id' => $line->id, 'received_quantity' => 500,
+                'item_condition' => 'good', 'batch_number' => 'LOT-PROC-500', 'expiry_date' => now()->addYear()->toDateString()]],
+        ], $operator);
+        $this->assertSame(500, (int) ItemStockLevel::where('item_id', $item->id)->sum('quarantined_quantity'));
+        $inspection = $grn->lines()->firstOrFail()->inspections()->firstOrFail();
+        app(QualityControlService::class)->releaseLot($inspection, 500, $location->id, $operator);
+        $this->assertSame(0, $item->fresh()->quantity_on_hand);
+        $task = WarehouseTask::where('reference_type', $inspection->getMorphClass())->where('reference_id', $inspection->id)->firstOrFail();
+        $tasks = app(WarehouseTaskService::class);
+        $tasks->start($task, $operator);
+        $tasks->scan($task, 'LOC-STAGING', $operator);
+        $tasks->scan($task, $item->sku, $operator);
+        $tasks->scan($task, $location->code, $operator);
+        $tasks->complete($task, 500, $operator);
 
         $purchaseOrder->refresh();
-        $this->assertSame('received', $purchaseOrder->status);
+        $this->assertSame('fulfilled', $purchaseOrder->status);
         $this->assertNotNull($purchaseOrder->received_at);
 
         // The rollup and the row it is derived from, not just the rollup.
         $this->assertSame(500, $item->fresh()->quantity_on_hand);
         $this->assertSame(500, (int) ItemStockLevel::where('item_id', $item->id)
-            ->where('storage_location_id', $location->id)->value('quantity'));
+            ->where('storage_location_id', $location->id)->sum('quantity'));
 
         $this->assertDatabaseHas('stock_movements', [
             'item_id' => $item->id,
-            'movement_type' => 'stock_in',
+            'movement_type' => 'transfer',
             'quantity' => 500,
             'to_location_id' => $location->id,
-            'reference_type' => PurchaseOrder::class,
-            'reference_id' => $purchaseOrder->id,
+            'goods_receipt_note_id' => $grn->id,
         ]);
     }
 
@@ -379,6 +474,12 @@ class ProcurementWorkflowTest extends TestCase
             'code' => 'MAIN-01',
             'status' => 'active',
         ]);
+        StorageLocation::create([
+            'name' => 'Receiving Quarantine',
+            'code' => 'LOC-QUARANTINE',
+            'status' => 'active',
+            'is_quarantine' => true,
+        ]);
 
         ItemStockLevel::create([
             'item_id' => $item->id,
@@ -394,19 +495,28 @@ class ProcurementWorkflowTest extends TestCase
             'quantity' => 500,
             'unit_cost' => 41.50,
             'total_amount' => 20750,
-            'status' => 'pending',
+            'status' => 'approved',
+        ]);
+        $line = PurchaseOrderLine::create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'item_id' => $item->id,
+            'line_number' => 1,
+            'ordered_quantity' => 500,
+            'unit_price' => 41.50,
+            'total_line_amount' => 20750,
+            'purchase_unit' => $item->unit,
+            'conversion_factor' => 1,
         ]);
 
         $officer = $this->procurementOfficer();
-
-        $this->actingAs($officer)->post("/inventory/purchases/{$purchaseOrder->id}/receive");
-        $this->actingAs($officer)->post("/inventory/purchases/{$purchaseOrder->id}/receive")
-            ->assertRedirect('/inventory/purchases')
-            // The neutral notice used to flash into nothing: the layout rendered
-            // success and error only, so a double receive looked like a no-op.
-            ->assertSessionHas('info');
-
-        $this->assertSame(500, $item->fresh()->quantity_on_hand);
+        $payload = ['receipt_key' => 'same-delivery', 'packing_slip_number' => 'PS-SAME',
+            'lines' => [['po_line_id' => $line->id, 'received_quantity' => 500,
+                'item_condition' => 'good', 'batch_number' => 'LOT-PROC-DUP', 'expiry_date' => now()->addYear()->toDateString()]]];
+        $first = app(GoodsReceiptService::class)->receiveOrder($purchaseOrder, $payload, $officer);
+        $replayed = app(GoodsReceiptService::class)->receiveOrder($purchaseOrder, $payload, $officer);
+        $this->assertSame($first->id, $replayed->id);
+        $this->assertSame(0, $item->fresh()->quantity_on_hand);
+        $this->assertSame(500, (int) ItemStockLevel::where('item_id', $item->id)->sum('quarantined_quantity'));
         $this->assertSame(1, StockMovement::where('item_id', $item->id)->count());
     }
 
@@ -424,14 +534,14 @@ class ProcurementWorkflowTest extends TestCase
             'quantity' => 500,
             'unit_cost' => 41.50,
             'total_amount' => 20750,
-            'status' => 'pending',
+            'status' => 'approved',
         ]);
 
         $this->actingAs($this->procurementOfficer())
             ->post("/inventory/purchases/{$purchaseOrder->id}/receive")
-            ->assertSessionHasErrors('receive');
+            ->assertRedirect(route('inventory.receiving.index', ['purchase_order_id' => $purchaseOrder->id]));
 
-        $this->assertSame('pending', $purchaseOrder->fresh()->status);
+        $this->assertSame('approved', $purchaseOrder->fresh()->status);
         $this->assertDatabaseCount('stock_movements', 0);
     }
 }

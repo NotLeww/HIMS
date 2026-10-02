@@ -1,0 +1,3 @@
+sku,name,unit,unit_cost,reorder_level
+CSV-EVIDENCE-001,CSV Evidence Item,box,125.50,10
+CSV-EVIDENCE-002,"CSV Evidence Item, Quoted",piece,15.00,25

@@ -5,11 +5,13 @@ namespace App\Http\Requests;
 use App\Enums\Permission;
 use App\Enums\UserDepartment;
 use App\Enums\UserRole;
-use App\Enums\UserStatus;
-use App\Rules\PasswordStandard;
+use App\Models\User;
 use App\Services\UserAccountService;
+use App\Support\SuperAdminPasswordConfirmation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Validator;
 
 class StoreUserRequest extends FormRequest
 {
@@ -24,20 +26,45 @@ class StoreUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'surname' => ['required', 'string', 'max:80'],
-            'first_name' => ['required', 'string', 'max:80'],
-            'middle_name' => ['nullable', 'string', 'max:80'],
+            'surname' => ['required', 'string', 'max:80', 'regex:/^\p{L}+(?: \p{L}+)*$/u'],
+            'first_name' => ['required', 'string', 'max:80', 'regex:/^\p{L}+(?: \p{L}+)*$/u'],
+            'middle_name' => ['nullable', 'string', 'max:80', 'regex:/^\p{L}+(?: \p{L}+)*$/u'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'confirmed', new PasswordStandard],
             'role' => [
                 'required',
                 Rule::enum(UserRole::class),
                 Rule::in(app(UserAccountService::class)->assignableRoleValues($this->user())),
             ],
-            'status' => ['nullable', Rule::enum(UserStatus::class)],
             'department' => ['required', Rule::enum(UserDepartment::class)],
             'phone' => ['bail', 'required', 'string', 'digits:11', 'regex:/^09[0-9]{9}$/'],
+            'current_password' => ['nullable', 'string'],
+            'super_admin_confirmation_token' => ['nullable', 'string'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            $user = $this->user();
+            if ($user?->isSuperAdministrator()) {
+                try {
+                    SuperAdminPasswordConfirmation::validate($this, $user);
+                } catch (ValidationException $e) {
+                    foreach ($e->errors() as $key => $messages) {
+                        foreach ($messages as $message) {
+                            $validator->errors()->add($key, $message);
+                        }
+                    }
+                }
+            }
+
+            $phone = $this->input('phone');
+            if (is_string($phone)
+                && preg_match('/^09[0-9]{9}$/D', $phone) === 1
+                && User::query()->wherePhoneNumber($phone)->exists()) {
+                $validator->errors()->add('phone', 'This mobile phone number is already assigned to another account.');
+            }
+        });
     }
 
     /**
@@ -46,6 +73,9 @@ class StoreUserRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'surname.regex' => 'Surname may only contain letters and single spaces between words.',
+            'first_name.regex' => 'First name may only contain letters and single spaces between words.',
+            'middle_name.regex' => 'Middle name may only contain letters and single spaces between words.',
             'role.required' => 'Pick the role this account should have.',
             'role.in' => 'You are not authorized to assign that role.',
             'department.required' => 'Pick the department this employee belongs to.',
@@ -53,7 +83,6 @@ class StoreUserRequest extends FormRequest
             'phone.required' => 'Phone number is required.',
             'phone.digits' => 'Contact number must contain numbers only and exactly 11 digits.',
             'phone.regex' => 'Contact number must start with 09 and contain exactly 11 digits.',
-            'password.confirmed' => PasswordStandard::CONFIRMATION_MESSAGE,
         ];
     }
 

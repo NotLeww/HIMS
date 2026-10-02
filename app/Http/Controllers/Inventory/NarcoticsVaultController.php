@@ -1,0 +1,182 @@
+<?php
+
+namespace App\Http\Controllers\Inventory;
+
+use App\Enums\AuditAction;
+use App\Enums\Permission;
+use App\Http\Controllers\Controller;
+use App\Models\InventoryItem;
+use App\Models\ItemStockLevel;
+use App\Models\PdeaDangerousDrugsRegister;
+use App\Models\StorageLocation;
+use App\Services\AuditLogger;
+use App\Services\Warehouse\NarcoticsVaultService;
+use App\Support\SpreadsheetValue;
+use DomainException;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+class NarcoticsVaultController extends Controller implements HasMiddleware
+{
+    public function __construct(
+        private readonly NarcoticsVaultService $vaultService,
+        private readonly AuditLogger $audit,
+    ) {}
+
+    public static function middleware(): array
+    {
+        return [
+            'auth:web,admin,super_admin',
+            new Middleware('can:'.Permission::AccessNarcoticsVault->value),
+        ];
+    }
+
+    public function index(Request $request): View
+    {
+        $vaultLocations = StorageLocation::where('is_narcotics_vault', true)->get();
+        $dangerousDrugItems = InventoryItem::where('regulatory_category', 'DANGEROUS_DRUG')->orderBy('name')->get();
+
+        $vaultBalances = ItemStockLevel::whereIn('storage_location_id', $vaultLocations->pluck('id'))
+            ->with(['item', 'batch', 'location'])
+            ->get();
+
+        $query = PdeaDangerousDrugsRegister::with(['item', 'batch', 'location', 'custodian', 'witnessPharmacist'])
+            ->latest('id');
+
+        if ($request->filled('item_id')) {
+            $query->where('item_id', $request->item_id);
+        }
+        if ($request->filled('spf')) {
+            $query->where('pdea_spf_number', 'like', "%{$request->spf}%");
+        }
+
+        $entries = $query->paginate(20)->withQueryString();
+
+        return view('inventory.warehousing.narcotics', compact('vaultLocations', 'dangerousDrugItems', 'vaultBalances', 'entries'));
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'item_id' => ['required', 'exists:inventory_items,id'],
+            'item_batch_id' => ['nullable', 'exists:item_batches,id'],
+            'storage_location_id' => ['required', 'exists:storage_locations,id'],
+            'quantity' => ['required', 'integer', 'min:1'],
+            'is_inbound' => ['required', 'boolean'],
+            'pdea_spf_number' => ['nullable', 'string', 'max:50'],
+            'physician_s2_license' => ['nullable', 'string', 'max:30'],
+            'prescriber_name' => ['nullable', 'string', 'max:255'],
+            'patient_encounter_id' => ['nullable', 'string', 'max:100'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+            // Dual-Custody Witness Credentials
+            'witness_email' => ['required', 'email'],
+            'witness_password' => ['required', 'string'],
+        ]);
+
+        try {
+            $witness = $this->vaultService->authenticateWitness(
+                $validated['witness_email'],
+                $validated['witness_password'],
+                $request->user()
+            );
+
+            $entry = $this->vaultService->recordEntry($validated, $request->user(), $witness);
+
+            return back()->with('success', "Dangerous Drug transaction {$entry->register_number} successfully recorded in electronic DDRB ledger with dual-custody verification.");
+        } catch (DomainException $e) {
+            return back()->withErrors(['vault' => $e->getMessage()])->withInput();
+        }
+    }
+
+    public function exportReport(Request $request): StreamedResponse
+    {
+        $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'item_id' => ['nullable', 'integer', 'exists:inventory_items,id'],
+            'spf' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $start = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : now()->subMonths(6)->startOfDay();
+        $end = $request->filled('end_date') ? Carbon::parse($request->end_date)->endOfDay() : now()->endOfDay();
+
+        if ($start->diffInDays($end) > 366) {
+            throw ValidationException::withMessages([
+                'end_date' => 'Narcotics report exports are limited to a one-year period.',
+            ]);
+        }
+
+        $itemId = $request->filled('item_id') ? $request->integer('item_id') : null;
+        $spf = $request->filled('spf') ? trim((string) $request->string('spf')) : null;
+        $records = $this->vaultService->getSemiAnnualReportData($start, $end, $itemId, $spf);
+
+        $this->audit->log(
+            AuditAction::ExportedNarcoticsReport,
+            $request->user(),
+            'Exported a controlled-drug register report.',
+            targetName: $start->toDateString().' to '.$end->toDateString(),
+            newValues: [
+                'start_date' => $start->toDateString(),
+                'end_date' => $end->toDateString(),
+                'item_id' => $itemId,
+                'spf_filter_applied' => $spf !== null,
+                'record_count' => $records->count(),
+            ],
+        );
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="PDEA-Dangerous-Drugs-Semi-Annual-Report-'.now()->format('Ymd').'.csv"',
+        ];
+
+        return response()->stream(function () use ($records) {
+            $handle = fopen('php://output', 'w');
+            fwrite($handle, "\xEF\xBB\xBF");
+            fputcsv($handle, [
+                'DDRB Register No',
+                'Date & Time (PHT)',
+                'Generic Clinical Name',
+                'Brand Name / Formulation',
+                'Dosage Strength',
+                'Transaction Type',
+                'Quantity',
+                'Running Balance',
+                'Special Prescription Form (SPF No)',
+                'Prescriber S-2 License',
+                'Prescriber Name',
+                'Patient Hospital / Encounter ID',
+                'Primary Custodian',
+                'Witness Pharmacist (Dual-Custody)',
+                'Vault Location Code',
+            ]);
+
+            foreach ($records as $r) {
+                fputcsv($handle, array_map([SpreadsheetValue::class, 'escapeFormula'], [
+                    $r->register_number,
+                    $r->recorded_at?->format('Y-m-d H:i:s'),
+                    $r->item?->generic_name ?? $r->item?->name,
+                    $r->item?->brand_name ?? 'N/A',
+                    $r->item?->dosage_form_strength ?? 'N/A',
+                    $r->pdea_spf_number ? 'DISPENSE_OUTBOUND' : 'INTAKE_INBOUND',
+                    $r->quantity,
+                    $r->running_balance,
+                    $r->pdea_spf_number ?? 'INBOUND_RECEIPT',
+                    $r->physician_s2_license ?? 'N/A',
+                    $r->prescriber_name ?? 'N/A',
+                    $r->patient_encounter_id ?? 'N/A',
+                    $r->custodian?->name,
+                    $r->witnessPharmacist?->name,
+                    $r->location?->code,
+                ]));
+            }
+
+            fclose($handle);
+        }, 200, $headers);
+    }
+}

@@ -21,6 +21,7 @@ enum UserRole: string
     case InventoryManager = 'inventory_manager';
     case WarehouseStaff = 'warehouse_staff';
     case PharmacyStaff = 'pharmacy_staff';
+    case Auditor = 'auditor';
     case Viewer = 'viewer';
 
     public function label(): string
@@ -31,6 +32,7 @@ enum UserRole: string
             self::InventoryManager => 'Inventory Manager',
             self::WarehouseStaff => 'Warehouse Staff',
             self::PharmacyStaff => 'Pharmacy Staff',
+            self::Auditor => 'Auditor',
             self::Viewer => 'Viewer',
         };
     }
@@ -39,11 +41,12 @@ enum UserRole: string
     {
         return match ($this) {
             self::SuperAdministrator => 'Full administrative access through the dedicated Super Admin panel.',
-            self::Administrator => 'Full access, including user accounts.',
+            self::Administrator => 'Broad operational and user-account access, excluding reserved audit and high-risk warehouse duties.',
             self::InventoryManager => 'Runs the storeroom: items, procurement, forecasts.',
             self::WarehouseStaff => 'Receives and moves stock; clears alerts.',
             self::PharmacyStaff => 'Issues and dispenses stock to wards.',
-            self::Viewer => 'Read-only access for auditors and observers.',
+            self::Auditor => 'Reviews organization-wide operational reports and the append-only Audit Trail.',
+            self::Viewer => 'Read-only operational access for observers.',
         };
     }
 
@@ -62,57 +65,162 @@ enum UserRole: string
             // Kept as its own match arm so its permissions can be narrowed or
             // expanded later without changing the Administrator role.
             self::SuperAdministrator => Permission::cases(),
-            self::Administrator => array_values(array_filter(
-                Permission::cases(),
-                fn (Permission $permission) => $permission !== Permission::ViewAuditTrail,
-            )),
+
+            // System/IT administrator: user provisioning, module configuration,
+            // spatial topology, and read-only operational oversight. Stripped of
+            // physical stock mutations, PO creation/approval, and ledger corrections.
+            self::Administrator => [
+                Permission::ViewInventory,
+                Permission::ViewReports,
+                Permission::ManageScheduledReports,
+                Permission::ViewSuppliers,
+                Permission::ViewSupplierSensitiveData,
+                Permission::ReviewSupplierCompliance,
+                Permission::ApproveSuppliers,
+                Permission::ViewProcurement,
+                Permission::ViewProcurementSensitiveData,
+                Permission::ViewLogisticsRecords,
+                Permission::ViewLogisticsSensitiveData,
+                Permission::ViewProcessReviews,
+                Permission::ApproveProcessReview,
+                Permission::ApproveRequisition,
+                Permission::ApproveAdjustment,
+                Permission::ManageUsers,
+                Permission::ManageProcurementPolicy,
+                Permission::ManageLocations,
+                Permission::ViewWarehouseTasks,
+                Permission::ManageWarehouseTopology,
+                Permission::PrintWarehouseLabels,
+                Permission::GenerateForecasts,
+                Permission::ViewArchive,
+                Permission::ManageArchive,
+            ],
 
             // Owns the storeroom records: the item master, supplier directory,
             // procurement, forecasting, and the balance corrections that follow
-            // a cycle count. The only role that may reshape inventory data.
+            // a cycle count. Segregation of duties prevents dock receiving,
+            // clinical technical inspection, or signing off audit reviews.
             self::InventoryManager => [
                 Permission::ViewInventory,
                 Permission::ViewReports,
+                Permission::ManageScheduledReports,
+                Permission::ViewSuppliers,
+                Permission::ViewSupplierSensitiveData,
+                Permission::ViewProcurement,
+                Permission::ViewProcurementSensitiveData,
                 Permission::IssueStock,
                 Permission::RecordMovements,
                 Permission::AcknowledgeAlerts,
                 Permission::AdjustStock,
+                Permission::ApproveAdjustment,
+                Permission::InspectStock,
+                Permission::PerformCycleCount,
+                Permission::TransferStock,
                 Permission::ManageItems,
                 Permission::ManageLocations,
                 Permission::ManageSuppliers,
+                Permission::ReviewSupplierCompliance,
                 Permission::ManageProcurement,
+                Permission::CreateRequisition,
+                Permission::ApproveRequisition,
+                Permission::ManageSourcing,
+                Permission::EvaluateBids,
+                Permission::AwardProcurement,
+                Permission::IssuePurchaseOrder,
+                Permission::ApprovePurchaseOrder,
+                Permission::ReceivePurchaseOrder,
                 Permission::GenerateForecasts,
+                Permission::ViewWarehouseTasks,
+                Permission::ManageWarehouseTasks,
+                Permission::ExecuteWarehouseTasks,
+                Permission::ResolveWarehouseExceptions,
+                Permission::PrintWarehouseLabels,
+                Permission::ManageWarehouseTopology,
+                Permission::ManageTelemetryExcursions,
+                Permission::AccessNarcoticsVault,
+                Permission::RecordConsignments,
+                Permission::ViewLogisticsRecords,
+                Permission::ViewLogisticsSensitiveData,
+                Permission::ManageLogisticsRecords,
+                Permission::VerifyLogisticsDocuments,
+                Permission::ApproveIarAcceptance,
+                Permission::ManageChainOfCustody,
+                Permission::ViewProcessReviews,
+                Permission::CreateProcessReview,
+                Permission::ImplementProcessReview,
             ],
 
-            // Physically handles stock: receives deliveries, transfers between
-            // zones, issues to wards, and clears the alerts that result. No
-            // authority over the records themselves — an item they cannot count
-            // is a question for the inventory manager, not a row they may edit,
-            // and adjust_stock is withheld for the same reason: correcting a
-            // balance must not be done by the person who counted it.
+            // Physically handles stock: receives deliveries at the dock, transfers
+            // between zones, issues to wards, and clears alerts. No supplier access,
+            // no PO creation, and no ledger adjustment authority.
             self::WarehouseStaff => [
                 Permission::ViewInventory,
                 Permission::ViewReports,
+                Permission::ViewProcurement,
                 Permission::IssueStock,
                 Permission::RecordMovements,
                 Permission::AcknowledgeAlerts,
+                Permission::ReceivePurchaseOrder,
+                Permission::ViewWarehouseTasks,
+                Permission::ExecuteWarehouseTasks,
+                Permission::PrintWarehouseLabels,
+                Permission::InspectStock,
+                Permission::PerformCycleCount,
+                Permission::TransferStock,
+                Permission::RecordConsignments,
+                Permission::ViewLogisticsRecords,
+                Permission::ViewLogisticsSensitiveData,
+                Permission::ManageLogisticsRecords,
+                Permission::ManageChainOfCustody,
             ],
 
-            // Dispenses to wards and nothing else. They need to see what is on
-            // the shelf to dispense against it, so view_inventory is granted —
-            // this is the view-only access to medicine stock the department
-            // genuinely needs. issue_stock covers dispensing; the receiving,
-            // transfer and return types stay with the warehouse.
+            // Dispenses to wards, raises departmental and purchase requisitions,
+            // receives transfers into dispensing units, and signs technical inspections.
+            // Blocked from suppliers and smart warehousing execution.
             self::PharmacyStaff => [
                 Permission::ViewInventory,
                 Permission::ViewReports,
+                Permission::ViewProcurement,
                 Permission::IssueStock,
+                Permission::CreateRequisition,
+                Permission::TransferStock,
+                Permission::InspectStock,
+                Permission::AccessNarcoticsVault,
+                Permission::RecordConsignments,
+                Permission::ViewLogisticsRecords,
+                Permission::ViewLogisticsSensitiveData,
+                Permission::PerformTechnicalInspection,
+                Permission::VerifyLogisticsDocuments,
             ],
 
-            // Auditors and observers. Reads everything, writes nothing.
+            // Independent regulatory compliance and QA: strictly read-only
+            // visibility into operational records and the immutable audit trail.
+            // Auditors observe evidence; they never create, verify, approve, or
+            // otherwise change the evidence or workflow being audited.
+            self::Auditor => [
+                Permission::ViewInventory,
+                Permission::ViewReports,
+                Permission::ViewSuppliers,
+                Permission::ViewSupplierSensitiveData,
+                Permission::ViewProcurement,
+                Permission::ViewProcurementSensitiveData,
+                Permission::ViewWarehouseTasks,
+                Permission::ViewLogisticsRecords,
+                Permission::ViewLogisticsSensitiveData,
+                Permission::ViewProcessReviews,
+                Permission::ViewAuditTrail,
+                Permission::ViewArchive,
+            ],
+
+            // Passive executive observers: read-only operational summaries and
+            // dashboards without transactional or warehouse footprint.
             self::Viewer => [
                 Permission::ViewInventory,
                 Permission::ViewReports,
+                Permission::ViewSuppliers,
+                Permission::ViewProcurement,
+                Permission::ViewLogisticsRecords,
+                Permission::ViewProcessReviews,
             ],
         };
     }

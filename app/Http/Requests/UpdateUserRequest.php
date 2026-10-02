@@ -9,8 +9,11 @@ use App\Enums\UserStatus;
 use App\Models\User;
 use App\Rules\PasswordStandard;
 use App\Services\UserAccountService;
+use App\Support\SuperAdminPasswordConfirmation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Validator;
 
 class UpdateUserRequest extends FormRequest
 {
@@ -34,15 +37,13 @@ class UpdateUserRequest extends FormRequest
         $departments = array_keys(UserDepartment::optionsIncluding($this->route('user')?->department));
 
         return [
-            'surname' => ['required', 'string', 'max:80'],
-            'first_name' => ['required', 'string', 'max:80'],
-            'middle_name' => ['nullable', 'string', 'max:80'],
+            'surname' => ['required', 'string', 'max:80', 'regex:/^\p{L}+(?: \p{L}+)*$/u'],
+            'first_name' => ['required', 'string', 'max:80', 'regex:/^\p{L}+(?: \p{L}+)*$/u'],
+            'middle_name' => ['nullable', 'string', 'max:80', 'regex:/^\p{L}+(?: \p{L}+)*$/u'],
             'email' => [
                 'required', 'string', 'lowercase', 'email', 'max:255',
                 Rule::unique('users', 'email')->ignore($userId),
             ],
-            // Left blank on the edit form when the password is not changing.
-            'password' => ['nullable', 'string', 'confirmed', new PasswordStandard],
             'role' => [
                 'required',
                 Rule::enum(UserRole::class),
@@ -51,7 +52,38 @@ class UpdateUserRequest extends FormRequest
             'status' => ['required', Rule::enum(UserStatus::class)],
             'department' => ['required', 'string', Rule::in($departments)],
             'phone' => ['bail', 'required', 'string', 'digits:11', 'regex:/^09[0-9]{9}$/'],
+            'password' => ['nullable', 'string', new PasswordStandard, 'confirmed'],
+            'password_confirmation' => ['nullable', 'string'],
+            'current_password' => ['nullable', 'string'],
+            'super_admin_confirmation_token' => ['nullable', 'string'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            $user = $this->user();
+            if ($user?->isSuperAdministrator()) {
+                try {
+                    SuperAdminPasswordConfirmation::validate($this, $user);
+                } catch (ValidationException $e) {
+                    foreach ($e->errors() as $key => $messages) {
+                        foreach ($messages as $message) {
+                            $validator->errors()->add($key, $message);
+                        }
+                    }
+                }
+            }
+
+            $target = $this->route('user');
+            $phone = $this->input('phone');
+            if ($target instanceof User
+                && is_string($phone)
+                && preg_match('/^09[0-9]{9}$/D', $phone) === 1
+                && User::query()->wherePhoneNumber($phone)->whereKeyNot($target->getKey())->exists()) {
+                $validator->errors()->add('phone', 'This mobile phone number is already assigned to another account.');
+            }
+        });
     }
 
     /**
@@ -60,6 +92,9 @@ class UpdateUserRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'surname.regex' => 'Surname may only contain letters and single spaces between words.',
+            'first_name.regex' => 'First name may only contain letters and single spaces between words.',
+            'middle_name.regex' => 'Middle name may only contain letters and single spaces between words.',
             'role.required' => 'Pick the role this account should have.',
             'role.in' => 'You are not authorized to assign that role.',
             'department.required' => 'Pick the department this employee belongs to.',
@@ -67,7 +102,6 @@ class UpdateUserRequest extends FormRequest
             'phone.required' => 'Phone number is required.',
             'phone.digits' => 'Contact number must contain numbers only and exactly 11 digits.',
             'phone.regex' => 'Contact number must start with 09 and contain exactly 11 digits.',
-            'password.confirmed' => PasswordStandard::CONFIRMATION_MESSAGE,
         ];
     }
 

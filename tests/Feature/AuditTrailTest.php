@@ -3,13 +3,21 @@
 namespace Tests\Feature;
 
 use App\Enums\AuditAction;
+use App\Enums\MovementType;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\AuditLog;
+use App\Models\InventoryItem;
+use App\Models\StorageLocation;
 use App\Models\User;
+use App\Services\AuditGeoIpLocator;
+use App\Services\AuditLogger;
+use App\Services\InventoryAutomationService;
+use App\Support\AuditBrowserLocation;
 use App\Support\AuthenticationContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use LogicException;
 use Tests\TestCase;
 
@@ -57,6 +65,57 @@ class AuditTrailTest extends TestCase
         ], $overrides));
     }
 
+    public function test_filtered_print_view_contains_the_full_authorized_result_without_controls(): void
+    {
+        $viewer = User::factory()->superAdministrator()->create();
+
+        foreach (range(1, 30) as $index) {
+            $this->auditLog([
+                'actor_name' => 'Print Operator '.str_pad((string) $index, 3, '0', STR_PAD_LEFT),
+                'description' => 'Printable filtered audit detail '.str_repeat('wrap ', 20),
+            ]);
+        }
+        $this->auditLog(['actor_name' => 'Excluded Operator']);
+
+        $response = $this->actingAs($viewer, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.audit-logs.index', ['search' => 'Print Operator', 'print' => 1]));
+
+        $response->assertOk()
+            ->assertSee('Print Operator 001')
+            ->assertSee('Print Operator 030')
+            ->assertDontSee('Excluded Operator')
+            ->assertSee('30 records')
+            ->assertSee('Audit Trail Report')
+            ->assertSee('audit-print-col-description', false)
+            ->assertSee('size: A4 landscape', false)
+            ->assertSee('window.print()', false)
+            ->assertSee('window.location.replace', false)
+            ->assertSee('Back to Audit Trail')
+            ->assertDontSee('audit-log-filters', false)
+            ->assertDontSee('Pagination Navigation');
+
+        $this->actingAs(User::factory()->administrator()->create())
+            ->get(route('admin.audit-logs.index', ['print' => 1]))
+            ->assertForbidden();
+    }
+
+    public function test_super_admin_audit_links_stay_in_the_super_admin_panel(): void
+    {
+        $viewer = User::factory()->superAdministrator()->create();
+
+        $response = $this->actingAs($viewer, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.audit-logs.index'));
+
+        $response->assertOk()
+            ->assertSee('/super-admin/audit-trail?print=1', false)
+            ->assertSee('super-admin\\/audit-trail\\/suggestions', false)
+            ->assertDontSee('/admin/audit-trail?print=1', false);
+
+        $this->actingAs(User::factory()->administrator()->create(), AuthenticationContext::ADMIN_GUARD)
+            ->get(route('super-admin.audit-logs.index'))
+            ->assertRedirect(route('super-admin.login'));
+    }
+
     public function test_creating_a_user_records_actor_target_context_and_no_password(): void
     {
         $admin = $this->admin();
@@ -78,6 +137,159 @@ class AuditTrailTest extends TestCase
         $this->assertStringContainsString('Created a new user account', $log->description);
         $this->assertArrayNotHasKey('password', $log->new_values);
         $this->assertStringNotContainsString('Password123!', json_encode($log->new_values));
+    }
+
+    public function test_new_events_capture_readable_device_and_approximate_location_context(): void
+    {
+        $actor = User::factory()->superAdministrator()->create();
+        $geoIp = \Mockery::mock(AuditGeoIpLocator::class);
+        $geoIp->shouldReceive('locate')
+            ->once()
+            ->with('8.8.8.8')
+            ->andReturn([
+                'location_city' => 'Mountain View',
+                'location_region' => 'California',
+                'location_country' => 'United States',
+                'location_country_code' => 'US',
+            ]);
+        $this->app->instance(AuditGeoIpLocator::class, $geoIp);
+
+        $this->app->instance('request', Request::create('/', 'GET', server: [
+            'REMOTE_ADDR' => '8.8.8.8',
+            'HTTP_USER_AGENT' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+        ]));
+
+        $log = app(AuditLogger::class)->log(
+            AuditAction::LoggedIn,
+            $actor,
+            'Recorded contextual activity.',
+        );
+
+        $this->assertSame('Desktop', $log->device_type);
+        $this->assertStringContainsString('Windows', $log->operating_system);
+        $this->assertStringContainsString('Chrome', $log->browser);
+        $this->assertSame('Mountain View, California, United States', $log->locationSummary());
+        $this->assertSame('US', $log->location_country_code);
+    }
+
+    public function test_audit_context_is_searchable_and_visible_to_authorized_users(): void
+    {
+        $this->auditLog([
+            'device_type' => 'Smartphone',
+            'device_name' => 'Apple iPhone',
+            'operating_system' => 'iOS 18.0',
+            'browser' => 'Mobile Safari 18.0',
+            'location_city' => 'Manila',
+            'location_region' => 'Metro Manila',
+            'location_country' => 'Philippines',
+            'location_country_code' => 'PH',
+        ]);
+        $viewer = User::factory()->superAdministrator()->create();
+
+        $this->actingAs($viewer, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.audit-logs.index', ['search' => 'Manila']))
+            ->assertOk()
+            ->assertSee('Recorded audit activity.')
+            ->assertDontSee('Manila, Metro Manila, Philippines')
+            ->assertDontSee('Apple iPhone');
+
+        $this->get(route('super-admin.audit-logs.show', AuditLog::firstOrFail()))
+            ->assertOk()
+            ->assertSee('Approximate location')
+            ->assertSee('Manila, Metro Manila, Philippines')
+            ->assertSee('Smartphone')
+            ->assertSee('Apple iPhone')
+            ->assertSee('Mobile Safari 18.0')
+            ->assertSee('Raw user agent');
+    }
+
+    public function test_browser_location_requires_authentication_and_valid_coordinates(): void
+    {
+        $this->postJson(route('profile.audit-location.store'), [
+            'latitude' => 14.5995,
+            'longitude' => 120.9842,
+            'accuracy' => 25,
+        ])->assertUnauthorized();
+
+        $user = User::factory()->warehouseStaff()->create();
+        $this->actingAs($user)
+            ->postJson(route('profile.audit-location.store'), [
+                'latitude' => 91,
+                'longitude' => 181,
+                'accuracy' => -1,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['latitude', 'longitude', 'accuracy']);
+
+        $this->postJson(route('profile.audit-location.store'), [
+            'latitude' => 14.599512,
+            'longitude' => 120.984222,
+            'accuracy' => 24.2,
+        ])->assertOk()->assertJson(['stored' => true]);
+
+        $this->assertSame([
+            'user_id' => $user->id,
+            'latitude' => 14.5995,
+            'longitude' => 120.9842,
+            'accuracy' => 25,
+            'captured_at' => now()->getTimestamp(),
+        ], session(AuditBrowserLocation::SESSION_KEY));
+    }
+
+    public function test_consented_browser_location_is_recorded_with_later_audit_events(): void
+    {
+        $actor = User::factory()->superAdministrator()->create();
+        $this->actingAs($actor, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->postJson(route('profile.audit-location.store'), [
+                'latitude' => 14.599512,
+                'longitude' => 120.984222,
+                'accuracy' => 24.2,
+            ])->assertOk();
+
+        $geoIp = \Mockery::mock(AuditGeoIpLocator::class);
+        $geoIp->shouldNotReceive('locate');
+        $this->app->instance(AuditGeoIpLocator::class, $geoIp);
+
+        $log = app(AuditLogger::class)->log(
+            AuditAction::UpdatedUser,
+            $actor,
+            'Recorded an event after location consent.',
+        );
+
+        $this->assertSame('browser', $log->location_source);
+        $this->assertSame('14.5995', $log->location_latitude);
+        $this->assertSame('120.9842', $log->location_longitude);
+        $this->assertSame(25, $log->location_accuracy_meters);
+        $this->assertSame('Device-reported (browser permission)', $log->locationSourceLabel());
+    }
+
+    public function test_audit_list_is_balanced_and_browser_location_is_requested_after_login(): void
+    {
+        $viewer = User::factory()->superAdministrator()->create();
+        $this->auditLog(['actor_name' => 'Audit Tester', 'description' => 'Tested audit list layout.']);
+
+        $response = $this->actingAs($viewer, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.audit-logs.index'));
+
+        $response
+            ->assertOk()
+            ->assertSee('data-audit-location-url=', false)
+            ->assertSee('Performed By')
+            ->assertSee('Action')
+            ->assertSee('Module')
+            ->assertSee('Target')
+            ->assertSee('Description')
+            ->assertSee('Date &amp; Time', false)
+            ->assertSee('Actions')
+            ->assertDontSee('IP Address')
+            ->assertDontSee('<th scope="col" class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-600 whitespace-nowrap bg-neutral-50 text-left">Origin</th>', false)
+            ->assertDontSee('<th scope="col" class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-neutral-600 whitespace-nowrap bg-neutral-50 text-left">Device</th>', false);
+
+        $script = file_get_contents(resource_path('js/app.js'));
+        $this->assertIsString($script);
+        $this->assertStringContainsString('navigator.geolocation.getCurrentPosition', $script);
+        $this->assertStringContainsString('navigator.permissions.query', $script);
+        $this->assertStringContainsString("permission.state === 'prompt'", $script);
     }
 
     public function test_updating_a_user_records_only_safe_changed_fields(): void
@@ -110,19 +322,13 @@ class AuditTrailTest extends TestCase
 
     public function test_password_changes_are_logged_without_password_values(): void
     {
-        $admin = $this->admin();
         $staff = User::factory()->warehouseStaff()->create(['name' => 'Pedro Santos']);
 
-        $this->actingAs($admin)->put("/admin/users/{$staff->id}", [
-            ...$staff->nameComponents(),
-            'email' => $staff->email,
-            'phone' => $staff->phone,
-            'department' => $staff->department,
-            'role' => $staff->role->value,
-            'status' => $staff->status->value,
+        $this->actingAs($staff, AuthenticationContext::WEB_GUARD)->put('/password', [
+            'current_password' => 'password',
             'password' => 'BrandNewPass1!',
             'password_confirmation' => 'BrandNewPass1!',
-        ])->assertRedirect('/admin/users');
+        ])->assertSessionHasNoErrors();
 
         $log = AuditLog::where('action', AuditAction::ChangedPassword->value)->firstOrFail();
 
@@ -187,7 +393,7 @@ class AuditTrailTest extends TestCase
             'target_name' => 'Account',
         ]);
 
-        $this->post('/logout')->assertRedirect('/');
+        $this->post('/logout')->assertRedirect(route('login'));
 
         $this->assertDatabaseHas('audit_logs', [
             'user_id' => $user->id,
@@ -197,12 +403,57 @@ class AuditTrailTest extends TestCase
         ]);
     }
 
-    public function test_only_super_administrators_can_access_the_audit_trail(): void
+    public function test_login_captures_browser_location_coordinates_when_submitted(): void
+    {
+        $user = User::factory()->warehouseStaff()->create(['name' => 'Maria Santos']);
+        $superAdmin = User::factory()->superAdministrator()->create();
+
+        $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'latitude' => 14.6723,
+            'longitude' => 121.0183,
+            'accuracy' => 25,
+        ])->assertRedirect(route('dashboard', absolute: false));
+
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $user->id,
+            'actor_name' => 'Maria Santos',
+            'action' => AuditAction::LoggedIn->value,
+            'location_source' => 'browser',
+            'location_latitude' => '14.6723',
+            'location_longitude' => '121.0183',
+            'location_accuracy_meters' => 25,
+        ]);
+
+        $log = AuditLog::where('action', AuditAction::LoggedIn->value)->where('user_id', $user->id)->latest('id')->firstOrFail();
+        $this->assertSame('14.6723, 121.0183', $log->locationSummary());
+
+        $this->flushSession();
+        $this->app['auth']->forgetGuards();
+
+        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.audit-logs.show', $log))
+            ->assertOk()
+            ->assertSee('14.6723, 121.0183')
+            ->assertSee('maps?q=14.6723,121.0183', false);
+    }
+
+    public function test_only_audit_authorized_roles_can_access_the_audit_trail(): void
     {
         $admin = $this->admin();
         $superAdmin = User::factory()->superAdministrator()->create();
+        $auditor = User::factory()->auditor()->create();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get('/super-admin/audit-trail')
+            ->assertOk()
+            ->assertSee('Audit Trail');
+
+        $this->flushSession();
+        $this->app['auth']->forgetGuards();
+
+        $this->actingAs($auditor, AuthenticationContext::WEB_GUARD)
             ->get('/admin/audit-trail')
             ->assertOk()
             ->assertSee('Audit Trail');
@@ -220,11 +471,19 @@ class AuditTrailTest extends TestCase
         $this->get('/admin/audit-trail')->assertRedirect('/super-admin/login');
     }
 
-    public function test_only_super_administrators_can_access_audit_suggestions(): void
+    public function test_only_audit_authorized_roles_can_access_audit_suggestions(): void
     {
         $superAdmin = User::factory()->superAdministrator()->create();
+        $auditor = User::factory()->auditor()->create();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->getJson(route('super-admin.audit-logs.suggestions', ['query' => 'Audit']))
+            ->assertOk();
+
+        $this->flushSession();
+        $this->app['auth']->forgetGuards();
+
+        $this->actingAs($auditor, AuthenticationContext::WEB_GUARD)
             ->getJson(route('admin.audit-logs.suggestions', ['query' => 'Audit']))
             ->assertOk();
 
@@ -268,7 +527,7 @@ class AuditTrailTest extends TestCase
 
         $superAdmin = User::factory()->superAdministrator()->create();
         $response = $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->getJson(route('admin.audit-logs.suggestions', ['query' => 'zed']));
+            ->getJson(route('super-admin.audit-logs.suggestions', ['query' => 'zed']));
 
         $response->assertOk();
 
@@ -315,7 +574,7 @@ class AuditTrailTest extends TestCase
 
         $superAdmin = User::factory()->superAdministrator()->create();
         $response = $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->getJson(route('admin.audit-logs.suggestions', ['query' => 'zedrick']))
+            ->getJson(route('super-admin.audit-logs.suggestions', ['query' => 'zedrick']))
             ->assertOk();
 
         $suggestions = collect($response->json('data'));
@@ -345,7 +604,7 @@ class AuditTrailTest extends TestCase
         $superAdmin = User::factory()->superAdministrator()->create();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->getJson(route('admin.audit-logs.suggestions', ['query' => 'Updated']))
+            ->getJson(route('super-admin.audit-logs.suggestions', ['query' => 'Updated']))
             ->assertOk()
             ->assertJsonFragment([
                 'value' => 'Updated User',
@@ -353,7 +612,7 @@ class AuditTrailTest extends TestCase
             ])
             ->assertJsonMissing(['value' => 'Created User']);
 
-        $this->get(route('admin.audit-logs.index', ['search' => 'Updated User']))
+        $this->get(route('super-admin.audit-logs.index', ['search' => 'Updated User']))
             ->assertOk()
             ->assertSee('Only the updated action should match.')
             ->assertDontSee('Unrelated login activity.');
@@ -372,7 +631,7 @@ class AuditTrailTest extends TestCase
         $superAdmin = User::factory()->superAdministrator()->create();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.audit-logs.index', ['search' => 'zediskaaa@gmail.com']))
+            ->get(route('super-admin.audit-logs.index', ['search' => 'zediskaaa@gmail.com']))
             ->assertOk()
             ->assertSee('Matched email activity.')
             ->assertDontSee('Unrelated email activity.');
@@ -390,21 +649,21 @@ class AuditTrailTest extends TestCase
         $superAdmin = User::factory()->superAdministrator()->create();
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD);
 
-        $limited = $this->getJson(route('admin.audit-logs.suggestions', ['query' => 'Test']));
+        $limited = $this->getJson(route('super-admin.audit-logs.suggestions', ['query' => 'Test']));
 
         $limited->assertOk();
         $this->assertLessThanOrEqual(8, count($limited->json('data')));
         $this->assertLessThan(12, count($limited->json('data')));
 
-        $this->getJson(route('admin.audit-logs.suggestions', ['query' => '']))
+        $this->getJson(route('super-admin.audit-logs.suggestions', ['query' => '']))
             ->assertOk()
             ->assertExactJson(['data' => []]);
 
-        $this->getJson(route('admin.audit-logs.suggestions', ['query' => 'NoSuchAuditValue']))
+        $this->getJson(route('super-admin.audit-logs.suggestions', ['query' => 'NoSuchAuditValue']))
             ->assertOk()
             ->assertExactJson(['data' => []]);
 
-        $this->getJson(route('admin.audit-logs.suggestions', ['query' => str_repeat('a', 101)]))
+        $this->getJson(route('super-admin.audit-logs.suggestions', ['query' => str_repeat('a', 101)]))
             ->assertUnprocessable()
             ->assertJsonValidationErrors('query');
     }
@@ -414,10 +673,10 @@ class AuditTrailTest extends TestCase
         $superAdmin = User::factory()->superAdministrator()->create();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.audit-logs.index'))
+            ->get(route('super-admin.audit-logs.index'))
             ->assertOk()
             ->assertSee('auditSearchAutocomplete', false)
-            ->assertSee('admin\\/audit-trail\\/suggestions', false)
+            ->assertSee('super-admin\\/audit-trail\\/suggestions', false)
             ->assertSee('!overflow-visible', false)
             ->assertSee('x-on:click.outside="close()"', false)
             ->assertSee('x-on:keydown.down.prevent="move(1)"', false)
@@ -449,15 +708,15 @@ class AuditTrailTest extends TestCase
         $superAdmin = User::factory()->superAdministrator()->create();
 
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get('/admin/audit-trail?action='.AuditAction::LoggedIn->value.'&search=Juan')
+            ->get('/super-admin/audit-trail?action='.AuditAction::LoggedIn->value.'&search=Juan')
             ->assertOk()
             ->assertSee('Juan Dela Cruz')
             ->assertSee('Logged In')
-            ->assertSee('Aug 27, 2026, 8:15 PM')
+            ->assertSee('Aug 27, 2026, 8:15:00 PM')
             ->assertSee('PHT (UTC+8)');
     }
 
-    public function test_sidebar_link_is_visible_only_to_a_super_administrator(): void
+    public function test_sidebar_link_is_visible_only_to_audit_authorized_roles(): void
     {
         $this->actingAs($this->admin(), AuthenticationContext::ADMIN_GUARD)->get('/dashboard')
             ->assertDontSee('Audit Trail');
@@ -466,6 +725,11 @@ class AuditTrailTest extends TestCase
 
         $this->actingAs(User::factory()->viewer()->create())->get('/dashboard')
             ->assertDontSee('Audit Trail');
+        $this->flushSession();
+        $this->app['auth']->forgetGuards();
+
+        $this->actingAs(User::factory()->auditor()->create())->get('/dashboard')
+            ->assertSee('Audit Trail');
         $this->flushSession();
         $this->app['auth']->forgetGuards();
 
@@ -499,8 +763,304 @@ class AuditTrailTest extends TestCase
             $this->assertStringContainsString('append-only', $exception->getMessage());
         }
 
-        $this->put("/admin/audit-trail/{$log->id}")->assertNotFound();
-        $this->delete("/admin/audit-trail/{$log->id}")->assertNotFound();
+        $this->put("/admin/audit-trail/{$log->id}")->assertMethodNotAllowed();
+        $this->delete("/admin/audit-trail/{$log->id}")->assertMethodNotAllowed();
         $this->assertDatabaseHas('audit_logs', ['id' => $log->id]);
+    }
+
+    public function test_new_events_store_utc_context_and_remove_sensitive_snapshot_values(): void
+    {
+        $this->travelTo(CarbonImmutable::create(2026, 9, 11, 14, 35, 18, 'Asia/Manila'));
+        $actor = User::factory()->superAdministrator()->create();
+
+        $log = app(AuditLogger::class)->log(
+            AuditAction::UpdatedUser,
+            $actor,
+            'Updated an account.',
+            $actor,
+            'Account',
+            oldValues: ['email' => 'old@example.test', 'password_hash' => 'must-not-appear'],
+            newValues: [
+                'email' => 'new@example.test',
+                'nested' => ['api_token' => 'must-not-appear', 'status' => 'active'],
+            ],
+        );
+
+        $this->assertNotNull($log->event_id);
+        $this->assertSame(UserRole::SuperAdministrator->value, $log->actor_role);
+        $this->assertSame('Administration', $log->event_category);
+        $this->assertSame('User Administration', $log->module);
+        $this->assertSame('success', $log->outcome);
+        $this->assertSame('user', $log->source);
+        $this->assertSame('Asia/Manila', $log->display_timezone);
+        $this->assertSame('2026-09-11 06:35:18.000000', $log->occurred_at_utc);
+        $this->assertSame('September 11, 2026, 2:35:18 PM', $log->displayTimestamp()->format('F j, Y, g:i:s A'));
+        $this->assertArrayNotHasKey('password_hash', $log->old_values);
+        $this->assertArrayNotHasKey('api_token', $log->new_values['nested']);
+        $this->assertSame('active', $log->new_values['nested']['status']);
+        $this->assertStringNotContainsString('must-not-appear', $log->toJson());
+    }
+
+    public function test_audit_filters_and_detail_view_use_server_side_metadata(): void
+    {
+        $superAdmin = User::factory()->superAdministrator()->create();
+        $log = app(AuditLogger::class)->log(
+            AuditAction::ScheduledCycleCount,
+            $superAdmin,
+            'Scheduled a count.',
+            targetName: 'CC-2026-001',
+        );
+        app(AuditLogger::class)->log(AuditAction::LoggedIn, $superAdmin, 'Unrelated activity.');
+
+        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.audit-logs.index', [
+                'category' => 'Inventory & Warehousing',
+                'module' => 'Cycle Counts',
+                'outcome' => 'success',
+                'source' => 'user',
+                'target' => 'CC-2026-001',
+            ]))
+            ->assertOk()
+            ->assertSee('Scheduled a count.')
+            ->assertDontSee('Unrelated activity.');
+
+        $this->get(route('super-admin.audit-logs.show', $log))
+            ->assertOk()
+            ->assertSee($log->event_id)
+            ->assertSee('Authoritative UTC time')
+            ->assertSee('PHT (UTC+8)');
+    }
+
+    public function test_failed_login_is_recorded_without_attempted_credentials(): void
+    {
+        $admin = $this->admin();
+
+        $this->post('/admin/login', [
+            'email' => $admin->email,
+            'password' => 'IncorrectPassword123!',
+        ])->assertSessionHasErrors('email');
+
+        $log = AuditLog::where('action', AuditAction::FailedLogin->value)->firstOrFail();
+
+        $this->assertNull($log->user_id);
+        $this->assertSame((string) $admin->id, $log->target_id);
+        $this->assertStringNotContainsString('IncorrectPassword123!', $log->toJson());
+        $this->assertStringNotContainsString($admin->email, $log->description);
+    }
+
+    public function test_manila_date_filter_uses_utc_boundaries_without_double_conversion(): void
+    {
+        $superAdmin = User::factory()->superAdministrator()->create();
+
+        $this->travelTo(CarbonImmutable::create(2026, 9, 30, 23, 59, 59, 'Asia/Manila'));
+        app(AuditLogger::class)->log(AuditAction::LoggedIn, $superAdmin, 'Inside Manila day.');
+
+        $this->travelTo(CarbonImmutable::create(2026, 10, 1, 0, 0, 1, 'Asia/Manila'));
+        app(AuditLogger::class)->log(AuditAction::LoggedIn, $superAdmin, 'Outside Manila day.');
+
+        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.audit-logs.index', [
+                'date_from' => '2026-09-30',
+                'date_to' => '2026-09-30',
+            ]))
+            ->assertOk()
+            ->assertSee('Inside Manila day.')
+            ->assertDontSee('Outside Manila day.');
+
+        $inside = AuditLog::where('description', 'Inside Manila day.')->firstOrFail();
+        $outside = AuditLog::where('description', 'Outside Manila day.')->firstOrFail();
+        $this->assertSame('2026-09-30 15:59:59.000000', $inside->occurred_at_utc);
+        $this->assertSame('2026-09-30 16:00:01.000000', $outside->occurred_at_utc);
+    }
+
+    public function test_smart_warehousing_and_stock_movements_record_audit_events(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->post(route('inventory.warehousing.locations.store'), [
+                'code' => 'BIN-99A',
+                'name' => 'Automated Storage Cell 99A',
+                'type' => 'bin',
+                'zone' => 'Zone A',
+                'storage_classification' => 'general',
+                'temperature_classification' => 'ambient',
+                'is_receiving_staging' => 0,
+                'is_quarantine' => 0,
+                'is_pick_face' => 1,
+                'is_reserve' => 0,
+                'is_dispatch_staging' => 0,
+                'is_narcotics_vault' => 0,
+                'is_hazardous_containment' => 0,
+            ])
+            ->assertSessionHasNoErrors();
+
+        $locLog = AuditLog::where('action', AuditAction::CreatedStorageLocation->value)
+            ->where('target_name', 'BIN-99A')
+            ->firstOrFail();
+
+        $this->assertSame($admin->id, $locLog->user_id);
+        $this->assertSame('BIN-99A', $locLog->new_values['code']);
+    }
+
+    public function test_direct_stock_movement_issuance_records_audit_event(): void
+    {
+        $user = User::factory()->pharmacyStaff()->create();
+        $source = StorageLocation::create(['name' => 'Main Warehouse', 'code' => 'MWH-01', 'type' => 'warehouse', 'status' => 'active']);
+        $ward = StorageLocation::create(['name' => 'Emergency Ward', 'code' => 'ER-01', 'type' => 'department', 'status' => 'active']);
+        $item = InventoryItem::create([
+            'name' => 'Surgical Gloves',
+            'sku' => 'TEST-GLV-01',
+            'quantity_on_hand' => 50,
+            'reorder_level' => 10,
+            'unit_cost' => 15.00,
+            'status' => 'active',
+        ]);
+
+        // Put initial stock in source
+        app(InventoryAutomationService::class)->recordMovement([
+            'item_id' => $item->id,
+            'movement_type' => MovementType::StockIn,
+            'quantity' => 50,
+            'to_location_id' => $source->id,
+            'remarks' => 'Initial stock for audit test.',
+        ], $user->id);
+
+        AuditLog::query()->delete();
+
+        $this->actingAs($user)
+            ->post(route('inventory.stock-movements.store'), [
+                'item_id' => $item->id,
+                'movement_type' => MovementType::Issuance->value,
+                'quantity' => 10,
+                'from_location_id' => $source->id,
+                'issued_to_location_id' => $ward->id,
+                'remarks' => 'Direct issuance to ward.',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $movementLog = AuditLog::where('action', AuditAction::RecordedStockMovement->value)->firstOrFail();
+        $this->assertSame($user->id, $movementLog->user_id);
+        $this->assertSame(MovementType::Issuance->value, $movementLog->new_values['movement_type']);
+        $this->assertSame(10, $movementLog->new_values['quantity']);
+    }
+
+    public function test_routine_direct_stock_adjustment_records_posted_inventory_adjustment(): void
+    {
+        $user = User::factory()->inventoryManager()->create();
+        $location = StorageLocation::create(['name' => 'Storage Bay', 'code' => 'BAY-01', 'type' => 'shelf', 'status' => 'active']);
+        $item = InventoryItem::create([
+            'name' => 'Alcohol Swabs',
+            'sku' => 'TEST-SWB-01',
+            'quantity_on_hand' => 20,
+            'reorder_level' => 10,
+            'unit_cost' => 100.00,
+            'status' => 'active',
+        ]);
+
+        // Put stock in location
+        app(InventoryAutomationService::class)->recordMovement([
+            'item_id' => $item->id,
+            'movement_type' => MovementType::StockIn,
+            'quantity' => 20,
+            'to_location_id' => $location->id,
+            'remarks' => 'Initial stock for adjustment test.',
+        ], $user->id);
+
+        AuditLog::query()->delete();
+
+        $this->actingAs($user)
+            ->post(route('inventory.adjustments.store'), [
+                'item_id' => $item->id,
+                'location_id' => $location->id,
+                'adjustment_type' => 'increase',
+                'quantity' => 20,
+                'reason' => 'Cycle count correction found 20 extra units.',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $adjustmentLog = AuditLog::where('action', AuditAction::PostedInventoryAdjustment->value)->firstOrFail();
+        $this->assertSame($user->id, $adjustmentLog->user_id);
+        $this->assertSame(20, $adjustmentLog->new_values['delta']);
+    }
+
+    public function test_place_name_resolves_human_readable_location_from_coordinates_or_stored_values(): void
+    {
+        $superAdmin = User::factory()->superAdministrator()->create();
+
+        // 1. Coordinates only (e.g. Quezon City 14.6646, 121.0500)
+        $coordLog = $this->auditLog([
+            'actor_name' => 'Dr. Reyes',
+            'location_source' => 'browser',
+            'location_latitude' => '14.6646',
+            'location_longitude' => '121.0500',
+            'location_accuracy_meters' => 148,
+        ]);
+
+        $this->assertSame('Quezon City, Metro Manila, Philippines', $coordLog->placeName());
+
+        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('super-admin.audit-logs.show', $coordLog))
+            ->assertOk()
+            ->assertSee('Quezon City, Metro Manila, Philippines')
+            ->assertSee('Coordinates: 14.6646, 121.0500')
+            ->assertSee('View on Google Maps', false);
+
+        // 2. City and country already stored
+        $storedLog = $this->auditLog([
+            'actor_name' => 'Dr. Santos',
+            'location_city' => 'Cebu City',
+            'location_region' => 'Central Visayas',
+            'location_country' => 'Philippines',
+        ]);
+
+        $this->assertSame('Cebu City, Central Visayas, Philippines', $storedLog->placeName());
+    }
+
+    public function test_audit_logger_and_requests_resolve_client_ip_from_proxies_and_cdn_headers(): void
+    {
+        $admin = $this->admin();
+
+        // 1. Standard reverse proxy / tunnel X-Forwarded-For
+        $request = Request::create('/test', 'GET', [], [], [], [
+            'REMOTE_ADDR' => '127.0.0.1',
+            'HTTP_X_FORWARDED_FOR' => '203.177.45.67',
+        ]);
+        app()->instance('request', $request);
+
+        $logger = app(AuditLogger::class);
+        $log1 = $logger->log(AuditAction::LoggedIn, $admin, 'Login via tunnel');
+        $this->assertSame('203.177.45.67', $log1->ip_address);
+
+        // 2. Cloudflare CF-Connecting-IP header
+        $requestCf = Request::create('/test', 'GET', [], [], [], [
+            'REMOTE_ADDR' => '127.0.0.1',
+            'HTTP_CF_CONNECTING_IP' => '112.198.78.90',
+        ]);
+        app()->instance('request', $requestCf);
+
+        $log2 = $logger->log(AuditAction::LoggedIn, $admin, 'Login via Cloudflare');
+        $this->assertSame('112.198.78.90', $log2->ip_address);
+
+        // 3. Nginx / reverse proxy X-Real-IP header
+        $requestRealIp = Request::create('/test', 'GET', [], [], [], [
+            'REMOTE_ADDR' => '127.0.0.1',
+            'HTTP_X_REAL_IP' => '175.176.89.12',
+        ]);
+        app()->instance('request', $requestRealIp);
+
+        $log3 = $logger->log(AuditAction::LoggedIn, $admin, 'Login via Nginx');
+        $this->assertSame('175.176.89.12', $log3->ip_address);
+
+        // 4. Full HTTP request through the Laravel pipeline with trusted proxies
+        $this->actingAs($admin)
+            ->withServerVariables([
+                'REMOTE_ADDR' => '127.0.0.1',
+                'HTTP_X_FORWARDED_FOR' => '180.190.20.10',
+            ])
+            ->get(route('admin.users.index'))
+            ->assertOk();
+
+        $this->assertSame('180.190.20.10', request()->ip());
     }
 }

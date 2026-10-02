@@ -2,41 +2,136 @@
     @php($nameComponents = $user->nameComponents())
     <x-ui.page-header
         :title="$user->name"
-        :subtitle="$user->role->label().' · '.$user->status->label()"
         :breadcrumbs="[
             'Home' => route(\App\Support\AuthenticationContext::dashboardRoute()),
-            'User Management' => route('admin.users.index'),
+            'User Management' => route(\App\Support\AuthenticationContext::administrationRoute('users.index')),
             $user->name => null,
         ]">
         @if ($canManage)
             <x-slot:actions>
-                @if ($canUnlock)
-                    <form method="POST" action="{{ route('admin.users.unlock', $user) }}"
-                          data-confirm-title="Confirm account unlock"
-                          data-confirm-message="Are you sure you want to unlock this account?"
-                          data-confirm-label="Unlock Account">
-                        @csrf
-                        @method('PATCH')
-                        <x-ui.button type="submit" data-loading-text="Unlocking account...">
-                            Unlock Account
+                <div class="flex flex-wrap items-center gap-2">
+                    @if ($canUnlock)
+                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.unlock'), $user) }}"
+                              data-confirm-title="Unlock account?"
+                              data-confirm-message="This will allow the user to attempt signing in again."
+                              data-confirm-label="Unlock Account">
+                            @csrf
+                            @method('PATCH')
+                            <x-ui.button type="submit" data-loading-text="Unlocking account...">
+                                Unlock Account
+                            </x-ui.button>
+                        </form>
+                    @endif
+                    <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('users.edit'), $user)" icon="pencil-square">
+                        Edit
+                    </x-ui.button>
+                    @if (! $user->isPendingActivation() && ! $user->isCancelled() && ! $user->hasVerifiedEmail())
+                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.verification.send'), $user) }}">
+                            @csrf
+                            <x-ui.button type="submit" variant="secondary" data-loading-text="Sending activation email...">
+                                Resend Activation
+                            </x-ui.button>
+                        </form>
+                    @endif
+                    @if ($user->isPendingActivation())
+                        <x-ui.button
+                            type="button"
+                            variant="danger"
+                            x-on:click="$dispatch('open-cancel-activation', { actionUrl: {{ Illuminate\Support\Js::from(route(\App\Support\AuthenticationContext::administrationRoute('users.cancel-invitation'), $user)) }}, accountName: {{ Illuminate\Support\Js::from($user->name) }}, userId: {{ Illuminate\Support\Js::from($user->getKey()) }} })">
+                            Cancel Activation
                         </x-ui.button>
-                    </form>
-                @endif
-                <x-ui.button variant="secondary" :href="route('admin.users.edit', $user)" icon="pencil-square">
-                    Edit
-                </x-ui.button>
+                    @elseif ($user->isCancelled())
+                        <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.cancellation-notification.send'), $user) }}">
+                            @csrf
+                            <x-ui.button type="submit" variant="secondary" data-loading-text="Sending cancellation notice...">
+                                Resend Cancellation Notice
+                            </x-ui.button>
+                        </form>
+                    @endif
+                    @unless ($user->is(auth()->user()))
+                        @if ($user->isArchived())
+                            @can(\App\Enums\Permission::ManageArchive->value)
+                                <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.unarchive'), $user) }}"
+                                      data-confirm-title="Restore User Account"
+                                      data-confirm-message="Restore account for {{ $user->name }} ({{ $user->email }}) to active status? Duplicate email or employee ID checks will be enforced."
+                                      data-confirm-label="Restore Account">
+                                    @csrf
+                                    <x-ui.button
+                                        type="submit"
+                                        variant="secondary"
+                                        icon="arrow-path"
+                                        data-loading-text="Restoring account...">
+                                        Restore Account
+                                    </x-ui.button>
+                                </form>
+                            @endcan
+                        @elseif (! $user->isPendingActivation())
+                            @php($willReinvite = ! $user->isActive() && $user->requiresActivation())
+                            <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.toggle-status'), $user) }}"
+                                  data-confirm-title="{{ $willReinvite ? 'Re-invite user?' : 'Confirm account status change' }}"
+                                  data-confirm-message="{{ $willReinvite ? 'This will return the account to Pending Activation and send a new invitation.' : 'Are you sure you want to '.($user->isActive() ? 'deactivate' : 'reactivate').' this user?' }}"
+                                  data-confirm-label="{{ $willReinvite ? 'Re-invite' : ($user->isActive() ? 'Deactivate' : 'Reactivate') }}"
+                                  @if (auth()->user()?->isSuperAdministrator() && $user->isActive()) data-super-admin-deactivate="true" @endif>
+                                @csrf
+                                @method('PATCH')
+                                <x-ui.button
+                                    type="submit"
+                                    data-loading-text="{{ $willReinvite ? 'Sending invitation...' : 'Updating account...' }}"
+                                    :variant="$user->isActive() ? 'secondary' : 'primary'">
+                                    {{ $willReinvite ? 'Re-invite' : ($user->isActive() ? 'Deactivate' : 'Reactivate') }}
+                                </x-ui.button>
+                            </form>
+
+                            @can(\App\Enums\Permission::ManageArchive->value)
+                                @unless ($user->isProtected())
+                                    <x-ui.button
+                                        type="button"
+                                        variant="danger"
+                                        @click="$dispatch('open-archive-modal', {
+                                            actionUrl: '{{ route(\App\Support\AuthenticationContext::administrationRoute('users.archive'), $user) }}',
+                                            title: '{{ addslashes($user->name) }}',
+                                            identifier: 'Employee ID: {{ addslashes($user->employee_id ?? 'N/A') }} · {{ addslashes($user->email) }}',
+                                            context: 'Role: {{ addslashes($user->role?->label() ?? 'Staff') }}',
+                                            type: 'User Account',
+                                            presets: [
+                                                'Employee resignation / separation from hospital',
+                                                'Contract ended / tenure completed',
+                                                'Department transfer / role access revoked',
+                                                'Duplicate user account profile'
+                                            ]
+                                        })">
+                                        Archive User
+                                    </x-ui.button>
+                                @endunless
+                            @endcan
+                        @endif
+                    @endunless
+                </div>
             </x-slot:actions>
         @endif
     </x-ui.page-header>
+
+    @if ($errors->any() && ! $errors->cancelActivation->any())
+        <x-ui.alert variant="danger" class="mt-4" title="Operation refused">
+            <ul class="space-y-0.5 list-disc list-inside">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </x-ui.alert>
+    @endif
+
+    @if ($user->isArchived())
+        <x-ui.alert variant="neutral" title="Archived Account" class="mt-4">
+            This user account is archived and deactivated. Historical inventory movements, procurement orders, and audit logs remain preserved with full attribution.
+        </x-ui.alert>
+    @endif
 
     <div class="grid gap-6 lg:grid-cols-3">
         <div class="lg:col-span-1 space-y-6">
             <x-ui.card title="Account">
                 <div class="flex items-center gap-3">
-                    <span class="flex items-center justify-center w-12 h-12 rounded-full shrink-0 text-sm font-semibold
-                                 {{ $user->isActive() ? 'bg-primary-50 text-primary-700' : 'bg-neutral-100 text-neutral-400' }}">
-                        {{ $user->initials() }}
-                    </span>
+                    <x-ui.avatar :user="$user" size="lg" />
                     <div class="min-w-0">
                         <p class="text-sm font-semibold text-neutral-900 truncate">{{ $user->name }}</p>
                         <p class="text-xs text-neutral-500 truncate">{{ $user->email }}</p>
@@ -71,10 +166,13 @@
                         <dt class="text-neutral-500">Status</dt>
                         <dd>
                             <x-ui.badge :status="$user->status->value" dot>{{ $user->status->label() }}</x-ui.badge>
+                            @if (! $user->isPendingActivation() && ! $user->isCancelled() && ! $user->hasVerifiedEmail())
+                                <x-ui.badge status="pending" dot>Pending Email Verification</x-ui.badge>
+                            @endif
                             @if ($user->isTemporarilyLocked())
                                 <x-ui.badge variant="warning" class="mt-1">Temporarily Locked</x-ui.badge>
                                 <span class="mt-1 block text-right text-xs text-neutral-500">
-                                    Until {{ $user->login_locked_until->timezone(config('app.timezone'))->format('M d, Y g:i A') }}
+                                    Until {{ $user->loginRestrictionUntil()->timezone(config('app.timezone'))->format('M d, Y g:i A') }}
                                 </span>
                             @endif
                         </dd>
@@ -102,28 +200,41 @@
                 </dl>
             </x-ui.card>
 
-            <x-ui.card title="Permissions" :subtitle="$user->role->description()">
-                @if ($user->isActive())
-                    <ul class="space-y-2">
-                        @foreach ($user->permissions() as $permission)
-                            <li class="flex items-start gap-2">
-                                <x-ui.icon name="check-circle" class="w-4 h-4 mt-0.5 shrink-0 text-success-600" />
-                                <div class="min-w-0">
-                                    <p class="text-sm text-neutral-800">{{ $permission->label() }}</p>
-                                    <p class="text-xs text-neutral-500">{{ $permission->description() }}</p>
-                                </div>
-                            </li>
-                        @endforeach
-                    </ul>
-                @else
-                    {{-- An inactive account holds no permissions at all, so listing
-                         the role's abilities here would be misleading. --}}
-                    <p class="text-sm text-neutral-500">
-                        This account is inactive and currently holds no permissions. Reactivate it to restore
-                        {{ $user->role->label() }} access.
-                    </p>
-                @endif
-            </x-ui.card>
+            @if ($user->isCancelled())
+                <x-ui.card title="Activation Cancellation">
+                    <dl class="space-y-3 text-sm">
+                        <div>
+                            <dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Reason</dt>
+                            <dd class="mt-0.5 text-neutral-900 dark:text-neutral-100">{{ $user->activation_cancellation_reason?->label() ?? 'Not recorded' }}</dd>
+                        </div>
+                        @if (filled($user->activation_cancellation_details))
+                            <div>
+                                <dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Additional Details</dt>
+                                <dd class="mt-0.5 break-words text-neutral-900 dark:text-neutral-100">{{ $user->activation_cancellation_details }}</dd>
+                            </div>
+                        @endif
+                        <div>
+                            <dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Cancelled</dt>
+                            <dd class="mt-0.5 text-neutral-900 dark:text-neutral-100">
+                                {{ $user->activation_cancelled_at?->timezone(config('app.timezone'))->format('M d, Y g:i A') ?? 'Not recorded' }}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Cancelled By</dt>
+                            <dd class="mt-0.5 text-neutral-900 dark:text-neutral-100">{{ $user->activationCancelledBy?->name ?? 'System' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs font-medium text-neutral-500 dark:text-neutral-400">Cancellation Notice</dt>
+                            <dd class="mt-0.5 text-neutral-900 dark:text-neutral-100">
+                                {{ $user->activation_cancellation_notice_sent_at
+                                    ? 'Sent '.$user->activation_cancellation_notice_sent_at->timezone(config('app.timezone'))->format('M d, Y g:i A')
+                                    : 'Not sent' }}
+                            </dd>
+                        </div>
+                    </dl>
+                </x-ui.card>
+            @endif
+
         </div>
 
         <div class="lg:col-span-2">
@@ -173,4 +284,8 @@
             </x-ui.card>
         </div>
     </div>
+
+    @if ($canManage)
+        @include('admin.users.partials.cancel-activation-modal')
+    @endif
 </x-app-layout>

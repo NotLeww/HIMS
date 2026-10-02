@@ -2,35 +2,241 @@
 
 namespace App\Models;
 
+use App\Enums\PurchaseOrderStatus;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class PurchaseOrder extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'po_number',
         'supplier_id',
+        'purchase_request_id',
+        'sourcing_rfq_id',
+        'cost_center_id',
         'item_id',
         'quantity',
+        'purchase_unit',
+        'conversion_factor',
         'unit_cost',
         'total_amount',
+        'currency',
+        'exchange_rate',
+        'total_encumbered_amount',
+        'payment_terms',
+        'incoterms',
+        'version',
+        'revision_number',
         'status',
         'notes',
+        'delivery_date',
+        'mode_of_procurement',
+        'penalty_clause_rate',
+        'fund_cluster',
+        'conforme_date',
+        'conforme_signed_by',
+        'entity_name',
+        'ors_burs_number',
+        'created_by_user_id',
         'requested_at',
+        'dispatched_at',
         'received_at',
+        'cxml_payload',
     ];
 
     protected $casts = [
+        'total_amount' => 'decimal:2',
+        'conversion_factor' => 'decimal:4',
+        'total_encumbered_amount' => 'decimal:2',
+        'exchange_rate' => 'decimal:4',
+        'penalty_clause_rate' => 'decimal:4',
+        'revision_number' => 'integer',
+        'delivery_date' => 'date',
+        'conforme_date' => 'date',
         'requested_at' => 'datetime',
+        'dispatched_at' => 'datetime',
         'received_at' => 'datetime',
     ];
 
-    public function supplier()
+    public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
     }
 
-    public function item()
+    public function item(): BelongsTo
     {
         return $this->belongsTo(InventoryItem::class, 'item_id');
+    }
+
+    public function purchaseRequest(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseRequest::class);
+    }
+
+    public function sourcingRfq(): BelongsTo
+    {
+        return $this->belongsTo(SourcingRfq::class);
+    }
+
+    public function costCenter(): BelongsTo
+    {
+        return $this->belongsTo(CostCenter::class);
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    public function lines(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderLine::class);
+    }
+
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderRevision::class)->orderByDesc('revision_number');
+    }
+
+    public function approvalChain(): HasOne
+    {
+        return $this->hasOne(ApprovalChain::class, 'target_id')
+            ->where('chain_type', 'purchase_order');
+    }
+
+    public function shipments(): HasMany
+    {
+        return $this->hasMany(Shipment::class);
+    }
+
+    public function inspectionAcceptanceReports(): HasMany
+    {
+        return $this->hasMany(InspectionAcceptanceReport::class);
+    }
+
+    public function logisticsDocuments(): HasMany
+    {
+        return $this->hasMany(LogisticsDocument::class);
+    }
+
+    public function statusEnum(): PurchaseOrderStatus
+    {
+        return is_string($this->status)
+            ? (PurchaseOrderStatus::tryFrom($this->status) ?? PurchaseOrderStatus::Draft)
+            : $this->status;
+    }
+
+    public function scopeVisibleInPipeline(Builder $query): Builder
+    {
+        return $query
+            ->where('requested_at', '<=', now())
+            ->where(fn (Builder $query) => $query->whereNull('dispatched_at')->orWhere('dispatched_at', '<=', now()))
+            ->where(fn (Builder $query) => $query->whereNull('received_at')->orWhere('received_at', '<=', now()));
+    }
+
+    public function scopeIssuedOpen(Builder $query): Builder
+    {
+        return $query->whereIn('status', PurchaseOrderStatus::issuedOpenValues());
+    }
+
+    public function isFullyReceived(): bool
+    {
+        if ($this->lines()->exists()) {
+            return ! $this->lines()->whereRaw('received_quantity < ordered_quantity')->exists();
+        }
+
+        return $this->status === 'received' || $this->status === PurchaseOrderStatus::Fulfilled->value;
+    }
+
+    public function isFullyAccepted(): bool
+    {
+        return $this->lines()->exists()
+            && ! $this->lines()->whereRaw('accepted_quantity < ordered_quantity')->exists();
+    }
+
+    public function syncReceivingStatus(): void
+    {
+        if ($this->isFullyAccepted()) {
+            $this->status = PurchaseOrderStatus::Fulfilled->value;
+            $this->received_at ??= now();
+        } elseif ($this->lines()->where('accepted_quantity', '>', 0)->exists()) {
+            $this->status = PurchaseOrderStatus::PartiallyFulfilled->value;
+        } elseif ($this->lines()->whereRaw('received_quantity > accepted_quantity + rejected_quantity')->exists()) {
+            $this->status = PurchaseOrderStatus::UnderInspection->value;
+        } elseif ($this->lines()->where('rejected_quantity', '>', 0)->exists()) {
+            $this->status = PurchaseOrderStatus::RejectedDelivery->value;
+        }
+
+        $this->save();
+    }
+
+    public function conversionFactor(): float
+    {
+        $factor = (float) ($this->conversion_factor ?? 1);
+
+        return $factor > 0 ? $factor : 1.0;
+    }
+
+    public function orderedBaseQuantity(): int
+    {
+        $hasLines = $this->relationLoaded('lines') ? $this->lines->isNotEmpty() : $this->lines()->exists();
+        if ($hasLines) {
+            return (int) $this->lines->sum(fn ($line) => $line->orderedBaseQuantity());
+        }
+
+        return (int) round($this->quantity * $this->conversionFactor());
+    }
+
+    public function receivedBaseQuantity(): int
+    {
+        $hasLines = $this->relationLoaded('lines') ? $this->lines->isNotEmpty() : $this->lines()->exists();
+        if ($hasLines) {
+            return (int) $this->lines->sum(fn ($line) => $line->receivedBaseQuantity());
+        }
+
+        return $this->received_at ? $this->orderedBaseQuantity() : 0;
+    }
+
+    public function remainingBaseQuantity(): int
+    {
+        $hasLines = $this->relationLoaded('lines') ? $this->lines->isNotEmpty() : $this->lines()->exists();
+        if ($hasLines) {
+            $lines = $this->relationLoaded('lines') ? $this->lines : $this->lines()->with('item')->get();
+
+            return (int) $lines->sum(fn ($line) => $line->remainingBaseQuantity());
+        }
+
+        return max(0, $this->orderedBaseQuantity() - $this->receivedBaseQuantity());
+    }
+
+    public function subtotal(): float
+    {
+        $hasLines = $this->relationLoaded('lines') ? $this->lines->isNotEmpty() : $this->lines()->exists();
+        if ($hasLines) {
+            return round((float) $this->lines->sum(fn ($line) => $line->lineTotal()), 2);
+        }
+
+        return round((float) $this->total_amount, 2);
+    }
+
+    public function additionalCharges(): float
+    {
+        return 0.00;
+    }
+
+    public function discounts(): float
+    {
+        return 0.00;
+    }
+
+    public function grandTotal(): float
+    {
+        return round($this->subtotal() + $this->additionalCharges() - $this->discounts(), 2);
     }
 }

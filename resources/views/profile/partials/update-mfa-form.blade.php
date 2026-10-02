@@ -1,62 +1,47 @@
-<section x-data="{ enabled: {{ $user->mfa_enabled ? 'true' : 'false' }} }">
-    @php($mfaSuccess = session()->pull('mfa_success'))
+<section class="py-4" x-data="{ original: @js((bool) $user->mfa_enabled), password: '' }"
+         x-on:open-modal.window="if ($event.detail === 'configure-email-mfa') password = ''"
+         x-on:close-modal.window="if ($event.detail === 'configure-email-mfa') password = ''">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="min-w-0">
+            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ __('Email Multi-Factor Authentication') }}</h3>
+            <p class="mt-0.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300">{{ __('Require an email code when Authenticator App is not active.') }}</p>
+        </div>
+        <x-ui.switch
+            :checked="$user->mfa_enabled"
+            label="Configure Email Multi-Factor Authentication"
+            x-bind:aria-checked="original"
+            x-on:click="$dispatch('open-modal', 'configure-email-mfa')"
+        />
+    </div>
 
-    <header>
-        <div class="flex items-center justify-between gap-4">
+    <div x-data @if ($errors->hasAny(['mfa_enabled', 'current_password'])) x-init="$nextTick(() => $dispatch('open-modal', 'configure-email-mfa'))" @endif>
+    <x-ui.modal name="configure-email-mfa" :title="__('Email Multi-Factor Authentication')" maxWidth="md">
+        @if ($errors->has('current_password'))
+            <x-ui.alert variant="danger" title="Could not update Email authentication" class="mb-4">{{ $errors->first('current_password') }}</x-ui.alert>
+        @endif
+
+        <form method="post" action="{{ route('profile.mfa.update') }}"
+              data-confirm-mfa data-original-mfa="{{ $user->mfa_enabled ? '1' : '0' }}">
+            @csrf
+            @method('patch')
+            <input type="hidden" name="mfa_enabled" value="{{ $user->mfa_enabled ? '0' : '1' }}">
+
+            <x-input-error :messages="$errors->get('mfa_enabled')" class="mt-1" />
+
             <div>
-                <h2 class="text-lg font-medium text-gray-900">
-                    {{ __('Email Multi-Factor Authentication') }}
-                </h2>
-                <p class="mt-1 text-sm text-gray-600">
-                    {{ __('Require a one-time email code after your password is accepted.') }}
-                </p>
+                <x-input-label for="email-mfa-current-password" value="Current password" class="text-neutral-700 dark:text-neutral-300" />
+                <x-text-input id="email-mfa-current-password" name="current_password" type="password" required autocomplete="off"
+                              x-model="password"
+                              data-lpignore="true" data-1p-ignore="true" data-bwignore="true"
+                              style="-webkit-text-security: disc; text-security: disc;" class="mt-1 block w-full" />
+                <x-input-error :messages="$errors->get('current_password')" class="mt-2" />
             </div>
-            <span
-                class="rounded-full px-3 py-1 text-xs font-semibold"
-                x-bind:class="enabled ? 'bg-success-50 text-success-700' : 'bg-neutral-100 text-neutral-600'"
-                x-text="enabled ? 'ON' : 'OFF'"
-            >{{ $user->mfa_enabled ? 'ON' : 'OFF' }}</span>
-        </div>
-    </header>
 
-    @if ($mfaSuccess)
-        <x-ui.alert variant="success" title="MFA setting updated" dismissible class="mt-6">
-            {{ $mfaSuccess }}
-        </x-ui.alert>
-    @endif
-
-    <form method="post" action="{{ route('profile.mfa.update') }}" class="mt-6 space-y-5"
-          data-confirm-mfa
-          data-original-mfa="{{ $user->mfa_enabled ? '1' : '0' }}">
-        @csrf
-        @method('patch')
-        <input type="hidden" name="mfa_enabled" value="0">
-
-        <label class="flex cursor-pointer items-center justify-between gap-5 rounded-lg border border-neutral-200 p-4">
-            <span>
-                <span class="block text-sm font-medium text-neutral-900">Email verification code</span>
-                <span class="mt-1 block text-sm leading-5 text-neutral-500">
-                    Codes expire quickly, can be used only once, and are sent to your registered email address.
-                </span>
-            </span>
-            <span class="relative inline-flex shrink-0 items-center">
-                <input
-                    type="checkbox"
-                    name="mfa_enabled"
-                    value="1"
-                    class="peer sr-only"
-                    x-model="enabled"
-                    @checked($user->mfa_enabled)
-                >
-                <span class="h-6 w-11 rounded-full bg-neutral-300 transition peer-checked:bg-primary-600 peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500 peer-focus-visible:ring-offset-2"></span>
-                <span class="absolute left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5"></span>
-            </span>
-        </label>
-
-        <x-input-error :messages="$errors->get('mfa_enabled')" class="text-danger-600" />
-
-        <div class="flex items-center">
-            <x-primary-button data-loading-text="Saving MFA setting...">{{ __('Save MFA setting') }}</x-primary-button>
-        </div>
-    </form>
+            <div class="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+                <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'configure-email-mfa')">{{ __('Cancel') }}</x-ui.button>
+                <x-ui.button type="submit" x-bind:disabled="password.trim() === ''" data-loading-text="Saving MFA setting...">{{ __('Save MFA setting') }}</x-ui.button>
+            </div>
+        </form>
+    </x-ui.modal>
+    </div>
 </section>

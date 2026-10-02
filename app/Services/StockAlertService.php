@@ -3,7 +3,11 @@
 namespace App\Services;
 
 use App\Enums\AlertStatus;
+use App\Enums\AlertSeverity;
 use App\Enums\AlertType;
+use App\Enums\NotificationDestination;
+use App\Enums\NotificationPriority;
+use App\Enums\Permission;
 use App\Models\InventoryItem;
 use App\Models\ItemBatch;
 use App\Models\StockAlert;
@@ -18,6 +22,8 @@ use Illuminate\Support\Facades\DB;
  */
 class StockAlertService
 {
+    public function __construct(private readonly HimsNotificationService $notifications) {}
+
     /**
      * Re-evaluate a single item's stock alerts.
      *
@@ -131,6 +137,9 @@ class StockAlertService
             'item_batch_id' => $batch->id,
             'current_value' => $batch->quantityOnHand(),
             'message' => $message,
+            'severity' => $batch->isCriticalExpiry()
+                ? AlertSeverity::Critical
+                : $type->defaultSeverity(),
         ]);
     }
 
@@ -165,22 +174,48 @@ class StockAlertService
             ->first();
 
         if ($existing !== null) {
+            $previousSeverity = $existing->severity;
             $existing->fill(array_intersect_key($attributes, array_flip([
                 'current_value',
                 'threshold_value',
                 'message',
+                'severity',
             ])))->save();
+
+            if ($existing->status === AlertStatus::Open) {
+                $escalatedToCritical = $previousSeverity !== AlertSeverity::Critical
+                    && $existing->severity === AlertSeverity::Critical;
+                $this->notifyAlert($existing, $escalatedToCritical ? ':critical' : '');
+            }
 
             return 0;
         }
 
-        StockAlert::create(array_merge($attributes, [
+        $alert = StockAlert::create(array_merge($attributes, [
             'type' => $type,
-            'severity' => $type->defaultSeverity(),
+            'severity' => $attributes['severity'] ?? $type->defaultSeverity(),
             'status' => AlertStatus::Open,
         ]));
 
+        $this->notifyAlert($alert);
+
         return 1;
+    }
+
+    private function notifyAlert(StockAlert $alert, string $eventKeySuffix = ''): void
+    {
+        $this->notifications->sendToPermission(
+            Permission::AcknowledgeAlerts,
+            "stock-alert:{$alert->id}{$eventKeySuffix}",
+            $alert->type === AlertType::ExpiringSoon && $alert->severity === AlertSeverity::Critical
+                ? 'Critical / Near Expiry'
+                : $alert->type->label(),
+            (string) $alert->message,
+            $alert->severity === AlertSeverity::Critical
+                ? NotificationPriority::Critical
+                : NotificationPriority::Warning,
+            NotificationDestination::InventoryAlerts,
+        );
     }
 
     /**
@@ -232,9 +267,13 @@ class StockAlertService
                 continue;
             }
 
-            // A batch that has tipped from "expiring soon" to "expired"
-            // gets a fresh critical alert instead of a stale warning.
-            if ($alert->type === AlertType::ExpiringSoon && $batch->isExpired()) {
+            $classificationMatches = match ($alert->type) {
+                AlertType::ExpiringSoon => $batch->isExpiringSoon(),
+                AlertType::Expired => $batch->isExpired(),
+                default => true,
+            };
+
+            if (! $classificationMatches) {
                 $alert->resolve();
                 $resolved++;
             }

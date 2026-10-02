@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Enums\AuditAction;
 use App\Enums\MovementType;
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
+use App\Models\InventoryAdjustment;
 use App\Models\InventoryItem;
 use App\Models\StorageLocation;
+use App\Services\AuditLogger;
+use App\Services\Inventory\AdjustmentApprovalService;
 use App\Services\InventoryAutomationService;
+use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -16,56 +21,63 @@ use Illuminate\View\View;
 
 class StockAdjustmentController extends Controller implements HasMiddleware
 {
-    /**
-     * An adjustment is the one operation that creates or destroys stock with no
-     * counterparty — no supplier delivered it, no ward received it. It is how a
-     * miscount gets papered over, so it stays with the inventory manager rather
-     * than the staff who did the counting.
-     *
-     * @return array<int, Middleware|string>
-     */
     public static function middleware(): array
     {
         return [
             'auth:web,admin,super_admin',
-            new Middleware('can:'.Permission::AdjustStock->value),
+            new Middleware('can:'.Permission::AdjustStock->value, only: ['store']),
+            new Middleware('can:'.Permission::ApproveAdjustment->value, only: ['index', 'approve']),
         ];
     }
 
-    public function __construct(private readonly InventoryAutomationService $automationService) {}
+    public function __construct(
+        private readonly InventoryAutomationService $automationService,
+        private readonly AdjustmentApprovalService $adjustmentService,
+        private readonly AuditLogger $auditLogger,
+    ) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        $items = InventoryItem::latest()->get();
-        $locations = StorageLocation::orderBy('name')->get();
+        $items = InventoryItem::active()->orderBy('name')->get();
+        $locations = StorageLocation::where('status', 'active')->orderBy('name')->get();
+        $adjustments = InventoryAdjustment::with(['item', 'location', 'requestedBy', 'approvedBy', 'secondApprovedBy'])
+            ->latest()
+            ->paginate(15)
+            ->withQueryString();
 
-        return view('inventory.adjustments.index', compact('items', 'locations'));
+        $preselectedItem = null;
+        if ($request->filled('item_id')) {
+            $preselectedItem = InventoryItem::active()->with(['defaultLocation', 'category'])->find($request->integer('item_id'));
+            if (! $preselectedItem) {
+                session()->flash('warning', 'The requested inventory item could not be preselected because it does not exist or is inactive.');
+            }
+        }
+
+        $preselectedType = $request->query('adjustment_type', 'correction');
+
+        return view('inventory.adjustments.index', compact('items', 'locations', 'adjustments', 'preselectedItem', 'preselectedType'));
     }
 
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
             'item_id' => ['required', 'exists:inventory_items,id'],
-            'adjustment_type' => ['required', 'in:increase,decrease,correction'],
+            'adjustment_type' => ['required', 'in:increase,decrease,correction,damage,loss,breakage,expiry,disposal'],
             'quantity' => ['required', 'integer', 'min:0'],
             'location_id' => ['required', 'exists:storage_locations,id'],
-            'reason' => ['nullable', 'string', 'max:255'],
+            'reason_code' => ['nullable', 'string'],
+            'reason' => ['nullable', 'string', 'max:500', 'required_without:explanation'],
+            'explanation' => ['nullable', 'string', 'max:500', 'required_without:reason'],
         ]);
 
         $quantity = (int) $validated['quantity'];
         $locationId = (int) $validated['location_id'];
 
-        // An adjustment is recorded as a signed movement, so the three form
-        // options all collapse to a delta. A correction states the count the
-        // shelf should read, so its delta is the gap between that and what
-        // the location currently holds.
         $delta = match ($validated['adjustment_type']) {
             'increase' => $quantity,
             'decrease' => -$quantity,
-            'correction' => $quantity - $this->automationService->availableAt(
-                (int) $validated['item_id'],
-                $locationId
-            ),
+            'correction' => $quantity - $this->automationService->availableAt((int) $validated['item_id'], $locationId),
+            default => -$quantity,
         };
 
         if ($delta === 0) {
@@ -73,14 +85,101 @@ class StockAdjustmentController extends Controller implements HasMiddleware
                 ->with('info', 'No adjustment applied — the recorded count already matches.');
         }
 
-        $this->automationService->recordMovement([
-            'item_id' => $validated['item_id'],
-            'movement_type' => MovementType::Adjustment,
-            'quantity' => $delta,
-            'to_location_id' => $locationId,
-            'remarks' => $validated['reason'] ?? null,
-        ], auth()->id());
+        if ($delta > 0) {
+            $loc = StorageLocation::find($locationId);
+            if (! $loc || $loc->status !== 'active') {
+                return redirect()->route('inventory.adjustments')
+                    ->withErrors(['location_id' => 'This location is inactive and cannot receive new inventory. Select an active location.'])
+                    ->withInput();
+            }
+        }
 
-        return redirect()->route('inventory.adjustments')->with('success', 'Stock adjustment applied successfully.');
+        $explanation = $validated['explanation'] ?? $validated['reason'];
+        $reasonCode = $validated['reason_code'] ?? $validated['adjustment_type'];
+
+        $item = InventoryItem::findOrFail($validated['item_id']);
+        $unitCost = (float) ($item->unit_cost ?? 0);
+        $totalVarianceValue = abs($delta * $unitCost);
+        $threshold = (float) config('inventory.adjustment_dual_approval_threshold');
+
+        if ($totalVarianceValue > $threshold) {
+            // High-value adjustment: Enforce dual-tier authorization workflow
+            $adj = $this->adjustmentService->requestAdjustment([
+                'item_id' => $validated['item_id'],
+                'storage_location_id' => $locationId,
+                'adjustment_type' => $validated['adjustment_type'],
+                'quantity' => $quantity,
+                'reason_code' => $reasonCode,
+                'explanation' => $explanation,
+            ], $request->user());
+
+            return redirect()->route('inventory.adjustments')
+                ->with('success', "Adjustment request {$adj->adjustment_number} (₱".number_format($totalVarianceValue, 2).') exceeds threshold and was submitted for dual authorization.');
+        }
+
+        // Routine adjustment: executed directly by authorized inventory manager
+        try {
+            $this->automationService->recordMovement([
+                'item_id' => $validated['item_id'],
+                'movement_type' => MovementType::Adjustment,
+                'quantity' => $delta,
+                'to_location_id' => $locationId,
+                'remarks' => $validated['reason'] ?? $explanation,
+            ], $request->user()->id);
+
+            // Record in InventoryAdjustment ledger
+            $adjNumber = 'ADJ-'.now()->format('Ymd').'-'.str_pad((string) (InventoryAdjustment::count() + 1), 4, '0', STR_PAD_LEFT);
+            $currentQty = $this->automationService->availableAt((int) $validated['item_id'], $locationId);
+
+            $adj = InventoryAdjustment::create([
+                'adjustment_number' => $adjNumber,
+                'item_id' => $validated['item_id'],
+                'storage_location_id' => $locationId,
+                'current_quantity' => $currentQty - $delta,
+                'adjustment_quantity' => $delta,
+                'resulting_quantity' => $currentQty,
+                'unit_cost' => $unitCost,
+                'total_variance_value' => round($delta * $unitCost, 2),
+                'adjustment_type' => $validated['adjustment_type'],
+                'reason_code' => $reasonCode,
+                'explanation' => $validated['reason'] ?? $explanation,
+                'status' => 'posted',
+                'requested_by_id' => $request->user()->id,
+                'approved_by_id' => $request->user()->id,
+                'posted_at' => now(),
+            ]);
+
+            $this->auditLogger->record(
+                AuditAction::PostedInventoryAdjustment,
+                actor: $request->user(),
+                target: $adj,
+                description: "Posted inventory adjustment {$adj->adjustment_number} for {$item->name} (Delta: {$adj->adjustment_quantity})",
+                targetName: $adj->adjustment_number,
+                newValues: [
+                    'adjustment_number' => $adj->adjustment_number,
+                    'delta' => $adj->adjustment_quantity,
+                    'resulting_quantity' => $adj->resulting_quantity,
+                ]
+            );
+
+            return redirect()->route('inventory.adjustments')->with('success', 'Stock adjustment applied successfully.');
+        } catch (DomainException $e) {
+            return redirect()->back()->withErrors(['quantity' => $e->getMessage()])->withInput();
+        }
+    }
+
+    public function approve(Request $request, InventoryAdjustment $inventoryAdjustment): RedirectResponse
+    {
+        try {
+            $updated = $this->adjustmentService->approveAndPost($inventoryAdjustment, $request->user());
+
+            $msg = $updated->status === 'posted'
+                ? "Adjustment {$updated->adjustment_number} approved and posted to inventory ledger."
+                : "Adjustment {$updated->adjustment_number} approved. Awaiting second-tier Plant Controller authorization.";
+
+            return redirect()->route('inventory.adjustments')->with('success', $msg);
+        } catch (DomainException $e) {
+            return redirect()->back()->withErrors(['approve' => $e->getMessage()]);
+        }
     }
 }

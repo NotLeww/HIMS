@@ -3,13 +3,26 @@
 namespace App\Services;
 
 use App\Enums\MovementType;
+use App\Enums\Permission;
+use App\Models\GoodsReceiptNoteLine;
 use App\Models\InventoryItem;
 use App\Models\ItemBatch;
+use App\Models\ItemCategory;
 use App\Models\ItemStockLevel;
 use App\Models\PurchaseOrder;
+use App\Models\QualityInspection;
 use App\Models\StockMovement;
+use App\Models\StorageLocation;
+use App\Models\Supplier;
+use App\Models\User;
+use App\Support\DemoPdfBuilder;
+use App\Support\SpreadsheetValue;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The numbers behind /inventory/reports.
@@ -36,10 +49,35 @@ class InventoryReportService
 
     /** The periods the screen offers. Anything else is clamped into range. */
     public const PERIOD_OPTIONS = [
-        7 => 'Last 7 days',
-        30 => 'Last 30 days',
-        90 => 'Last 90 days',
-        365 => 'Last 12 months',
+        '1' => 'Today',
+        '7' => 'Last 7 days',
+        '30' => 'Last 30 days',
+        '90' => 'Last 90 days',
+        '365' => 'Last 12 months',
+        'all' => 'All time',
+        'custom' => 'Custom date range',
+    ];
+
+    /** The report types supported by the report generator. */
+    public const REPORT_TYPES = [
+        'all' => 'All Reports (Comprehensive)',
+        'stock_status' => 'Stock Status',
+        'valuation' => 'Inventory Valuation',
+        'stock_by_location' => 'Stock by Location',
+        'expiry_exposure' => 'Expiry Exposure',
+        'movement_history' => 'Movement History',
+        'procurement_expense' => 'Procurement Expense',
+        'spend_by_supplier' => 'PO Commitments by Supplier',
+        'most_consumed' => 'Most Consumed Items',
+        'movements_by_type' => 'Activity by Movement Type',
+    ];
+
+    /** The supported export formats. */
+    public const EXPORT_FORMATS = [
+        'pdf' => 'Portable Document Format (.pdf)',
+        'excel' => 'Microsoft Excel (.xls)',
+        'csv' => 'Comma-Separated Values (.csv)',
+        'json' => 'JavaScript Object Notation (.json)',
     ];
 
     /**
@@ -47,27 +85,56 @@ class InventoryReportService
      *
      * @return array<string, mixed>
      */
-    public function build(int $days = self::DEFAULT_PERIOD_DAYS): array
+    public function build(int $days = self::DEFAULT_PERIOD_DAYS, ?Carbon $from = null, ?Carbon $to = null, array $filters = []): array
     {
-        $days = max(1, min(365, $days));
-        $since = now()->subDays($days);
+        if ($from && $to) {
+            $since = $from;
+            $until = $to;
+            $days = max(1, (int) round($from->diffInDays($to)));
+            $period = [
+                'days' => $days,
+                'from' => $since,
+                'to' => $until,
+                'is_custom' => true,
+                'description' => $since->format('M d, Y').' — '.$until->format('M d, Y').' (Custom Range)',
+            ];
+        } else {
+            $days = max(1, min(365, $days));
+            $since = $days === 1 ? now()->startOfDay() : now()->subDays($days)->startOfDay();
+            $until = now();
+            $period = [
+                'days' => $days,
+                'from' => $since,
+                'to' => $until,
+                'is_custom' => false,
+                'description' => 'Last '.$days.' days ('.$since->format('M d, Y').' — '.$until->format('M d, Y').')',
+            ];
+        }
 
-        $stockStatus = $this->stockStatus();
-        $movementsByType = $this->movementsByType($since);
+        $categoryId = ! empty($filters['category_id']) ? (int) $filters['category_id'] : null;
+        $locationId = ! empty($filters['storage_location_id']) ? (int) $filters['storage_location_id'] : null;
+        $supplierId = ! empty($filters['supplier_id']) ? (int) $filters['supplier_id'] : null;
+        $movementType = ! empty($filters['movement_type']) ? (string) $filters['movement_type'] : null;
+        $stockStatusFilter = ! empty($filters['stock_status']) ? (string) $filters['stock_status'] : null;
+
+        $stockStatus = $this->stockStatus($categoryId, $locationId, $stockStatusFilter);
+        $movementsByType = $this->movementsByType($since, $until, $movementType, $locationId, $categoryId);
 
         return [
-            'period' => ['days' => $days, 'from' => $since, 'to' => now()],
+            'period' => $period,
             'summary' => $this->summary($stockStatus),
             'stockStatus' => $stockStatus,
-            'expiry' => $this->expiryExposure(),
-            'valuationByCategory' => $this->valuationByCategory(),
-            'stockByLocation' => $this->stockByLocation(),
-            'spend' => $this->procurementSpend($since),
-            'spendBySupplier' => $this->spendBySupplier($since),
+            'expiry' => $this->expiryExposure($categoryId, $locationId),
+            'valuationByCategory' => $this->valuationByCategory($categoryId, $locationId, $stockStatusFilter),
+            'stockByLocation' => $this->stockByLocation($categoryId, $locationId, $stockStatusFilter),
+            'spend' => $this->procurementSpend($since, $until, $supplierId),
+            'spendBySupplier' => $this->spendBySupplier($since, $until, $supplierId),
+            'receivingReconciliation' => $this->receivingReconciliation($since, $until, $supplierId),
             'movementsByType' => $movementsByType,
             'movementTotals' => $this->movementTotals($movementsByType),
-            'topConsumedItems' => $this->topConsumedItems($since),
-            'recentMovements' => $this->recentMovements($since),
+            'topConsumedItems' => $this->topConsumedItems($since, $until, $categoryId, $locationId),
+            'recentMovements' => $this->recentMovements($since, 15, $until, $movementType, $locationId, $categoryId),
+            'activeFilters' => $filters,
         ];
     }
 
@@ -75,62 +142,156 @@ class InventoryReportService
      * The headline tiles: catalogue size, units held, what it is worth, and
      * how many items are asking for attention.
      *
-     * @param  array<string, array{items: int, units: int, value: float}>  $stockStatus
+     * @param  array<string, array{items: int, units: int, reserved: int, value: float}>  $stockStatus
      * @return array<string, mixed>
      */
     public function summary(?array $stockStatus = null): array
     {
         $stockStatus ??= $this->stockStatus();
 
-        $totals = InventoryItem::query()
-            ->selectRaw('count(*) as items')
-            ->selectRaw('coalesce(sum(quantity_on_hand), 0) as units')
-            ->selectRaw('coalesce(sum(reserved_quantity), 0) as reserved')
-            ->selectRaw('coalesce(sum(quantity_on_hand * coalesce(unit_cost, 0)), 0) as value')
-            ->toBase()
-            ->first();
-
         return [
-            'items' => (int) ($totals->items ?? 0),
-            'units_on_hand' => (int) ($totals->units ?? 0),
-            'reserved_units' => (int) ($totals->reserved ?? 0),
-            'stock_value' => (float) ($totals->value ?? 0),
+            'items' => (int) collect($stockStatus)->sum('items'),
+            'units_on_hand' => (int) collect($stockStatus)->sum('units'),
+            'reserved_units' => (int) collect($stockStatus)->sum('reserved'),
+            'stock_value' => (float) collect($stockStatus)->sum('value'),
             'needs_attention' => $stockStatus['low_stock']['items'] + $stockStatus['out_of_stock']['items'],
         ];
     }
 
     /**
+     * Current inventory balances at catalogue or location scope.
+     *
+     * The cached item rollups are correct for the whole hospital. A location
+     * filter must instead aggregate item_stock_levels so quantities, reserved
+     * units, status buckets, and valuation all describe that exact location.
+     *
+     * @return Collection<int, object>
+     */
+    private function inventorySnapshot(?int $categoryId = null, ?int $locationId = null): Collection
+    {
+        $query = InventoryItem::query()
+            ->leftJoin('item_categories', 'item_categories.id', '=', 'inventory_items.category_id')
+            ->where('inventory_items.status', '!=', 'archived')
+            ->when($categoryId, fn ($builder) => $builder->where('inventory_items.category_id', $categoryId));
+
+        if ($locationId) {
+            return $query
+                ->join('item_stock_levels', 'item_stock_levels.item_id', '=', 'inventory_items.id')
+                ->where('item_stock_levels.storage_location_id', $locationId)
+                ->select([
+                    'inventory_items.id',
+                    'inventory_items.sku',
+                    'inventory_items.barcode_value',
+                    'inventory_items.gtin',
+                    'inventory_items.name',
+                    'inventory_items.unit',
+                    'inventory_items.reorder_level',
+                    'inventory_items.unit_cost',
+                ])
+                ->selectRaw("coalesce(item_categories.name, 'Uncategorised') as category")
+                ->selectRaw('coalesce(sum(item_stock_levels.quantity), 0) as quantity_on_hand')
+                ->selectRaw('coalesce(sum(item_stock_levels.reserved_quantity), 0) as reserved_quantity')
+                ->groupBy(
+                    'inventory_items.id',
+                    'inventory_items.sku',
+                    'inventory_items.barcode_value',
+                    'inventory_items.gtin',
+                    'inventory_items.name',
+                    'inventory_items.unit',
+                    'inventory_items.reorder_level',
+                    'inventory_items.unit_cost',
+                    'item_categories.name'
+                )
+                ->orderBy('inventory_items.id')
+                ->toBase()
+                ->get();
+        }
+
+        return $query
+            ->select([
+                'inventory_items.id',
+                'inventory_items.sku',
+                'inventory_items.barcode_value',
+                'inventory_items.gtin',
+                'inventory_items.name',
+                'inventory_items.unit',
+                'inventory_items.reorder_level',
+                'inventory_items.unit_cost',
+                'inventory_items.quantity_on_hand',
+                'inventory_items.reserved_quantity',
+            ])
+            ->selectRaw("coalesce(item_categories.name, 'Uncategorised') as category")
+            ->orderBy('inventory_items.id')
+            ->toBase()
+            ->get();
+    }
+
+    private function stockStatusKey(int $quantity, int $reorderLevel): string
+    {
+        return InventoryItem::stockStatusFor($quantity, $reorderLevel);
+    }
+
+    /**
      * Items bucketed into in stock / low stock / out of stock.
      *
-     * Worked out from the quantities through the item's own predicates rather
-     * than read off `inventory_items.status`. That column is a cache written
-     * when stock moves through InventoryAutomationService, so an item created
-     * by hand and never moved still reads whatever it was created with — the
-     * report would then disagree with the item screen sitting next to it.
+     * Worked out from the quantities through the item's own rule rather than
+     * read off `inventory_items.status`. That column is the item's lifecycle
+     * (`active` / `inactive`), not a stock condition, and older rows may still
+     * carry a stock value written before that was true — the report would then
+     * disagree with the item screen sitting next to it.
      *
-     * @return array<string, array{items: int, units: int, value: float}>
+     * @return array<string, array{items: int, units: int, reserved: int, value: float}>
      */
-    public function stockStatus(): array
+    public function stockStatus(?int $categoryId = null, ?int $locationId = null, ?string $statusFilter = null): array
     {
         $buckets = [
-            'in_stock' => ['items' => 0, 'units' => 0, 'value' => 0.0],
-            'low_stock' => ['items' => 0, 'units' => 0, 'value' => 0.0],
-            'out_of_stock' => ['items' => 0, 'units' => 0, 'value' => 0.0],
+            'in_stock' => ['items' => 0, 'units' => 0, 'reserved' => 0, 'value' => 0.0],
+            'low_stock' => ['items' => 0, 'units' => 0, 'reserved' => 0, 'value' => 0.0],
+            'out_of_stock' => ['items' => 0, 'units' => 0, 'reserved' => 0, 'value' => 0.0],
         ];
 
-        InventoryItem::query()
-            ->select(['id', 'quantity_on_hand', 'reorder_level', 'unit_cost'])
-            ->each(function (InventoryItem $item) use (&$buckets) {
-                $key = match (true) {
-                    $item->isOutOfStock() => 'out_of_stock',
-                    $item->isLowStock() => 'low_stock',
-                    default => 'in_stock',
-                };
+        $query = DB::table('inventory_items as items')
+            ->where('items.status', '!=', 'archived')
+            ->when($categoryId, fn ($builder) => $builder->where('items.category_id', $categoryId));
 
-                $buckets[$key]['items']++;
-                $buckets[$key]['units'] += (int) $item->quantity_on_hand;
-                $buckets[$key]['value'] += (int) $item->quantity_on_hand * (float) $item->unit_cost;
-            });
+        if ($locationId) {
+            $levels = DB::table('item_stock_levels')
+                ->where('storage_location_id', $locationId)
+                ->select('item_id')
+                ->selectRaw('sum(quantity) as quantity, sum(reserved_quantity) as reserved')
+                ->groupBy('item_id');
+            $query->joinSub($levels, 'levels', 'levels.item_id', '=', 'items.id');
+            $quantity = 'levels.quantity';
+            $reserved = 'levels.reserved';
+        } else {
+            $quantity = 'items.quantity_on_hand';
+            $reserved = 'items.reserved_quantity';
+        }
+
+        // Keep the same three-way rule as InventoryItem::stockStatusFor().
+        $status = "case when {$quantity} <= 0 then 'out_of_stock' "
+            ."when items.reorder_level > 0 and {$quantity} <= items.reorder_level then 'low_stock' "
+            ."else 'in_stock' end";
+
+        $rows = $query
+            ->selectRaw("{$status} as stock_status")
+            ->selectRaw("count(*) as items, sum({$quantity}) as units, sum({$reserved}) as reserved")
+            ->selectRaw("sum({$quantity} * items.unit_cost) as value")
+            ->groupByRaw($status)
+            ->get();
+
+        foreach ($rows as $row) {
+            if ($statusFilter && $statusFilter !== $row->stock_status) {
+                continue;
+            }
+
+            $buckets[$row->stock_status] = [
+                'items' => (int) $row->items,
+                'units' => (int) $row->units,
+                'reserved' => (int) $row->reserved,
+                'value' => (float) $row->value,
+            ];
+        }
 
         return $buckets;
     }
@@ -144,19 +305,28 @@ class InventoryReportService
      *
      * @return array<string, mixed>
      */
-    public function expiryExposure(): array
+    public function expiryExposure(?int $categoryId = null, ?int $locationId = null): array
     {
+        $stockLevelScope = fn ($query) => $query->when(
+            $locationId,
+            fn ($locationQuery) => $locationQuery->where('storage_location_id', $locationId)
+        );
+
         $batches = ItemBatch::query()
             ->active()
             ->whereNotNull('expiry_date')
+            ->whereHas('item', fn ($query) => $query->where('status', '!=', 'archived'))
             ->with('item')
-            ->withSum('stockLevels as units_on_hand', 'quantity')
+            ->withSum(['stockLevels as units_on_hand' => $stockLevelScope], 'quantity')
+            ->when($categoryId, fn ($query) => $query->whereHas('item', fn ($itemQuery) => $itemQuery->where('category_id', $categoryId)))
+            ->when($locationId, fn ($query) => $query->whereHas('stockLevels', $stockLevelScope))
             ->fefo()
             ->get()
             ->filter(fn (ItemBatch $batch) => (int) $batch->units_on_hand > 0);
 
         $expired = $batches->filter(fn (ItemBatch $batch) => $batch->isExpired());
         $expiringSoon = $batches->filter(fn (ItemBatch $batch) => $batch->isExpiringSoon());
+        $critical = $expiringSoon->filter(fn (ItemBatch $batch) => $batch->isCriticalExpiry());
 
         // Batch cost where the receipt recorded one, item cost otherwise.
         $value = fn (Collection $set) => (float) $set->sum(
@@ -175,6 +345,11 @@ class InventoryReportService
                 'units' => (int) $expiringSoon->sum(fn (ItemBatch $batch) => (int) $batch->units_on_hand),
                 'value' => $value($expiringSoon),
             ],
+            'critical' => [
+                'batches' => $critical->count(),
+                'units' => (int) $critical->sum(fn (ItemBatch $batch) => (int) $batch->units_on_hand),
+                'value' => $value($critical),
+            ],
             'rows' => $expired->merge($expiringSoon)->take(10)->values(),
         ];
     }
@@ -184,20 +359,19 @@ class InventoryReportService
      *
      * @return Collection<int, object>
      */
-    public function valuationByCategory(): Collection
+    public function valuationByCategory(?int $categoryId = null, ?int $locationId = null, ?string $statusFilter = null): Collection
     {
-        return InventoryItem::query()
-            ->leftJoin('item_categories', 'item_categories.id', '=', 'inventory_items.category_id')
-            ->selectRaw("coalesce(item_categories.name, 'Uncategorised') as category")
-            ->selectRaw('count(*) as items')
-            ->selectRaw('coalesce(sum(inventory_items.quantity_on_hand), 0) as units')
-            ->selectRaw('coalesce(sum(inventory_items.quantity_on_hand * coalesce(inventory_items.unit_cost, 0)), 0) as value')
-            // Grouped on the column rather than the alias: every uncategorised
-            // item has a null name, so they all fall into one bucket anyway.
-            ->groupBy('item_categories.id', 'item_categories.name')
-            ->orderByDesc('value')
-            ->toBase()
-            ->get();
+        return $this->inventorySnapshot($categoryId, $locationId)
+            ->filter(fn (object $item) => ! $statusFilter || $this->stockStatusKey((int) $item->quantity_on_hand, (int) $item->reorder_level) === $statusFilter)
+            ->groupBy('category')
+            ->map(fn (Collection $items, string $category) => (object) [
+                'category' => $category,
+                'items' => $items->count(),
+                'units' => (int) $items->sum('quantity_on_hand'),
+                'value' => (float) $items->sum(fn (object $item) => (int) $item->quantity_on_hand * (float) $item->unit_cost),
+            ])
+            ->sortByDesc('value')
+            ->values();
     }
 
     /**
@@ -205,11 +379,20 @@ class InventoryReportService
      *
      * @return Collection<int, array<string, mixed>>
      */
-    public function stockByLocation(): Collection
+    public function stockByLocation(?int $categoryId = null, ?int $locationId = null, ?string $statusFilter = null): Collection
     {
+        $allowedItemIds = $statusFilter
+            ? $this->inventorySnapshot($categoryId, $locationId)
+                ->filter(fn (object $item) => $this->stockStatusKey((int) $item->quantity_on_hand, (int) $item->reorder_level) === $statusFilter)
+                ->pluck('id')
+            : null;
+
         return ItemStockLevel::query()
             ->join('storage_locations', 'storage_locations.id', '=', 'item_stock_levels.storage_location_id')
             ->join('inventory_items', 'inventory_items.id', '=', 'item_stock_levels.item_id')
+            ->when($categoryId, fn ($query) => $query->where('inventory_items.category_id', $categoryId))
+            ->when($locationId, fn ($query) => $query->where('storage_locations.id', $locationId))
+            ->when($allowedItemIds !== null, fn ($query) => $query->whereIn('inventory_items.id', $allowedItemIds))
             ->selectRaw('storage_locations.name as location')
             ->selectRaw('storage_locations.code as code')
             ->selectRaw('storage_locations.capacity as capacity')
@@ -218,6 +401,7 @@ class InventoryReportService
             ->selectRaw('coalesce(sum(item_stock_levels.quantity * coalesce(inventory_items.unit_cost, 0)), 0) as value')
             ->groupBy('storage_locations.id', 'storage_locations.name', 'storage_locations.code', 'storage_locations.capacity')
             ->orderByDesc('units')
+            ->orderBy('storage_locations.id')
             ->toBase()
             ->get()
             ->map(fn (object $row) => [
@@ -247,7 +431,7 @@ class InventoryReportService
      *
      * @return array<string, mixed>
      */
-    public function procurementSpend(Carbon $since): array
+    public function procurementSpend(Carbon $since, ?Carbon $until = null, ?int $supplierId = null): array
     {
         $totals = fn ($query) => $query
             ->selectRaw('count(*) as orders')
@@ -255,23 +439,46 @@ class InventoryReportService
             ->toBase()
             ->first();
 
-        $ordered = $totals(PurchaseOrder::query()->where('requested_at', '>=', $since));
-        $received = $totals(PurchaseOrder::query()
+        $ordered = $totals(PurchaseOrder::query()
+            ->where('requested_at', '>=', $since)
+            ->when($supplierId, fn ($query) => $query->where('supplier_id', $supplierId))
+            ->when($until, fn ($q) => $q->where('requested_at', '<=', $until)));
+        $legacyReceived = $totals(PurchaseOrder::query()
             ->where('status', 'received')
-            ->where('received_at', '>=', $since));
-        $outstanding = $totals(PurchaseOrder::query()->whereNotIn('status', ['received', 'cancelled']));
+            ->where('received_at', '>=', $since)
+            ->when($supplierId, fn ($query) => $query->where('supplier_id', $supplierId))
+            ->when($until, fn ($q) => $q->where('received_at', '<=', $until)));
+        $accepted = DB::table('stock_movements')
+            ->join('quality_inspections', 'quality_inspections.id', '=', 'stock_movements.reference_id')
+            ->join('grn_line_items', 'grn_line_items.id', '=', 'quality_inspections.grn_line_item_id')
+            ->join('goods_receipt_notes', 'goods_receipt_notes.id', '=', 'grn_line_items.goods_receipt_note_id')
+            ->join('purchase_orders', 'purchase_orders.id', '=', 'goods_receipt_notes.purchase_order_id')
+            ->where('stock_movements.reference_type', QualityInspection::class)
+            ->where('stock_movements.movement_type', MovementType::QualityRelease->value)
+            ->where('stock_movements.moved_at', '>=', $since)
+            ->when($until, fn ($query) => $query->where('stock_movements.moved_at', '<=', $until))
+            ->when($supplierId, fn ($query) => $query->where('purchase_orders.supplier_id', $supplierId))
+            ->selectRaw('count(distinct goods_receipt_notes.purchase_order_id) as orders')
+            ->selectRaw('coalesce(sum(stock_movements.quantity * stock_movements.unit_cost), 0) as value')
+            ->first();
+        $outstandingOrders = PurchaseOrder::with('lines')
+            ->when($supplierId, fn ($query) => $query->where('supplier_id', $supplierId))
+            ->whereNotIn('status', ['received', 'fulfilled', 'cancelled'])->get();
+        $outstandingValue = $outstandingOrders->sum(fn ($po) => $po->lines->isNotEmpty()
+            ? $po->lines->sum(fn ($line) => $line->outstandingQuantity() * (float) $line->unit_price)
+            : (float) $po->total_amount);
 
         $orderCount = (int) ($ordered->orders ?? 0);
 
         return [
             'ordered' => ['orders' => $orderCount, 'value' => (float) ($ordered->value ?? 0)],
             'received' => [
-                'orders' => (int) ($received->orders ?? 0),
-                'value' => (float) ($received->value ?? 0),
+                'orders' => (int) ($legacyReceived->orders ?? 0) + (int) ($accepted->orders ?? 0),
+                'value' => (float) ($legacyReceived->value ?? 0) + (float) ($accepted->value ?? 0),
             ],
             'outstanding' => [
-                'orders' => (int) ($outstanding->orders ?? 0),
-                'value' => (float) ($outstanding->value ?? 0),
+                'orders' => $outstandingOrders->count(),
+                'value' => (float) $outstandingValue,
             ],
             'average_order_value' => $orderCount > 0
                 ? round((float) ($ordered->value ?? 0) / $orderCount, 2)
@@ -279,21 +486,65 @@ class InventoryReportService
         ];
     }
 
+    /** @return Collection<int, array<string, mixed>> */
+    public function receivingReconciliation(Carbon $since, ?Carbon $until = null, ?int $supplierId = null): Collection
+    {
+        return GoodsReceiptNoteLine::query()
+            ->with(['goodsReceiptNote.purchaseOrder', 'goodsReceiptNote.receivedBy', 'purchaseOrderLine', 'item.stockLevels', 'batch.stockLevels'])
+            ->whereHas('goodsReceiptNote', fn ($query) => $query
+                ->where('received_at', '>=', $since)
+                ->when($until, fn ($dateQuery) => $dateQuery->where('received_at', '<=', $until))
+                ->when($supplierId, fn ($supplierQuery) => $supplierQuery->where('supplier_id', $supplierId)))
+            ->latest('id')->limit(100)->get()
+            ->map(function (GoodsReceiptNoteLine $line): array {
+                $factor = $line->conversionFactor();
+                $poLine = $line->purchaseOrderLine;
+
+                return [
+                    'grn' => $line->goodsReceiptNote,
+                    'po' => $line->goodsReceiptNote?->purchaseOrder,
+                    'item' => $line->item,
+                    'receiver' => $line->goodsReceiptNote?->receivedBy?->name,
+                    'batch' => $line->batch_number,
+                    'expiry' => $line->expiry_date,
+                    'purchase_unit' => $line->purchase_unit ?: $line->item?->unit,
+                    'base_unit' => $line->item?->unit,
+                    'factor' => $factor,
+                    'ordered' => $poLine?->ordered_quantity ?? $line->ordered_quantity,
+                    'delivered' => $poLine?->received_quantity ?? $line->received_quantity,
+                    'receipt_quantity' => $line->received_quantity,
+                    'accepted' => $line->accepted_quantity,
+                    'rejected' => $line->rejected_quantity,
+                    'pending_qc' => $line->quarantined_quantity,
+                    'awaiting_put_away_base' => $line->pending_put_away_quantity,
+                    'put_away_base' => max(0, (int) round($line->accepted_quantity * $factor) - $line->pending_put_away_quantity),
+                    'available_base' => (int) ($line->batch?->stockLevels->sum('quantity')
+                        ?? $line->item?->stockLevels->sum('quantity') ?? 0),
+                    'remaining' => $poLine?->remainingQuantity() ?? 0,
+                    'outstanding' => $poLine?->outstandingQuantity() ?? 0,
+                    'returned_base' => $line->returned_quantity,
+                ];
+            });
+    }
+
     /**
      * Spend split by vendor, biggest first.
      *
      * @return Collection<int, object>
      */
-    public function spendBySupplier(Carbon $since): Collection
+    public function spendBySupplier(Carbon $since, ?Carbon $until = null, ?int $supplierId = null): Collection
     {
         return PurchaseOrder::query()
             ->leftJoin('suppliers', 'suppliers.id', '=', 'purchase_orders.supplier_id')
             ->where('purchase_orders.requested_at', '>=', $since)
+            ->when($until, fn ($q) => $q->where('purchase_orders.requested_at', '<=', $until))
+            ->when($supplierId, fn ($query) => $query->where('purchase_orders.supplier_id', $supplierId))
+            ->selectRaw('purchase_orders.supplier_id as supplier_id')
             ->selectRaw("coalesce(suppliers.name, 'Unassigned') as supplier")
             ->selectRaw('count(*) as orders')
-            ->selectRaw("coalesce(sum(case when purchase_orders.status = 'received' then 1 else 0 end), 0) as received_orders")
+            ->selectRaw("coalesce(sum(case when purchase_orders.status in ('received', 'fulfilled') then 1 else 0 end), 0) as received_orders")
             ->selectRaw('coalesce(sum(purchase_orders.total_amount), 0) as value')
-            ->groupBy('suppliers.id', 'suppliers.name')
+            ->groupBy('purchase_orders.supplier_id', 'suppliers.id', 'suppliers.name')
             ->orderByDesc('value')
             ->limit(10)
             ->toBase()
@@ -309,10 +560,16 @@ class InventoryReportService
      *
      * @return Collection<int, array<string, mixed>>
      */
-    public function movementsByType(Carbon $since): Collection
+    public function movementsByType(Carbon $since, ?Carbon $until = null, ?string $movementType = null, ?int $locationId = null, ?int $categoryId = null): Collection
     {
         $rows = StockMovement::query()
             ->where('moved_at', '>=', $since)
+            ->when($until, fn ($q) => $q->where('moved_at', '<=', $until))
+            ->when($movementType, fn ($query) => $query->where('movement_type', $movementType))
+            ->when($categoryId, fn ($query) => $query->whereHas('item', fn ($itemQuery) => $itemQuery->where('category_id', $categoryId)))
+            ->when($locationId, fn ($query) => $query->where(fn ($locationQuery) => $locationQuery
+                ->where('from_location_id', $locationId)
+                ->orWhere('to_location_id', $locationId)))
             ->selectRaw('movement_type')
             ->selectRaw('count(*) as movements')
             ->selectRaw('coalesce(sum(quantity), 0) as units')
@@ -322,7 +579,11 @@ class InventoryReportService
             ->get()
             ->keyBy('movement_type');
 
-        return collect(MovementType::cases())->map(fn (MovementType $type) => [
+        $types = $movementType
+            ? collect(MovementType::cases())->where('value', $movementType)
+            : collect(MovementType::cases());
+
+        return $types->map(fn (MovementType $type) => [
             'type' => $type,
             'movements' => (int) ($rows[$type->value]->movements ?? 0),
             'units' => (int) ($rows[$type->value]->units ?? 0),
@@ -364,12 +625,18 @@ class InventoryReportService
      *
      * @return Collection<int, object>
      */
-    public function topConsumedItems(Carbon $since): Collection
+    public function topConsumedItems(Carbon $since, ?Carbon $until = null, ?int $categoryId = null, ?int $locationId = null): Collection
     {
-        return StockMovement::query()
+        $rows = StockMovement::query()
             ->join('inventory_items', 'inventory_items.id', '=', 'stock_movements.item_id')
             ->whereIn('stock_movements.movement_type', MovementType::consumptionValues())
             ->where('stock_movements.moved_at', '>=', $since)
+            ->when($until, fn ($q) => $q->where('stock_movements.moved_at', '<=', $until))
+            ->when($categoryId, fn ($query) => $query->where('inventory_items.category_id', $categoryId))
+            ->when($locationId, fn ($query) => $query->where(fn ($locationQuery) => $locationQuery
+                ->where('stock_movements.from_location_id', $locationId)
+                ->orWhere('stock_movements.to_location_id', $locationId)))
+            ->selectRaw('inventory_items.id as item_id')
             ->selectRaw('inventory_items.name as item')
             ->selectRaw('inventory_items.sku as sku')
             ->selectRaw('inventory_items.unit as unit')
@@ -384,6 +651,19 @@ class InventoryReportService
             ->limit(10)
             ->toBase()
             ->get();
+
+        if ($locationId && $rows->isNotEmpty()) {
+            $onHandByItem = ItemStockLevel::query()
+                ->where('storage_location_id', $locationId)
+                ->whereIn('item_id', $rows->pluck('item_id'))
+                ->selectRaw('item_id, coalesce(sum(quantity), 0) as on_hand')
+                ->groupBy('item_id')
+                ->pluck('on_hand', 'item_id');
+
+            $rows->each(fn (object $row) => $row->on_hand = (int) ($onHandByItem[$row->item_id] ?? 0));
+        }
+
+        return $rows;
     }
 
     /**
@@ -395,14 +675,1357 @@ class InventoryReportService
      *
      * @return Collection<int, StockMovement>
      */
-    public function recentMovements(Carbon $since, int $limit = 15): Collection
+    public function recentMovements(Carbon $since, int $limit = 15, ?Carbon $until = null, ?string $movementType = null, ?int $locationId = null, ?int $categoryId = null): Collection
     {
         return StockMovement::query()
             ->with(['item', 'fromLocation', 'toLocation', 'user', 'reference'])
             ->where('moved_at', '>=', $since)
+            ->when($until, fn ($q) => $q->where('moved_at', '<=', $until))
+            ->when($movementType, fn ($query) => $query->where('movement_type', $movementType))
+            ->when($categoryId, fn ($query) => $query->whereHas('item', fn ($itemQuery) => $itemQuery->where('category_id', $categoryId)))
+            ->when($locationId, fn ($query) => $query->where(fn ($locationQuery) => $locationQuery
+                ->where('from_location_id', $locationId)
+                ->orWhere('to_location_id', $locationId)))
             ->latest('moved_at')
             ->latest('id')
             ->limit($limit)
             ->get();
+    }
+
+    /**
+     * Generate a targeted or unified inventory report based on dynamic filters.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>
+     */
+    public function generateReport(array $filters, ?User $user = null): array
+    {
+        $reportType = (string) ($filters['report_type'] ?? 'all');
+        $format = (string) ($filters['format'] ?? 'pdf');
+
+        // Resolve Date Window
+        if (($filters['period'] ?? null) === 'custom' && ! empty($filters['from']) && ! empty($filters['to'])) {
+            $from = Carbon::parse($filters['from'])->startOfDay();
+            $to = Carbon::parse($filters['to'])->endOfDay();
+            $periodDescription = $from->format('M d, Y').' — '.$to->format('M d, Y').' (Custom Range)';
+        } elseif (($filters['period'] ?? null) === 'all') {
+            $from = Carbon::createFromTimestamp(0);
+            $to = now();
+            $periodDescription = 'All Time (up to '.now()->format('M d, Y').')';
+        } elseif (($filters['period'] ?? null) === '1') {
+            $from = now()->startOfDay();
+            $to = now();
+            $periodDescription = 'Today ('.now()->format('M d, Y').')';
+        } else {
+            $days = max(1, min(3650, (int) ($filters['period'] ?? $filters['days'] ?? self::DEFAULT_PERIOD_DAYS)));
+            $from = now()->subDays($days)->startOfDay();
+            $to = now();
+            $periodDescription = 'Last '.$days.' days ('.$from->format('M d, Y').' — '.$to->format('M d, Y').')';
+        }
+
+        $canViewFinancial = $user ? $user->can(Permission::ViewProcurementSensitiveData->value) : true;
+
+        // Parse Entity Filters
+        $categoryId = ! empty($filters['category_id']) ? (int) $filters['category_id'] : null;
+        $locationId = ! empty($filters['storage_location_id']) ? (int) $filters['storage_location_id'] : null;
+        $supplierId = ! empty($filters['supplier_id']) ? (int) $filters['supplier_id'] : null;
+        $movementType = ! empty($filters['movement_type']) ? (string) $filters['movement_type'] : null;
+        $status = ! empty($filters['status']) && $filters['status'] !== 'all' ? (string) $filters['status'] : null;
+        $sortBy = ! empty($filters['sort_by']) ? (string) $filters['sort_by'] : null;
+        $sortDir = strtolower((string) ($filters['sort_direction'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        // Filter Labels for Metadata
+        $filterLabels = [
+            'Reporting Period' => $periodDescription,
+        ];
+        if ($categoryId) {
+            $cat = ItemCategory::find($categoryId);
+            $filterLabels['Item Category'] = $cat ? $cat->name : 'ID: '.$categoryId;
+        } else {
+            $filterLabels['Item Category'] = 'All Categories';
+        }
+
+        if ($locationId) {
+            $loc = StorageLocation::find($locationId);
+            $filterLabels['Storage Location'] = $loc ? $loc->name.' ('.$loc->code.')' : 'ID: '.$locationId;
+        } else {
+            $filterLabels['Storage Location'] = 'All Locations';
+        }
+
+        if ($supplierId) {
+            $sup = Supplier::find($supplierId);
+            $filterLabels['Supplier'] = $sup ? $sup->name : 'ID: '.$supplierId;
+        } else {
+            $filterLabels['Supplier'] = 'All Suppliers';
+        }
+
+        if ($movementType) {
+            $filterLabels['Movement Type'] = ucwords(str_replace('_', ' ', $movementType));
+        } else {
+            $filterLabels['Movement Type'] = 'All Movement Types';
+        }
+
+        if ($status) {
+            $filterLabels['Stock Status'] = ucwords(str_replace('_', ' ', $status));
+        } else {
+            $filterLabels['Stock Status'] = 'All Stock Statuses';
+        }
+
+        if ($sortBy) {
+            $filterLabels['Sorted By'] = ucwords(str_replace('_', ' ', $sortBy)).' ('.strtoupper($sortDir).')';
+        }
+
+        $meta = [
+            'report_type' => $reportType,
+            'report_title' => self::REPORT_TYPES[$reportType] ?? 'Inventory Report',
+            'generated_at' => now(),
+            'generated_by' => $user ? $user->name.' ('.($user->role?->label() ?? 'Staff').')' : 'HIMS System',
+            'hospital_name' => config('privacy.hospital_name'),
+            'hospital_address' => config('privacy.hospital_address'),
+            'system_name' => config('privacy.system_name'),
+            'sub_title' => config('privacy.hospital_address').' • Materials Management & Supply Division',
+            'period' => [
+                'from' => $from,
+                'to' => $to,
+                'description' => $periodDescription,
+            ],
+            'filters' => $filters,
+            'filter_labels' => $filterLabels,
+            'is_financial_permitted' => $canViewFinancial,
+            'format' => $format,
+        ];
+
+        return match ($reportType) {
+            'stock_status' => $this->generateStockStatusReport($meta, $categoryId, $locationId, $status, $sortBy, $sortDir, $canViewFinancial),
+            'valuation' => $this->generateValuationReport($meta, $categoryId, $locationId, $status, $sortBy, $sortDir, $canViewFinancial),
+            'stock_by_location' => $this->generateStockByLocationReport($meta, $categoryId, $locationId, $status, $sortBy, $sortDir, $canViewFinancial),
+            'expiry_exposure' => $this->generateExpiryExposureReport($meta, $locationId, $categoryId, $sortBy, $sortDir, $canViewFinancial),
+            'movement_history' => $this->generateMovementHistoryReport($meta, $from, $to, $movementType, $locationId, $categoryId, $sortBy, $sortDir, $canViewFinancial),
+            'procurement_expense' => $this->generateProcurementExpenseReport($meta, $from, $to, $supplierId, $sortBy, $sortDir, $canViewFinancial),
+            'spend_by_supplier' => $this->generateSpendBySupplierReport($meta, $from, $to, $supplierId, $sortBy, $sortDir, $canViewFinancial),
+            'most_consumed' => $this->generateMostConsumedReport($meta, $from, $to, $categoryId, $locationId, $sortBy, $sortDir, $canViewFinancial),
+            'movements_by_type' => $this->generateMovementsByTypeReport($meta, $from, $to, $movementType, $locationId, $categoryId, $sortBy, $sortDir, $canViewFinancial),
+            default => $this->generateAllReports($meta, $from, $to, $categoryId, $locationId, $supplierId, $movementType, $status, $sortBy, $sortDir, $canViewFinancial),
+        };
+    }
+
+    /**
+     * Stock Status Report generation.
+     */
+    protected function generateStockStatusReport(array $meta, ?int $categoryId, ?int $locationId, ?string $statusFilter, ?string $sortBy, string $sortDir, bool $canViewFinancial): array
+    {
+        $items = $this->inventorySnapshot($categoryId, $locationId);
+
+        $classified = $items->map(function (object $item) {
+            $statusKey = $this->stockStatusKey((int) $item->quantity_on_hand, (int) $item->reorder_level);
+
+            $units = (int) $item->quantity_on_hand;
+            $unitCost = (float) $item->unit_cost;
+            $val = $units * $unitCost;
+
+            return [
+                'id' => $item->id,
+                'sku' => $item->sku,
+                'barcode_value' => $item->barcode_value,
+                'gtin' => $item->gtin,
+                'name' => $item->name,
+                'category' => $item->category,
+                'quantity_on_hand' => $units,
+                'reserved_quantity' => (int) $item->reserved_quantity,
+                'reorder_level' => (int) $item->reorder_level,
+                'unit' => $item->unit ?? 'Not recorded',
+                'unit_cost' => $unitCost,
+                'total_value' => $val,
+                'status_key' => $statusKey,
+                'status' => match ($statusKey) {
+                    'out_of_stock' => 'Out of Stock',
+                    'low_stock' => 'Low Stock',
+                    default => 'In Stock',
+                },
+            ];
+        });
+
+        if ($statusFilter) {
+            $classified = $classified->filter(fn ($r) => $r['status_key'] === $statusFilter)->values();
+        }
+
+        // Sorting
+        $classified = (match ($sortBy) {
+            'name' => $sortDir === 'asc' ? $classified->sortBy('name') : $classified->sortByDesc('name'),
+            'units' => $sortDir === 'asc' ? $classified->sortBy('quantity_on_hand') : $classified->sortByDesc('quantity_on_hand'),
+            'value' => $sortDir === 'asc' ? $classified->sortBy('total_value') : $classified->sortByDesc('total_value'),
+            'status' => $sortDir === 'asc' ? $classified->sortBy('status') : $classified->sortByDesc('status'),
+            default => $sortDir === 'asc' ? $classified->sortBy('name') : $classified->sortByDesc('quantity_on_hand'),
+        })->values();
+
+        $columns = [
+            'sku' => 'SKU',
+            'name' => 'Item Description',
+            'barcode_value' => 'Barcode',
+            'gtin' => 'GTIN',
+            'category' => 'Category',
+            'unit' => 'Unit of Measure',
+            'quantity_on_hand' => 'Units On Hand',
+            'reserved_quantity' => 'Reserved Units',
+            'reorder_level' => 'Reorder Level',
+        ];
+        if ($canViewFinancial) {
+            $columns['unit_cost'] = 'Unit Cost (₱)';
+            $columns['total_value'] = 'Total Value (₱)';
+        }
+        $columns['status'] = 'Stock Status';
+
+        $totalUnits = (int) $classified->sum('quantity_on_hand');
+        $totalVal = (float) $classified->sum('total_value');
+
+        $summary = [
+            'Total Items' => $classified->count(),
+            'In Stock Items' => $classified->where('status_key', 'in_stock')->count(),
+            'Low Stock Items' => $classified->where('status_key', 'low_stock')->count(),
+            'Out of Stock Items' => $classified->where('status_key', 'out_of_stock')->count(),
+            'Total Units' => $totalUnits,
+        ];
+        if ($canViewFinancial) {
+            $summary['Total Valuation'] = '₱'.number_format($totalVal, 2);
+        }
+
+        $totals = [
+            'sku' => 'TOTALS',
+            'barcode_value' => '',
+            'gtin' => '',
+            'name' => $classified->count().' items',
+            'category' => '-',
+            'unit' => '-',
+            'quantity_on_hand' => $totalUnits,
+            'reserved_quantity' => (int) $classified->sum('reserved_quantity'),
+            'reorder_level' => '-',
+            'unit_cost' => '-',
+            'total_value' => $canViewFinancial ? '₱'.number_format($totalVal, 2) : '-',
+            'status' => '-',
+        ];
+
+        return [
+            'meta' => $meta,
+            'summary' => $summary,
+            'columns' => $columns,
+            'data' => $classified->all(),
+            'totals' => $totals,
+            'is_empty' => $classified->isEmpty(),
+            'empty_message' => 'No items found matching the selected stock status criteria.',
+        ];
+    }
+
+    /**
+     * Valuation Report generation.
+     */
+    protected function generateValuationReport(array $meta, ?int $categoryId, ?int $locationId, ?string $statusFilter, ?string $sortBy, string $sortDir, bool $canViewFinancial): array
+    {
+        $rows = $this->valuationByCategory($categoryId, $locationId, $statusFilter);
+
+        $totalVal = (float) $rows->sum('value');
+        $totalUnits = (int) $rows->sum('units');
+        $totalItems = (int) $rows->sum('items');
+
+        $data = $rows->map(function ($r) use ($totalVal) {
+            $val = (float) $r->value;
+            $share = $totalVal > 0 ? round(($val / $totalVal) * 100, 1) : 0.0;
+
+            return [
+                'category' => $r->category,
+                'items' => (int) $r->items,
+                'units' => (int) $r->units,
+                'value' => $val,
+                'share' => $share,
+            ];
+        });
+
+        // Sorting
+        $data = (match ($sortBy) {
+            'name' => $sortDir === 'asc' ? $data->sortBy('category') : $data->sortByDesc('category'),
+            'items' => $sortDir === 'asc' ? $data->sortBy('items') : $data->sortByDesc('items'),
+            'units' => $sortDir === 'asc' ? $data->sortBy('units') : $data->sortByDesc('units'),
+            default => $sortDir === 'asc' ? $data->sortBy('value') : $data->sortByDesc('value'),
+        })->values();
+
+        $columns = [
+            'category' => 'Item Category',
+            'items' => 'Items in Catalogue',
+            'units' => 'Units On Hand',
+        ];
+        if ($canViewFinancial) {
+            $columns['value'] = 'Valuation (₱)';
+            $columns['share'] = 'Share of Valuation (%)';
+        }
+
+        $summary = [
+            'Categories' => $data->count(),
+            'Total Items' => $totalItems,
+            'Total Units On Hand' => $totalUnits,
+        ];
+        if ($canViewFinancial) {
+            $summary['Total Inventory Value'] = '₱'.number_format($totalVal, 2);
+        }
+
+        $totals = [
+            'category' => 'TOTALS',
+            'items' => $totalItems,
+            'units' => $totalUnits,
+            'value' => $canViewFinancial ? '₱'.number_format($totalVal, 2) : '-',
+            'share' => '100.0%',
+        ];
+
+        return [
+            'meta' => $meta,
+            'summary' => $summary,
+            'columns' => $columns,
+            'data' => $data->all(),
+            'totals' => $totals,
+            'is_empty' => $data->isEmpty(),
+            'empty_message' => 'No inventory valuation data found for the selected category.',
+        ];
+    }
+
+    /**
+     * Stock By Location Report generation.
+     */
+    protected function generateStockByLocationReport(array $meta, ?int $categoryId, ?int $locationId, ?string $statusFilter, ?string $sortBy, string $sortDir, bool $canViewFinancial): array
+    {
+        $rows = $this->stockByLocation($categoryId, $locationId, $statusFilter)
+            ->map(fn (array $row) => [
+                ...$row,
+                'capacity' => $row['capacity'] ?? 'Uncapped',
+                'utilisation' => $row['utilisation'] !== null ? $row['utilisation'].'%' : 'N/A',
+                'utilisation_num' => $row['utilisation'] ?? 0,
+            ]);
+
+        // Sorting
+        $rows = (match ($sortBy) {
+            'name' => $sortDir === 'asc' ? $rows->sortBy('location') : $rows->sortByDesc('location'),
+            'items' => $sortDir === 'asc' ? $rows->sortBy('items') : $rows->sortByDesc('items'),
+            'utilisation' => $sortDir === 'asc' ? $rows->sortBy('utilisation_num') : $rows->sortByDesc('utilisation_num'),
+            'value' => $sortDir === 'asc' ? $rows->sortBy('value') : $rows->sortByDesc('value'),
+            default => $sortDir === 'asc' ? $rows->sortBy('units') : $rows->sortByDesc('units'),
+        })->values();
+
+        $columns = [
+            'location' => 'Storage Location',
+            'code' => 'Location Code',
+            'capacity' => 'Capacity (Units)',
+            'items' => 'Unique Items',
+            'units' => 'Stored Units',
+        ];
+        if ($canViewFinancial) {
+            $columns['value'] = 'Stored Value (₱)';
+        }
+        $columns['utilisation'] = 'Space Utilisation';
+
+        $totalUnits = (int) $rows->sum('units');
+        $totalVal = (float) $rows->sum('value');
+
+        $summary = [
+            'Storage Locations' => $rows->count(),
+            'Total Units Stored' => $totalUnits,
+        ];
+        if ($canViewFinancial) {
+            $summary['Total Stored Value'] = '₱'.number_format($totalVal, 2);
+        }
+
+        $totals = [
+            'location' => 'TOTALS',
+            'code' => '-',
+            'capacity' => '-',
+            'items' => (int) $rows->sum('items'),
+            'units' => $totalUnits,
+            'value' => $canViewFinancial ? '₱'.number_format($totalVal, 2) : '-',
+            'utilisation' => '-',
+        ];
+
+        return [
+            'meta' => $meta,
+            'summary' => $summary,
+            'columns' => $columns,
+            'data' => $rows->all(),
+            'totals' => $totals,
+            'is_empty' => $rows->isEmpty(),
+            'empty_message' => 'No stock records found for the selected storage location.',
+        ];
+    }
+
+    /**
+     * Expiry Exposure Report generation.
+     */
+    protected function generateExpiryExposureReport(array $meta, ?int $locationId, ?int $categoryId, ?string $sortBy, string $sortDir, bool $canViewFinancial): array
+    {
+        $stockLevelScope = fn ($query) => $query->when(
+            $locationId,
+            fn ($locationQuery) => $locationQuery->where('storage_location_id', $locationId)
+        );
+
+        $batchesQuery = ItemBatch::query()
+            ->active()
+            ->whereNotNull('expiry_date')
+            ->with(['item.category', 'stockLevels' => $stockLevelScope, 'stockLevels.storageLocation'])
+            ->withSum(['stockLevels as units_on_hand' => $stockLevelScope], 'quantity')
+            ->fefo()
+            ->when($categoryId, fn ($q) => $q->whereHas('item', fn ($iq) => $iq->where('category_id', $categoryId)))
+            ->when($locationId, fn ($q) => $q->whereHas('stockLevels', $stockLevelScope));
+
+        $batches = $batchesQuery->get()->filter(fn (ItemBatch $b) => (int) $b->units_on_hand > 0);
+
+        $expired = $batches->filter(fn (ItemBatch $b) => $b->isExpired());
+        $expiringSoon = $batches->filter(fn (ItemBatch $b) => $b->isExpiringSoon());
+        $atRisk = $expired->merge($expiringSoon)->values();
+
+        $rows = $atRisk->map(function (ItemBatch $batch) {
+            $cost = (float) ($batch->unit_cost ?? $batch->item?->unit_cost ?? 0);
+            $units = (int) $batch->units_on_hand;
+            $riskVal = $units * $cost;
+            $isExp = $batch->isExpired();
+
+            $expiryDate = $batch->expiry_date ? Carbon::parse($batch->expiry_date) : null;
+            $daysLeft = $batch->daysUntilExpiry() ?? 0;
+
+            $activeLevels = $batch->stockLevels->filter(fn ($sl) => (int) $sl->quantity > 0);
+            if ($activeLevels->isEmpty()) {
+                $activeLevels = $batch->stockLevels;
+            }
+
+            $locNames = $activeLevels
+                ->map(fn ($sl) => ($sl->storageLocation ?? $sl->location)?->name)
+                ->filter()
+                ->unique()
+                ->implode(', ') ?: 'Main Store';
+
+            return [
+                'batch_number' => $batch->batch_number,
+                'item' => $batch->item?->name ?? 'Unknown Item',
+                'sku' => $batch->item?->sku ?? '-',
+                'category' => $batch->item?->category?->name ?? 'Uncategorised',
+                'location' => $locNames,
+                'expiry_date' => $expiryDate ? $expiryDate->format('M d, Y') : '-',
+                'days_remaining' => $isExp ? 'EXPIRED ('.abs($daysLeft).'d ago)' : $daysLeft.' days left',
+                'days_num' => $daysLeft,
+                'units' => $units,
+                'unit_cost' => $cost,
+                'risk_value' => $riskVal,
+                'status' => strtoupper($batch->expiryStatusLabel()),
+            ];
+        });
+
+        // Sorting
+        $rows = (match ($sortBy) {
+            'name' => $sortDir === 'asc' ? $rows->sortBy('item') : $rows->sortByDesc('item'),
+            'units' => $sortDir === 'asc' ? $rows->sortBy('units') : $rows->sortByDesc('units'),
+            'value' => $sortDir === 'asc' ? $rows->sortBy('risk_value') : $rows->sortByDesc('risk_value'),
+            default => $sortDir === 'asc' ? $rows->sortBy('days_num') : $rows->sortByDesc('days_num'),
+        })->values();
+
+        $columns = [
+            'batch_number' => 'Batch Number',
+            'item' => 'Item Description',
+            'category' => 'Category',
+            'location' => 'Storage Location',
+            'expiry_date' => 'Expiry Date',
+            'days_remaining' => 'Timeline',
+            'units' => 'Units at Risk',
+        ];
+        if ($canViewFinancial) {
+            $columns['unit_cost'] = 'Unit Cost (₱)';
+            $columns['risk_value'] = 'Risk Value (₱)';
+        }
+        $columns['status'] = 'Status';
+
+        $totalUnits = (int) $rows->sum('units');
+        $totalRiskVal = (float) $rows->sum('risk_value');
+
+        $summary = [
+            'Expired Batches' => $expired->count(),
+            'Expired Units' => (int) $expired->sum('units_on_hand'),
+            'Expiring Soon Batches' => $expiringSoon->count(),
+            'Expiring Soon Units' => (int) $expiringSoon->sum('units_on_hand'),
+            'Critical / Near Expiry Batches' => $expiringSoon->filter(fn (ItemBatch $batch) => $batch->isCriticalExpiry())->count(),
+            'Total Units at Risk' => $totalUnits,
+        ];
+        if ($canViewFinancial) {
+            $summary['Total Risk Valuation'] = '₱'.number_format($totalRiskVal, 2);
+        }
+
+        $totals = [
+            'batch_number' => 'TOTALS',
+            'item' => $rows->count().' batches at risk',
+            'category' => '-',
+            'location' => '-',
+            'expiry_date' => '-',
+            'days_remaining' => '-',
+            'units' => $totalUnits,
+            'unit_cost' => '-',
+            'risk_value' => $canViewFinancial ? '₱'.number_format($totalRiskVal, 2) : '-',
+            'status' => '-',
+        ];
+
+        return [
+            'meta' => $meta,
+            'summary' => $summary,
+            'columns' => $columns,
+            'data' => $rows->all(),
+            'totals' => $totals,
+            'is_empty' => $rows->isEmpty(),
+            'empty_message' => 'No active batches are expired or expiring soon for the selected criteria.',
+        ];
+    }
+
+    /**
+     * Movement History Report generation.
+     */
+    protected function generateMovementHistoryReport(array $meta, Carbon $from, Carbon $to, ?string $movementType, ?int $locationId, ?int $categoryId, ?string $sortBy, string $sortDir, bool $canViewFinancial): array
+    {
+        $query = StockMovement::query()
+            ->with(['item.category', 'fromLocation', 'toLocation', 'user', 'reference'])
+            ->where('moved_at', '>=', $from)
+            ->where('moved_at', '<=', $to)
+            ->when($movementType, fn ($q) => $q->where('movement_type', $movementType))
+            ->when($categoryId, fn ($q) => $q->whereHas('item', fn ($iq) => $iq->where('category_id', $categoryId)))
+            ->when($locationId, fn ($q) => $q->where(fn ($lq) => $lq->where('from_location_id', $locationId)->orWhere('to_location_id', $locationId)));
+
+        $movements = $query->orderBy('id')->get();
+
+        $rows = $movements->map(function (StockMovement $m) {
+            $qty = (int) $m->quantity;
+            $cost = (float) ($m->unit_cost ?? $m->item?->unit_cost ?? 0);
+            $val = $qty * $cost;
+
+            $referenceText = match (true) {
+                $m->reference instanceof PurchaseOrder => 'PO #'.$m->reference->po_number,
+                $m->reference_type !== null => class_basename($m->reference_type).' #'.$m->reference_id,
+                default => '-',
+            };
+
+            $destination = $m->toLocation?->name ?? ($m->notes ?: $referenceText);
+
+            return [
+                'id' => '#'.$m->id,
+                'moved_at' => $m->moved_at ? $m->moved_at->format('M d, Y H:i') : '-',
+                'timestamp' => $m->moved_at?->timestamp ?? 0,
+                'type' => $m->movement_type instanceof MovementType ? $m->movement_type->label() : ucwords(str_replace('_', ' ', (string) $m->movement_type)),
+                'item' => $m->item?->name ?? 'Unknown',
+                'sku' => $m->item?->sku ?? '-',
+                'category' => $m->item?->category?->name ?? 'Uncategorised',
+                'quantity' => $qty,
+                'unit_cost' => $cost,
+                'value' => $val,
+                'from_location' => $m->fromLocation?->name ?? 'External / Supplier',
+                'to_location' => $destination,
+                'user' => $m->user?->name ?? 'System Automated',
+            ];
+        });
+
+        // Sorting
+        $rows = (match ($sortBy) {
+            'item' => $sortDir === 'asc' ? $rows->sortBy('item') : $rows->sortByDesc('item'),
+            'units' => $sortDir === 'asc' ? $rows->sortBy('quantity') : $rows->sortByDesc('quantity'),
+            'value' => $sortDir === 'asc' ? $rows->sortBy('value') : $rows->sortByDesc('value'),
+            default => $sortDir === 'asc' ? $rows->sortBy('timestamp') : $rows->sortByDesc('timestamp'),
+        })->values();
+
+        $columns = [
+            'id' => 'Ref #',
+            'moved_at' => 'Date & Time',
+            'type' => 'Movement Type',
+            'item' => 'Item Description',
+            'sku' => 'SKU',
+            'quantity' => 'Quantity',
+        ];
+        if ($canViewFinancial) {
+            $columns['unit_cost'] = 'Unit Cost (₱)';
+            $columns['value'] = 'Total Value (₱)';
+        }
+        $columns['from_location'] = 'Origin';
+        $columns['to_location'] = 'Destination / Ref';
+        $columns['user'] = 'Logged By';
+
+        $totalUnits = (int) $rows->sum('quantity');
+        $totalVal = (float) $rows->sum('value');
+
+        $summary = [
+            'Total Movements' => $rows->count(),
+            'Total Units Moved' => $totalUnits,
+        ];
+        if ($canViewFinancial) {
+            $summary['Total Movements Value'] = '₱'.number_format($totalVal, 2);
+        }
+
+        $totals = [
+            'id' => 'TOTALS',
+            'moved_at' => '-',
+            'type' => '-',
+            'item' => $rows->count().' movement records',
+            'sku' => '-',
+            'quantity' => $totalUnits,
+            'unit_cost' => '-',
+            'value' => $canViewFinancial ? '₱'.number_format($totalVal, 2) : '-',
+            'from_location' => '-',
+            'to_location' => '-',
+            'user' => '-',
+        ];
+
+        return [
+            'meta' => $meta,
+            'summary' => $summary,
+            'columns' => $columns,
+            'data' => $rows->all(),
+            'totals' => $totals,
+            'is_empty' => $rows->isEmpty(),
+            'empty_message' => 'No stock movement records found for the applied criteria within this date window.',
+        ];
+    }
+
+    /**
+     * Procurement Expense Report generation.
+     */
+    protected function generateProcurementExpenseReport(array $meta, Carbon $from, Carbon $to, ?int $supplierId, ?string $sortBy, string $sortDir, bool $canViewFinancial): array
+    {
+        if (! $canViewFinancial) {
+            abort(403, 'You do not have permission to view procurement financial reports.');
+        }
+
+        $query = PurchaseOrder::query()
+            ->with(['supplier', 'item', 'lines'])
+            ->where('requested_at', '>=', $from)
+            ->where('requested_at', '<=', $to)
+            ->when($supplierId, fn ($q) => $q->where('supplier_id', $supplierId));
+
+        $orders = $query->orderBy('id')->get();
+
+        $rows = $orders->map(function (PurchaseOrder $po) {
+            $qty = (int) $po->quantity;
+            $cost = (float) $po->unit_cost;
+            $amount = (float) $po->total_amount;
+            $acceptedValue = $po->lines->isNotEmpty()
+                ? (float) $po->lines->sum(fn ($line) => $line->accepted_quantity * (float) $line->unit_price)
+                : (in_array($po->status, ['received', 'fulfilled'], true) ? $amount : 0.0);
+            $outstandingValue = $po->lines->isNotEmpty()
+                ? (float) $po->lines->sum(fn ($line) => $line->outstandingQuantity() * (float) $line->unit_price)
+                : (in_array($po->status, ['received', 'fulfilled', 'cancelled'], true) ? 0.0 : $amount);
+
+            return [
+                'po_number' => $po->po_number,
+                'requested_at' => $po->requested_at ? $po->requested_at->format('M d, Y') : '-',
+                'timestamp' => $po->requested_at?->timestamp ?? 0,
+                'supplier' => $po->supplier?->name ?? 'Unassigned',
+                'item' => $po->item?->name ?? 'Multiple Items',
+                'quantity' => $qty,
+                'unit_cost' => $cost,
+                'total_amount' => $amount,
+                'accepted_value' => $acceptedValue,
+                'outstanding_value' => $outstandingValue,
+                'status' => ucwords(str_replace('_', ' ', (string) $po->status)),
+                'received_at' => $po->received_at ? $po->received_at->format('M d, Y') : 'Pending',
+            ];
+        });
+
+        // Sorting
+        $rows = (match ($sortBy) {
+            'supplier' => $sortDir === 'asc' ? $rows->sortBy('supplier') : $rows->sortByDesc('supplier'),
+            'amount' => $sortDir === 'asc' ? $rows->sortBy('total_amount') : $rows->sortByDesc('total_amount'),
+            'orders' => $sortDir === 'asc' ? $rows->sortBy('po_number') : $rows->sortByDesc('po_number'),
+            'status' => $sortDir === 'asc' ? $rows->sortBy('status') : $rows->sortByDesc('status'),
+            default => $sortDir === 'asc' ? $rows->sortBy('timestamp') : $rows->sortByDesc('timestamp'),
+        })->values();
+
+        $spend = $this->procurementSpend($from, $to, $supplierId);
+
+        $totalOrdersCount = $orders->count();
+        $totalOrderedVal = (float) $orders->sum('total_amount');
+        $receivedVal = (float) $spend['received']['value'];
+        $outstandingVal = (float) $spend['outstanding']['value'];
+        $avgOrderVal = $totalOrdersCount > 0 ? round($totalOrderedVal / $totalOrdersCount, 2) : 0.0;
+
+        $columns = [
+            'po_number' => 'PO Number',
+            'requested_at' => 'Order Date',
+            'supplier' => 'Supplier',
+            'item' => 'Item Description',
+            'quantity' => 'Quantity',
+            'unit_cost' => 'Unit Cost (₱)',
+            'total_amount' => 'Total Amount (₱)',
+            'accepted_value' => 'QC Accepted Value (₱)',
+            'outstanding_value' => 'Outstanding Value (₱)',
+            'status' => 'Status',
+            'received_at' => 'Date Fully Accepted',
+        ];
+
+        $summary = [
+            'Purchase Orders Placed' => $totalOrdersCount,
+            'Total Ordered Amount' => '₱'.number_format($totalOrderedVal, 2),
+            'QC Accepted / Legacy Received' => '₱'.number_format($receivedVal, 2),
+            'Outstanding Commitments' => '₱'.number_format($outstandingVal, 2).' ('.$spend['outstanding']['orders'].' POs)',
+            'Average Order Value' => '₱'.number_format($avgOrderVal, 2),
+        ];
+
+        $totals = [
+            'po_number' => 'TOTALS',
+            'requested_at' => '-',
+            'supplier' => '-',
+            'item' => $totalOrdersCount.' orders',
+            'quantity' => (int) $rows->sum('quantity'),
+            'unit_cost' => '-',
+            'total_amount' => '₱'.number_format($totalOrderedVal, 2),
+            'accepted_value' => '₱'.number_format((float) $rows->sum('accepted_value'), 2),
+            'outstanding_value' => '₱'.number_format((float) $rows->sum('outstanding_value'), 2),
+            'status' => '-',
+            'received_at' => '-',
+        ];
+
+        return [
+            'meta' => $meta,
+            'summary' => $summary,
+            'columns' => $columns,
+            'data' => $rows->all(),
+            'totals' => $totals,
+            'is_empty' => $rows->isEmpty(),
+            'empty_message' => 'No purchase orders found matching the filter criteria within this window.',
+        ];
+    }
+
+    /**
+     * Spend By Supplier Report generation.
+     */
+    protected function generateSpendBySupplierReport(array $meta, Carbon $from, Carbon $to, ?int $supplierId, ?string $sortBy, string $sortDir, bool $canViewFinancial): array
+    {
+        if (! $canViewFinancial) {
+            abort(403, 'You do not have permission to view vendor spend reports.');
+        }
+
+        $query = PurchaseOrder::query()
+            ->leftJoin('suppliers', 'suppliers.id', '=', 'purchase_orders.supplier_id')
+            ->where('purchase_orders.requested_at', '>=', $from)
+            ->where('purchase_orders.requested_at', '<=', $to)
+            ->when($supplierId, fn ($q) => $q->where('purchase_orders.supplier_id', $supplierId))
+            ->selectRaw("coalesce(suppliers.name, 'Unassigned') as supplier")
+            ->selectRaw('count(*) as orders')
+            ->selectRaw("coalesce(sum(case when purchase_orders.status in ('received', 'fulfilled') then 1 else 0 end), 0) as received_orders")
+            ->selectRaw('coalesce(sum(purchase_orders.total_amount), 0) as value')
+            ->groupBy('suppliers.id', 'suppliers.name')
+            ->orderBy('suppliers.id')
+            ->toBase();
+
+        $rows = $query->get()->map(function ($r) {
+            $orders = (int) $r->orders;
+            $received = (int) $r->received_orders;
+            $rate = $orders > 0 ? round(($received / $orders) * 100, 1) : 0.0;
+            $val = (float) $r->value;
+
+            return [
+                'supplier' => $r->supplier,
+                'orders' => $orders,
+                'received_orders' => $received,
+                'fulfilment_rate' => $rate.'%',
+                'fulfilment_num' => $rate,
+                'value' => $val,
+            ];
+        });
+
+        // Sorting
+        $rows = (match ($sortBy) {
+            'supplier' => $sortDir === 'asc' ? $rows->sortBy('supplier') : $rows->sortByDesc('supplier'),
+            'orders' => $sortDir === 'asc' ? $rows->sortBy('orders') : $rows->sortByDesc('orders'),
+            'fulfilment' => $sortDir === 'asc' ? $rows->sortBy('fulfilment_num') : $rows->sortByDesc('fulfilment_num'),
+            default => $sortDir === 'asc' ? $rows->sortBy('value') : $rows->sortByDesc('value'),
+        })->values();
+
+        $totalSpend = (float) $rows->sum('value');
+        $totalOrders = (int) $rows->sum('orders');
+        $totalReceived = (int) $rows->sum('received_orders');
+        $overallRate = $totalOrders > 0 ? round(($totalReceived / $totalOrders) * 100, 1) : 0.0;
+
+        $columns = [
+            'supplier' => 'Supplier / Vendor',
+            'orders' => 'Orders Placed',
+            'received_orders' => 'Fulfilled Orders',
+            'fulfilment_rate' => 'Fulfilment Rate (%)',
+            'value' => 'PO Commitments (₱)',
+        ];
+
+        $summary = [
+            'Active Vendors' => $rows->count(),
+            'Total POs Placed' => $totalOrders,
+            'Overall Fulfilment Rate' => $overallRate.'%',
+            'Total Committed' => '₱'.number_format($totalSpend, 2),
+        ];
+
+        $totals = [
+            'supplier' => 'TOTALS',
+            'orders' => $totalOrders,
+            'received_orders' => $totalReceived,
+            'fulfilment_rate' => $overallRate.'%',
+            'value' => '₱'.number_format($totalSpend, 2),
+        ];
+
+        return [
+            'meta' => $meta,
+            'summary' => $summary,
+            'columns' => $columns,
+            'data' => $rows->all(),
+            'totals' => $totals,
+            'is_empty' => $rows->isEmpty(),
+            'empty_message' => 'No vendor spending records found matching the applied criteria.',
+        ];
+    }
+
+    /**
+     * Most Consumed Items Report generation.
+     */
+    protected function generateMostConsumedReport(array $meta, Carbon $from, Carbon $to, ?int $categoryId, ?int $locationId, ?string $sortBy, string $sortDir, bool $canViewFinancial): array
+    {
+        $query = StockMovement::query()
+            ->join('inventory_items', 'inventory_items.id', '=', 'stock_movements.item_id')
+            ->whereIn('stock_movements.movement_type', MovementType::consumptionValues())
+            ->where('stock_movements.moved_at', '>=', $from)
+            ->where('stock_movements.moved_at', '<=', $to)
+            ->when($categoryId, fn ($q) => $q->where('inventory_items.category_id', $categoryId))
+            ->when($locationId, fn ($query) => $query->where(fn ($locationQuery) => $locationQuery
+                ->where('stock_movements.from_location_id', $locationId)
+                ->orWhere('stock_movements.to_location_id', $locationId)))
+            ->selectRaw('inventory_items.id as item_id')
+            ->selectRaw('inventory_items.name as item')
+            ->selectRaw('inventory_items.sku as sku')
+            ->selectRaw('inventory_items.unit as unit')
+            ->selectRaw('inventory_items.quantity_on_hand as on_hand')
+            ->selectRaw('count(*) as movements')
+            ->selectRaw('coalesce(sum(stock_movements.quantity), 0) as units')
+            ->selectRaw('coalesce(sum(stock_movements.quantity * coalesce(stock_movements.unit_cost, inventory_items.unit_cost, 0)), 0) as value')
+            ->groupBy('inventory_items.id', 'inventory_items.name', 'inventory_items.sku', 'inventory_items.unit', 'inventory_items.quantity_on_hand')
+            ->orderBy('inventory_items.id')
+            ->toBase();
+
+        $rawRows = $query->get();
+
+        if ($locationId && $rawRows->isNotEmpty()) {
+            $onHandByItem = ItemStockLevel::query()
+                ->where('storage_location_id', $locationId)
+                ->whereIn('item_id', $rawRows->pluck('item_id'))
+                ->selectRaw('item_id, coalesce(sum(quantity), 0) as on_hand')
+                ->groupBy('item_id')
+                ->pluck('on_hand', 'item_id');
+
+            $rawRows->each(fn (object $row) => $row->on_hand = (int) ($onHandByItem[$row->item_id] ?? 0));
+        }
+
+        $rows = $rawRows->map(fn ($r) => [
+            'item' => $r->item,
+            'sku' => $r->sku,
+            'unit' => $r->unit ?? 'Not recorded',
+            'on_hand' => (int) $r->on_hand,
+            'movements' => (int) $r->movements,
+            'units' => (int) $r->units,
+            'value' => (float) $r->value,
+        ]);
+
+        // Sorting
+        $rows = (match ($sortBy) {
+            'item' => $sortDir === 'asc' ? $rows->sortBy('item') : $rows->sortByDesc('item'),
+            'movements' => $sortDir === 'asc' ? $rows->sortBy('movements') : $rows->sortByDesc('movements'),
+            'value' => $sortDir === 'asc' ? $rows->sortBy('value') : $rows->sortByDesc('value'),
+            default => $sortDir === 'asc' ? $rows->sortBy('units') : $rows->sortByDesc('units'),
+        })->values();
+
+        $totalUnits = (int) $rows->sum('units');
+        $totalVal = (float) $rows->sum('value');
+
+        $columns = [
+            'item' => 'Item Description',
+            'sku' => 'SKU',
+            'unit' => 'Unit',
+            'on_hand' => 'Remaining On Hand',
+            'movements' => 'Consumption Events',
+            'units' => 'Units Consumed',
+        ];
+        if ($canViewFinancial) {
+            $columns['value'] = 'Consumption Value (₱)';
+        }
+
+        $summary = [
+            'Consumed Item Types' => $rows->count(),
+            'Total Units Consumed' => $totalUnits,
+        ];
+        if ($canViewFinancial) {
+            $summary['Total Consumption Value'] = '₱'.number_format($totalVal, 2);
+        }
+
+        $totals = [
+            'item' => 'TOTALS',
+            'sku' => '-',
+            'unit' => '-',
+            'on_hand' => (int) $rows->sum('on_hand'),
+            'movements' => (int) $rows->sum('movements'),
+            'units' => $totalUnits,
+            'value' => $canViewFinancial ? '₱'.number_format($totalVal, 2) : '-',
+        ];
+
+        return [
+            'meta' => $meta,
+            'summary' => $summary,
+            'columns' => $columns,
+            'data' => $rows->all(),
+            'totals' => $totals,
+            'is_empty' => $rows->isEmpty(),
+            'empty_message' => 'No item consumption recorded within this date window.',
+        ];
+    }
+
+    /**
+     * Movements By Type Report generation.
+     */
+    protected function generateMovementsByTypeReport(array $meta, Carbon $from, Carbon $to, ?string $movementType, ?int $locationId, ?int $categoryId, ?string $sortBy, string $sortDir, bool $canViewFinancial): array
+    {
+        $rows = StockMovement::query()
+            ->where('moved_at', '>=', $from)
+            ->where('moved_at', '<=', $to)
+            ->when($movementType, fn ($q) => $q->where('movement_type', $movementType))
+            ->when($categoryId, fn ($query) => $query->whereHas('item', fn ($itemQuery) => $itemQuery->where('category_id', $categoryId)))
+            ->when($locationId, fn ($query) => $query->where(fn ($locationQuery) => $locationQuery
+                ->where('from_location_id', $locationId)
+                ->orWhere('to_location_id', $locationId)))
+            ->selectRaw('movement_type')
+            ->selectRaw('count(*) as movements')
+            ->selectRaw('coalesce(sum(quantity), 0) as units')
+            ->selectRaw('coalesce(sum(quantity * coalesce(unit_cost, 0)), 0) as value')
+            ->groupBy('movement_type')
+            ->toBase()
+            ->get()
+            ->keyBy('movement_type');
+
+        $cases = $movementType ? [MovementType::tryFrom($movementType)] : MovementType::cases();
+        $cases = array_filter($cases);
+
+        $data = collect($cases)->map(function (MovementType $type) use ($rows) {
+            $key = $type->value;
+            $mov = (int) ($rows[$key]->movements ?? 0);
+            $units = (int) ($rows[$key]->units ?? 0);
+            $val = (float) ($rows[$key]->value ?? 0);
+
+            return [
+                'type' => $type->label(),
+                'type_key' => $type->value,
+                'movements' => $mov,
+                'units' => $units,
+                'value' => $val,
+            ];
+        });
+
+        // Sorting
+        $data = (match ($sortBy) {
+            'type' => $sortDir === 'asc' ? $data->sortBy('type') : $data->sortByDesc('type'),
+            'units' => $sortDir === 'asc' ? $data->sortBy('units') : $data->sortByDesc('units'),
+            'value' => $sortDir === 'asc' ? $data->sortBy('value') : $data->sortByDesc('value'),
+            default => $sortDir === 'asc' ? $data->sortBy('movements') : $data->sortByDesc('movements'),
+        })->values();
+
+        $totalMov = (int) $data->sum('movements');
+        $totalUnits = (int) $data->sum('units');
+        $totalVal = (float) $data->sum('value');
+
+        $columns = [
+            'type' => 'Movement Type',
+            'movements' => 'Recorded Movements',
+            'units' => 'Total Units',
+        ];
+        if ($canViewFinancial) {
+            $columns['value'] = 'Movement Value (₱)';
+        }
+
+        $summary = [
+            'Activity Types' => $data->count(),
+            'Total Movements' => $totalMov,
+            'Total Units' => $totalUnits,
+        ];
+        if ($canViewFinancial) {
+            $summary['Total Activity Value'] = '₱'.number_format($totalVal, 2);
+        }
+
+        $totals = [
+            'type' => 'TOTALS',
+            'movements' => $totalMov,
+            'units' => $totalUnits,
+            'value' => $canViewFinancial ? '₱'.number_format($totalVal, 2) : '-',
+        ];
+
+        return [
+            'meta' => $meta,
+            'summary' => $summary,
+            'columns' => $columns,
+            'data' => $data->all(),
+            'totals' => $totals,
+            'is_empty' => $totalMov === 0,
+            'empty_message' => 'No stock movement activity recorded within this date window.',
+        ];
+    }
+
+    /**
+     * All Reports compilation.
+     */
+    protected function generateAllReports(array $meta, Carbon $from, Carbon $to, ?int $categoryId, ?int $locationId, ?int $supplierId, ?string $movementType, ?string $status, ?string $sortBy, string $sortDir, bool $canViewFinancial): array
+    {
+        $stockStatus = $this->generateStockStatusReport($meta, $categoryId, $locationId, $status, $sortBy, $sortDir, $canViewFinancial);
+        $valuation = $this->generateValuationReport($meta, $categoryId, $locationId, $status, $sortBy, $sortDir, $canViewFinancial);
+        $stockByLocation = $this->generateStockByLocationReport($meta, $categoryId, $locationId, $status, $sortBy, $sortDir, $canViewFinancial);
+        $expiry = $this->generateExpiryExposureReport($meta, $locationId, $categoryId, $sortBy, $sortDir, $canViewFinancial);
+        $movements = $this->generateMovementHistoryReport($meta, $from, $to, $movementType, $locationId, $categoryId, $sortBy, $sortDir, $canViewFinancial);
+        $consumed = $this->generateMostConsumedReport($meta, $from, $to, $categoryId, $locationId, $sortBy, $sortDir, $canViewFinancial);
+        $movementsByType = $this->generateMovementsByTypeReport($meta, $from, $to, $movementType, $locationId, $categoryId, $sortBy, $sortDir, $canViewFinancial);
+
+        $sections = [
+            'stock_status' => [
+                'title' => 'Stock Status & Level Breakdown',
+                'summary' => $stockStatus['summary'],
+                'columns' => $stockStatus['columns'],
+                'rows' => $stockStatus['data'],
+                'totals' => $stockStatus['totals'],
+            ],
+            'valuation' => [
+                'title' => 'Inventory Valuation by Category',
+                'summary' => $valuation['summary'],
+                'columns' => $valuation['columns'],
+                'rows' => $valuation['data'],
+                'totals' => $valuation['totals'],
+            ],
+            'stock_by_location' => [
+                'title' => 'Stock by Storage Location',
+                'summary' => $stockByLocation['summary'],
+                'columns' => $stockByLocation['columns'],
+                'rows' => $stockByLocation['data'],
+                'totals' => $stockByLocation['totals'],
+            ],
+            'expiry' => [
+                'title' => 'Expiry Exposure & Risk Batches',
+                'summary' => $expiry['summary'],
+                'columns' => $expiry['columns'],
+                'rows' => $expiry['data'],
+                'totals' => $expiry['totals'],
+            ],
+            'movements' => [
+                'title' => 'Recent Stock Movement Ledger',
+                'summary' => $movements['summary'],
+                'columns' => $movements['columns'],
+                'rows' => $movements['data'],
+                'totals' => $movements['totals'],
+            ],
+            'consumed' => [
+                'title' => 'Top Consumed Items',
+                'summary' => $consumed['summary'],
+                'columns' => $consumed['columns'],
+                'rows' => $consumed['data'],
+                'totals' => $consumed['totals'],
+            ],
+            'movements_by_type' => [
+                'title' => 'Activity by Movement Type',
+                'summary' => $movementsByType['summary'],
+                'columns' => $movementsByType['columns'],
+                'rows' => $movementsByType['data'],
+                'totals' => $movementsByType['totals'],
+            ],
+        ];
+
+        if ($canViewFinancial) {
+            $procurement = $this->generateProcurementExpenseReport($meta, $from, $to, $supplierId, $sortBy, $sortDir, $canViewFinancial);
+            $spend = $this->generateSpendBySupplierReport($meta, $from, $to, $supplierId, $sortBy, $sortDir, $canViewFinancial);
+
+            $sections['procurement'] = [
+                'title' => 'Procurement Expense & Purchase Commitments',
+                'summary' => $procurement['summary'],
+                'columns' => $procurement['columns'],
+                'rows' => $procurement['data'],
+                'totals' => $procurement['totals'],
+            ];
+
+            $sections['spend'] = [
+                'title' => 'Spend by Vendor / Supplier',
+                'summary' => $spend['summary'],
+                'columns' => $spend['columns'],
+                'rows' => $spend['data'],
+                'totals' => $spend['totals'],
+            ];
+        }
+
+        $overallSummary = [
+            'Catalogue Items' => $stockStatus['summary']['Total Items'] ?? 0,
+            'Units on Hand' => $stockStatus['summary']['Total Units'] ?? 0,
+            'Expired Batches' => $expiry['summary']['Expired Batches'] ?? 0,
+            'Total Movements' => $movements['summary']['Total Movements'] ?? 0,
+        ];
+        if ($canViewFinancial) {
+            $overallSummary['Inventory Valuation'] = $valuation['summary']['Total Inventory Value'] ?? '₱0.00';
+            $overallSummary['Procurement Spend'] = $spend['summary']['Total Spend'] ?? '₱0.00';
+        }
+
+        return [
+            'meta' => $meta,
+            'summary' => $overallSummary,
+            'sections' => $sections,
+            'data' => [],
+            'columns' => [],
+            'totals' => [],
+            'is_empty' => false,
+            'empty_message' => '',
+        ];
+    }
+
+    /**
+     * Export a real PDF using the PDF renderer already used by HIMS documents.
+     */
+    public function exportPdf(array $report): Response
+    {
+        $meta = $report['meta'] ?? [];
+        $details = [
+            ($meta['hospital_name'] ?? 'Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium'),
+            ($meta['sub_title'] ?? 'Materials Management & Inventory Division'),
+            'Generated: '.optional($meta['generated_at'] ?? null)->format('Y-m-d H:i:s'),
+            'Generated by: '.($meta['generated_by'] ?? 'HIMS System'),
+        ];
+
+        foreach ($meta['filter_labels'] ?? [] as $label => $value) {
+            $details[] = $label.': '.$value;
+        }
+
+        $sections = [['heading' => 'REPORT DETAILS', 'lines' => $details]];
+        if (! empty($report['summary'])) {
+            $sections[] = [
+                'heading' => 'SUMMARY',
+                'lines' => collect($report['summary'])->map(fn ($value, $label) => $label.': '.$value)->values()->all(),
+            ];
+        }
+
+        if (($meta['report_type'] ?? '') === 'all') {
+            foreach ($report['sections'] ?? [] as $section) {
+                if (! empty($section['summary'])) {
+                    $sections[] = [
+                        'heading' => strtoupper($section['title']).' SUMMARY',
+                        'lines' => collect($section['summary'])->map(fn ($value, $label) => $label.': '.$value)->values()->all(),
+                    ];
+                }
+                array_push($sections, ...$this->pdfTableSections(
+                    (string) $section['title'],
+                    $section['columns'] ?? [],
+                    $section['rows'] ?? [],
+                    $section['totals'] ?? []
+                ));
+            }
+        } else {
+            array_push($sections, ...$this->pdfTableSections(
+                (string) ($meta['report_title'] ?? 'Inventory Report'),
+                $report['columns'] ?? [],
+                $report['data'] ?? [],
+                $report['totals'] ?? [],
+                $report['empty_message'] ?? null
+            ));
+        }
+
+        $filename = 'hims-'.($meta['report_type'] ?? 'report').'-'.now()->format('Ymd_His').'.pdf';
+        $pdf = DemoPdfBuilder::create(
+            (string) ($meta['report_title'] ?? 'Inventory Report'),
+            $sections,
+            (string) ($meta['period']['description'] ?? ''),
+            [
+                'organization' => (string) ($meta['hospital_name'] ?? config('privacy.hospital_name')),
+                'address' => (string) ($meta['hospital_address'] ?? config('privacy.hospital_address')),
+                'system' => (string) ($meta['system_name'] ?? config('privacy.system_name')),
+                'logo_path' => public_path('img/hims-logo.png'),
+                'footer' => config('privacy.hospital_short_name').' | Generated '.optional($meta['generated_at'] ?? null)->format('Y-m-d H:i:s').' | '.($meta['generated_by'] ?? 'HIMS System'),
+            ]
+        );
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Content-Length' => (string) strlen($pdf),
+        ]);
+    }
+
+    /**
+     * Keep PDF tables legible without dropping fields from wide exports.
+     *
+     * @param  array<string, string>  $columns
+     * @param  iterable<int, array<string, mixed>>  $rows
+     * @param  array<string, mixed>  $totals
+     * @return array<int, array<string, mixed>>
+     */
+    private function pdfTableSections(string $title, array $columns, iterable $rows, array $totals = [], ?string $emptyMessage = null): array
+    {
+        $rows = collect($rows)->values();
+        foreach (['barcode_value', 'gtin', 'unit'] as $optionalKey) {
+            if (isset($columns[$optionalKey]) && $rows->every(
+                fn (array $row) => blank($row[$optionalKey] ?? null) || ($row[$optionalKey] ?? null) === 'Not recorded'
+            )) {
+                unset($columns[$optionalKey]);
+            }
+        }
+
+        if (count($columns) <= 9 || $rows->isEmpty()) {
+            return [$this->pdfTableSection($title, $columns, $rows, $totals, $emptyMessage)];
+        }
+
+        $identity = array_slice($columns, 0, 2, true);
+        $groups = array_chunk(array_slice($columns, 2, null, true), 5, true);
+
+        return collect($groups)->map(
+            fn (array $group, int $index) => $this->pdfTableSection(
+                $title.' ('.($index + 1).'/'.count($groups).')',
+                $identity + $group,
+                $rows,
+                $totals,
+                $emptyMessage
+            )
+        )->all();
+    }
+
+    /**
+     * @param  array<string, string>  $columns
+     * @param  iterable<int, array<string, mixed>>  $rows
+     * @param  array<string, mixed>  $totals
+     * @return array<string, mixed>
+     */
+    private function pdfTableSection(string $title, array $columns, iterable $rows, array $totals = [], ?string $emptyMessage = null): array
+    {
+        $rows = collect($rows)->values();
+        $keys = array_keys($columns);
+        $tableRows = $rows
+            ->map(fn ($row) => array_map(fn ($key) => (string) ($row[$key] ?? ''), $keys))
+            ->values()
+            ->all();
+
+        if ($tableRows === []) {
+            return [
+                'heading' => strtoupper($title),
+                'lines' => [$emptyMessage ?: 'No records found matching the applied filter criteria.'],
+            ];
+        }
+
+        if ($totals !== []) {
+            $tableRows[] = array_map(fn ($key) => (string) ($totals[$key] ?? ''), $keys);
+        }
+
+        return [
+            'heading' => strtoupper($title),
+            'table' => [
+                'headers' => array_values($columns),
+                'rows' => $tableRows,
+            ],
+        ];
+    }
+
+    /**
+     * Stream CSV export with UTF-8 BOM.
+     */
+    public function exportCsv(array $report): StreamedResponse
+    {
+        $filename = 'hims-'.($report['meta']['report_type'] ?? 'report').'-'.now()->format('Ymd_His').'.csv';
+
+        return response()->streamDownload(
+            fn () => print ($this->csvContent($report)),
+            $filename,
+            [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            ]
+        );
+    }
+
+    /**
+     * Build the same CSV bytes used by manual and scheduled exports.
+     */
+    public function csvContent(array $report): string
+    {
+        $out = fopen('php://temp', 'w+');
+        fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM for MS Excel compatibility
+        $write = fn (array $row) => fputcsv($out, array_map([SpreadsheetValue::class, 'escapeFormula'], $row));
+
+        $write([$report['meta']['hospital_name'] ?? 'Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium']);
+        $write([$report['meta']['sub_title'] ?? 'Materials Management & Inventory Division']);
+        $write(['Report:', $report['meta']['report_title'] ?? 'Inventory Report']);
+        $write(['Generated:', optional($report['meta']['generated_at'])->format('Y-m-d H:i:s'), 'By:', $report['meta']['generated_by'] ?? '']);
+        $write(['Period:', $report['meta']['period']['description'] ?? '']);
+        foreach ($report['meta']['filter_labels'] ?? [] as $label => $val) {
+            $write(['Filter: '.$label, $val]);
+        }
+        $write([]); // blank line
+
+        if (($report['meta']['report_type'] ?? '') === 'all') {
+            foreach ($report['sections'] ?? [] as $section) {
+                $write(['=== '.strtoupper($section['title']).' ===']);
+                if (! empty($section['summary'])) {
+                    foreach ($section['summary'] as $k => $v) {
+                        $write([$k, $v]);
+                    }
+                    $write([]);
+                }
+                if (! empty($section['columns'])) {
+                    $write(array_values($section['columns']));
+                    foreach ($section['rows'] ?? [] as $row) {
+                        $write(array_map(fn ($k) => $row[$k] ?? '', array_keys($section['columns'])));
+                    }
+                    if (! empty($section['totals'])) {
+                        $write(array_map(fn ($k) => $section['totals'][$k] ?? '', array_keys($section['columns'])));
+                    }
+                }
+                $write([]);
+            }
+        } else {
+            if (! empty($report['summary'])) {
+                $write(['--- SUMMARY ---']);
+                foreach ($report['summary'] as $k => $v) {
+                    $write([$k, $v]);
+                }
+                $write([]);
+            }
+
+            if (! empty($report['columns'])) {
+                $write(array_values($report['columns']));
+                if (empty($report['data'])) {
+                    $write(['No records found matching the applied filter criteria.']);
+                } else {
+                    foreach ($report['data'] as $row) {
+                        $write(array_map(fn ($k) => $row[$k] ?? '', array_keys($report['columns'])));
+                    }
+                }
+                if (! empty($report['totals'])) {
+                    $write(array_map(fn ($k) => $report['totals'][$k] ?? '', array_keys($report['columns'])));
+                }
+            }
+        }
+
+        rewind($out);
+        $content = stream_get_contents($out);
+        fclose($out);
+
+        return $content;
+    }
+
+    /**
+     * Export JSON format.
+     */
+    public function exportJson(array $report): JsonResponse
+    {
+        $filename = 'hims-'.($report['meta']['report_type'] ?? 'report').'-'.now()->format('Ymd_His').'.json';
+
+        if (($report['meta']['report_type'] ?? '') === 'all') {
+            foreach ($report['sections'] ?? [] as &$section) {
+                $publicKeys = array_flip(array_keys($section['columns'] ?? []));
+                $section['rows'] = array_map(
+                    fn (array $row) => array_intersect_key($row, $publicKeys),
+                    $section['rows'] ?? []
+                );
+            }
+            unset($section);
+        } else {
+            $publicKeys = array_flip(array_keys($report['columns'] ?? []));
+            $report['data'] = array_map(
+                fn (array $row) => array_intersect_key($row, $publicKeys),
+                $report['data'] ?? []
+            );
+        }
+
+        return response()->json($report, 200, [
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 }

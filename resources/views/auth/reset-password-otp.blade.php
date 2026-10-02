@@ -1,10 +1,6 @@
 <x-guest-layout :title="$panel->label().' Password Reset Verification'">
     <div class="space-y-7">
         <header>
-            <div class="mb-4 inline-flex items-center gap-2 rounded-full border border-primary-100 bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">
-                <span class="h-1.5 w-1.5 rounded-full bg-primary-500"></span>
-                {{ $panel->label() }} password recovery
-            </div>
             <h1 class="text-3xl font-semibold tracking-tight text-neutral-900">Enter verification code</h1>
             <p class="mt-3 text-sm leading-6 text-neutral-500">
                 Enter the 6-digit code sent to <span class="font-medium text-neutral-700">{{ $email }}</span>.
@@ -19,30 +15,44 @@
             :status="session('status')"
         />
 
-        <form method="POST" action="{{ route($panel->passwordOtpVerifyRoute()) }}" class="space-y-5">
+        <form
+            method="POST"
+            action="{{ route($panel->passwordOtpVerifyRoute()) }}"
+            class="space-y-5"
+            autocomplete="off"
+            x-data="himsOtpVerification({
+                length: 6,
+                initial: @js(old('otp', '')),
+                initialError: @js($errors->first('otp')),
+            })"
+            x-on:submit.prevent="verify()"
+        >
             @csrf
             <input type="hidden" name="email" value="{{ $email }}">
 
             <div>
-                <x-input-label for="otp" :value="__('Verification code')" class="text-neutral-700" />
-                <x-text-input
-                    id="otp"
-                    class="mt-2 block h-12 w-full rounded-lg border-neutral-300 bg-white px-3.5 text-center font-mono text-xl tracking-[0.45em] shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                    type="text"
-                    name="otp"
-                    :value="old('otp')"
-                    required
-                    autofocus
-                    inputmode="numeric"
-                    pattern="[0-9]{6}"
-                    maxlength="6"
-                    autocomplete="one-time-code"
-                />
-                <x-input-error :messages="$errors->get('otp')" class="mt-2 text-danger-600" />
+                <x-input-label for="password-reset-otp-0" :value="__('Verification code')" class="text-neutral-700 dark:text-neutral-300" />
+                <div class="mt-2">
+                    <x-auth.otp-input
+                        id="password-reset-otp"
+                        :value="old('otp', '')"
+                        :error="$errors->first('otp')"
+                    />
+                </div>
             </div>
 
-            <x-ui.button type="submit" size="lg" icon="shield-check" data-loading-text="Verifying..." class="w-full">
-                {{ __('Verify code') }}
+            <x-ui.button
+                type="submit"
+                size="lg"
+                data-loading-text="Verifying..."
+                class="w-full"
+                x-bind:disabled="state !== 'ready'"
+                x-bind:aria-busy="state === 'verifying' || validating ? 'true' : 'false'"
+            >
+                <span x-show="state === 'verifying' || validating" x-cloak class="loader loader--sm" aria-hidden="true"></span>
+                <span x-show="state === 'verifying' || validating" x-cloak>{{ __('Verifying...') }}</span>
+                <span x-show="state === 'idle' || state === 'ready' || state === 'error'">{{ __('Verify code') }}</span>
+                <span x-show="state === 'verified' || state === 'success'" x-cloak>{{ __('Verified') }}</span>
             </x-ui.button>
         </form>
 

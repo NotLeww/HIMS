@@ -2,12 +2,20 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AlertStatus;
+use App\Enums\AlertType;
+use App\Enums\PurchaseOrderStatus;
 use App\Models\InventoryItem;
 use App\Models\ItemStockLevel;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderLine;
 use App\Models\StorageLocation;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Models\WarehouseTask;
+use App\Services\Inventory\GoodsReceiptService;
+use App\Services\Inventory\QualityControlService;
+use App\Services\Warehouse\WarehouseTaskService;
 use Database\Seeders\InventoryDemoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -25,7 +33,6 @@ class InventoryModuleTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee('Staff Dashboard');
-        $response->assertSee('Monitor inventory health');
     }
 
     public function test_dashboard_renders_populated_alerts_purchase_orders_and_movements(): void
@@ -46,7 +53,7 @@ class InventoryModuleTest extends TestCase
             'quantity' => 20,
             'unit_cost' => 120,
             'total_amount' => 2400,
-            'status' => 'pending',
+            'status' => PurchaseOrderStatus::PendingApproval,
             'requested_at' => now(),
         ]);
 
@@ -109,7 +116,7 @@ class InventoryModuleTest extends TestCase
         $response->assertRedirect('/inventory/stock-movements');
         $item->refresh();
         $this->assertSame(10, $item->quantity_on_hand);
-        $this->assertSame('low_stock', $item->status);
+        $this->assertSame('low_stock', $item->stockStatus());
         $this->assertSame(50.0, (float) $item->total_value);
     }
 
@@ -182,6 +189,18 @@ class InventoryModuleTest extends TestCase
             'code' => 'MAIN-01',
             'status' => 'active',
         ]);
+        StorageLocation::create([
+            'name' => 'Receiving Quarantine',
+            'code' => 'LOC-QUARANTINE',
+            'status' => 'active',
+            'is_quarantine' => true,
+        ]);
+        StorageLocation::create([
+            'name' => 'Receiving Staging',
+            'code' => 'LOC-STAGING',
+            'status' => 'active',
+            'is_receiving_staging' => true,
+        ]);
         $item = InventoryItem::create([
             'name' => 'Bandages',
             'sku' => 'BAND-001',
@@ -205,26 +224,54 @@ class InventoryModuleTest extends TestCase
             'quantity' => 5,
             'unit_cost' => 2.5,
             'total_amount' => 12.5,
-            'status' => 'pending',
+            'status' => PurchaseOrderStatus::Approved->value,
+        ]);
+        $line = PurchaseOrderLine::create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'item_id' => $item->id,
+            'line_number' => 1,
+            'ordered_quantity' => 5,
+            'unit_price' => 2.5,
+            'total_line_amount' => 12.5,
+            'purchase_unit' => $item->unit,
+            'conversion_factor' => 1,
         ]);
 
         $response = $this->actingAs($user)->post('/inventory/purchases/'.$purchaseOrder->id.'/receive');
 
-        $response->assertRedirect('/inventory/purchases');
-        $this->assertSame('received', $purchaseOrder->fresh()->status);
+        $response->assertRedirect(route('inventory.receiving.index', ['purchase_order_id' => $purchaseOrder->id]));
+        $this->assertSame(10, $item->fresh()->quantity_on_hand);
+        $grn = app(GoodsReceiptService::class)->receiveOrder($purchaseOrder, [
+            'lines' => [['po_line_id' => $line->id, 'received_quantity' => 5,
+                'item_condition' => 'good', 'batch_number' => 'LOT-BAND-001', 'expiry_date' => now()->addYear()->toDateString()]],
+        ], $user);
+        $this->assertSame(PurchaseOrderStatus::UnderInspection->value, $purchaseOrder->fresh()->status);
+        $this->assertSame(10, $item->fresh()->quantity_on_hand);
+        $inspection = $grn->lines()->firstOrFail()->inspections()->firstOrFail();
+        $qcActor = User::factory()->inventoryManager()->create();
+        app(QualityControlService::class)->releaseLot($inspection, 5, $location->id, $qcActor);
+        $this->assertSame(10, $item->fresh()->quantity_on_hand);
+        $task = WarehouseTask::where('reference_type', $inspection->getMorphClass())->where('reference_id', $inspection->id)->firstOrFail();
+        $tasks = app(WarehouseTaskService::class);
+        $tasks->start($task, $user);
+        $tasks->scan($task, 'LOC-STAGING', $user);
+        $tasks->scan($task, $item->sku, $user);
+        $tasks->scan($task, $location->code, $user);
+        $tasks->complete($task, 5, $user);
+        $this->assertSame(PurchaseOrderStatus::Fulfilled->value, $purchaseOrder->fresh()->status);
         $this->assertSame(15, $item->fresh()->quantity_on_hand);
 
         // The balance the rollup is derived from, not just the rollup itself.
         $this->assertSame(15, (int) ItemStockLevel::where('item_id', $item->id)
             ->where('storage_location_id', $location->id)
-            ->value('quantity'));
+            ->sum('quantity'));
 
         $this->assertDatabaseHas('stock_movements', [
             'item_id' => $item->id,
-            'movement_type' => 'stock_in',
+            'movement_type' => 'transfer',
             'quantity' => 5,
             'to_location_id' => $location->id,
-            'reference_id' => $purchaseOrder->id,
+            'goods_receipt_note_id' => $grn->id,
         ]);
     }
 
@@ -256,13 +303,13 @@ class InventoryModuleTest extends TestCase
             'quantity' => 5,
             'unit_cost' => 2.5,
             'total_amount' => 12.5,
-            'status' => 'pending',
+            'status' => PurchaseOrderStatus::Approved->value,
         ]);
 
         $response = $this->actingAs($user)->post('/inventory/purchases/'.$purchaseOrder->id.'/receive');
 
-        $response->assertSessionHasErrors('receive');
-        $this->assertSame('pending', $purchaseOrder->fresh()->status);
+        $response->assertRedirect(route('inventory.receiving.index', ['purchase_order_id' => $purchaseOrder->id]));
+        $this->assertSame(PurchaseOrderStatus::Approved->value, $purchaseOrder->fresh()->status);
         $this->assertDatabaseCount('stock_movements', 0);
     }
 
@@ -308,7 +355,25 @@ class InventoryModuleTest extends TestCase
         $exitCode = Artisan::call('inventory:check-alerts');
 
         $this->assertSame(0, $exitCode);
-        $this->assertDatabaseHas('inventory_items', ['sku' => 'MASK-001', 'status' => 'low_stock']);
-        $this->assertDatabaseHas('inventory_items', ['sku' => 'NEEDLE-001', 'status' => 'out_of_stock']);
+
+        // The sweep marks the items by raising the alert for each condition.
+        $this->assertDatabaseHas('stock_alerts', [
+            'item_id' => $mask->id,
+            'type' => AlertType::LowStock->value,
+            'status' => AlertStatus::Open->value,
+        ]);
+        $this->assertDatabaseHas('stock_alerts', [
+            'item_id' => $needle->id,
+            'type' => AlertType::OutOfStock->value,
+            'status' => AlertStatus::Open->value,
+        ]);
+
+        // Re-deriving the rollups must leave the lifecycle alone: the stock
+        // condition is derived from the quantities, and a sweep that stamped it
+        // over `status` used to be how an item's `active`/`inactive` was lost.
+        $this->assertDatabaseHas('inventory_items', ['sku' => 'MASK-001', 'status' => 'active']);
+        $this->assertDatabaseHas('inventory_items', ['sku' => 'NEEDLE-001', 'status' => 'active']);
+        $this->assertSame('low_stock', $mask->refresh()->stockStatus());
+        $this->assertSame('out_of_stock', $needle->refresh()->stockStatus());
     }
 }

@@ -15,6 +15,8 @@ use Illuminate\Database\Seeder;
 
 class InventoryDemoSeeder extends Seeder
 {
+    use DemoEnvironmentOnly;
+
     /**
      * The consumption history spans this many days back. Kept inside the
      * forecast's default 90-day analysis window, with a couple of days of
@@ -26,6 +28,14 @@ class InventoryDemoSeeder extends Seeder
 
     public function run(): void
     {
+        $this->assertDemoEnvironment();
+
+        if (InventoryItem::query()->where('sku', 'PPE-MASK-N95')->exists()) {
+            $this->command?->line('Preserved existing inventory demonstration data.');
+
+            return;
+        }
+
         // Categories
         $medical = ItemCategory::create(['name' => 'Medical Supplies', 'code' => 'MED', 'is_active' => true]);
         $ppe = ItemCategory::create(['name' => 'PPE', 'code' => 'PPE', 'parent_id' => $medical->id, 'is_active' => true]);
@@ -181,15 +191,10 @@ class InventoryDemoSeeder extends Seeder
                 'quantity_on_hand' => $total,
                 'unit_cost' => $total > 0 ? ($totalCost / $total) : 0,
                 'total_value' => $totalCost ?? 0,
-                'status' => match (true) {
-                    $total <= 0 => 'out_of_stock',
-                    $total <= $item->reorder_level => 'low_stock',
-                    default => 'in_stock',
-                },
             ]);
         }
 
-        $this->command->info('Inventory demo data seeded: 3 categories, 6 locations, 1 supplier, 3 items with batches, stock levels and 90 days of consumption history.');
+        $this->command?->info('Inventory demo data seeded: 3 categories, 6 locations, 1 supplier, 3 items with batches, stock levels and 90 days of consumption history.');
     }
 
     /**

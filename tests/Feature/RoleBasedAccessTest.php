@@ -79,12 +79,16 @@ class RoleBasedAccessTest extends TestCase
     {
         $pharmacy = $this->user(UserRole::PharmacyStaff);
 
-        // Refused: the item master, the supplier directory, storage locations,
-        // procurement and balance corrections.
+        // Refused: the supplier directory, storage locations, smart warehousing,
+        // and balance corrections.
         $this->actingAs($pharmacy)->get('/inventory/suppliers')->assertForbidden();
-        $this->actingAs($pharmacy)->get('/inventory/purchases')->assertForbidden();
         $this->actingAs($pharmacy)->get('/inventory/adjustments')->assertForbidden();
+        $this->actingAs($pharmacy)->get('/inventory/warehousing')->assertForbidden();
 
+        // Allowed: PR intake in Procurement
+        $this->actingAs($pharmacy)->get('/inventory/purchases')->assertStatus(200);
+
+        // Refused mutations outside Pharmacy scope:
         $this->actingAs($pharmacy)->post('/inventory/items', [
             'name' => 'Smuggled Item',
             'sku' => 'SMUGGLE-01',
@@ -98,6 +102,10 @@ class RoleBasedAccessTest extends TestCase
         $this->actingAs($pharmacy)->post('/inventory/suppliers', [
             'name' => 'Rogue Vendor',
             'status' => 'active',
+        ])->assertForbidden();
+
+        $this->actingAs($pharmacy)->post('/inventory/purchases/orders', [
+            'po_number' => 'PO-ROGUE-01',
         ])->assertForbidden();
 
         $this->assertDatabaseMissing('inventory_items', ['sku' => 'SMUGGLE-01']);
@@ -116,7 +124,7 @@ class RoleBasedAccessTest extends TestCase
         $this->stockedItem();
 
         $this->actingAs($pharmacy)->get('/inventory/items')->assertStatus(200);
-        $this->actingAs($pharmacy)->get('/inventory/stock')->assertStatus(200);
+        $this->actingAs($pharmacy)->get('/inventory/stock')->assertRedirect(route('inventory.items'));
         $this->actingAs($pharmacy)->get('/inventory/alerts')->assertStatus(200);
         $this->actingAs($pharmacy)->get('/inventory/reports')->assertStatus(200);
     }
@@ -254,10 +262,17 @@ class RoleBasedAccessTest extends TestCase
 
         $this->assertSame(120, $item->fresh()->quantity_on_hand);
 
-        // Refused.
+        // Refused operational surfaces.
         $this->actingAs($warehouse)->get('/inventory/adjustments')->assertForbidden();
         $this->actingAs($warehouse)->get('/inventory/suppliers')->assertForbidden();
-        $this->actingAs($warehouse)->get('/inventory/purchases')->assertForbidden();
+
+        // Allowed: reference purchase orders for delivery receipt.
+        $this->actingAs($warehouse)->get('/inventory/purchases')->assertStatus(200);
+
+        // Forbidden writes outside warehouse receiving/movement domain.
+        $this->actingAs($warehouse)->post('/inventory/purchases/rfqs', [
+            'title' => 'Unauthorised RFQ',
+        ])->assertForbidden();
 
         $this->actingAs($warehouse)->post('/inventory/items', [
             'name' => 'Unauthorised Item',
@@ -302,7 +317,6 @@ class RoleBasedAccessTest extends TestCase
             '/inventory/adjustments',
             '/inventory/suppliers',
             '/inventory/purchases',
-            '/inventory/stock',
             '/inventory/alerts',
             '/inventory/reports',
             '/inventory/demand-forecast',
@@ -310,6 +324,8 @@ class RoleBasedAccessTest extends TestCase
             $this->actingAs($manager)->get($path)
                 ->assertStatus(200, "Inventory Manager should reach {$path}");
         }
+
+        $this->actingAs($manager)->get('/inventory/stock')->assertRedirect(route('inventory.items'));
     }
 
     /**
@@ -333,16 +349,18 @@ class RoleBasedAccessTest extends TestCase
         $viewer = $this->user(UserRole::Viewer);
         [$item, $location] = $this->stockedItem();
 
-        // Reads that are theirs.
+        // Authorized read-only oversight across submodules.
         $this->actingAs($viewer)->get('/inventory/items')->assertStatus(200);
         $this->actingAs($viewer)->get('/inventory/reports')->assertStatus(200);
+        $this->actingAs($viewer)->get('/inventory/suppliers')->assertStatus(200);
+        $this->actingAs($viewer)->get('/inventory/purchases')->assertStatus(200);
+        $this->actingAs($viewer)->get('/inventory/logistics')->assertStatus(200);
 
-        // Reads that are not.
+        // Forbidden operational surfaces without read permission.
         $this->actingAs($viewer)->get('/inventory/adjustments')->assertForbidden();
-        $this->actingAs($viewer)->get('/inventory/suppliers')->assertForbidden();
-        $this->actingAs($viewer)->get('/inventory/purchases')->assertForbidden();
+        $this->actingAs($viewer)->get('/inventory/warehousing')->assertForbidden();
 
-        // Every write.
+        // Every write is forbidden.
         $this->actingAs($viewer)->post('/inventory/items', [
             'name' => 'Viewer Item', 'sku' => 'VIEW-01',
         ])->assertForbidden();
@@ -357,8 +375,16 @@ class RoleBasedAccessTest extends TestCase
 
         $this->actingAs($viewer)->post('/inventory/adjustments', [
             'item_id' => $item->id,
-            'storage_location_id' => $location->id,
-            'counted_quantity' => 999,
+            'quantity' => 10,
+            'reason' => 'Viewer mutation attempt',
+        ])->assertForbidden();
+
+        $this->actingAs($viewer)->post('/inventory/suppliers', [
+            'name' => 'Viewer Supplier',
+        ])->assertForbidden();
+
+        $this->actingAs($viewer)->post('/inventory/purchases/orders', [
+            'po_number' => 'PO-VIEW-01',
         ])->assertForbidden();
 
         $this->assertDatabaseCount('stock_movements', 0);
@@ -366,24 +392,111 @@ class RoleBasedAccessTest extends TestCase
     }
 
     /**
-     * Gate::before() gives the administrator everything without listing the
-     * permissions twice — so a permission added later is covered by that
-     * bypass rather than needing a second edit to keep the admin working.
+     * Super Administrator retains full system permissions.
+     * Administrator is constrained to IT administration and read-only oversight,
+     * without physical operational or stock mutation permissions (SoD).
      */
-    public function test_an_administrator_passes_every_gate_except_audit_trail(): void
+    public function test_an_administrator_has_system_management_and_read_oversight_without_operational_mutation_privileges(): void
     {
         $admin = User::factory()->administrator()->create();
+        $superAdmin = User::factory()->superAdministrator()->create();
 
+        // Super Administrator holds every single permission
         foreach (Permission::cases() as $permission) {
-            if ($permission === Permission::ViewAuditTrail) {
-                $this->assertFalse($admin->can($permission->value));
-            } else {
-                $this->assertTrue(
-                    $admin->can($permission->value),
-                    "Administrator should hold {$permission->value}"
-                );
-            }
+            $this->assertTrue(
+                $superAdmin->can($permission->value),
+                "Super Administrator should hold {$permission->value}"
+            );
         }
+
+        // Administrator holds system management & read-oversight, but is excluded
+        // from physical/operational mutation duties (GxP & SoD)
+        $operationalPermissionsExcludedForAdmin = [
+            Permission::ViewAuditTrail,
+            Permission::ManageWarehouseTasks,
+            Permission::ExecuteWarehouseTasks,
+            Permission::ResolveWarehouseExceptions,
+            Permission::AccessNarcoticsVault,
+            Permission::ApproveIarAcceptance,
+            Permission::PerformTechnicalInspection,
+            Permission::RecordMovements,
+            Permission::IssueStock,
+            Permission::TransferStock,
+            Permission::AdjustStock,
+            Permission::IssuePurchaseOrder,
+            Permission::ReceivePurchaseOrder,
+            Permission::ManageSuppliers,
+            Permission::ManageSourcing,
+            Permission::EvaluateBids,
+            Permission::AwardProcurement,
+            Permission::ApprovePurchaseOrder,
+            Permission::CreateRequisition,
+            Permission::InspectStock,
+            Permission::AcknowledgeAlerts,
+            Permission::PerformCycleCount,
+            Permission::ManageItems,
+        ];
+
+        foreach ($operationalPermissionsExcludedForAdmin as $permission) {
+            $this->assertFalse(
+                $admin->can($permission->value),
+                "Administrator should NOT hold operational permission {$permission->value} due to Segregation of Duties"
+            );
+        }
+
+        $allowedForAdmin = [
+            Permission::ManageUsers,
+            Permission::ViewInventory,
+            Permission::ViewReports,
+            Permission::ViewSuppliers,
+            Permission::ViewProcurement,
+            Permission::ViewLogisticsRecords,
+            Permission::ViewProcessReviews,
+            Permission::ManageProcurementPolicy,
+            Permission::ManageLocations,
+            Permission::ManageWarehouseTopology,
+            Permission::PrintWarehouseLabels,
+            Permission::GenerateForecasts,
+        ];
+
+        foreach ($allowedForAdmin as $permission) {
+            $this->assertTrue(
+                $admin->can($permission->value),
+                "Administrator should hold IT/administrative oversight permission {$permission->value}"
+            );
+        }
+    }
+
+    /**
+     * Auditor holds read-only oversight across all submodules and the audit trail,
+     * but cannot verify evidence, approve reviews, or perform operational writes.
+     */
+    public function test_auditor_has_comprehensive_read_access_and_audit_rights(): void
+    {
+        $auditor = $this->user(UserRole::Auditor);
+        [$item, $location] = $this->stockedItem();
+
+        // Read access across submodules
+        $this->actingAs($auditor)->get('/inventory/items')->assertStatus(200);
+        $this->actingAs($auditor)->get('/inventory/suppliers')->assertStatus(200);
+        $this->actingAs($auditor)->get('/inventory/purchases')->assertStatus(200);
+        $this->actingAs($auditor)->get('/inventory/logistics')->assertStatus(200);
+        $this->actingAs($auditor)->get('/reviews')->assertStatus(200);
+
+        // Audit access is observational. Evidence verification and workflow
+        // approval would compromise independence and are deliberately withheld.
+        $this->assertTrue($auditor->can(Permission::ViewAuditTrail->value));
+        $this->assertFalse($auditor->can(Permission::ReviewSupplierCompliance->value));
+        $this->assertFalse($auditor->can(Permission::ApproveProcessReview->value));
+
+        // Forbidden operational mutations
+        $this->actingAs($auditor)->post('/inventory/suppliers', ['name' => 'Auditor Vendor'])->assertForbidden();
+        $this->actingAs($auditor)->post('/inventory/purchases/orders', ['po_number' => 'PO-AUDIT'])->assertForbidden();
+        $this->actingAs($auditor)->post('/inventory/adjustments', [
+            'item_id' => $item->id,
+            'quantity' => 10,
+            'reason' => 'Auditor test',
+        ])->assertForbidden();
     }
 
     // ------------------------------------------------------------- the matrix
@@ -435,17 +548,38 @@ class RoleBasedAccessTest extends TestCase
     public function test_the_sidebar_narrows_to_what_the_role_may_open(): void
     {
         $this->actingAs($this->user(UserRole::InventoryManager))->get('/dashboard')
-            ->assertSee('Procurement')
-            ->assertSee('Suppliers')
+            ->assertSee('Procurement &amp; Sourcing', false)
+            ->assertSee('Smart Warehousing');
+
+        $this->get('/inventory/items')
             ->assertSee('Adjustments');
+
+        $this->get('/inventory/purchases')
+            ->assertSee('Suppliers');
 
         $this->actingAs($this->user(UserRole::PharmacyStaff))->get('/dashboard')
             ->assertStatus(200)
-            ->assertSee('Stock Movements')
-            ->assertDontSee('Procurement')
-            ->assertDontSee('Suppliers')
-            ->assertDontSee('Adjustments')
+            ->assertSee('Inventory')
+            ->assertSee('Procurement &amp; Sourcing', false)
+            ->assertDontSee('Smart Warehousing')
             ->assertDontSee('Access Control');
+
+        $this->get('/inventory/items')
+            ->assertSee('Stock Movements')
+            ->assertSee('Store Requisitions')
+            ->assertSee('Transfers')
+            ->assertDontSee('Adjustments');
+
+        $this->actingAs($this->user(UserRole::WarehouseStaff))->get('/dashboard')
+            ->assertStatus(200)
+            ->assertSee('Inventory')
+            ->assertSee('Procurement &amp; Sourcing', false)
+            ->assertSee('Smart Warehousing')
+            ->assertDontSee('Access Control');
+
+        $this->get('/inventory/warehousing')
+            ->assertSee('Dock Receiving')
+            ->assertSee('Warehouse Tasks');
     }
 
     /**

@@ -53,6 +53,36 @@ class LoadingIndicatorTest extends TestCase
             ->assertSee('data-loading-text="Sending..."', false);
     }
 
+    public function test_verification_forms_render_the_shared_segmented_otp_contract(): void
+    {
+        Notification::fake();
+        $admin = User::factory()->administrator()->create([
+            'password' => bcrypt('password'),
+            'mfa_enabled' => true,
+        ]);
+
+        $this->post(route('admin.login.store'), [
+            'email' => $admin->email,
+            'password' => 'password',
+        ]);
+
+        $this->get(route('admin.login.mfa'))
+            ->assertOk()
+            ->assertSee('himsOtpVerification', false)
+            ->assertSee('data-otp-digit', false)
+            ->assertSee('x-on:paste="handlePaste(index, $event)"', false)
+            ->assertSee('aria-live="assertive"', false);
+
+        $user = User::factory()->create();
+        $this->post(route('password.email'), ['email' => $user->email]);
+
+        $this->get(route('password.otp', ['email' => $user->email]))
+            ->assertOk()
+            ->assertSee('himsOtpVerification', false)
+            ->assertSee('password-reset-otp-0', false)
+            ->assertSee('name="otp"', false);
+    }
+
     public function test_every_authenticated_panel_uses_the_shared_hidden_overlay(): void
     {
         $panels = [
@@ -70,6 +100,43 @@ class LoadingIndicatorTest extends TestCase
 
             $this->app['auth']->guard($guard)->logout();
         }
+    }
+
+    public function test_page_shells_bootstrap_cross_document_loading_before_rendering_the_overlay(): void
+    {
+        foreach ([route('login'), route('privacy.notice'), route('terms'), url('/')] as $url) {
+            $content = $this->get($url)->assertOk()->getContent();
+
+            $statePosition = strpos($content, "sessionStorage.getItem(storageKey)");
+            $overlayPosition = strpos($content, 'data-hims-loading-overlay');
+
+            $this->assertNotFalse($statePosition);
+            $this->assertNotFalse($overlayPosition);
+            $this->assertLessThan($overlayPosition, $statePosition);
+            $this->assertSame(1, preg_match_all('/<div\s+data-hims-loading-overlay\b/', $content));
+        }
+    }
+
+    public function test_navigation_loader_clears_when_destination_dom_is_ready(): void
+    {
+        $script = file_get_contents(resource_path('js/app.js'));
+
+        $this->assertStringContainsString("document.addEventListener('DOMContentLoaded', revealDestination, { once: true })", $script);
+        $this->assertStringNotContainsString("window.addEventListener('load', revealDestination", $script);
+        $this->assertStringNotContainsString("window.sessionStorage.setItem(navigationStorageKey, '1')", $script);
+        $this->assertStringNotContainsString('rememberPageTransition', $script);
+        $this->assertStringNotContainsString('navigationWatchdog', $script);
+        $this->assertStringNotContainsString("window.addEventListener('pagehide', reset)", $script);
+    }
+
+    public function test_navigation_loader_keeps_the_current_page_visible_behind_the_backdrop(): void
+    {
+        $styles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString(
+            '@apply absolute inset-0 bg-neutral-950/35 backdrop-blur-[2px];',
+            $styles,
+        );
     }
 
     public function test_account_settings_forms_have_accessible_specific_loading_states(): void
@@ -102,7 +169,7 @@ class LoadingIndicatorTest extends TestCase
 
         $superAdmin = User::factory()->superAdministrator()->create();
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
-            ->get(route('admin.audit-logs.index'))
+            ->get(route('super-admin.audit-logs.index'))
             ->assertOk()
             ->assertSee('data-loading-text="Loading activity..."', false)
             ->assertSee('Finding suggestions...')
@@ -113,18 +180,52 @@ class LoadingIndicatorTest extends TestCase
     {
         $manager = User::factory()->inventoryManager()->create();
 
-        foreach ([
-            [route('inventory.items'), 'inventory-api-status'],
-            [route('inventory.suppliers'), 'suppliers-api-status'],
-            [route('inventory.storage-locations'), 'locations-api-status'],
-            [route('inventory.alerts'), 'alerts-api-status'],
-            [route('inventory.purchases'), 'purchase-orders-api-status'],
-        ] as [$url, $statusId]) {
-            $this->actingAs($manager, AuthenticationContext::WEB_GUARD)
-                ->get($url)
-                ->assertOk()
-                ->assertSee('id="'.$statusId.'"', false)
-                ->assertSee('loader loader--sm', false);
-        }
+        // Alerts renders nothing server-side, so its loader is the only
+        // progress signal until the fetch resolves.
+        $this->actingAs($manager, AuthenticationContext::WEB_GUARD)
+            ->get(route('inventory.alerts'))
+            ->assertOk()
+            ->assertSee('id="alerts-api-status"', false)
+            ->assertSee('loader loader--sm', false);
+
+        // Inventory items are server-rendered so the catalog, its reorder
+        // status, and supplier visibility come from one authorized response.
+        // The foreground fetch replaced the full catalog with a single
+        // paginated page of itself, so items vanished once loading finished.
+        $this->actingAs($manager, AuthenticationContext::WEB_GUARD)
+            ->get(route('inventory.items'))
+            ->assertOk()
+            ->assertSee('Inventory Items Catalog')
+            ->assertDontSee('inventory-api-status');
+
+        // Storage locations are server-rendered as well. The loader that used
+        // to sit above the registry was left behind by that migration and had
+        // no fetch behind it, so it spun forever.
+        $this->actingAs($manager, AuthenticationContext::WEB_GUARD)
+            ->get(route('inventory.storage-locations'))
+            ->assertOk()
+            ->assertSee('Location registry')
+            ->assertDontSee('locations-api-status');
+
+        // Purchase orders are server-rendered so status, authorization, and
+        // financial visibility come from one trusted response.
+        $this->actingAs($manager, AuthenticationContext::WEB_GUARD)
+            ->get(route('inventory.purchases'))
+            ->assertOk()
+            ->assertSee('id="purchase-orders"', false)
+            ->assertDontSee('purchase-orders-api-status')
+            ->assertSee("'X-Session-Activity': 'passive'", false)
+            ->assertSee("x-effect=\"if (activeTab === 'legacy_canvass') \$dispatch('hims-load-legacy-procurement')\"", false)
+            ->assertSee("document.addEventListener('hims-load-legacy-procurement'", false)
+            ->assertDontSee("document.addEventListener('DOMContentLoaded', () => {", false);
+
+        // Supplier Management is now server-rendered because its compliance
+        // and authorization state cannot be safely reconstructed by the old
+        // foreground CRUD fetch.
+        $this->actingAs($manager, AuthenticationContext::WEB_GUARD)
+            ->get(route('inventory.suppliers'))
+            ->assertOk()
+            ->assertSee('Supplier directory')
+            ->assertSee('data-loading-text="Creating supplier..."', false);
     }
 }

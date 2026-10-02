@@ -1,18 +1,18 @@
 <x-guest-layout>
-    <form method="POST" action="{{ route('register') }}" x-data="{ password: '', passwordConfirmation: '' }">
+    <form method="POST" action="{{ route('register') }}" autocomplete="off" x-data="{ password: '', passwordConfirmation: '' }">
         @csrf
 
         <!-- Name -->
         <div>
             <x-input-label for="name" :value="__('Name')" />
-            <x-text-input id="name" class="block mt-1 w-full" type="text" name="name" :value="old('name')" required autofocus autocomplete="name" />
+            <x-text-input id="name" class="block mt-1 w-full" type="text" name="name" :value="old('name')" required autofocus autocomplete="off" />
             <x-input-error :messages="$errors->get('name')" class="mt-2" />
         </div>
 
         <!-- Email Address -->
         <div class="mt-4">
             <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autocomplete="username" />
+            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autocomplete="off" />
             <x-input-error :messages="$errors->get('email')" class="mt-2" />
         </div>
 
@@ -46,6 +46,27 @@
 
         <div class="mt-4">
             <x-auth.password-requirements />
+        </div>
+
+        <div class="mt-4">
+            <label for="privacy_consent" class="flex items-start gap-3 cursor-pointer">
+                <input id="privacy_consent"
+                       type="checkbox"
+                       name="privacy_consent"
+                       value="1"
+                       {{ old('privacy_consent') ? 'checked' : '' }}
+                       required
+                       aria-describedby="privacy_consent_error"
+                       class="mt-0.5 h-4 w-4 rounded border-neutral-300 dark:border-neutral-700 text-primary-600 focus:ring-primary-500 dark:bg-neutral-900" />
+                <span class="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                    I have read and agree to the
+                    <a href="{{ route('privacy.notice', ['return' => url()->current()]) }}" class="text-primary-600 underline hover:text-primary-700 dark:text-primary-400" target="_blank" rel="noopener">Privacy Policy ({{ config('privacy.policy_version', 'v1.0') }})</a>
+                    and
+                    <a href="{{ route('terms', ['return' => url()->current()]) }}" class="text-primary-600 underline hover:text-primary-700 dark:text-primary-400" target="_blank" rel="noopener">Terms of Use</a>.
+                    <span class="text-danger-600 dark:text-danger-400 font-bold" aria-hidden="true">*</span>
+                </span>
+            </label>
+            <x-input-error :messages="$errors->get('privacy_consent')" id="privacy_consent_error" class="mt-2" />
         </div>
 
         <div class="flex items-center justify-end mt-4">

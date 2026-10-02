@@ -2,6 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Enums\SupplierAccreditationStatus;
+use App\Enums\SupplierStatus;
+use App\Models\InventoryItem;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Support\AuthenticationContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -81,6 +85,10 @@ class DecisionConfirmationTest extends TestCase
         $this->get(route('admin.users.edit', $account))
             ->assertOk()
             ->assertSee('Are you sure you want to save these account changes?');
+
+        $this->get(route('admin.users.create'))
+            ->assertOk()
+            ->assertSee('Create this account as Pending Activation? The user will verify a code and create their own password.');
     }
 
     public function test_inventory_commits_that_change_stock_or_workflow_require_confirmation(): void
@@ -99,7 +107,74 @@ class DecisionConfirmationTest extends TestCase
         $this->get(route('inventory.purchases'))
             ->assertOk()
             ->assertSee('Are you sure you want to approve this procurement request?')
-            ->assertSee('This will add the ordered stock to inventory.');
+            // The redesign moved the stock-posting consequence onto the receive
+            // confirmation it belongs to.
+            ->assertSee('Record delivery');
+
+        $this->get(route('inventory.transfers.index'))
+            ->assertOk()
+            ->assertSee('data-confirm-title="Dispatch stock transfer"', false);
+
+        $this->get(route('inventory.requisitions.index'))
+            ->assertOk()
+            ->assertSee('data-confirm-title="Submit store requisition"', false);
+
+        $this->get(route('inventory.items'))
+            ->assertOk()
+            ->assertSee('data-confirm-title="Create inventory item"', false)
+            ->assertSee('data-confirm-label="Create item"', false);
+    }
+
+    public function test_supplier_lifecycle_actions_have_specific_danger_confirmations(): void
+    {
+        $manager = User::factory()->inventoryManager()->create();
+        $admin = User::factory()->administrator()->create();
+        $supplier = Supplier::create([
+            'name' => 'Acme Medical Supplies',
+            'business_structure' => 'corporation',
+            'address' => '100 Health Avenue, Manila',
+            'email' => 'procurement@acme.example',
+            'status' => SupplierStatus::Active,
+            'accreditation_status' => SupplierAccreditationStatus::PendingReview,
+        ]);
+        InventoryItem::create([
+            'name' => 'Syringes 5ml',
+            'sku' => 'SYR-005',
+            'unit' => 'box',
+            'reorder_level' => 10,
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($manager, AuthenticationContext::WEB_GUARD)
+            ->get(route('inventory.suppliers'))
+            ->assertOk()
+            ->assertSee('data-confirm-title="Create draft supplier"', false);
+
+        $this->actingAs($manager, AuthenticationContext::WEB_GUARD)
+            ->get(route('inventory.suppliers.show', $supplier))
+            ->assertOk()
+            ->assertSee('data-confirm-title="Link catalog item"', false)
+            ->assertSee('data-confirm-title="Register contract"', false);
+
+        $this->actingAs($admin, AuthenticationContext::ADMIN_GUARD)
+            ->get(route('inventory.suppliers.show', $supplier))
+            ->assertOk()
+            ->assertSee('data-confirm-title="Approve supplier accreditation"', false)
+            ->assertSee('data-confirm-title="Reject supplier accreditation"', false)
+            ->assertSee('data-confirm-title="Suspend supplier"', false)
+            ->assertSee('data-confirm-variant="danger"', false);
+    }
+
+    public function test_confirmation_dialog_and_script_support_variants_and_submitter_inspection(): void
+    {
+        $dialog = file_get_contents(resource_path('views/layouts/partials/decision-confirmation.blade.php'));
+        $this->assertStringContainsString('data-decision-icon-container', $dialog);
+        $this->assertStringContainsString('data-decision-icon-danger', $dialog);
+
+        $script = file_get_contents(resource_path('js/app.js'));
+        $this->assertStringContainsString('submitter?.dataset?.confirmMessage', $script);
+        $this->assertStringContainsString('data-confirm-destructive', $script);
+        $this->assertStringContainsString('decision.variant === \'danger\'', $script);
     }
 
     public function test_confirmation_gate_runs_before_session_and_loading_submission_handlers(): void

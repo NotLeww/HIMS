@@ -1,0 +1,2681 @@
+{
+  "generatedAt": "2026-09-28T09:44:53.654Z",
+  "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36 Edg/154.0.0.0",
+  "viewports": [
+    [
+      320,
+      720
+    ],
+    [
+      375,
+      812
+    ],
+    [
+      430,
+      860
+    ],
+    [
+      768,
+      1024
+    ],
+    [
+      1024,
+      900
+    ],
+    [
+      1280,
+      900
+    ],
+    [
+      1440,
+      900
+    ]
+  ],
+  "audits": [
+    {
+      "label": "Dashboard",
+      "route": "/dashboard",
+      "width": 320,
+      "height": 720,
+      "title": "Admin Dashboard · Laravel",
+      "url": "/dashboard",
+      "statusPage": true,
+      "document": {
+        "client": 320,
+        "scroll": 320
+      },
+      "body": {
+        "client": 320,
+        "scroll": 320
+      },
+      "main": {
+        "client": 320,
+        "scroll": 320
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Inventory",
+      "route": "/inventory/items",
+      "width": 320,
+      "height": 720,
+      "title": "Laravel",
+      "url": "/inventory/items",
+      "statusPage": true,
+      "document": {
+        "client": 320,
+        "scroll": 320
+      },
+      "body": {
+        "client": 320,
+        "scroll": 320
+      },
+      "main": {
+        "client": 320,
+        "scroll": 320
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 286,
+          "scroll": 1125
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Smart Warehousing",
+      "route": "/inventory/warehousing",
+      "width": 320,
+      "height": 720,
+      "title": "Laravel",
+      "url": "/inventory/warehousing",
+      "statusPage": true,
+      "document": {
+        "client": 320,
+        "scroll": 320
+      },
+      "body": {
+        "client": 320,
+        "scroll": 320
+      },
+      "main": {
+        "client": 320,
+        "scroll": 320
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Warehouse Scan Station",
+      "route": "/inventory/warehousing/scan-station",
+      "width": 320,
+      "height": 720,
+      "title": "Forbidden",
+      "url": "/inventory/warehousing/scan-station",
+      "statusPage": true,
+      "document": {
+        "client": 320,
+        "scroll": 320
+      },
+      "body": {
+        "client": 320,
+        "scroll": 320
+      },
+      "main": null,
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Warehouse Tasks",
+      "route": "/inventory/warehouse-tasks",
+      "width": 320,
+      "height": 720,
+      "title": "Laravel",
+      "url": "/inventory/warehouse-tasks",
+      "statusPage": true,
+      "document": {
+        "client": 320,
+        "scroll": 320
+      },
+      "body": {
+        "client": 320,
+        "scroll": 320
+      },
+      "main": {
+        "client": 320,
+        "scroll": 320
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 254,
+          "scroll": 544
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Procurement",
+      "route": "/inventory/purchases",
+      "width": 320,
+      "height": 720,
+      "title": "Laravel",
+      "url": "/inventory/purchases",
+      "statusPage": true,
+      "document": {
+        "client": 320,
+        "scroll": 320
+      },
+      "body": {
+        "client": 320,
+        "scroll": 320
+      },
+      "main": {
+        "client": 320,
+        "scroll": 320
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Suppliers",
+      "route": "/inventory/suppliers",
+      "width": 320,
+      "height": 720,
+      "title": "Laravel",
+      "url": "/inventory/suppliers",
+      "statusPage": true,
+      "document": {
+        "client": 320,
+        "scroll": 320
+      },
+      "body": {
+        "client": 320,
+        "scroll": 320
+      },
+      "main": {
+        "client": 320,
+        "scroll": 320
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Inbound Shipments",
+      "route": "/inventory/logistics/shipments",
+      "width": 320,
+      "height": 720,
+      "title": "Laravel",
+      "url": "/inventory/logistics/shipments",
+      "statusPage": true,
+      "document": {
+        "client": 320,
+        "scroll": 320
+      },
+      "body": {
+        "client": 320,
+        "scroll": 320
+      },
+      "main": {
+        "client": 320,
+        "scroll": 320
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 286,
+          "scroll": 731
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Reports",
+      "route": "/inventory/reports",
+      "width": 320,
+      "height": 720,
+      "title": "Laravel",
+      "url": "/inventory/reports",
+      "statusPage": true,
+      "document": {
+        "client": 320,
+        "scroll": 320
+      },
+      "body": {
+        "client": 320,
+        "scroll": 320
+      },
+      "main": {
+        "client": 320,
+        "scroll": 320
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 286,
+          "scroll": 388
+        },
+        {
+          "client": 286,
+          "scroll": 421
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Scheduled Reports",
+      "route": "/inventory/reports/schedules",
+      "width": 320,
+      "height": 720,
+      "title": "Laravel",
+      "url": "/inventory/reports/schedules",
+      "statusPage": true,
+      "document": {
+        "client": 320,
+        "scroll": 320
+      },
+      "body": {
+        "client": 320,
+        "scroll": 320
+      },
+      "main": {
+        "client": 320,
+        "scroll": 320
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 286,
+          "scroll": 360
+        },
+        {
+          "client": 286,
+          "scroll": 299
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "User Management",
+      "route": "/admin/users",
+      "width": 320,
+      "height": 720,
+      "title": "Laravel",
+      "url": "/admin/users",
+      "statusPage": true,
+      "document": {
+        "client": 320,
+        "scroll": 320
+      },
+      "body": {
+        "client": 320,
+        "scroll": 320
+      },
+      "main": {
+        "client": 320,
+        "scroll": 320
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Roles and Permissions",
+      "route": "/admin/permissions",
+      "width": 320,
+      "height": 720,
+      "title": "Laravel",
+      "url": "/admin/permissions",
+      "statusPage": true,
+      "document": {
+        "client": 320,
+        "scroll": 320
+      },
+      "body": {
+        "client": 320,
+        "scroll": 320
+      },
+      "main": {
+        "client": 320,
+        "scroll": 320
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 254,
+          "scroll": 932
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Audit Trail",
+      "route": "/admin/audit-trail",
+      "width": 320,
+      "height": 720,
+      "title": "Forbidden",
+      "url": "/admin/audit-trail",
+      "statusPage": true,
+      "document": {
+        "client": 320,
+        "scroll": 320
+      },
+      "body": {
+        "client": 320,
+        "scroll": 320
+      },
+      "main": null,
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Dashboard",
+      "route": "/dashboard",
+      "width": 375,
+      "height": 812,
+      "title": "Admin Dashboard · Laravel",
+      "url": "/dashboard",
+      "statusPage": true,
+      "document": {
+        "client": 375,
+        "scroll": 375
+      },
+      "body": {
+        "client": 375,
+        "scroll": 375
+      },
+      "main": {
+        "client": 375,
+        "scroll": 375
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Inventory",
+      "route": "/inventory/items",
+      "width": 375,
+      "height": 812,
+      "title": "Laravel",
+      "url": "/inventory/items",
+      "statusPage": true,
+      "document": {
+        "client": 375,
+        "scroll": 375
+      },
+      "body": {
+        "client": 375,
+        "scroll": 375
+      },
+      "main": {
+        "client": 375,
+        "scroll": 375
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 341,
+          "scroll": 1125
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Smart Warehousing",
+      "route": "/inventory/warehousing",
+      "width": 375,
+      "height": 812,
+      "title": "Laravel",
+      "url": "/inventory/warehousing",
+      "statusPage": true,
+      "document": {
+        "client": 375,
+        "scroll": 375
+      },
+      "body": {
+        "client": 375,
+        "scroll": 375
+      },
+      "main": {
+        "client": 375,
+        "scroll": 375
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Warehouse Scan Station",
+      "route": "/inventory/warehousing/scan-station",
+      "width": 375,
+      "height": 812,
+      "title": "Forbidden",
+      "url": "/inventory/warehousing/scan-station",
+      "statusPage": true,
+      "document": {
+        "client": 375,
+        "scroll": 375
+      },
+      "body": {
+        "client": 375,
+        "scroll": 375
+      },
+      "main": null,
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Warehouse Tasks",
+      "route": "/inventory/warehouse-tasks",
+      "width": 375,
+      "height": 812,
+      "title": "Laravel",
+      "url": "/inventory/warehouse-tasks",
+      "statusPage": true,
+      "document": {
+        "client": 375,
+        "scroll": 375
+      },
+      "body": {
+        "client": 375,
+        "scroll": 375
+      },
+      "main": {
+        "client": 375,
+        "scroll": 375
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 309,
+          "scroll": 544
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Procurement",
+      "route": "/inventory/purchases",
+      "width": 375,
+      "height": 812,
+      "title": "Laravel",
+      "url": "/inventory/purchases",
+      "statusPage": true,
+      "document": {
+        "client": 375,
+        "scroll": 375
+      },
+      "body": {
+        "client": 375,
+        "scroll": 375
+      },
+      "main": {
+        "client": 375,
+        "scroll": 375
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Suppliers",
+      "route": "/inventory/suppliers",
+      "width": 375,
+      "height": 812,
+      "title": "Laravel",
+      "url": "/inventory/suppliers",
+      "statusPage": true,
+      "document": {
+        "client": 375,
+        "scroll": 375
+      },
+      "body": {
+        "client": 375,
+        "scroll": 375
+      },
+      "main": {
+        "client": 375,
+        "scroll": 375
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Inbound Shipments",
+      "route": "/inventory/logistics/shipments",
+      "width": 375,
+      "height": 812,
+      "title": "Laravel",
+      "url": "/inventory/logistics/shipments",
+      "statusPage": true,
+      "document": {
+        "client": 375,
+        "scroll": 375
+      },
+      "body": {
+        "client": 375,
+        "scroll": 375
+      },
+      "main": {
+        "client": 375,
+        "scroll": 375
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 341,
+          "scroll": 731
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Reports",
+      "route": "/inventory/reports",
+      "width": 375,
+      "height": 812,
+      "title": "Laravel",
+      "url": "/inventory/reports",
+      "statusPage": true,
+      "document": {
+        "client": 375,
+        "scroll": 375
+      },
+      "body": {
+        "client": 375,
+        "scroll": 375
+      },
+      "main": {
+        "client": 375,
+        "scroll": 375
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 341,
+          "scroll": 388
+        },
+        {
+          "client": 341,
+          "scroll": 421
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Scheduled Reports",
+      "route": "/inventory/reports/schedules",
+      "width": 375,
+      "height": 812,
+      "title": "Laravel",
+      "url": "/inventory/reports/schedules",
+      "statusPage": true,
+      "document": {
+        "client": 375,
+        "scroll": 375
+      },
+      "body": {
+        "client": 375,
+        "scroll": 375
+      },
+      "main": {
+        "client": 375,
+        "scroll": 375
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 341,
+          "scroll": 360
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "User Management",
+      "route": "/admin/users",
+      "width": 375,
+      "height": 812,
+      "title": "Laravel",
+      "url": "/admin/users",
+      "statusPage": true,
+      "document": {
+        "client": 375,
+        "scroll": 375
+      },
+      "body": {
+        "client": 375,
+        "scroll": 375
+      },
+      "main": {
+        "client": 375,
+        "scroll": 375
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Roles and Permissions",
+      "route": "/admin/permissions",
+      "width": 375,
+      "height": 812,
+      "title": "Laravel",
+      "url": "/admin/permissions",
+      "statusPage": true,
+      "document": {
+        "client": 375,
+        "scroll": 375
+      },
+      "body": {
+        "client": 375,
+        "scroll": 375
+      },
+      "main": {
+        "client": 375,
+        "scroll": 375
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 309,
+          "scroll": 932
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Audit Trail",
+      "route": "/admin/audit-trail",
+      "width": 375,
+      "height": 812,
+      "title": "Forbidden",
+      "url": "/admin/audit-trail",
+      "statusPage": true,
+      "document": {
+        "client": 375,
+        "scroll": 375
+      },
+      "body": {
+        "client": 375,
+        "scroll": 375
+      },
+      "main": null,
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Dashboard",
+      "route": "/dashboard",
+      "width": 430,
+      "height": 860,
+      "title": "Admin Dashboard · Laravel",
+      "url": "/dashboard",
+      "statusPage": true,
+      "document": {
+        "client": 430,
+        "scroll": 430
+      },
+      "body": {
+        "client": 430,
+        "scroll": 430
+      },
+      "main": {
+        "client": 430,
+        "scroll": 430
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Inventory",
+      "route": "/inventory/items",
+      "width": 430,
+      "height": 860,
+      "title": "Laravel",
+      "url": "/inventory/items",
+      "statusPage": true,
+      "document": {
+        "client": 430,
+        "scroll": 430
+      },
+      "body": {
+        "client": 430,
+        "scroll": 430
+      },
+      "main": {
+        "client": 430,
+        "scroll": 430
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 396,
+          "scroll": 1125
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Smart Warehousing",
+      "route": "/inventory/warehousing",
+      "width": 430,
+      "height": 860,
+      "title": "Laravel",
+      "url": "/inventory/warehousing",
+      "statusPage": true,
+      "document": {
+        "client": 430,
+        "scroll": 430
+      },
+      "body": {
+        "client": 430,
+        "scroll": 430
+      },
+      "main": {
+        "client": 430,
+        "scroll": 430
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Warehouse Scan Station",
+      "route": "/inventory/warehousing/scan-station",
+      "width": 430,
+      "height": 860,
+      "title": "Forbidden",
+      "url": "/inventory/warehousing/scan-station",
+      "statusPage": true,
+      "document": {
+        "client": 430,
+        "scroll": 430
+      },
+      "body": {
+        "client": 430,
+        "scroll": 430
+      },
+      "main": null,
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Warehouse Tasks",
+      "route": "/inventory/warehouse-tasks",
+      "width": 430,
+      "height": 860,
+      "title": "Laravel",
+      "url": "/inventory/warehouse-tasks",
+      "statusPage": true,
+      "document": {
+        "client": 430,
+        "scroll": 430
+      },
+      "body": {
+        "client": 430,
+        "scroll": 430
+      },
+      "main": {
+        "client": 430,
+        "scroll": 430
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 364,
+          "scroll": 544
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Procurement",
+      "route": "/inventory/purchases",
+      "width": 430,
+      "height": 860,
+      "title": "Laravel",
+      "url": "/inventory/purchases",
+      "statusPage": true,
+      "document": {
+        "client": 430,
+        "scroll": 430
+      },
+      "body": {
+        "client": 430,
+        "scroll": 430
+      },
+      "main": {
+        "client": 430,
+        "scroll": 430
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Suppliers",
+      "route": "/inventory/suppliers",
+      "width": 430,
+      "height": 860,
+      "title": "Laravel",
+      "url": "/inventory/suppliers",
+      "statusPage": true,
+      "document": {
+        "client": 430,
+        "scroll": 430
+      },
+      "body": {
+        "client": 430,
+        "scroll": 430
+      },
+      "main": {
+        "client": 430,
+        "scroll": 430
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Inbound Shipments",
+      "route": "/inventory/logistics/shipments",
+      "width": 430,
+      "height": 860,
+      "title": "Laravel",
+      "url": "/inventory/logistics/shipments",
+      "statusPage": true,
+      "document": {
+        "client": 430,
+        "scroll": 430
+      },
+      "body": {
+        "client": 430,
+        "scroll": 430
+      },
+      "main": {
+        "client": 430,
+        "scroll": 430
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 396,
+          "scroll": 731
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Reports",
+      "route": "/inventory/reports",
+      "width": 430,
+      "height": 860,
+      "title": "Laravel",
+      "url": "/inventory/reports",
+      "statusPage": true,
+      "document": {
+        "client": 430,
+        "scroll": 430
+      },
+      "body": {
+        "client": 430,
+        "scroll": 430
+      },
+      "main": {
+        "client": 430,
+        "scroll": 430
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 396,
+          "scroll": 421
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Scheduled Reports",
+      "route": "/inventory/reports/schedules",
+      "width": 430,
+      "height": 860,
+      "title": "Laravel",
+      "url": "/inventory/reports/schedules",
+      "statusPage": true,
+      "document": {
+        "client": 430,
+        "scroll": 430
+      },
+      "body": {
+        "client": 430,
+        "scroll": 430
+      },
+      "main": {
+        "client": 430,
+        "scroll": 430
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "User Management",
+      "route": "/admin/users",
+      "width": 430,
+      "height": 860,
+      "title": "Laravel",
+      "url": "/admin/users",
+      "statusPage": true,
+      "document": {
+        "client": 430,
+        "scroll": 430
+      },
+      "body": {
+        "client": 430,
+        "scroll": 430
+      },
+      "main": {
+        "client": 430,
+        "scroll": 430
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Roles and Permissions",
+      "route": "/admin/permissions",
+      "width": 430,
+      "height": 860,
+      "title": "Laravel",
+      "url": "/admin/permissions",
+      "statusPage": true,
+      "document": {
+        "client": 430,
+        "scroll": 430
+      },
+      "body": {
+        "client": 430,
+        "scroll": 430
+      },
+      "main": {
+        "client": 430,
+        "scroll": 430
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 364,
+          "scroll": 932
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Audit Trail",
+      "route": "/admin/audit-trail",
+      "width": 430,
+      "height": 860,
+      "title": "Forbidden",
+      "url": "/admin/audit-trail",
+      "statusPage": true,
+      "document": {
+        "client": 430,
+        "scroll": 430
+      },
+      "body": {
+        "client": 430,
+        "scroll": 430
+      },
+      "main": null,
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Dashboard",
+      "route": "/dashboard",
+      "width": 768,
+      "height": 1024,
+      "title": "Admin Dashboard · Laravel",
+      "url": "/dashboard",
+      "statusPage": true,
+      "document": {
+        "client": 753,
+        "scroll": 753
+      },
+      "body": {
+        "client": 753,
+        "scroll": 753
+      },
+      "main": {
+        "client": 753,
+        "scroll": 753
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Inventory",
+      "route": "/inventory/items",
+      "width": 768,
+      "height": 1024,
+      "title": "Laravel",
+      "url": "/inventory/items",
+      "statusPage": true,
+      "document": {
+        "client": 768,
+        "scroll": 768
+      },
+      "body": {
+        "client": 768,
+        "scroll": 768
+      },
+      "main": {
+        "client": 768,
+        "scroll": 768
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 718,
+          "scroll": 1125
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Smart Warehousing",
+      "route": "/inventory/warehousing",
+      "width": 768,
+      "height": 1024,
+      "title": "Laravel",
+      "url": "/inventory/warehousing",
+      "statusPage": true,
+      "document": {
+        "client": 768,
+        "scroll": 768
+      },
+      "body": {
+        "client": 768,
+        "scroll": 768
+      },
+      "main": {
+        "client": 768,
+        "scroll": 768
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Warehouse Scan Station",
+      "route": "/inventory/warehousing/scan-station",
+      "width": 768,
+      "height": 1024,
+      "title": "Forbidden",
+      "url": "/inventory/warehousing/scan-station",
+      "statusPage": true,
+      "document": {
+        "client": 768,
+        "scroll": 768
+      },
+      "body": {
+        "client": 768,
+        "scroll": 768
+      },
+      "main": null,
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Warehouse Tasks",
+      "route": "/inventory/warehouse-tasks",
+      "width": 768,
+      "height": 1024,
+      "title": "Laravel",
+      "url": "/inventory/warehouse-tasks",
+      "statusPage": true,
+      "document": {
+        "client": 753,
+        "scroll": 753
+      },
+      "body": {
+        "client": 753,
+        "scroll": 753
+      },
+      "main": {
+        "client": 753,
+        "scroll": 753
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Procurement",
+      "route": "/inventory/purchases",
+      "width": 768,
+      "height": 1024,
+      "title": "Laravel",
+      "url": "/inventory/purchases",
+      "statusPage": true,
+      "document": {
+        "client": 753,
+        "scroll": 753
+      },
+      "body": {
+        "client": 753,
+        "scroll": 753
+      },
+      "main": {
+        "client": 753,
+        "scroll": 753
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Suppliers",
+      "route": "/inventory/suppliers",
+      "width": 768,
+      "height": 1024,
+      "title": "Laravel",
+      "url": "/inventory/suppliers",
+      "statusPage": true,
+      "document": {
+        "client": 753,
+        "scroll": 753
+      },
+      "body": {
+        "client": 753,
+        "scroll": 753
+      },
+      "main": {
+        "client": 753,
+        "scroll": 753
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Inbound Shipments",
+      "route": "/inventory/logistics/shipments",
+      "width": 768,
+      "height": 1024,
+      "title": "Laravel",
+      "url": "/inventory/logistics/shipments",
+      "statusPage": true,
+      "document": {
+        "client": 768,
+        "scroll": 768
+      },
+      "body": {
+        "client": 768,
+        "scroll": 768
+      },
+      "main": {
+        "client": 768,
+        "scroll": 768
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 718,
+          "scroll": 731
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Reports",
+      "route": "/inventory/reports",
+      "width": 768,
+      "height": 1024,
+      "title": "Laravel",
+      "url": "/inventory/reports",
+      "statusPage": true,
+      "document": {
+        "client": 753,
+        "scroll": 753
+      },
+      "body": {
+        "client": 753,
+        "scroll": 753
+      },
+      "main": {
+        "client": 753,
+        "scroll": 753
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Scheduled Reports",
+      "route": "/inventory/reports/schedules",
+      "width": 768,
+      "height": 1024,
+      "title": "Laravel",
+      "url": "/inventory/reports/schedules",
+      "statusPage": true,
+      "document": {
+        "client": 753,
+        "scroll": 753
+      },
+      "body": {
+        "client": 753,
+        "scroll": 753
+      },
+      "main": {
+        "client": 753,
+        "scroll": 753
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "User Management",
+      "route": "/admin/users",
+      "width": 768,
+      "height": 1024,
+      "title": "Laravel",
+      "url": "/admin/users",
+      "statusPage": true,
+      "document": {
+        "client": 753,
+        "scroll": 753
+      },
+      "body": {
+        "client": 753,
+        "scroll": 753
+      },
+      "main": {
+        "client": 753,
+        "scroll": 753
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Roles and Permissions",
+      "route": "/admin/permissions",
+      "width": 768,
+      "height": 1024,
+      "title": "Laravel",
+      "url": "/admin/permissions",
+      "statusPage": true,
+      "document": {
+        "client": 753,
+        "scroll": 753
+      },
+      "body": {
+        "client": 753,
+        "scroll": 753
+      },
+      "main": {
+        "client": 753,
+        "scroll": 753
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 663,
+          "scroll": 932
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Audit Trail",
+      "route": "/admin/audit-trail",
+      "width": 768,
+      "height": 1024,
+      "title": "Forbidden",
+      "url": "/admin/audit-trail",
+      "statusPage": true,
+      "document": {
+        "client": 768,
+        "scroll": 768
+      },
+      "body": {
+        "client": 768,
+        "scroll": 768
+      },
+      "main": null,
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Dashboard",
+      "route": "/dashboard",
+      "width": 1024,
+      "height": 900,
+      "title": "Admin Dashboard · Laravel",
+      "url": "/dashboard",
+      "statusPage": true,
+      "document": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "body": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "main": {
+        "client": 768,
+        "scroll": 768
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Inventory",
+      "route": "/inventory/items",
+      "width": 1024,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/items",
+      "statusPage": true,
+      "document": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "body": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "main": {
+        "client": 768,
+        "scroll": 768
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 702,
+          "scroll": 1185
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Smart Warehousing",
+      "route": "/inventory/warehousing",
+      "width": 1024,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/warehousing",
+      "statusPage": true,
+      "document": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "body": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "main": {
+        "client": 768,
+        "scroll": 768
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Warehouse Scan Station",
+      "route": "/inventory/warehousing/scan-station",
+      "width": 1024,
+      "height": 900,
+      "title": "Forbidden",
+      "url": "/inventory/warehousing/scan-station",
+      "statusPage": true,
+      "document": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "body": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "main": null,
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Warehouse Tasks",
+      "route": "/inventory/warehouse-tasks",
+      "width": 1024,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/warehouse-tasks",
+      "statusPage": true,
+      "document": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "body": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "main": {
+        "client": 753,
+        "scroll": 753
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Procurement",
+      "route": "/inventory/purchases",
+      "width": 1024,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/purchases",
+      "statusPage": true,
+      "document": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "body": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "main": {
+        "client": 753,
+        "scroll": 753
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Suppliers",
+      "route": "/inventory/suppliers",
+      "width": 1024,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/suppliers",
+      "statusPage": true,
+      "document": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "body": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "main": {
+        "client": 753,
+        "scroll": 753
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Inbound Shipments",
+      "route": "/inventory/logistics/shipments",
+      "width": 1024,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/logistics/shipments",
+      "statusPage": true,
+      "document": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "body": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "main": {
+        "client": 768,
+        "scroll": 768
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 702,
+          "scroll": 731
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Reports",
+      "route": "/inventory/reports",
+      "width": 1024,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/reports",
+      "statusPage": true,
+      "document": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "body": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "main": {
+        "client": 753,
+        "scroll": 753
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 335,
+          "scroll": 388
+        },
+        {
+          "client": 335,
+          "scroll": 421
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Scheduled Reports",
+      "route": "/inventory/reports/schedules",
+      "width": 1024,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/reports/schedules",
+      "statusPage": true,
+      "document": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "body": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "main": {
+        "client": 753,
+        "scroll": 753
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "User Management",
+      "route": "/admin/users",
+      "width": 1024,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/admin/users",
+      "statusPage": true,
+      "document": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "body": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "main": {
+        "client": 768,
+        "scroll": 768
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 702,
+          "scroll": 1424
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Roles and Permissions",
+      "route": "/admin/permissions",
+      "width": 1024,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/admin/permissions",
+      "statusPage": true,
+      "document": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "body": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "main": {
+        "client": 753,
+        "scroll": 753
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 647,
+          "scroll": 932
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Audit Trail",
+      "route": "/admin/audit-trail",
+      "width": 1024,
+      "height": 900,
+      "title": "Forbidden",
+      "url": "/admin/audit-trail",
+      "statusPage": true,
+      "document": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "body": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "main": null,
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Dashboard",
+      "route": "/dashboard",
+      "width": 1280,
+      "height": 900,
+      "title": "Admin Dashboard · Laravel",
+      "url": "/dashboard",
+      "statusPage": true,
+      "document": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "body": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "main": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Inventory",
+      "route": "/inventory/items",
+      "width": 1280,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/items",
+      "statusPage": true,
+      "document": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "body": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "main": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 958,
+          "scroll": 1185
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Smart Warehousing",
+      "route": "/inventory/warehousing",
+      "width": 1280,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/warehousing",
+      "statusPage": true,
+      "document": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "body": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "main": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Warehouse Scan Station",
+      "route": "/inventory/warehousing/scan-station",
+      "width": 1280,
+      "height": 900,
+      "title": "Forbidden",
+      "url": "/inventory/warehousing/scan-station",
+      "statusPage": true,
+      "document": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "body": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "main": null,
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Warehouse Tasks",
+      "route": "/inventory/warehouse-tasks",
+      "width": 1280,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/warehouse-tasks",
+      "statusPage": true,
+      "document": {
+        "client": 1265,
+        "scroll": 1265
+      },
+      "body": {
+        "client": 1265,
+        "scroll": 1265
+      },
+      "main": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Procurement",
+      "route": "/inventory/purchases",
+      "width": 1280,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/purchases",
+      "statusPage": true,
+      "document": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "body": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "main": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Suppliers",
+      "route": "/inventory/suppliers",
+      "width": 1280,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/suppliers",
+      "statusPage": true,
+      "document": {
+        "client": 1265,
+        "scroll": 1265
+      },
+      "body": {
+        "client": 1265,
+        "scroll": 1265
+      },
+      "main": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Inbound Shipments",
+      "route": "/inventory/logistics/shipments",
+      "width": 1280,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/logistics/shipments",
+      "statusPage": true,
+      "document": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "body": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "main": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Reports",
+      "route": "/inventory/reports",
+      "width": 1280,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/reports",
+      "statusPage": true,
+      "document": {
+        "client": 1265,
+        "scroll": 1265
+      },
+      "body": {
+        "client": 1265,
+        "scroll": 1265
+      },
+      "main": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Scheduled Reports",
+      "route": "/inventory/reports/schedules",
+      "width": 1280,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/reports/schedules",
+      "statusPage": true,
+      "document": {
+        "client": 1265,
+        "scroll": 1265
+      },
+      "body": {
+        "client": 1265,
+        "scroll": 1265
+      },
+      "main": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "User Management",
+      "route": "/admin/users",
+      "width": 1280,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/admin/users",
+      "statusPage": true,
+      "document": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "body": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "main": {
+        "client": 1024,
+        "scroll": 1024
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 958,
+          "scroll": 1387
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Roles and Permissions",
+      "route": "/admin/permissions",
+      "width": 1280,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/admin/permissions",
+      "statusPage": true,
+      "document": {
+        "client": 1265,
+        "scroll": 1265
+      },
+      "body": {
+        "client": 1265,
+        "scroll": 1265
+      },
+      "main": {
+        "client": 1009,
+        "scroll": 1009
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 903,
+          "scroll": 932
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Audit Trail",
+      "route": "/admin/audit-trail",
+      "width": 1280,
+      "height": 900,
+      "title": "Forbidden",
+      "url": "/admin/audit-trail",
+      "statusPage": true,
+      "document": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "body": {
+        "client": 1280,
+        "scroll": 1280
+      },
+      "main": null,
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Dashboard",
+      "route": "/dashboard",
+      "width": 1440,
+      "height": 900,
+      "title": "Admin Dashboard · Laravel",
+      "url": "/dashboard",
+      "statusPage": true,
+      "document": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "body": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "main": {
+        "client": 1184,
+        "scroll": 1184
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Inventory",
+      "route": "/inventory/items",
+      "width": 1440,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/items",
+      "statusPage": true,
+      "document": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "body": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "main": {
+        "client": 1184,
+        "scroll": 1184
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 1118,
+          "scroll": 1185
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Smart Warehousing",
+      "route": "/inventory/warehousing",
+      "width": 1440,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/warehousing",
+      "statusPage": true,
+      "document": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "body": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "main": {
+        "client": 1184,
+        "scroll": 1184
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Warehouse Scan Station",
+      "route": "/inventory/warehousing/scan-station",
+      "width": 1440,
+      "height": 900,
+      "title": "Forbidden",
+      "url": "/inventory/warehousing/scan-station",
+      "statusPage": true,
+      "document": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "body": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "main": null,
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Warehouse Tasks",
+      "route": "/inventory/warehouse-tasks",
+      "width": 1440,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/warehouse-tasks",
+      "statusPage": true,
+      "document": {
+        "client": 1425,
+        "scroll": 1425
+      },
+      "body": {
+        "client": 1425,
+        "scroll": 1425
+      },
+      "main": {
+        "client": 1169,
+        "scroll": 1169
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Procurement",
+      "route": "/inventory/purchases",
+      "width": 1440,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/purchases",
+      "statusPage": true,
+      "document": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "body": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "main": {
+        "client": 1184,
+        "scroll": 1184
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Suppliers",
+      "route": "/inventory/suppliers",
+      "width": 1440,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/suppliers",
+      "statusPage": true,
+      "document": {
+        "client": 1425,
+        "scroll": 1425
+      },
+      "body": {
+        "client": 1425,
+        "scroll": 1425
+      },
+      "main": {
+        "client": 1169,
+        "scroll": 1169
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Inbound Shipments",
+      "route": "/inventory/logistics/shipments",
+      "width": 1440,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/logistics/shipments",
+      "statusPage": true,
+      "document": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "body": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "main": {
+        "client": 1184,
+        "scroll": 1184
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Reports",
+      "route": "/inventory/reports",
+      "width": 1440,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/reports",
+      "statusPage": true,
+      "document": {
+        "client": 1425,
+        "scroll": 1425
+      },
+      "body": {
+        "client": 1425,
+        "scroll": 1425
+      },
+      "main": {
+        "client": 1169,
+        "scroll": 1169
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Scheduled Reports",
+      "route": "/inventory/reports/schedules",
+      "width": 1440,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/inventory/reports/schedules",
+      "statusPage": true,
+      "document": {
+        "client": 1425,
+        "scroll": 1425
+      },
+      "body": {
+        "client": 1425,
+        "scroll": 1425
+      },
+      "main": {
+        "client": 1169,
+        "scroll": 1169
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "User Management",
+      "route": "/admin/users",
+      "width": 1440,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/admin/users",
+      "statusPage": true,
+      "document": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "body": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "main": {
+        "client": 1184,
+        "scroll": 1184
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [
+        {
+          "client": 1118,
+          "scroll": 1387
+        }
+      ],
+      "escaped": []
+    },
+    {
+      "label": "Roles and Permissions",
+      "route": "/admin/permissions",
+      "width": 1440,
+      "height": 900,
+      "title": "Laravel",
+      "url": "/admin/permissions",
+      "statusPage": true,
+      "document": {
+        "client": 1425,
+        "scroll": 1425
+      },
+      "body": {
+        "client": 1425,
+        "scroll": 1425
+      },
+      "main": {
+        "client": 1169,
+        "scroll": 1169
+      },
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    },
+    {
+      "label": "Audit Trail",
+      "route": "/admin/audit-trail",
+      "width": 1440,
+      "height": 900,
+      "title": "Forbidden",
+      "url": "/admin/audit-trail",
+      "statusPage": true,
+      "document": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "body": {
+        "client": 1440,
+        "scroll": 1440
+      },
+      "main": null,
+      "pageCanScrollHorizontally": false,
+      "localScrollRegions": [],
+      "escaped": []
+    }
+  ],
+  "shipmentModal": null,
+  "taskAudit": null,
+  "failedResponses": [
+    {
+      "status": 422,
+      "url": "http://127.0.0.1:8001/inventory/demand-forecast/refresh"
+    },
+    {
+      "status": 422,
+      "url": "http://127.0.0.1:8001/inventory/demand-forecast/refresh"
+    },
+    {
+      "status": 403,
+      "url": "http://127.0.0.1:8001/inventory/warehousing/scan-station"
+    },
+    {
+      "status": 403,
+      "url": "http://127.0.0.1:8001/admin/audit-trail"
+    },
+    {
+      "status": 422,
+      "url": "http://127.0.0.1:8001/inventory/demand-forecast/refresh"
+    },
+    {
+      "status": 403,
+      "url": "http://127.0.0.1:8001/inventory/warehousing/scan-station"
+    },
+    {
+      "status": 403,
+      "url": "http://127.0.0.1:8001/admin/audit-trail"
+    },
+    {
+      "status": 422,
+      "url": "http://127.0.0.1:8001/inventory/demand-forecast/refresh"
+    },
+    {
+      "status": 403,
+      "url": "http://127.0.0.1:8001/inventory/warehousing/scan-station"
+    },
+    {
+      "status": 403,
+      "url": "http://127.0.0.1:8001/admin/audit-trail"
+    },
+    {
+      "status": 422,
+      "url": "http://127.0.0.1:8001/inventory/demand-forecast/refresh"
+    },
+    {
+      "status": 403,
+      "url": "http://127.0.0.1:8001/inventory/warehousing/scan-station"
+    },
+    {
+      "status": 403,
+      "url": "http://127.0.0.1:8001/admin/audit-trail"
+    },
+    {
+      "status": 422,
+      "url": "http://127.0.0.1:8001/inventory/demand-forecast/refresh"
+    },
+    {
+      "status": 403,
+      "url": "http://127.0.0.1:8001/inventory/warehousing/scan-station"
+    },
+    {
+      "status": 403,
+      "url": "http://127.0.0.1:8001/admin/audit-trail"
+    },
+    {
+      "status": 422,
+      "url": "http://127.0.0.1:8001/inventory/demand-forecast/refresh"
+    },
+    {
+      "status": 403,
+      "url": "http://127.0.0.1:8001/inventory/warehousing/scan-station"
+    },
+    {
+      "status": 403,
+      "url": "http://127.0.0.1:8001/admin/audit-trail"
+    },
+    {
+      "status": 422,
+      "url": "http://127.0.0.1:8001/inventory/demand-forecast/refresh"
+    },
+    {
+      "status": 403,
+      "url": "http://127.0.0.1:8001/inventory/warehousing/scan-station"
+    },
+    {
+      "status": 403,
+      "url": "http://127.0.0.1:8001/admin/audit-trail"
+    },
+    {
+      "status": 422,
+      "url": "http://127.0.0.1:8001/inventory/demand-forecast/refresh"
+    },
+    {
+      "status": 422,
+      "url": "http://127.0.0.1:8001/inventory/demand-forecast/refresh"
+    },
+    {
+      "status": 422,
+      "url": "http://127.0.0.1:8001/inventory/demand-forecast/refresh"
+    }
+  ],
+  "browserErrors": [
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught",
+    "Uncaught"
+  ]
+}

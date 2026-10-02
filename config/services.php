@@ -35,4 +35,23 @@ return [
         ],
     ],
 
+    'sms' => [
+        'api_token' => env('SMS_API_TOKEN'),
+    ],
+
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-3.6-flash'),
+        'fallback_models' => env('GEMINI_FALLBACK_MODELS', 'gemini-flash-lite-latest,gemini-3.1-flash-lite'),
+        'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com'),
+        'timeout' => (int) env('GEMINI_TIMEOUT', 12),
+        'forecast_cache_minutes' => (int) env('GEMINI_FORECAST_CACHE_MINUTES', 360),
+        'forecast_max_items' => (int) env('GEMINI_FORECAST_MAX_ITEMS', 100),
+        // How long the statistical placeholder stays on the screens before the
+        // deferred AI pass replaces it. It is also the floor between warm-up
+        // attempts, so a Gemini outage costs one request per window rather than
+        // one per page view.
+        'forecast_fallback_minutes' => (int) env('GEMINI_FORECAST_FALLBACK_MINUTES', 10),
+    ],
+
 ];

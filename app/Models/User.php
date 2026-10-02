@@ -2,21 +2,27 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Casts\EncryptedAuthenticatorSecret;
+use App\Casts\EncryptedPhone;
+use App\Enums\ActivationCancellationReason;
 use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Support\BlindIndex;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
@@ -35,9 +41,18 @@ class User extends Authenticatable
         'password',
         'role',
         'status',
+        'activation_cancellation_reason',
+        'activation_cancellation_details',
+        'activation_cancelled_at',
+        'activation_cancelled_by',
+        'activation_cancellation_notice_sent_at',
         'employee_id',
         'department',
         'phone',
+        'avatar_path',
+        'archived_at',
+        'archived_by',
+        'archive_reason',
     ];
 
     /**
@@ -49,6 +64,8 @@ class User extends Authenticatable
         'password',
         'remember_token',
         'authenticator_secret',
+        'sms_mfa_phone',
+        'phone_blind_index',
         'failed_login_attempts',
         'last_failed_login_at',
         'login_retry_at',
@@ -72,11 +89,19 @@ class User extends Authenticatable
             'login_locked_until' => 'datetime',
             'is_protected' => 'boolean',
             'mfa_enabled' => 'boolean',
+            'sms_mfa_enabled' => 'boolean',
+            'sms_mfa_phone' => 'encrypted',
+            'phone' => EncryptedPhone::class,
+            'session_timeout_reminder_enabled' => 'boolean',
             'authenticator_secret' => EncryptedAuthenticatorSecret::class,
             'authenticator_enabled_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
             'status' => UserStatus::class,
+            'activation_cancellation_reason' => ActivationCancellationReason::class,
+            'activation_cancelled_at' => 'datetime',
+            'activation_cancellation_notice_sent_at' => 'datetime',
+            'archived_at' => 'datetime',
         ];
     }
 
@@ -88,7 +113,9 @@ class User extends Authenticatable
     protected static function booted(): void
     {
         static::saving(function (User $user): void {
-            if ($user->isDirty('password') && ! $user->isDirty('password_changed_at')) {
+            if ($user->isDirty('password')
+                && filled($user->getAttribute('password'))
+                && ! $user->isDirty('password_changed_at')) {
                 $user->password_changed_at = now();
             }
 
@@ -110,6 +137,18 @@ class User extends Authenticatable
                 $user->surname = $surname;
             }
         });
+    }
+
+    public function getNameAttribute(?string $value): string
+    {
+        if (filled($this->first_name) || filled($this->surname)) {
+            $composed = self::composeName($this->first_name, $this->middle_name, $this->surname);
+            if (filled($composed)) {
+                return $composed;
+            }
+        }
+
+        return (string) ($value ?? '');
     }
 
     public static function composeName(?string $firstName, ?string $middleName, ?string $surname): string
@@ -204,6 +243,46 @@ class User extends Authenticatable
         return $this->hasMany(AuditLog::class);
     }
 
+    public function archivedBy(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'archived_by');
+    }
+
+    public function activationCancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'activation_cancelled_by');
+    }
+
+    public function activeSession(): HasOne
+    {
+        return $this->hasOne(UserActiveSession::class);
+    }
+
+    public function trustedDevices(): HasMany
+    {
+        return $this->hasMany(TrustedDevice::class);
+    }
+
+    public function loginApprovalRequests(): HasMany
+    {
+        return $this->hasMany(LoginApprovalRequest::class);
+    }
+
+    public function deviceCooldowns(): HasMany
+    {
+        return $this->hasMany(DeviceLoginCooldown::class);
+    }
+
+    public function accountActivationChallenge(): HasOne
+    {
+        return $this->hasOne(AccountActivationChallenge::class);
+    }
+
+    public function storedAvatar(): HasOne
+    {
+        return $this->hasOne(UserAvatar::class);
+    }
+
     /**
      * Whether this account's role grants an ability.
      *
@@ -251,6 +330,21 @@ class User extends Authenticatable
         return $this->status->isActive();
     }
 
+    public function isPendingActivation(): bool
+    {
+        return $this->status->isPendingActivation();
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->status->isCancelled();
+    }
+
+    public function requiresActivation(): bool
+    {
+        return blank($this->getAuthPassword());
+    }
+
     public function authenticatorMfaEnabled(): bool
     {
         return $this->authenticator_enabled_at !== null
@@ -277,9 +371,22 @@ class User extends Authenticatable
 
     public function isTemporarilyLocked(): bool
     {
-        return ! $this->isSuperAdministrator()
-            && $this->login_locked_until !== null
-            && $this->login_locked_until->isFuture();
+        return $this->loginRestrictionUntil() !== null;
+    }
+
+    public function loginRestrictionUntil(): ?CarbonInterface
+    {
+        if ($this->isSuperAdministrator()) {
+            return null;
+        }
+
+        if ($this->login_locked_until?->isFuture()) {
+            return $this->login_locked_until;
+        }
+
+        return $this->login_retry_at?->isFuture()
+            ? $this->login_retry_at
+            : null;
     }
 
     /**
@@ -299,9 +406,38 @@ class User extends Authenticatable
             ->implode('') ?: '?';
     }
 
+    public function hasAvatar(): bool
+    {
+        if (empty($this->avatar_path)) {
+            return false;
+        }
+
+        return str_starts_with($this->avatar_path, 'database/')
+            || Storage::disk('public')->exists($this->avatar_path);
+    }
+
+    public function avatarUrl(): ?string
+    {
+        if (! $this->hasAvatar()) {
+            return null;
+        }
+
+        return route('users.avatar', $this).'?v='.substr(hash('sha256', $this->avatar_path), 0, 12);
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->status === UserStatus::Archived;
+    }
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('status', UserStatus::Active->value);
+    }
+
+    public function scopeArchived(Builder $query): Builder
+    {
+        return $query->where('status', UserStatus::Archived->value);
     }
 
     public function scopeRole(Builder $query, UserRole|string $role): Builder
@@ -317,8 +453,63 @@ class User extends Authenticatable
         ]);
     }
 
+    public function scopeWherePhoneNumber(Builder $query, string $phone): Builder
+    {
+        return $query->where('phone_blind_index', BlindIndex::phone($phone));
+    }
+
     public function scopeSuperAdministrators(Builder $query): Builder
     {
         return $query->role(UserRole::SuperAdministrator);
+    }
+
+    public function aiChatConversations(): HasMany
+    {
+        return $this->hasMany(AiChatConversation::class);
+    }
+
+    public function privacyRequests(): HasMany
+    {
+        return $this->hasMany(PrivacyRequest::class, 'user_id');
+    }
+
+    public function consents(): HasMany
+    {
+        return $this->hasMany(UserConsent::class);
+    }
+
+    public function hasConsentedToCurrentPolicy(): bool
+    {
+        return $this->consents()
+            ->where('consent_type', UserConsent::TYPE_PRIVACY_POLICY)
+            ->where('policy_version', config('privacy.policy_version', 'v1.0'))
+            ->where('status', UserConsent::STATUS_CONSENTED)
+            ->whereNull('withdrawn_at')
+            ->exists();
+    }
+
+    public function hasConsentedTo(string $type, ?string $version = null): bool
+    {
+        $query = $this->consents()
+            ->where('consent_type', $type)
+            ->where('status', UserConsent::STATUS_CONSENTED)
+            ->whereNull('withdrawn_at');
+
+        if ($version !== null) {
+            $query->where('policy_version', $version);
+        }
+
+        return $query->exists();
+    }
+
+    public function currentPolicyConsent(): ?UserConsent
+    {
+        return $this->consents()
+            ->where('consent_type', UserConsent::TYPE_PRIVACY_POLICY)
+            ->where('policy_version', config('privacy.policy_version', 'v1.0'))
+            ->where('status', UserConsent::STATUS_CONSENTED)
+            ->whereNull('withdrawn_at')
+            ->latest('consented_at')
+            ->first();
     }
 }

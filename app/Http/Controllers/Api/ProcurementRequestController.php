@@ -2,19 +2,34 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreProcurementRequestRequest;
 use App\Http\Requests\UpdateProcurementRequestRequest;
 use App\Http\Resources\ProcurementRequestResource;
 use App\Models\ProcurementRequest;
+use App\Services\Procurement\ProcurementAuditService;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 
-class ProcurementRequestController extends Controller
+class ProcurementRequestController extends Controller implements HasMiddleware
 {
+    public static function middleware(): array
+    {
+        return [
+            new Middleware('can:'.Permission::ViewProcurement->value, only: ['index', 'show']),
+            new Middleware('can:'.Permission::CreateRequisition->value, only: ['store']),
+            new Middleware('can:'.Permission::ManageProcurement->value, only: ['update']),
+        ];
+    }
+
+    public function __construct(private readonly ProcurementAuditService $auditService) {}
+
     public function index(Request $request)
     {
         $perPage = (int) $request->query('per_page', 15);
-        $items = ProcurementRequest::with(['item', 'supplier'])->paginate($perPage);
+        $items = ProcurementRequest::with(['item', 'supplier'])->paginate(min(max($perPage, 1), 100));
 
         return ProcurementRequestResource::collection($items);
     }
@@ -29,20 +44,37 @@ class ProcurementRequestController extends Controller
         $data = $request->validated();
         $pr = ProcurementRequest::create($data);
 
+        $this->auditService->record(
+            $request->user(),
+            'ProcurementRequest',
+            $pr->id,
+            'created_purchase_request',
+            null,
+            ['request_number' => $pr->request_number, 'item_id' => $pr->item_id, 'quantity' => $pr->requested_quantity]
+        );
+
         return (new ProcurementRequestResource($pr))->response()->setStatusCode(201);
     }
 
     public function update(UpdateProcurementRequestRequest $request, ProcurementRequest $procurement_request)
     {
+        $old = $procurement_request->only(array_keys($request->validated()));
         $procurement_request->update($request->validated());
+        $new = $procurement_request->only(array_keys($request->validated()));
+
+        $action = ($new['status'] ?? null) === 'approved' && ($old['status'] ?? null) !== 'approved'
+            ? 'approved_purchase_request'
+            : 'created_purchase_request';
+
+        $this->auditService->record(
+            $request->user(),
+            'ProcurementRequest',
+            $procurement_request->id,
+            $action,
+            $old,
+            $new
+        );
 
         return new ProcurementRequestResource($procurement_request);
-    }
-
-    public function destroy(ProcurementRequest $procurement_request)
-    {
-        $procurement_request->delete();
-
-        return response()->json(null, 204);
     }
 }

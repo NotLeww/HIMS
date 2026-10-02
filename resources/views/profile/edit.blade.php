@@ -1,43 +1,52 @@
 <x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ $user->isAdministrator() ? __('Account Settings') : __('Profile') }}
-        </h2>
-    </x-slot>
+    <x-ui.page-header
+        :title="$user->isAdministrator() ? __('Account Settings') : __('Profile')"
+        :breadcrumbs="[
+            'Home' => route(\App\Support\AuthenticationContext::dashboardRoute()),
+            ($user->isAdministrator() ? __('Account Settings') : __('Profile')) => null,
+        ]"
+    />
 
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-            <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.update-profile-information-form')
-                </div>
-            </div>
+    @php
+        $settingsNotifications = collect([
+            'avatar_success',
+            'profile_success',
+            'password_success',
+            'sms_mfa_success',
+            'mfa_success',
+            'session_reminder_success',
+            'device_success',
+        ])->map(fn ($key) => session()->pull($key))->filter();
+    @endphp
+    @foreach ($settingsNotifications as $message)
+        <div x-data x-init="$nextTick(() => window.dispatchEvent(new CustomEvent('notify', { detail: { type: 'success', title: 'Success', message: $el.textContent.trim() } })))" class="sr-only" role="status">{{ $message }}</div>
+    @endforeach
 
-            <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.update-password-form')
-                </div>
-            </div>
-
-            <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.update-authenticator-form')
-                </div>
-            </div>
-
-            @if ($user->isAdministrator())
-                <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
-                    <div class="max-w-xl">
-                        @include('profile.partials.update-mfa-form')
-                    </div>
-                </div>
-            @endif
-
-            <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.account-retention-notice')
-                </div>
-            </div>
+    <div class="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+        <div class="min-w-0 space-y-4">
+            @include('profile.partials.update-profile-information-form')
+            @include('profile.partials.update-theme-form')
+            @include('profile.partials.consent-management-card')
+            @include('profile.partials.account-retention-notice')
         </div>
+
+        <x-ui.card
+            title="Sign-in & Security"
+            subtitle="Manage how you sign in and protect your account."
+        >
+            <div class="divide-y divide-neutral-200 dark:divide-neutral-800">
+                @include('profile.partials.update-authenticator-form')
+                @include('profile.partials.update-sms-mfa-form')
+                @if ($user->isAdministrator())
+                    @include('profile.partials.update-mfa-form')
+                @endif
+                @include('profile.partials.update-session-timeout-reminder-form')
+                @include('profile.partials.device-management-form')
+                @include('profile.partials.update-password-form')
+            </div>
+        </x-ui.card>
     </div>
+
+    @include('profile.partials.update-profile-picture-modal')
+    @include('profile.partials.privacy-request-modal')
 </x-app-layout>

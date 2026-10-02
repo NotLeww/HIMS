@@ -2,11 +2,15 @@
 
 namespace App\Services;
 
+use App\Enums\AuditAction;
 use App\Enums\MovementType;
 use App\Models\InventoryItem;
 use App\Models\ItemBatch;
 use App\Models\ItemStockLevel;
 use App\Models\StockMovement;
+use App\Models\StorageLocation;
+use App\Models\Supplier;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -16,13 +20,18 @@ use Illuminate\Validation\ValidationException;
  * Owns every change to stock quantities.
  *
  * Balances live in `item_stock_levels`, keyed by item + location + batch.
- * `inventory_items.quantity_on_hand` / `total_value` / `status` are caches
- * recomputed from those rows after each movement, so nothing else in the
- * app should write to them directly.
+ * `inventory_items.quantity_on_hand` / `total_value` are caches recomputed from
+ * those rows after each movement, so nothing else in the app should write to
+ * them directly. `status` is not one of them: it is the item's lifecycle,
+ * written by the item form and the importer, and the stock condition is derived
+ * from the quantities through InventoryItem::stockStatusFor().
  */
 class InventoryAutomationService
 {
-    public function __construct(private readonly StockAlertService $alerts) {}
+    public function __construct(
+        private readonly StockAlertService $alerts,
+        private readonly AuditLogger $audit,
+    ) {}
 
     /**
      * Record a stock movement and apply it to the affected balances.
@@ -38,13 +47,15 @@ class InventoryAutomationService
     {
         return DB::transaction(function () use ($validated, $userId, $reference): Collection {
             $item = InventoryItem::lockForUpdate()->findOrFail($validated['item_id']);
+            $fromLocationId = $validated['from_location_id'] ?? null;
+            $toLocationId = $validated['to_location_id'] ?? null;
+            $item->ensureStockLevelExists($toLocationId ?? $fromLocationId);
+
             $type = $validated['movement_type'] instanceof MovementType
                 ? $validated['movement_type']
                 : MovementType::from($validated['movement_type']);
 
             $quantity = (int) $validated['quantity'];
-            $fromLocationId = $validated['from_location_id'] ?? null;
-            $toLocationId = $validated['to_location_id'] ?? null;
             $batchId = $validated['item_batch_id'] ?? null;
 
             $this->assertLocationsPresent($type, $fromLocationId, $toLocationId);
@@ -58,6 +69,23 @@ class InventoryAutomationService
             }
 
             $this->syncItemTotals($item);
+
+            if ($reference === null || $reference instanceof StorageLocation || $reference instanceof Supplier) {
+                $this->audit->log(
+                    AuditAction::RecordedStockMovement,
+                    $userId === null ? null : User::find($userId),
+                    'Recorded an inventory stock movement.',
+                    $item,
+                    $item->sku,
+                    newValues: [
+                        'movement_type' => $type->value,
+                        'quantity' => $quantity,
+                        'from_location_id' => $fromLocationId,
+                        'to_location_id' => $toLocationId,
+                        'movement_ids' => collect($movements)->pluck('id')->all(),
+                    ],
+                );
+            }
 
             return new Collection($movements);
         });
@@ -81,7 +109,6 @@ class InventoryAutomationService
         $item->quantity_on_hand = (int) ($totals->qty ?? 0);
         $item->reserved_quantity = (int) ($totals->reserved ?? 0);
         $item->total_value = round($item->quantity_on_hand * (float) ($item->unit_cost ?? 0), 2);
-        $item->status = $this->resolveStatus($item);
         $item->save();
 
         $this->alerts->syncForItem($item);
@@ -119,12 +146,14 @@ class InventoryAutomationService
     }
 
     /**
-     * Split a requested quantity across batches at a location, earliest
-     * expiry first. Batches without an expiry date are consumed last.
+     * Split a requested quantity across batches at a location using FIFO (First In, First Out).
+     * Oldest received stock is consumed first.
+     * Batches without an expiry date or with valid expiry dates are sorted chronologically by received_at / created_at.
+     * Expired batches are never allocated.
      *
      * @return array<int, array{batch_id: int|null, quantity: int}>
      */
-    public function allocateFefo(int $itemId, int $locationId, int $quantity, ?int $batchId = null): array
+    public function allocateFifo(int $itemId, int $locationId, int $quantity, ?int $batchId = null): array
     {
         $levels = ItemStockLevel::query()
             ->where('item_stock_levels.item_id', $itemId)
@@ -132,9 +161,9 @@ class InventoryAutomationService
             ->where('item_stock_levels.quantity', '>', 0)
             ->when($batchId !== null, fn ($q) => $q->where('item_stock_levels.item_batch_id', $batchId))
             ->leftJoin('item_batches', 'item_stock_levels.item_batch_id', '=', 'item_batches.id')
-            ->orderByRaw('item_batches.expiry_date is null')
-            ->orderBy('item_batches.expiry_date')
-            ->orderBy('item_stock_levels.id')
+            ->orderByRaw('COALESCE(item_batches.received_at, item_batches.created_at, item_stock_levels.created_at) ASC')
+            ->orderBy('item_batches.id', 'asc')
+            ->orderBy('item_stock_levels.id', 'asc')
             ->select('item_stock_levels.*')
             ->get();
 
@@ -146,9 +175,16 @@ class InventoryAutomationService
                 break;
             }
 
+            // Expiry protection: Never allocate expired batches
+            if ($level->batch && $level->batch->isExpired()) {
+                continue;
+            }
+
             $take = min($remaining, (int) $level->quantity);
-            $allocation[] = ['batch_id' => $level->item_batch_id, 'quantity' => $take];
-            $remaining -= $take;
+            if ($take > 0) {
+                $allocation[] = ['batch_id' => $level->item_batch_id, 'quantity' => $take];
+                $remaining -= $take;
+            }
         }
 
         if ($remaining > 0) {
@@ -161,9 +197,174 @@ class InventoryAutomationService
     }
 
     /**
+     * Split a requested quantity across batches at a location, earliest
+     * expiry first (FEFO). Ties and non-dated stock fall back to chronological FIFO order.
+     * Expired batches are never allocated.
+     *
+     * @return array<int, array{batch_id: int|null, quantity: int}>
+     */
+    public function allocateFefo(int $itemId, int $locationId, int $quantity, ?int $batchId = null): array
+    {
+        $levels = ItemStockLevel::query()
+            ->where('item_stock_levels.item_id', $itemId)
+            ->where('item_stock_levels.storage_location_id', $locationId)
+            ->where('item_stock_levels.quantity', '>', 0)
+            ->when($batchId !== null, fn ($q) => $q->where('item_stock_levels.item_batch_id', $batchId))
+            ->leftJoin('item_batches', 'item_stock_levels.item_batch_id', '=', 'item_batches.id')
+            ->orderByRaw('item_batches.expiry_date IS NULL ASC')
+            ->orderBy('item_batches.expiry_date', 'asc')
+            ->orderByRaw('COALESCE(item_batches.received_at, item_batches.created_at, item_stock_levels.created_at) ASC')
+            ->orderBy('item_batches.id', 'asc')
+            ->orderBy('item_stock_levels.id', 'asc')
+            ->select('item_stock_levels.*')
+            ->get();
+
+        $allocation = [];
+        $remaining = $quantity;
+
+        foreach ($levels as $level) {
+            if ($remaining <= 0) {
+                break;
+            }
+
+            // Expiry protection: Never allocate expired batches
+            if ($level->batch && $level->batch->isExpired()) {
+                continue;
+            }
+
+            $take = min($remaining, (int) $level->quantity);
+            if ($take > 0) {
+                $allocation[] = ['batch_id' => $level->item_batch_id, 'quantity' => $take];
+                $remaining -= $take;
+            }
+        }
+
+        if ($remaining > 0) {
+            throw ValidationException::withMessages([
+                'quantity' => ['Insufficient stock at the selected location. Short by '.$remaining.'.'],
+            ]);
+        }
+
+        return $allocation;
+    }
+
+    /**
+     * Allocate stock across batches based on the requested strategy (FIFO or FEFO).
+     *
+     * @return array<int, array{batch_id: int|null, quantity: int}>
+     */
+    public function allocateStock(int $itemId, int $locationId, int $quantity, ?int $batchId = null, string $strategy = 'FIFO'): array
+    {
+        return strtoupper($strategy) === 'FEFO'
+            ? $this->allocateFefo($itemId, $locationId, $quantity, $batchId)
+            : $this->allocateFifo($itemId, $locationId, $quantity, $batchId);
+    }
+
+    /**
+     * Assert that a storage location is active and eligible to receive inbound inventory.
+     *
+     * @throws ValidationException
+     */
+    public function assertLocationActiveForInbound(?int $locationId): void
+    {
+        if ($locationId === null) {
+            return;
+        }
+
+        $location = StorageLocation::find($locationId);
+        if ($location && $location->status !== 'active') {
+            throw ValidationException::withMessages([
+                'to_location_id' => ['This location is inactive and cannot receive new inventory. Select an active location.'],
+            ]);
+        }
+    }
+
+    /**
      * Apply a signed delta to one balance row, creating it when needed.
      */
     public function adjustStockLevel(int $itemId, int $locationId, ?int $batchId, int $delta): ItemStockLevel
+    {
+        if ($delta > 0) {
+            $this->assertLocationActiveForInbound($locationId);
+        }
+
+        $identity = ['item_id' => $itemId, 'storage_location_id' => $locationId, 'item_batch_id' => $batchId];
+        $level = $delta < 0
+            ? ItemStockLevel::lockForUpdate()->where($identity)->first()
+            : ItemStockLevel::lockForUpdate()->firstOrCreate($identity, ['quantity' => 0, 'reserved_quantity' => 0]);
+
+        if (! $level || (int) $level->quantity + $delta < 0) {
+            logger()->warning('Inventory available balance decrement refused.', ['item_id' => $itemId, 'location_id' => $locationId, 'batch_id' => $batchId, 'delta' => $delta, 'balance' => $level?->quantity ?? 0]);
+            throw ValidationException::withMessages(['quantity' => ['The available stock balance is insufficient for this movement.']]);
+        }
+        $level->quantity = (int) $level->quantity + $delta;
+        $level->save();
+
+        return $level;
+    }
+
+    public function adjustQuarantinedStock(int $itemId, int $locationId, ?int $batchId, int $delta): ItemStockLevel
+    {
+        if ($delta > 0) {
+            $this->assertLocationActiveForInbound($locationId);
+        }
+
+        $identity = ['item_id' => $itemId, 'storage_location_id' => $locationId, 'item_batch_id' => $batchId];
+        $level = $delta < 0
+            ? ItemStockLevel::lockForUpdate()->where($identity)->first()
+            : ItemStockLevel::lockForUpdate()->firstOrCreate($identity,
+                ['quantity' => 0, 'reserved_quantity' => 0, 'quarantined_quantity' => 0, 'blocked_quantity' => 0, 'in_transit_quantity' => 0]);
+
+        if (! $level || (int) $level->quarantined_quantity + $delta < 0) {
+            logger()->warning('Inventory quarantine balance decrement refused.', ['item_id' => $itemId, 'location_id' => $locationId, 'batch_id' => $batchId, 'delta' => $delta, 'balance' => $level?->quarantined_quantity ?? 0]);
+            throw ValidationException::withMessages(['quantity' => ['The quarantine balance is insufficient for this disposition.']]);
+        }
+        $level->quarantined_quantity = (int) $level->quarantined_quantity + $delta;
+        $level->save();
+
+        return $level;
+    }
+
+    public function adjustBlockedStock(int $itemId, int $locationId, ?int $batchId, int $delta): ItemStockLevel
+    {
+        $identity = ['item_id' => $itemId, 'storage_location_id' => $locationId, 'item_batch_id' => $batchId];
+        $level = $delta < 0
+            ? ItemStockLevel::lockForUpdate()->where($identity)->first()
+            : ItemStockLevel::lockForUpdate()->firstOrCreate($identity,
+                ['quantity' => 0, 'reserved_quantity' => 0, 'quarantined_quantity' => 0, 'blocked_quantity' => 0, 'in_transit_quantity' => 0]);
+
+        if (! $level || (int) $level->blocked_quantity + $delta < 0) {
+            logger()->warning('Inventory blocked balance decrement refused.', ['item_id' => $itemId, 'location_id' => $locationId, 'batch_id' => $batchId, 'delta' => $delta, 'balance' => $level?->blocked_quantity ?? 0]);
+            throw ValidationException::withMessages(['quantity' => ['The blocked balance is insufficient for this movement.']]);
+        }
+        $level->blocked_quantity = (int) $level->blocked_quantity + $delta;
+        $level->save();
+
+        return $level;
+    }
+
+    public function adjustInTransitStock(int $itemId, int $locationId, ?int $batchId, int $delta): ItemStockLevel
+    {
+        if ($delta > 0) {
+            $this->assertLocationActiveForInbound($locationId);
+        }
+        $identity = ['item_id' => $itemId, 'storage_location_id' => $locationId, 'item_batch_id' => $batchId];
+        $level = $delta < 0
+            ? ItemStockLevel::lockForUpdate()->where($identity)->first()
+            : ItemStockLevel::lockForUpdate()->firstOrCreate($identity,
+                ['quantity' => 0, 'reserved_quantity' => 0, 'quarantined_quantity' => 0, 'blocked_quantity' => 0, 'in_transit_quantity' => 0]);
+
+        if (! $level || (int) $level->in_transit_quantity + $delta < 0) {
+            logger()->warning('Inventory staging balance decrement refused.', ['item_id' => $itemId, 'location_id' => $locationId, 'batch_id' => $batchId, 'delta' => $delta, 'balance' => $level?->in_transit_quantity ?? 0]);
+            throw ValidationException::withMessages(['quantity' => ['The stock awaiting put-away is insufficient for this movement.']]);
+        }
+        $level->in_transit_quantity = (int) $level->in_transit_quantity + $delta;
+        $level->save();
+
+        return $level;
+    }
+
+    public function reserveStock(int $itemId, int $locationId, ?int $batchId, int $quantity): ItemStockLevel
     {
         $level = ItemStockLevel::firstOrCreate(
             [
@@ -174,23 +375,47 @@ class InventoryAutomationService
             ['quantity' => 0, 'reserved_quantity' => 0]
         );
 
-        $level->quantity = max(0, (int) $level->quantity + $delta);
+        $available = $batchId !== null
+            ? $level->availableQuantity()
+            : (int) ItemStockLevel::where('item_id', $itemId)
+                ->where('storage_location_id', $locationId)
+                ->selectRaw('coalesce(sum(quantity - reserved_quantity), 0) as avail')
+                ->value('avail');
+
+        if ($available < $quantity) {
+            throw ValidationException::withMessages([
+                'quantity' => ['Insufficient available stock to place reservation. Available: '.$available.', Requested: '.$quantity],
+            ]);
+        }
+
+        $level->reserved_quantity = (int) $level->reserved_quantity + $quantity;
         $level->save();
+
+        $item = InventoryItem::lockForUpdate()->findOrFail($itemId);
+        $this->syncItemTotals($item);
 
         return $level;
     }
 
-    private function resolveStatus(InventoryItem $item): string
+    public function releaseReservation(int $itemId, int $locationId, ?int $batchId, int $quantity): ItemStockLevel
     {
-        if ((int) $item->quantity_on_hand <= 0) {
-            return 'out_of_stock';
+        $level = ItemStockLevel::lockForUpdate()->where([
+            'item_id' => $itemId,
+            'storage_location_id' => $locationId,
+            'item_batch_id' => $batchId,
+        ])->first();
+        if ($quantity < 1 || ! $level || $level->reserved_quantity < $quantity) {
+            logger()->warning('Inventory reservation decrement refused.', ['item_id' => $itemId, 'location_id' => $locationId, 'batch_id' => $batchId, 'quantity' => $quantity, 'balance' => $level?->reserved_quantity ?? 0]);
+            throw ValidationException::withMessages(['quantity' => ['The reserved stock balance is insufficient for this release.']]);
         }
 
-        if ((int) $item->reorder_level > 0 && (int) $item->quantity_on_hand <= (int) $item->reorder_level) {
-            return 'low_stock';
-        }
+        $level->reserved_quantity -= $quantity;
+        $level->save();
 
-        return 'in_stock';
+        $item = InventoryItem::lockForUpdate()->findOrFail($itemId);
+        $this->syncItemTotals($item);
+
+        return $level;
     }
 
     private function assertLocationsPresent(MovementType $type, ?int $from, ?int $to): void
@@ -222,6 +447,7 @@ class InventoryAutomationService
         ?int $userId,
         ?Model $reference
     ): array {
+        $this->assertLocationActiveForInbound($toLocationId);
         $this->adjustStockLevel($item->id, $toLocationId, $batchId, $quantity);
 
         return [$this->writeMovement($item, $type, $quantity, $batchId, null, $toLocationId, $validated, $userId, $reference)];
@@ -244,7 +470,13 @@ class InventoryAutomationService
         ?int $userId,
         ?Model $reference
     ): array {
-        $allocation = $this->allocateFefo($item->id, $fromLocationId, $quantity, $batchId);
+        $hasDatedBatches = ItemStockLevel::query()
+            ->where('item_id', $item->id)
+            ->where('storage_location_id', $fromLocationId)
+            ->whereHas('batch', fn ($query) => $query->whereNotNull('expiry_date'))
+            ->exists();
+        $strategy = $validated['allocation_strategy'] ?? ($item->is_expiry_tracked || $hasDatedBatches ? 'FEFO' : 'FIFO');
+        $allocation = $this->allocateStock($item->id, $fromLocationId, $quantity, $batchId, $strategy);
         $movements = [];
 
         foreach ($allocation as $slice) {
@@ -252,6 +484,7 @@ class InventoryAutomationService
 
             // A transfer puts the same batch down again at the destination.
             if ($type->incrementsDestination() && $toLocationId !== null) {
+                $this->assertLocationActiveForInbound((int) $toLocationId);
                 $this->adjustStockLevel($item->id, (int) $toLocationId, $slice['batch_id'], $slice['quantity']);
             }
 
@@ -290,6 +523,10 @@ class InventoryAutomationService
         }
 
         $batchId = $validated['item_batch_id'] ?? null;
+
+        if ($delta > 0) {
+            $this->assertLocationActiveForInbound((int) $locationId);
+        }
 
         if ($delta < 0 && $this->availableAt($item->id, (int) $locationId, $batchId) < abs($delta)) {
             throw ValidationException::withMessages([

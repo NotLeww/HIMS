@@ -1,0 +1,16 @@
+[
+    {
+        "sku": "JSON-EVIDENCE-001",
+        "name": "JSON Evidence Item",
+        "unit": "vial",
+        "unit_cost": 42.75,
+        "reorder_level": 12
+    },
+    {
+        "sku": "JSON-EVIDENCE-002",
+        "name": "JSON Evidence Item Two",
+        "unit": "pack",
+        "unit_cost": 80,
+        "reorder_level": 5
+    }
+]

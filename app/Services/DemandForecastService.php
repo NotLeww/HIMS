@@ -21,17 +21,26 @@ use Illuminate\Support\Collection;
  * The method is a moving average over a fixed window, which is deliberate:
  *
  *   average daily usage = quantity consumed in the window / days in the window
+ *   projected usage     = max(average daily usage, rate over the later half)
  *   safety stock        = average daily usage x buffer days
  *   reorder point       = (average daily usage x supplier lead time) + safety stock
- *   suggested order     = (average daily usage x forecast horizon) + safety stock
+ *   suggested order     = (projected usage x forecast horizon) + safety stock
  *                         - stock currently on hand
  *
  * These are the textbook inventory-control formulas, and each intermediate
  * number is stored on the plan and shown on screen, so a panel can check the
- * arithmetic by hand. A seasonal or regression model would fit a hospital's
- * yearly patterns better but needs years of history to beat a moving average —
- * this system has none yet, and an unexplainable forecast is worse than a
- * plain one.
+ * arithmetic by hand. The projection is the one place the window average is
+ * adjusted: the rate over the later half of the window is taken as the rate the
+ * item is being consumed at now, so an item being drawn down faster lately
+ * orders more. It is floored at the average, so an item tapering off is forecast
+ * at its recorded rate rather than below it. The AI-facing service keeps this
+ * validated horizon total intact while distributing it across chart buckets
+ * using the recent recorded trend.
+ *
+ * That is as far as it goes — a seasonal or regression model would fit a
+ * hospital's yearly patterns better but needs years of history to beat a moving
+ * average, this system has none yet, and an unexplainable forecast is worse
+ * than a plain one.
  */
 class DemandForecastService
 {
@@ -66,38 +75,15 @@ class DemandForecastService
         $since = now()->subDays($analysisDays);
         $consumption = $this->consumptionSince($item, $since);
 
-        $totalConsumed = (int) $consumption->sum('quantity');
-        $averageDailyUsage = round($totalConsumed / $analysisDays, 3);
-
-        $onHand = (int) $item->quantity_on_hand;
-        $forecastQuantity = (int) ceil($averageDailyUsage * $forecastDays);
-        $safetyStock = (int) ceil($averageDailyUsage * $bufferDays);
-        $reorderPoint = (int) ceil($averageDailyUsage * $leadTimeDays) + $safetyStock;
-
-        // Never suggest a negative order; "you already hold enough" is 0.
-        $suggestedOrderQuantity = max(0, $forecastQuantity + $safetyStock - $onHand);
-
-        return [
-            'item_id' => $item->id,
-            'analysis_days' => $analysisDays,
-            'forecast_days' => $forecastDays,
-            'lead_time_days' => $leadTimeDays,
-            'buffer_days' => $bufferDays,
-
-            'current_stock' => $onHand,
-            'historical_usage' => $totalConsumed,
-            'average_daily_usage' => $averageDailyUsage,
-            'upcoming_need' => $forecastQuantity,
-            'reorder_point' => $reorderPoint,
-            'safety_stock' => $safetyStock,
-            'suggested_order_quantity' => $suggestedOrderQuantity,
-            'days_of_cover' => $this->daysOfCover($onHand, $averageDailyUsage),
-            'trend' => $this->trend($consumption, $since, $analysisDays),
-
-            'movement_count' => $consumption->count(),
-            'needs_reorder' => $onHand <= $reorderPoint && $averageDailyUsage > 0.0,
-            'trigger_reason' => $this->triggerReason($item, $onHand, $reorderPoint, $averageDailyUsage),
-        ];
+        return $this->calculateForecast(
+            $item,
+            $consumption,
+            $since,
+            $analysisDays,
+            $forecastDays,
+            $leadTimeDays,
+            $bufferDays,
+        );
     }
 
     /**
@@ -109,12 +95,23 @@ class DemandForecastService
         int $analysisDays = self::DEFAULT_ANALYSIS_DAYS,
         int $forecastDays = self::DEFAULT_FORECAST_DAYS,
     ): Collection {
+        $analysisDays = max(1, $analysisDays);
+        $since = now()->subDays($analysisDays);
+
         return InventoryItem::query()
-            ->with('supplier')
+            ->active()
+            ->with([
+                'supplier',
+                'category',
+                'movements' => fn ($query) => $query
+                    ->whereIn('movement_type', MovementType::consumptionValues())
+                    ->where('moved_at', '>=', $since)
+                    ->orderBy('moved_at'),
+            ])
             ->orderBy('name')
             ->get()
             ->map(fn (InventoryItem $item) => [
-                ...$this->forecast($item, $analysisDays, $forecastDays),
+                ...$this->calculateForecast($item, $item->movements, $since, $analysisDays, $forecastDays),
                 'item' => $item,
             ])
             ->sortBy(fn (array $row) => $row['days_of_cover'] ?? PHP_INT_MAX)
@@ -177,6 +174,50 @@ class DemandForecastService
     }
 
     /**
+     * @param  Collection<int, StockMovement>  $consumption
+     * @return array<string, mixed>
+     */
+    private function calculateForecast(
+        InventoryItem $item,
+        Collection $consumption,
+        Carbon $since,
+        int $analysisDays,
+        int $forecastDays,
+        ?int $leadTimeDays = null,
+        int $bufferDays = self::DEFAULT_BUFFER_DAYS,
+    ): array {
+        $leadTimeDays = max(0, $leadTimeDays ?? self::DEFAULT_LEAD_TIME_DAYS);
+        $totalConsumed = (int) $consumption->sum('quantity');
+        $averageDailyUsage = round($totalConsumed / $analysisDays, 3);
+        $onHand = max(0, (int) $item->availableQuantity());
+        $projectedRate = $this->projectedDailyUsage($consumption, $since, $analysisDays, $averageDailyUsage);
+        $forecastQuantity = (int) ceil($projectedRate * $forecastDays);
+        $safetyStock = (int) ceil($averageDailyUsage * $bufferDays);
+        $reorderPoint = (int) ceil($averageDailyUsage * $leadTimeDays) + $safetyStock;
+        $suggestedOrderQuantity = max(0, $forecastQuantity + $safetyStock - $onHand);
+
+        return [
+            'item_id' => $item->id,
+            'analysis_days' => $analysisDays,
+            'forecast_days' => $forecastDays,
+            'lead_time_days' => $leadTimeDays,
+            'buffer_days' => $bufferDays,
+            'current_stock' => $onHand,
+            'historical_usage' => $totalConsumed,
+            'average_daily_usage' => $averageDailyUsage,
+            'upcoming_need' => $forecastQuantity,
+            'reorder_point' => $reorderPoint,
+            'safety_stock' => $safetyStock,
+            'suggested_order_quantity' => $suggestedOrderQuantity,
+            'days_of_cover' => $this->daysOfCover($onHand, $averageDailyUsage),
+            'trend' => $this->trend($consumption, $since, $analysisDays),
+            'movement_count' => $consumption->count(),
+            'needs_reorder' => $onHand <= $reorderPoint && $averageDailyUsage > 0.0,
+            'trigger_reason' => $this->triggerReason($item, $onHand, $reorderPoint, $averageDailyUsage),
+        ];
+    }
+
+    /**
      * How long current stock lasts at the current rate, in whole days.
      *
      * Null means usage is zero — an item nobody has consumed is not counting
@@ -202,17 +243,70 @@ class DemandForecastService
             return DemandTrend::Insufficient;
         }
 
+        $halves = $this->halfWindowTotals($consumption, $since, $analysisDays);
+
+        return DemandTrend::fromChange((float) $halves['earlier'], (float) $halves['later']);
+    }
+
+    /**
+     * Consumption either side of the window midpoint.
+     *
+     * The boundary is inclusive on the later side, and it is defined once here
+     * because two callers depend on it agreeing with itself: the trend
+     * comparison above, and the projection below.
+     *
+     * @param  Collection<int, StockMovement>  $consumption
+     * @return array{earlier: int, later: int}
+     */
+    private function halfWindowTotals(Collection $consumption, Carbon $since, int $analysisDays): array
+    {
         $midpoint = $since->copy()->addDays((int) floor($analysisDays / 2));
 
-        $earlier = (int) $consumption
-            ->filter(fn (StockMovement $m) => $m->moved_at !== null && $m->moved_at->lt($midpoint))
-            ->sum('quantity');
+        return [
+            'earlier' => (int) $consumption
+                ->filter(fn (StockMovement $m) => $m->moved_at !== null && $m->moved_at->lt($midpoint))
+                ->sum('quantity'),
+            'later' => (int) $consumption
+                ->filter(fn (StockMovement $m) => $m->moved_at !== null && $m->moved_at->gte($midpoint))
+                ->sum('quantity'),
+        ];
+    }
 
-        $later = (int) $consumption
-            ->filter(fn (StockMovement $m) => $m->moved_at !== null && $m->moved_at->gte($midpoint))
-            ->sum('quantity');
+    /**
+     * The daily rate the horizon is projected from.
+     *
+     * The rate over the later half of the window carries the horizon on its own,
+     * because that is the rate the item is being consumed at now. Blending it
+     * evenly with the window average damped the projection toward a rate the
+     * item has already left behind — on an item drawn down twice as fast lately
+     * as its average, the blend halves the difference and the order comes out
+     * short of what the last six weeks have actually been issuing.
+     *
+     * The projection is floored at the average, so an item tapering off is
+     * forecast at the rate it has actually been consumed at rather than below
+     * it: the decline is not extrapolated, and the order it produces stays at
+     * the level the history supports.
+     *
+     * Items with too little history stay on the plain average. With one or two
+     * movements, whichever half they fall in would double the projected rate —
+     * the same threshold the screen uses to warn about sparse history.
+     *
+     * @param  Collection<int, StockMovement>  $consumption
+     */
+    private function projectedDailyUsage(
+        Collection $consumption,
+        Carbon $since,
+        int $analysisDays,
+        float $averageDailyUsage,
+    ): float {
+        if ($consumption->count() < 3) {
+            return $averageDailyUsage;
+        }
 
-        return DemandTrend::fromChange((float) $earlier, (float) $later);
+        $recentDays = max(1, (int) floor($analysisDays / 2));
+        $recentRate = $this->halfWindowTotals($consumption, $since, $analysisDays)['later'] / $recentDays;
+
+        return max($averageDailyUsage, $recentRate);
     }
 
     private function triggerReason(

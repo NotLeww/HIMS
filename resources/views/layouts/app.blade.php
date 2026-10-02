@@ -1,6 +1,9 @@
 @php
     $sessionActivityRoute = \App\Support\AuthenticationContext::activityRoute();
     $sessionExpiredRoute = \App\Support\AuthenticationContext::expiredRoute();
+    $auditLocationCaptureUrl = \App\Support\AuditBrowserLocation::current(request()) === null
+        ? route('profile.audit-location.store')
+        : null;
 @endphp
 
 <!DOCTYPE html>
@@ -17,58 +20,149 @@
 
     <title>{{ isset($title) ? $title.' · ' : '' }}{{ config('app.name', 'HIMS') }}</title>
 
+    {{-- Early zero-flicker theme script --}}
+    @include('layouts.partials.theme-script')
+
+    {{-- Preserve a navigation loader across the outgoing and incoming documents. --}}
+    @include('layouts.partials.navigation-loading-state')
+
+    {{-- Early zero-flicker bfcache back-navigation protection --}}
+    <script>
+        (function () {
+            window.addEventListener('pageshow', function (event) {
+                if (! event.persisted || ! document.body.dataset.sessionActivityUrl) return;
+
+                try {
+                    window.sessionStorage.setItem('hims:navigation-pending', '1');
+                } catch {
+                    // The visible overlay still protects the cached page.
+                }
+
+                document.documentElement.classList.add('hims-navigation-pending');
+                const overlay = document.querySelector('[data-hims-loading-overlay]');
+                if (overlay) {
+                    overlay.hidden = false;
+                    overlay.setAttribute('aria-hidden', 'false');
+                    document.body.setAttribute('aria-busy', 'true');
+                }
+
+                window.requestAnimationFrame(function () {
+                    window.requestAnimationFrame(function () {
+                        window.location.reload();
+                    });
+                });
+            });
+        })();
+    </script>
+
     {{-- Inter is loaded once, from resources/css/app.css --}}
     <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <style>
+        /* Suppress layout transitions during initial page load and after navigation */
+        .hims-app-shell:not([data-ready]) aside,
+        .hims-app-shell:not([data-ready]) .transition-\[padding\],
+        .hims-app-shell:not([data-ready]) .transition-transform {
+            transition-duration: 0s !important;
+            transition: none !important;
+        }
+
+        @media print {
+            .hims-app-shell > aside,
+            .hims-app-shell header,
+            [data-session-warning],
+            #notification-panel,
+            .print\:hidden {
+                display: none !important;
+            }
+            .hims-app-shell {
+                overflow: visible !important;
+            }
+            .lg\:pl-64 {
+                padding-left: 0 !important;
+            }
+            main.hims-app-content {
+                padding: 0 !important;
+                margin: 0 !important;
+                background: transparent !important;
+                overflow: visible !important;
+            }
+            body {
+                background: #ffffff !important;
+                color: #000000 !important;
+            }
+        }
+    </style>
 </head>
 <body
-    class="h-full font-sans antialiased bg-neutral-50 text-neutral-800"
+    class="h-full font-sans antialiased bg-neutral-50 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-100"
+    data-auth-user-id="{{ auth()->id() }}"
+    data-login-url="{{ route(\App\Support\AuthenticationContext::loginRoute(\App\Support\AuthenticationContext::authenticatedGuard() ?? 'web')) }}"
     data-session-timeout-seconds="{{ (int) config('session.lifetime') * 60 }}"
     data-session-warning-seconds="{{ (int) config('session.warning_seconds') }}"
+    data-session-warning-enabled="{{ auth()->user()?->session_timeout_reminder_enabled === false ? 'false' : 'true' }}"
     data-session-activity-url="{{ route($sessionActivityRoute) }}"
     data-session-expired-url="{{ Illuminate\Support\Facades\URL::signedRoute($sessionExpiredRoute, absolute: false) }}"
+    @if ($auditLocationCaptureUrl)
+        data-audit-location-url="{{ $auditLocationCaptureUrl }}"
+    @endif
 >
-    <div x-data="{ sidebarOpen: false }" class="min-h-full">
+    <a href="#main-content"
+       class="sr-only fixed left-4 top-4 z-[100] rounded-md bg-white px-4 py-2 text-sm font-semibold text-primary-700 shadow-lg focus:not-sr-only focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-neutral-900 dark:text-primary-300">
+        Skip to main content
+    </a>
+
+    @include('layouts.partials.loading-overlay')
+
+    <div
+        x-data="{
+            sidebarOpen: window.innerWidth >= 1024,
+            isMobile: window.innerWidth < 1024,
+            init() {
+                this.$el.setAttribute('data-ready', '');
+                window.addEventListener('resize', () => {
+                    const mobile = window.innerWidth < 1024;
+                    if (mobile !== this.isMobile) {
+                        this.isMobile = mobile;
+                        this.sidebarOpen = !mobile;
+                    }
+                });
+            }
+        }"
+        x-on:keydown.window.escape="if (isMobile) sidebarOpen = false"
+        class="hims-app-shell min-h-full overflow-x-clip"
+    >
 
         @include('layouts.partials.sidebar')
 
         {{-- Backdrop for the off-canvas sidebar on small screens --}}
         <div
-            x-show="sidebarOpen"
+            x-show="sidebarOpen && isMobile"
             x-cloak
-            x-transition.opacity
+            x-transition.opacity.duration.200ms
             x-on:click="sidebarOpen = false"
-            class="fixed inset-0 z-30 bg-neutral-900/40 lg:hidden"
+            class="fixed inset-0 z-30 bg-neutral-950/60 backdrop-blur-xs lg:hidden"
             aria-hidden="true"
         ></div>
 
-        <div class="lg:pl-64">
+        <div
+            class="w-full min-w-0 max-w-full lg:pl-64 transition-[padding] duration-200"
+            :class="{ 'lg:pl-64': sidebarOpen, 'lg:pl-0': !sidebarOpen }"
+        >
             @include('layouts.partials.topbar')
 
-            <main class="px-4 py-6 lg:px-8 lg:py-8">
-                <div class="max-w-7xl mx-auto space-y-6">
+            <main id="main-content" tabindex="-1" class="hims-app-content overflow-x-clip px-4 pt-4 pb-6 sm:px-6 lg:px-8 lg:pb-8">
+                <div @class([
+                    'mx-auto w-full min-w-0 space-y-6',
+                    'max-w-none' => $fullWidth,
+                    'max-w-7xl' => ! $fullWidth,
+                ])>
                     {{-- Legacy pages pass a $header slot; new pages use <x-ui.page-header>. --}}
                     @isset($header)
                         <div>{{ $header }}</div>
                     @endisset
-
-                    @if (session('status') || session('success'))
-                        <x-ui.alert variant="success" dismissible>
-                            {{ session('status') ?? session('success') }}
-                        </x-ui.alert>
-                    @endif
-
-                    @if (session('error'))
-                        <x-ui.alert variant="danger" dismissible>{{ session('error') }}</x-ui.alert>
-                    @endif
-
-                    {{-- Controllers that redirect with a neutral notice — an
-                         already-received purchase order, say — used to flash
-                         into nothing, because only success and error rendered. --}}
-                    @if (session('info'))
-                        <x-ui.alert variant="info" dismissible>{{ session('info') }}</x-ui.alert>
-                    @endif
 
                     {{ $slot }}
                 </div>
@@ -76,12 +170,19 @@
         </div>
     </div>
 
-    @include('layouts.partials.loading-overlay')
+    @include('layouts.partials.toast-notifications')
     @include('layouts.partials.decision-confirmation')
+    @if (auth()->user()?->isSuperAdministrator())
+        @include('layouts.partials.super-admin-password-confirmation')
+    @endif
+    @can(\App\Enums\Permission::ManageArchive->value)
+        @include('layouts.partials.archive-record-modal')
+    @endcan
+    @include('layouts.partials.device-approval-modal')
 
     <dialog
         data-session-warning
-        class="m-auto w-[calc(100%-2rem)] max-w-md overflow-hidden rounded-lg border border-warning-200 bg-white p-0 text-neutral-800 shadow-xl backdrop:bg-neutral-900/50"
+        class="m-auto w-[calc(100%-2rem)] max-w-md overflow-hidden rounded-lg border border-warning-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0 text-neutral-800 dark:text-neutral-100 shadow-xl backdrop:bg-neutral-900/50"
         role="dialog"
         aria-modal="true"
         aria-labelledby="session-warning-title"
@@ -90,29 +191,29 @@
         <audio
             data-session-warning-audio
             src="{{ asset('audio/session_sound.mp3') }}"
-            preload="auto"
+            preload="{{ auth()->user()?->session_timeout_reminder_enabled === false ? 'none' : 'auto' }}"
             hidden
         ></audio>
 
         <div class="p-5 sm:p-6">
             <div class="flex items-start gap-3">
-                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning-50 text-warning-600" aria-hidden="true">
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning-50 dark:bg-warning-950/40 text-warning-600 dark:text-warning-400" aria-hidden="true">
                     <x-ui.icon name="exclamation-triangle" class="h-5 w-5" />
                 </span>
 
                 <div class="min-w-0 flex-1">
-                    <h2 id="session-warning-title" class="text-base font-semibold text-neutral-900">
+                    <h2 id="session-warning-title" class="text-base font-semibold text-neutral-900 dark:text-neutral-100">
                         {{ __('Your session is about to expire') }}
                     </h2>
-                    <p id="session-warning-description" class="mt-1 text-sm text-neutral-600">
+                    <p id="session-warning-description" class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
                         {{ __('For your security, HIMS will sign you out when the inactivity timer reaches zero.') }}
                     </p>
                 </div>
             </div>
 
-            <p class="mt-5 text-center text-sm text-neutral-600">
+            <p class="mt-5 text-center text-sm text-neutral-600 dark:text-neutral-400">
                 {{ __('Time remaining') }}
-                <span data-session-countdown class="mt-1 block font-mono text-3xl font-semibold tabular-nums text-warning-700" aria-hidden="true">--:--</span>
+                <span data-session-countdown class="mt-1 block font-mono text-3xl font-semibold tabular-nums text-warning-700 dark:text-warning-400" aria-hidden="true">--:--</span>
             </p>
             <p data-session-warning-live class="sr-only" aria-live="polite" aria-atomic="true"></p>
             <p data-session-warning-error class="mt-3 hidden text-sm text-danger-700" role="alert"></p>

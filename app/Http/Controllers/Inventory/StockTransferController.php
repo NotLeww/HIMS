@@ -1,0 +1,228 @@
+<?php
+
+namespace App\Http\Controllers\Inventory;
+
+use App\Enums\Permission;
+use App\Http\Controllers\Controller;
+use App\Models\InventoryItem;
+use App\Models\ItemStockLevel;
+use App\Models\StockTransfer;
+use App\Models\StorageLocation;
+use App\Services\Inventory\TransferService;
+use App\Services\InventoryAutomationService;
+use DomainException;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\View\View;
+
+class StockTransferController extends Controller implements HasMiddleware
+{
+    public static function middleware(): array
+    {
+        return [
+            'auth:web,admin,super_admin',
+            new Middleware('can:'.Permission::TransferStock->value, only: ['store', 'receive']),
+            new Middleware('can:'.Permission::ViewInventory->value, only: ['index', 'show']),
+        ];
+    }
+
+    public function __construct(
+        private readonly TransferService $transferService,
+        private readonly InventoryAutomationService $automationService
+    ) {}
+
+    public function index(Request $request): View
+    {
+        $transfers = StockTransfer::with(['sourceLocation', 'destinationLocation', 'dispatchedBy', 'receivedBy', 'lines.item'])
+            ->latest()
+            ->paginate(15)
+            ->withQueryString();
+
+        $sourceLocations = StorageLocation::where(function ($query) {
+            $query->where('status', 'active')
+                ->orWhereHas('stockLevels', fn ($q) => $q->where('quantity', '>', 0));
+        })
+            ->where('is_in_transit', false)
+            ->orderBy('name')
+            ->get();
+
+        $destinationLocations = StorageLocation::where('status', 'active')
+            ->where('is_in_transit', false)
+            ->orderBy('name')
+            ->get();
+
+        $locations = $destinationLocations;
+
+        $items = InventoryItem::where('quantity_on_hand', '>', 0)->orderBy('name')->get();
+
+        $stockLevels = ItemStockLevel::query()
+            ->where('quantity', '>', 0)
+            ->select('item_id', 'storage_location_id', DB::raw('SUM(quantity) as available_qty'))
+            ->groupBy('item_id', 'storage_location_id')
+            ->get();
+
+        $locationStockMap = [];
+        foreach ($stockLevels as $sl) {
+            $locationStockMap[$sl->storage_location_id][$sl->item_id] = (int) $sl->available_qty;
+        }
+
+        $preselectedItem = null;
+        $preselectedSourceLocationId = null;
+        $preselectedLines = [['item_id' => '', 'quantity' => 1]];
+
+        if ($request->filled('item_id')) {
+            $preselectedItem = InventoryItem::active()
+                ->with(['defaultLocation', 'category'])
+                ->find($request->integer('item_id'));
+
+            if (! $preselectedItem) {
+                session()->flash('warning', 'The requested inventory item could not be preselected because it does not exist or is inactive.');
+            } else {
+                if (! $items->contains('id', $preselectedItem->id)) {
+                    $items->push($preselectedItem);
+                }
+
+                // Determine default source location with available stock
+                if ($preselectedItem->default_location_id && isset($locationStockMap[$preselectedItem->default_location_id][$preselectedItem->id]) && $locationStockMap[$preselectedItem->default_location_id][$preselectedItem->id] > 0) {
+                    $preselectedSourceLocationId = (string) $preselectedItem->default_location_id;
+                } else {
+                    foreach ($locationStockMap as $locId => $itemQuantities) {
+                        if (isset($itemQuantities[$preselectedItem->id]) && $itemQuantities[$preselectedItem->id] > 0) {
+                            $preselectedSourceLocationId = (string) $locId;
+                            break;
+                        }
+                    }
+                }
+
+                $availableQtyAtSource = $preselectedSourceLocationId && isset($locationStockMap[$preselectedSourceLocationId][$preselectedItem->id])
+                    ? $locationStockMap[$preselectedSourceLocationId][$preselectedItem->id]
+                    : 1;
+
+                $preselectedLines = [
+                    [
+                        'item_id' => (string) $preselectedItem->id,
+                        'quantity' => max(1, min(1, $availableQtyAtSource)),
+                    ],
+                ];
+            }
+        }
+
+        return view('inventory.transfers.index', compact(
+            'transfers',
+            'locations',
+            'sourceLocations',
+            'destinationLocations',
+            'items',
+            'locationStockMap',
+            'preselectedItem',
+            'preselectedSourceLocationId',
+            'preselectedLines'
+        ));
+    }
+
+    public function show(StockTransfer $stockTransfer): View
+    {
+        $stockTransfer->load(['sourceLocation', 'destinationLocation', 'inTransitLocation', 'dispatchedBy', 'receivedBy', 'lines.item', 'lines.batch']);
+
+        return view('inventory.transfers.show', compact('stockTransfer'));
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'source_location_id' => ['required', 'exists:storage_locations,id'],
+            'destination_location_id' => [
+                'required',
+                'exists:storage_locations,id',
+                'different:source_location_id',
+                Rule::exists('storage_locations', 'id')->where('status', 'active'),
+            ],
+            'notes' => ['nullable', 'string', 'max:500'],
+            'lines' => ['required', 'array', 'min:1'],
+            'lines.*.item_id' => ['required', 'exists:inventory_items,id'],
+            'lines.*.quantity' => ['required', 'integer', 'min:1', 'max:999999'],
+            'lines.*.item_batch_id' => ['nullable', 'exists:item_batches,id'],
+        ], [
+            'destination_location_id.different' => 'The origin and destination locations cannot be the same.',
+            'destination_location_id.exists' => 'This location is inactive and cannot receive new inventory. Select an active location.',
+            'lines.*.quantity.min' => 'Quantity must be at least 1 unit.',
+            'lines.*.quantity.max' => 'Quantity cannot exceed 999,999 units per line item.',
+        ]);
+
+        $destLocation = StorageLocation::find($validated['destination_location_id']);
+        if (! $destLocation || $destLocation->status !== 'active') {
+            return redirect()->back()
+                ->withErrors(['destination_location_id' => 'This location is inactive and cannot receive new inventory. Select an active location.'])
+                ->withInput();
+        }
+
+        $sourceLocation = StorageLocation::find($validated['source_location_id']);
+        $insufficientErrors = [];
+        foreach ($validated['lines'] as $index => $line) {
+            $available = $this->automationService->availableAt((int) $line['item_id'], (int) $validated['source_location_id'], $line['item_batch_id'] ?? null);
+            $qty = (int) $line['quantity'];
+            if ($qty > $available) {
+                $item = InventoryItem::find($line['item_id']);
+                $itemName = $item ? $item->name : "Item #{$line['item_id']}";
+                $locName = $sourceLocation ? $sourceLocation->name : 'Origin Location';
+                $insufficientErrors["lines.{$index}.quantity"] = "Insufficient stock for {$itemName} at {$locName}. Only {$available} units available, but {$qty} units requested.";
+            }
+        }
+
+        if (! empty($insufficientErrors)) {
+            return redirect()->back()
+                ->withErrors($insufficientErrors)
+                ->withInput();
+        }
+
+        try {
+            $transfer = $this->transferService->dispatchTransfer($validated, $request->user());
+
+            return redirect()->route('inventory.transfers.index')
+                ->with('success', "Transfer {$transfer->transfer_number} dispatched to In-Transit buffer.");
+        } catch (DomainException $e) {
+            return redirect()->back()->withErrors(['transfer' => $e->getMessage()])->withInput();
+        }
+    }
+
+    public function receive(Request $request, StockTransfer $stockTransfer): RedirectResponse
+    {
+        $lineCount = $stockTransfer->lines()->count();
+
+        $validated = $request->validate([
+            'lines' => ['required', 'array', 'size:'.$lineCount],
+            'lines.*.line_id' => [
+                'required',
+                'integer',
+                'distinct',
+                Rule::exists('stock_transfer_lines', 'id')
+                    ->where(fn ($query) => $query->where('stock_transfer_id', $stockTransfer->id)),
+            ],
+            'lines.*.received_quantity' => ['required', 'integer', 'min:0', 'max:999999'],
+            'lines.*.damaged_quantity' => ['nullable', 'integer', 'min:0', 'max:999999'],
+            'lines.*.lost_quantity' => ['nullable', 'integer', 'min:0', 'max:999999'],
+            'discrepancy_reason' => ['nullable', 'string', 'max:500'],
+        ], [
+            'lines.required' => 'Every dispatched transfer line must be reconciled.',
+            'lines.size' => 'Every dispatched transfer line must be reconciled exactly once.',
+            'lines.*.line_id.exists' => 'A submitted line does not belong to this stock transfer.',
+            'lines.*.line_id.distinct' => 'Each stock transfer line may only be submitted once.',
+        ]);
+
+        try {
+            $received = $this->transferService->receiveTransfer($stockTransfer, $validated, $request->user());
+
+            $msg = $received->status === 'discrepancy'
+                ? "Transfer {$received->transfer_number} received with transit discrepancies recorded."
+                : "Transfer {$received->transfer_number} received in full.";
+
+            return redirect()->route('inventory.transfers.show', $stockTransfer)->with('success', $msg);
+        } catch (DomainException $e) {
+            return redirect()->back()->withErrors(['receive' => $e->getMessage()]);
+        }
+    }
+}

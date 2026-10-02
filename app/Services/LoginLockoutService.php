@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\AuditAction;
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Services\DeviceSecurity\DeviceSecurityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -19,22 +20,18 @@ class LoginLockoutService
 
     public const INVALID = 'invalid';
 
+    public const WRONG_PANEL = 'wrong_panel';
+
     public const WAITING = 'waiting';
 
     public const LOCKED = 'locked';
 
-    private const ATTEMPT_WINDOW_SECONDS = 900;
+    public const REPEATED_FAILURES_REASON = 'Repeated failed authentication attempts.';
 
-    private const CYCLE_WINDOW_SECONDS = 31536000;
-
-    private const PRE_LOCK_FAILURES = 5;
-
-    /** @var array<int, int> */
-    private const WAIT_MINUTES = [
-        5 => 20,
-    ];
-
-    public function __construct(private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AuditLogger $audit,
+        private readonly DeviceSecurityService $deviceSecurity,
+    ) {}
 
     /**
      * Validate credentials while serializing updates to a known account.
@@ -46,10 +43,11 @@ class LoginLockoutService
         string $email,
         #[\SensitiveParameter] string $password,
         array $allowedRoles,
+        bool $detectWrongPanel = false,
     ): array {
         $shadowKey = $this->identifierThrottleKey($email);
 
-        $result = DB::transaction(function () use ($email, $password, $allowedRoles): array {
+        $result = DB::transaction(function () use ($email, $password, $allowedRoles, $detectWrongPanel): array {
             $user = User::query()
                 ->where('email', $email)
                 ->where('status', UserStatus::Active->value)
@@ -58,6 +56,10 @@ class LoginLockoutService
 
             if ($user === null) {
                 return ['status' => self::INVALID];
+            }
+
+            if ($detectWrongPanel && ! in_array($user->role->value, $allowedRoles, true)) {
+                return ['status' => self::WRONG_PANEL, 'user' => $user];
             }
 
             if ($user->isSuperAdministrator()) {
@@ -95,7 +97,7 @@ class LoginLockoutService
             return $this->recordAccountFailure($user);
         }, 3);
 
-        if ($result['status'] === self::SUCCESS) {
+        if (in_array($result['status'], [self::SUCCESS, self::WRONG_PANEL], true)) {
             return $result;
         }
 
@@ -104,7 +106,7 @@ class LoginLockoutService
                 $this->setShadowCounter(
                     $this->attemptKey($shadowKey),
                     (int) $result['attempt'],
-                    self::ATTEMPT_WINDOW_SECONDS,
+                    $this->attemptWindowSeconds(),
                 );
             }
 
@@ -112,7 +114,7 @@ class LoginLockoutService
                 $this->setShadowCounter(
                     $this->cycleKey($shadowKey),
                     (int) $result['lockout_count'],
-                    self::CYCLE_WINDOW_SECONDS,
+                    $this->cycleWindowSeconds(),
                 );
             }
 
@@ -333,7 +335,7 @@ class LoginLockoutService
     public function attemptsRemaining(array $result): ?int
     {
         return isset($result['attempt'])
-            ? max(0, self::PRE_LOCK_FAILURES - (int) $result['attempt'])
+            ? max(0, $this->preLockFailureCount() - (int) $result['attempt'])
             : null;
     }
 
@@ -364,7 +366,7 @@ class LoginLockoutService
 
         if ((int) $user->failed_login_attempts > 0
             && ($decayStartsAt === null
-                || $decayStartsAt->lessThanOrEqualTo($now->copy()->subSeconds(self::ATTEMPT_WINDOW_SECONDS)))) {
+                || $decayStartsAt->lessThanOrEqualTo($now->copy()->subSeconds($this->attemptWindowSeconds())))) {
             $user->failed_login_attempts = 0;
             $user->last_failed_login_at = null;
             $changed = true;
@@ -401,7 +403,7 @@ class LoginLockoutService
     {
         $attempt = (int) $user->failed_login_attempts + 1;
 
-        if ($attempt >= 6) {
+        if ($attempt >= $this->failureThreshold()) {
             $lockoutCount = (int) $user->login_lockout_count + 1;
             $minutes = $this->lockMinutes($lockoutCount);
             $lockedUntil = now()->addMinutes($minutes);
@@ -414,6 +416,8 @@ class LoginLockoutService
                 'login_lockout_count' => $lockoutCount,
             ])->saveQuietly();
 
+            $cancelledApprovals = $this->deviceSecurity->cancelPendingRequestsForUser($user);
+
             $this->audit->log(
                 AuditAction::TemporarilyLockedUser,
                 null,
@@ -421,7 +425,7 @@ class LoginLockoutService
                 $user,
                 $user->name,
                 [
-                    'failed_login_attempts' => 5,
+                    'failed_login_attempts' => $this->preLockFailureCount(),
                     'login_locked_until' => null,
                     'login_lockout_count' => $lockoutCount - 1,
                 ],
@@ -430,6 +434,9 @@ class LoginLockoutService
                     'login_locked_until' => $lockedUntil->toIso8601String(),
                     'login_lockout_count' => $lockoutCount,
                     'lock_duration_minutes' => $minutes,
+                    'failed_attempt_threshold' => $this->failureThreshold(),
+                    'lock_reason' => self::REPEATED_FAILURES_REASON,
+                    'cancelled_pending_approvals' => $cancelledApprovals,
                 ],
             );
 
@@ -441,12 +448,24 @@ class LoginLockoutService
             ];
         }
 
-        $waitMinutes = self::WAIT_MINUTES[$attempt] ?? null;
+        $waitMinutes = $attempt === $this->preLockFailureCount()
+            ? $this->preLockWaitMinutes()
+            : null;
         $user->forceFill([
             'failed_login_attempts' => $attempt,
             'last_failed_login_at' => now(),
             'login_retry_at' => $waitMinutes === null ? null : now()->addMinutes($waitMinutes),
         ])->saveQuietly();
+
+        $this->audit->log(
+            AuditAction::FailedLogin,
+            null,
+            'A failed sign-in attempt was recorded for an existing account.',
+            $user,
+            'Account',
+            newValues: ['failed_login_attempt' => $attempt],
+            source: 'user',
+        );
 
         return [
             ...($waitMinutes === null
@@ -462,10 +481,10 @@ class LoginLockoutService
     {
         $attemptKey = $this->attemptKey($throttleKey);
         $attempt = RateLimiter::attempts($attemptKey) + 1;
-        $this->setShadowCounter($attemptKey, $attempt, self::ATTEMPT_WINDOW_SECONDS);
+        $this->setShadowCounter($attemptKey, $attempt, $this->attemptWindowSeconds());
 
-        if ($attempt >= 6) {
-            $lockoutCount = RateLimiter::hit($this->cycleKey($throttleKey), self::CYCLE_WINDOW_SECONDS);
+        if ($attempt >= $this->failureThreshold()) {
+            $lockoutCount = RateLimiter::hit($this->cycleKey($throttleKey), $this->cycleWindowSeconds());
             $seconds = $this->lockMinutes($lockoutCount) * 60;
 
             RateLimiter::clear($attemptKey);
@@ -474,7 +493,9 @@ class LoginLockoutService
             return $this->restriction(self::LOCKED, $seconds);
         }
 
-        $waitMinutes = self::WAIT_MINUTES[$attempt] ?? null;
+        $waitMinutes = $attempt === $this->preLockFailureCount()
+            ? $this->preLockWaitMinutes()
+            : null;
         if ($waitMinutes === null) {
             return ['status' => self::INVALID, 'attempt' => $attempt];
         }
@@ -540,12 +561,38 @@ class LoginLockoutService
 
     private function lockMinutes(int $lockoutCount): int
     {
-        return match ($lockoutCount) {
-            1 => 30,
-            2 => 60,
-            3 => 120,
-            default => 240,
-        };
+        $durations = array_values(array_filter(
+            config('auth.login_lockout.lock_durations_minutes', [30, 60, 120, 240]),
+            fn ($minutes): bool => is_numeric($minutes) && (int) $minutes > 0,
+        ));
+        $durations = $durations === [] ? [30, 60, 120, 240] : $durations;
+
+        return (int) ($durations[min(max(1, $lockoutCount), count($durations)) - 1]);
+    }
+
+    private function failureThreshold(): int
+    {
+        return max(2, (int) config('auth.login_lockout.failure_threshold', 6));
+    }
+
+    private function preLockFailureCount(): int
+    {
+        return $this->failureThreshold() - 1;
+    }
+
+    private function preLockWaitMinutes(): int
+    {
+        return max(1, (int) config('auth.login_lockout.pre_lock_wait_minutes', 20));
+    }
+
+    private function attemptWindowSeconds(): int
+    {
+        return max(60, (int) config('auth.login_lockout.attempt_window_seconds', 900));
+    }
+
+    private function cycleWindowSeconds(): int
+    {
+        return max(60, (int) config('auth.login_lockout.cycle_window_seconds', 31536000));
     }
 
     private function attemptKey(string $throttleKey): string

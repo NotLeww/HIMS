@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnforceSessionInactivity;
 use App\Models\User;
 use App\Rules\PasswordStandard;
+use App\Services\DeviceSecurity\DeviceSecurityService;
 use App\Services\LoginLockoutService;
 use App\Services\PasswordExpirationService;
 use App\Services\PasswordHistoryService;
@@ -77,6 +78,7 @@ class ExpiredPasswordController extends Controller
         ]);
 
         $passwords->usePassword(
+            $attempt['user'],
             $validated['password'],
             function (string $passwordHash) use ($attempt): User {
                 $attempt['user']->forceFill([
@@ -103,6 +105,20 @@ class ExpiredPasswordController extends Controller
         $request->session()->put(
             EnforceSessionInactivity::lastActivityKey($panel->guard()),
             now()->getTimestamp(),
+        );
+
+        $deviceSecurity = app(DeviceSecurityService::class);
+        $deviceSecurity->activateSession(
+            $attempt['user'],
+            $panel->guard(),
+            $request,
+            $deviceSecurity->getValidTrustedDevice($attempt['user'], $request),
+        );
+
+        $deviceSecurity->handlePasswordChanged(
+            $attempt['user'],
+            true,
+            $request->session()->getId(),
         );
 
         return redirect()

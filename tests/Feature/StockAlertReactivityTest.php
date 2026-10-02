@@ -71,7 +71,7 @@ class StockAlertReactivityTest extends TestCase
 
         $item->refresh();
         $this->assertSame(40, $item->quantity_on_hand);
-        $this->assertSame('low_stock', $item->status);
+        $this->assertSame('low_stock', $item->stockStatus());
 
         // No scheduled command was run — the alert exists because the
         // movement raised it.
@@ -109,7 +109,7 @@ class StockAlertReactivityTest extends TestCase
 
         $item->refresh();
         $this->assertSame(124, $item->quantity_on_hand);
-        $this->assertSame('in_stock', $item->status);
+        $this->assertSame('in_stock', $item->stockStatus());
 
         $this->assertSame(
             AlertStatus::Resolved,
@@ -168,7 +168,7 @@ class StockAlertReactivityTest extends TestCase
 
         $item->refresh();
         $this->assertSame(0, $item->quantity_on_hand);
-        $this->assertSame('out_of_stock', $item->status);
+        $this->assertSame('out_of_stock', $item->stockStatus());
 
         $this->assertSame(AlertStatus::Resolved, StockAlert::where('item_id', $item->id)
             ->where('type', AlertType::LowStock->value)->firstOrFail()->status);
@@ -195,6 +195,21 @@ class StockAlertReactivityTest extends TestCase
         $this->actingAs($user)->get('/dashboard')
             ->assertStatus(200)
             ->assertSee('Surgical Gloves (Large)')
-            ->assertDontSee('999');
+            ->assertDontSeeText('999');
+    }
+
+    public function test_inventory_workflow_navigation_renders_live_alert_count_without_stale_alert_rows(): void
+    {
+        [$user, $item] = $this->stockedItem(quantity: 20, reorderLevel: 50);
+
+        // Delete any persisted alert row to verify the navigation derives the live count
+        StockAlert::query()->delete();
+        $this->assertSame(0, StockAlert::count());
+
+        $this->actingAs($user)->get(route('inventory.alerts'))
+            ->assertOk()
+            ->assertSee('Stock Alerts')
+            ->assertSee('>1</span>', false);
     }
 }
+

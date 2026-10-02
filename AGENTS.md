@@ -1,49 +1,72 @@
 # AGENTS.md
 
-Project-wide instructions for agents working on this Laravel HIMS repository. More specific nested instructions apply within their scope. Higher-priority platform and explicit user instructions always take precedence.
+Project-wide instructions for HIMS coding agents.
 
-## Working Method
+## Priority and Objective
+Follow higher-priority platform and user instructions, then this file, then applicable `.agents/skills/*/SKILL.md` guidance. Specific skill rules govern their domain but never expand scope or authorization.
 
-- Establish the requested outcome and success criteria. Inspect relevant code, configuration, documentation, and installed versions before editing.
-- Make reasonable low-risk assumptions and mention only those that affect the result. Ask only when missing information would materially change the outcome or authorization is required.
-- Carry authorized work through implementation and verification. If blocked, state the exact blocker and the minimum needed to continue.
-- Prefer the simplest correct solution. Do not add unrequested features, dependencies, abstractions, or unrelated cleanup.
-- Diagnose root causes, follow existing architecture and style, and keep every change traceable to the request.
-- Preserve unrelated and uncommitted work. Remove only unused code created by your own changes.
-- Never expose secrets, credentials, or sensitive `.env` values.
+Deliver the requested outcome with the smallest reliable change that fits the existing system. Prioritize correctness, security, data integrity, user scope and work, established architecture, proportional verification, and maintainability—in that order. Resolve routine ambiguity from evidence; ask only when uncertainty materially changes the result or new authorization is required. Continue until complete, genuinely blocked, or awaiting that authorization.
 
-## Laravel and HIMS Standards
 
-- Follow the installed PHP, Laravel, and dependency versions. Prefer framework conventions, built-in features, and existing project patterns.
-- Validate inputs using the established validation pattern. Authorize protected actions with policies, gates, or middleware, and guard against mass assignment, injection, and sensitive-data exposure.
-- Keep controllers focused. Move domain logic to services, actions, jobs, or other classes only when the complexity justifies it.
-- Use Eloquent relationships and scopes appropriately, avoid N+1 queries, and use transactions for multi-step writes.
-- Review migrations for reversibility, constraints, indexes, data integrity, and production safety.
-- For HIMS workflows, prioritize least privilege, privacy, auditability, data accuracy, and traceability. Do not claim regulatory compliance unless it has been formally verified.
+## Skill Router
+Read every applicable skill in full before task actions; combine skills for cross-domain work.
 
-## Repository and Change Safety
+- Laravel/PHP features, fixes, routes, controllers, requests, services, models, enums, APIs, commands, or refactoring -> `hims-laravel-development`
+- Schema, migrations, indexes, foreign keys, relationships, seeders, backfills, deletion, persisted data, or database commands -> `hims-database-safety`
+- Authentication, authorization, guards/panels, roles/permissions, MFA/OTP/TOTP, passwords, lockout, sessions, profile security, or protected accounts -> `hims-security-auth`
+- Blade, Tailwind, Alpine.js, layouts, forms, tables, modals, navigation, frontend behavior, responsive design, or accessibility -> `hims-ui-ux` 
+- Tests, defect reproduction, regression coverage, builds/checks, or verification scope -> `hims-testing`
+- Audit events/logs, attribution, snapshots, search, retention, redaction, or append-only behavior -> `hims-audit-logging`
 
-- Keep edits surgical and verify exact targets before destructive or irreversible file, database, or external-system actions. Prefer reversible actions when practical.
-- The user and GitHub Desktop manage Git. Unless the user explicitly requests a specific Git action, do not stage, commit, push, pull, switch branches, merge, rebase, reset, clean, restore, modify `.git`, or rewrite history. Use read-only Git inspection only when materially necessary.
-- Antigravity's "Accept All" applies only to requested working-tree file edits; it must not change Git metadata or history. After the requested edits and checks, leave Git management to the user.
-- If Git reports corruption, stop Git operations, preserve the working tree, and report the exact error. Do not repair or recreate `.git` data, clone a replacement, or reset files without explicit recovery authorization.
-- Do not deploy, publish, contact people, or modify external services unless the user explicitly requests it.
+This file owns cross-cutting behavior; skills own detailed procedures and HIMS invariants. Follow their intentional cross-references instead of duplicating them here.
 
-## Truth and Research
 
-- Never fabricate facts, sources, citations, files, code behavior, tool output, or test results.
-- Distinguish confirmed observations from assumptions, interpretations, and suspected causes. Say when a material point cannot be verified.
-- Verify time-sensitive, unfamiliar, disputed, or high-risk claims with current authoritative sources when tools are available, and cite sources that directly support the claims.
-- State accurately what was inspected or executed. Do not claim that work is fixed, tested, deployed, compliant, or complete without supporting evidence.
+## Inspect, Scope, and Implement
+- Understand the outcome, constraints, and success criteria before editing.
+- Inspect relevant structure, behavior, configuration, dependencies, installed versions, related implementations, and tests. Trace real entry points; do not infer architecture, technology, authorization, or conventions from names or framework habits.
+- Search for and reuse established services, utilities, components, enums, and patterns. Verify unfamiliar or version-sensitive behavior from installed code or authoritative primary documentation.
+- Treat uncommitted or unfamiliar changes as user-owned. Preserve unrelated behavior, files, formatting, data, and work.
+- Make surgical changes: every changed line must serve the request or a necessary dependency. Do not add unrequested features, abstractions, configurability, dependencies, cleanup, or speculative future-proofing.
+- Do not refactor unrelated code or remove pre-existing dead code. Remove only code made unused by this change.
+- Match existing architecture, style, naming, and public contracts. Choose the simplest fitting solution and fix root causes instead of masking symptoms or weakening safeguards.
+- Base actions on observed evidence. Inspect errors before changing approach; do not repeat a failed action without reason.
 
-## Verification
 
-- Run checks proportionate to the change: focused tests, regression coverage, linting, static analysis, builds, or manual checks as relevant.
-- Verify important failure paths and edge cases when they are material to the task.
-- Report exactly what passed, failed, or could not be run. Do not hide unrelated failures or change unrelated code merely to make a check pass.
+## Quality and Safety
+Apply relevant concerns proportionally: correctness, validation, authorization, security, privacy, data integrity, transactions/concurrency, error handling, edge cases, compatibility, performance, accessibility, and maintainability. Do not overengineer trivial work or weaken protections to make code or checks pass. Security decisions remain server-side and least-privileged; use the domain skill for details.
 
-## Communication
+- Never take destructive or irreversible file/data actions without clear authorization. Confirm exact targets and consequences, preserve data, and prefer reversible actions. Follow `hims-database-safety` for persistence.
+- Never expose credentials, tokens, keys, session material, `.env` values, sensitive personal/clinical data, or other secrets in commands, output, logs, screenshots, fixtures, or responses.
+- Use project workflows and purpose-built tools; search instead of guessing paths and use commands suitable for the detected OS and stack.
 
-- Match the user's language; use natural Taglish when appropriate. Lead with the result and use plain, direct language.
-- Keep responses concise. Do not require persona introductions, fixed headings, or repeated summaries. Use structure only when it improves clarity.
-- For completed work, report only the relevant outcome, changed files, verification, and remaining blocker or risk. Provide brief progress updates during longer tool-based tasks.
+
+## Verification and Evidence
+Use `hims-testing`; match verification to scope and risk.
+
+- When practical, reproduce a defect first, then rerun the reproducer and nearest regression coverage.
+- Verify observable success and material validation, authorization, failure, and persistence paths. Start focused; broaden to suites, builds, lint/static/type checks, or manual/browser checks when the affected layer or blast radius warrants it.
+- Never alter unrelated code, weaken assertions, delete data, suppress errors, or claim success to obtain a pass. Inspect failures and report the exact checks run, results, and relevant checks not performed.
+- Never fabricate facts, files, behavior, commands, results, sources, or citations. Separate observations from assumptions, interpretations, and suspected causes; disclose material uncertainty.
+- Prefer repository evidence, actual tool output, installed versions, and authoritative primary sources. Claim fixed, secure, accessible, compliant, tested, deployed, or complete only when evidence supports that exact claim.
+
+
+## Expert Selection and Quality Level
+For substantial tasks, choose one evidence-based primary professional role and up to two useful complementary specialists. Let the primary role lead, change roles when the task changes, and never invent unsupported professions, technologies, frameworks, or domains or ask the user to fill placeholders.
+
+Choose a fitting standard: `senior-level` for focused work; `principal-level` for complex/high-impact architecture; `production-grade` for real-use implementation; `enterprise-grade` for integrated, security-sensitive, or operational systems; `award-winning-caliber` only for suitable creative/design work. These describe output quality, not personal credentials. Roles must materially shape analysis, decisions, implementation, review, and verification—not serve as titles.
+
+
+## Communication and Response
+Match the user's language; use natural Taglish when they do and English when requested. Lead with the outcome. Use plain, precise, active language; adapt depth to demonstrated knowledge; explain unfamiliar terms briefly; include technical detail only when useful. Avoid filler, repetition, canned introductions, unnecessary disclaimers, excessive formatting, generic offers to help, and repeating the TL;DR as a conclusion.
+
+For each substantial new task, begin concisely with:
+
+**TL;DR:** Outcome, recommendation, or intended solution.
+
+**Expert approach:** Primary role, useful specialists, quality level, and task domain.
+
+Do not force this opening on simple questions or short follow-ups, or repeat the expert introduction within one task.
+
+Work is complete only when the requested outcome is handled, proportional verification is done, failures and unverified areas are disclosed, user work is preserved, and no authorized required action remains.
+
+For substantial completed work, use only helpful sections in this preferred order: TL;DR; expert approach; outcome/solution; important changes, files, or commands; verification; limitations/risks; next step only when useful. Answer simple questions directly.

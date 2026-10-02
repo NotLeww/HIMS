@@ -94,7 +94,7 @@ class StockAdjustmentTest extends TestCase
 
         $item->refresh();
         $this->assertSame(45, $item->quantity_on_hand);
-        $this->assertSame('low_stock', $item->status);
+        $this->assertSame('low_stock', $item->stockStatus());
 
         $this->assertSame(45, (int) StockAlert::where('item_id', $item->id)->value('current_value'));
     }
@@ -133,6 +133,7 @@ class StockAdjustmentTest extends TestCase
             'location_id' => $location->id,
             'adjustment_type' => 'decrease',
             'quantity' => 25,
+            'reason' => 'Physical count discrepancy',
         ])->assertSessionHasErrors('quantity');
 
         $this->assertSame(10, $item->fresh()->quantity_on_hand);
@@ -148,6 +149,7 @@ class StockAdjustmentTest extends TestCase
             'location_id' => $location->id,
             'adjustment_type' => 'correction',
             'quantity' => 100,
+            'reason' => 'Cycle count confirmation',
         ])->assertRedirect('/inventory/adjustments');
 
         $this->assertSame(100, $item->fresh()->quantity_on_hand);

@@ -1,0 +1,404 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\User;
+use App\Support\AuthenticationContext;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Tests\TestCase;
+
+class ProfilePictureTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function createFakeJpg(string $name = 'avatar.jpg', int $extraBytes = 0): UploadedFile
+    {
+        $binary = base64_decode('/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=')
+            .str_repeat('A', $extraBytes);
+
+        return UploadedFile::fake()->createWithContent($name, $binary);
+    }
+
+    private function createFakePng(string $name = 'avatar.png', int $extraBytes = 0): UploadedFile
+    {
+        $binary = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==')
+            .str_repeat('A', $extraBytes);
+
+        return UploadedFile::fake()->createWithContent($name, $binary);
+    }
+
+    public function test_user_can_view_profile_picture_section_in_profile_settings(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get(route('profile.edit'));
+
+        $response->assertOk()
+            ->assertSee('Profile Picture')
+            ->assertSee('Upload a photo to personalize your avatar')
+            ->assertSee('accept="image/*"', false)
+            ->assertSee('JPG, PNG, GIF, WebP, and BMP files')
+            ->assertSee('Add a profile picture');
+    }
+
+    public function test_user_can_upload_valid_jpg_avatar(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $file = $this->createFakeJpg('profile.jpg');
+
+        $response = $this->actingAs($user)
+            ->post(route('profile.avatar.update'), [
+                'avatar' => $file,
+            ]);
+
+        $response->assertRedirect(route('profile.edit'))
+            ->assertSessionHas('avatar_success', 'Profile picture updated successfully.');
+
+        $user->refresh();
+
+        $this->assertNotNull($user->avatar_path);
+        $this->assertStringStartsWith('database/', $user->avatar_path);
+        $this->assertDatabaseHas('user_avatars', [
+            'user_id' => $user->id,
+            'mime_type' => 'image/jpeg',
+        ]);
+        $this->assertSame([], Storage::disk('public')->allFiles());
+        $this->assertTrue($user->hasAvatar());
+        $this->assertStringContainsString('/users/'.$user->id.'/avatar', $user->avatarUrl());
+
+        $this->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('Profile picture updated successfully.')
+            ->assertSee('Change your profile picture')
+            ->assertSee('Remove Picture')
+            ->assertSee($user->avatarUrl(), false);
+    }
+
+    public function test_user_can_upload_valid_png_avatar(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $file = $this->createFakePng('profile.png');
+
+        $response = $this->actingAs($user)
+            ->post(route('profile.avatar.update'), [
+                'avatar' => $file,
+            ]);
+
+        $response->assertRedirect(route('profile.edit'))
+            ->assertSessionHas('avatar_success', 'Profile picture updated successfully.');
+
+        $user->refresh();
+
+        $this->assertNotNull($user->avatar_path);
+        $this->assertSame('png', pathinfo($user->avatar_path, PATHINFO_EXTENSION));
+        $this->assertDatabaseHas('user_avatars', [
+            'user_id' => $user->id,
+            'mime_type' => 'image/png',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('users.avatar', $user))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/png');
+    }
+
+    public function test_uploaded_avatar_remains_available_without_local_file_storage(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $file = $this->createFakeJpg('shared-avatar.jpg', 128 * 1024);
+
+        $this->actingAs($user)
+            ->post(route('profile.avatar.update'), ['avatar' => $file])
+            ->assertRedirect(route('profile.edit'));
+
+        Storage::fake('public');
+
+        $this->get(route('users.avatar', $user->fresh()))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/jpeg')
+            ->assertContent($file->getContent());
+    }
+
+    public function test_image_content_must_match_a_supported_filename_extension(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $file = $this->createFakePng('profile.uncommon-extension');
+
+        $this->actingAs($user)
+            ->post(route('profile.avatar.update'), ['avatar' => $file])
+            ->assertRedirect(route('profile.edit'))
+            ->assertSessionHasErrors('avatar');
+
+        $user->refresh();
+
+        $this->assertNull($user->avatar_path);
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
+    public function test_super_admin_can_upload_and_view_a_png_avatar(): void
+    {
+        Storage::fake('public');
+
+        $superAdmin = User::factory()->superAdministrator()->create();
+        $file = $this->createFakePng('super-admin-avatar.png');
+
+        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->post(route('profile.avatar.update'), ['avatar' => $file])
+            ->assertRedirect(route('profile.edit'))
+            ->assertSessionHasNoErrors();
+
+        $superAdmin->refresh();
+
+        $this->assertTrue($superAdmin->hasAvatar());
+        $this->assertSame('png', pathinfo($superAdmin->avatar_path, PATHINFO_EXTENSION));
+
+        $this->get(route('users.avatar', $superAdmin))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/png');
+
+        $this->get(route('super-admin.dashboard'))
+            ->assertOk()
+            ->assertSee($superAdmin->avatarUrl(), false);
+    }
+
+    public function test_replacing_avatar_replaces_shared_database_content(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+
+        // 1. Upload first avatar
+        $file1 = $this->createFakeJpg('first.jpg');
+        $this->actingAs($user)->post(route('profile.avatar.update'), ['avatar' => $file1]);
+        $oldPath = $user->refresh()->avatar_path;
+        $this->assertSame($file1->getContent(), $user->storedAvatar()->value('content'));
+
+        // 2. Upload replacement avatar
+        $file2 = $this->createFakePng('second.png');
+        $this->actingAs($user)->post(route('profile.avatar.update'), ['avatar' => $file2]);
+        $newPath = $user->refresh()->avatar_path;
+
+        $this->assertNotSame($oldPath, $newPath);
+        $this->assertSame($file2->getContent(), $user->storedAvatar()->value('content'));
+        $this->assertDatabaseCount('user_avatars', 1);
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
+    public function test_user_can_remove_avatar_and_revert_to_initials(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+
+        $file = $this->createFakeJpg('avatar.jpg');
+        $this->actingAs($user)->post(route('profile.avatar.update'), ['avatar' => $file]);
+        $user->refresh();
+        $this->assertDatabaseHas('user_avatars', ['user_id' => $user->id]);
+
+        // Delete avatar
+        $response = $this->actingAs($user)->delete(route('profile.avatar.destroy'));
+
+        $response->assertRedirect(route('profile.edit'))
+            ->assertSessionHas('avatar_success', 'Profile picture removed. Your initials avatar is now active.');
+
+        $user->refresh();
+        $this->assertNull($user->avatar_path);
+        $this->assertFalse($user->hasAvatar());
+        $this->assertDatabaseMissing('user_avatars', ['user_id' => $user->id]);
+
+        // Profile view reflects fallback
+        $this->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('Add a profile picture')
+            ->assertSee($user->initials());
+    }
+
+    public function test_non_image_files_are_rejected(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+
+        $invalidFiles = [
+            UploadedFile::fake()->create('malicious.php', 50, 'application/x-php'),
+            UploadedFile::fake()->create('document.pdf', 150, 'application/pdf'),
+            UploadedFile::fake()->create('script.exe', 100, 'application/x-msdownload'),
+            UploadedFile::fake()->create('notes.txt', 20, 'text/plain'),
+        ];
+
+        foreach ($invalidFiles as $file) {
+            $response = $this->actingAs($user)
+                ->from(route('profile.edit'))
+                ->post(route('profile.avatar.update'), ['avatar' => $file]);
+
+            $response->assertRedirect(route('profile.edit'))
+                ->assertSessionHasErrors('avatar');
+
+            $this->assertNull($user->refresh()->avatar_path);
+        }
+
+        $this->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('x-init="$nextTick(() => { $dispatch(\'open-modal\', \'update-profile-picture\') })"', false);
+    }
+
+    public function test_oversized_image_files_are_rejected(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+
+        // 3500 KB extra bytes exceeds 3072 KB (3 MB) limit
+        $oversized = $this->createFakeJpg('huge.jpg', 3500 * 1024);
+
+        $response = $this->actingAs($user)
+            ->from(route('profile.edit'))
+            ->post(route('profile.avatar.update'), ['avatar' => $oversized]);
+
+        $response->assertRedirect(route('profile.edit'))
+            ->assertSessionHasErrors('avatar');
+
+        $this->assertNull($user->refresh()->avatar_path);
+    }
+
+    public function test_corrupted_or_spoofed_image_files_are_rejected_by_integrity_check(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+
+        // Text content disguised with a .jpg filename
+        $spoofed = UploadedFile::fake()->createWithContent(
+            'fake.jpg',
+            '<?php echo "I am not a real image file"; ?>',
+        );
+
+        $response = $this->actingAs($user)
+            ->from(route('profile.edit'))
+            ->post(route('profile.avatar.update'), ['avatar' => $spoofed]);
+
+        $response->assertRedirect(route('profile.edit'))
+            ->assertSessionHasErrors('avatar');
+
+        $this->assertNull($user->refresh()->avatar_path);
+    }
+
+    public function test_guest_cannot_upload_or_delete_profile_picture(): void
+    {
+        $file = $this->createFakeJpg('test.jpg');
+
+        $this->post(route('profile.avatar.update'), ['avatar' => $file])
+            ->assertRedirect(route('login'));
+
+        $this->delete(route('profile.avatar.destroy'))
+            ->assertRedirect(route('login'));
+    }
+
+    public function test_avatar_endpoint_streams_image_with_security_headers(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $file = $this->createFakeJpg('avatar.jpg');
+
+        $this->actingAs($user)->post(route('profile.avatar.update'), ['avatar' => $file]);
+        $user->refresh();
+
+        $response = $this->actingAs($user)->get(route('users.avatar', $user));
+
+        $response->assertOk()
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+
+        $this->assertStringStartsWith('image/', $response->headers->get('Content-Type'));
+    }
+
+    public function test_unrelated_user_cannot_view_another_users_avatar(): void
+    {
+        Storage::fake('public');
+
+        $owner = User::factory()->create();
+        $viewer = User::factory()->pharmacyStaff()->create();
+        $this->actingAs($owner)->post(route('profile.avatar.update'), [
+            'avatar' => $this->createFakeJpg(),
+        ]);
+
+        $this->actingAs($viewer)
+            ->get(route('users.avatar', $owner->fresh()))
+            ->assertForbidden();
+    }
+
+    public function test_authorized_user_manager_can_view_a_managed_users_avatar(): void
+    {
+        Storage::fake('public');
+
+        $owner = User::factory()->pharmacyStaff()->create();
+        $manager = User::factory()->superAdministrator()->create();
+        $this->actingAs($owner)->post(route('profile.avatar.update'), [
+            'avatar' => $this->createFakeJpg(),
+        ]);
+
+        $this->actingAs($manager, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get(route('users.avatar', $owner->fresh()))
+            ->assertOk();
+    }
+
+    public function test_avatar_endpoint_returns_404_when_user_has_no_avatar_or_file_is_missing(): void
+    {
+        $userWithoutAvatar = User::factory()->create(['avatar_path' => null]);
+        $this->actingAs($userWithoutAvatar)
+            ->get(route('users.avatar', $userWithoutAvatar))
+            ->assertNotFound();
+
+        Storage::fake('public');
+        $userWithMissingFile = User::factory()->create(['avatar_path' => 'avatars/missing.jpg']);
+        $this->actingAs($userWithMissingFile)
+            ->get(route('users.avatar', $userWithMissingFile))
+            ->assertNotFound();
+
+        $this->assertFalse($userWithMissingFile->hasAvatar());
+        $this->assertNull($userWithMissingFile->avatarUrl());
+
+        $this->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('Add a profile picture')
+            ->assertDontSee(route('users.avatar', $userWithMissingFile), false);
+    }
+
+    public function test_avatar_renders_in_topbar_and_admin_user_views(): void
+    {
+        Storage::fake('public');
+
+        $admin = User::factory()->administrator()->create();
+        $file = $this->createFakePng('admin_avatar.png');
+
+        $this->actingAs($admin, AuthenticationContext::ADMIN_GUARD)
+            ->post(route('profile.avatar.update'), ['avatar' => $file]);
+
+        $admin->refresh();
+
+        // Topbar shows avatar URL
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee($admin->avatarUrl(), false);
+
+        // Admin User Show shows avatar URL
+        $this->get(route('admin.users.show', $admin))
+            ->assertOk()
+            ->assertSee($admin->avatarUrl(), false);
+
+        // Admin User Index shows avatar URL
+        $this->get(route('admin.users.index'))
+            ->assertOk()
+            ->assertSee($admin->avatarUrl(), false);
+    }
+}

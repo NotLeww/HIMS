@@ -1,0 +1,385 @@
+<?php
+
+namespace App\Services\Procurement;
+
+use App\Enums\ApprovalChainType;
+use App\Enums\ApprovalStepStatus;
+use App\Enums\NotificationDestination;
+use App\Enums\NotificationPriority;
+use App\Enums\PurchaseOrderStatus;
+use App\Enums\UserRole;
+use App\Models\ApprovalChain;
+use App\Models\ApprovalStep;
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseRequest;
+use App\Models\User;
+use App\Services\HimsNotificationService;
+use DomainException;
+use Illuminate\Support\Facades\DB;
+
+class ApprovalRoutingEngine
+{
+    public function __construct(
+        private readonly HimsNotificationService $notifications,
+        private readonly BudgetEncumbranceService $budgetService,
+        private readonly ProcurementAuditService $auditService,
+    ) {}
+
+    /**
+     * Determine and instantiate an Approval Chain for a Purchase Request.
+     */
+    public function routePurchaseRequest(PurchaseRequest $pr): ApprovalChain
+    {
+        return $this->instantiateChain(
+            ApprovalChainType::PurchaseRequest,
+            $pr->id,
+            (float) $pr->total_estimated_amount,
+            $pr->requester
+        );
+    }
+
+    /**
+     * Determine and instantiate an Approval Chain for a Purchase Order.
+     */
+    public function routePurchaseOrder(PurchaseOrder $po, ?User $initiator = null): ApprovalChain
+    {
+        $initiator ??= $po->purchaseRequest?->requester ?? $po->createdBy;
+        if (! $initiator) {
+            throw new DomainException('A purchase order initiator is required before routing approval.');
+        }
+
+        return $this->instantiateChain(
+            ApprovalChainType::PurchaseOrder,
+            $po->id,
+            (float) $po->total_amount,
+            $initiator
+        );
+    }
+
+    /**
+     * Determine and instantiate an Approval Chain for a Purchase Request or Sourcing Award.
+     */
+    public function instantiateChain(
+        ApprovalChainType $chainType,
+        int $targetId,
+        float $commitmentAmount,
+        User $initiator
+    ): ApprovalChain {
+        $chain = DB::transaction(function () use ($chainType, $targetId, $commitmentAmount) {
+            $chain = ApprovalChain::create([
+                'chain_type' => $chainType,
+                'target_id' => $targetId,
+                'total_commitment_amount' => $commitmentAmount,
+                'status' => 'pending',
+            ]);
+
+            // Build dynamic step graph based on Delegation of Authority (DOA) spend thresholds
+            $stepNumber = 1;
+
+            // Tier 1: Always requires Departmental Manager / Supervisor
+            $chain->steps()->create([
+                'step_number' => $stepNumber++,
+                'required_role' => UserRole::InventoryManager->value,
+                'status' => ApprovalStepStatus::Pending,
+                'threshold_min' => 0.0,
+                'threshold_max' => 50000.0,
+            ]);
+
+            // Tier 2: > 50,000 PHP requires Category Manager / Administrator
+            if ($commitmentAmount > 50000.0) {
+                $chain->steps()->create([
+                    'step_number' => $stepNumber++,
+                    'required_role' => UserRole::Administrator->value,
+                    'status' => ApprovalStepStatus::Pending,
+                    'threshold_min' => 50000.01,
+                    'threshold_max' => 250000.0,
+                ]);
+            }
+
+            // Tier 3: > 250,000 PHP requires Executive Administration
+            if ($commitmentAmount > 250000.0) {
+                $chain->steps()->create([
+                    'step_number' => $stepNumber++,
+                    'required_role' => UserRole::Administrator->value,
+                    'status' => ApprovalStepStatus::Pending,
+                    'threshold_min' => 250000.01,
+                    'threshold_max' => 1000000.0,
+                ]);
+            }
+
+            // Tier 4: > 1,000,000 PHP requires Super Administrator / Executive sign-off
+            if ($commitmentAmount > 1000000.0) {
+                $chain->steps()->create([
+                    'step_number' => $stepNumber++,
+                    'required_role' => UserRole::SuperAdministrator->value,
+                    'status' => ApprovalStepStatus::Pending,
+                    'threshold_min' => 1000000.01,
+                    'threshold_max' => null,
+                ]);
+            }
+
+            return $chain;
+        });
+
+        $this->notifyCurrentStep($chain, $initiator);
+
+        return $chain;
+    }
+
+    /**
+     * Process an approval decision on the current pending step.
+     */
+    public function approveStep(
+        ApprovalChain $chain,
+        User $approver,
+        ?string $decisionNotes = null
+    ): ApprovalStep {
+        $approvedStep = DB::transaction(function () use ($chain, $approver, $decisionNotes) {
+            $step = $chain->currentPendingStep();
+
+            if (! $step) {
+                throw new DomainException("Approval Chain #{$chain->id} has no pending steps.");
+            }
+
+            if ($chain->chain_type === ApprovalChainType::PurchaseOrder) {
+                $purchaseOrder = PurchaseOrder::find($chain->target_id);
+
+                if ($purchaseOrder?->delivery_date?->lt(today())) {
+                    throw new DomainException('The expected delivery date has passed. Update it before approving this purchase order.');
+                }
+            }
+
+            // Segregation of Duties: Check if approver is the original requester
+            $this->enforceSegregationOfDuties($chain, $approver);
+
+            // Verify approver holds requisite authority/role
+            if (! $this->userSatisfiesRoleRequirement($approver, $step->required_role)) {
+                throw new DomainException(
+                    "Unauthorized: User '{$approver->name}' holds role '{$approver->role->value}', but step #{$step->step_number} requires '{$step->required_role}'."
+                );
+            }
+
+            // Generate the immutable approval audit reference.
+            $signingToken = hash('sha256', "CHAIN:{$chain->id}:STEP:{$step->step_number}:APPROVER:{$approver->id}:AMOUNT:{$chain->total_commitment_amount}:TIME:".now()->timestamp);
+
+            $step->status = ApprovalStepStatus::Approved;
+            $step->approver_user_id = $approver->id;
+            $step->decision_notes = $decisionNotes ?? 'Approved per Delegation of Authority policy.';
+            $step->digital_signature_token = $signingToken;
+            $step->decided_at = now();
+            $step->save();
+
+            // Check if all steps in chain are approved
+            if ($chain->isFullyApproved()) {
+                $chain->status = 'approved';
+                $chain->save();
+
+                $this->applyApprovedStateToTarget($chain);
+            }
+
+            $this->auditService->record(
+                $approver,
+                'ApprovalChain',
+                $chain->id,
+                'approved_procurement_step',
+                ['step' => $step->step_number, 'status' => 'pending'],
+                ['step' => $step->step_number, 'status' => 'approved', 'target_type' => $chain->chain_type->value, 'target_id' => $chain->target_id, 'approval_reference' => $signingToken],
+            );
+
+            if ($chain->status === 'approved' && $chain->chain_type === ApprovalChainType::PurchaseOrder) {
+                $this->auditService->record(
+                    $approver,
+                    'PurchaseOrder',
+                    $chain->target_id,
+                    'approved_purchase_order',
+                    ['status' => PurchaseOrderStatus::PendingApproval->value],
+                    ['status' => PurchaseOrderStatus::Approved->value],
+                );
+            }
+
+            if ($chain->status === 'approved' && $chain->chain_type === ApprovalChainType::PurchaseRequest) {
+                $this->auditService->record(
+                    $approver,
+                    'PurchaseRequest',
+                    $chain->target_id,
+                    'approved_purchase_request',
+                    ['status' => 'pending_approval'],
+                    ['status' => 'approved'],
+                );
+            }
+
+            return $step;
+        });
+
+        $this->notifyCurrentStep($chain->fresh(), $approver);
+
+        return $approvedStep;
+    }
+
+    /**
+     * Reject an approval step with mandatory justification.
+     */
+    public function rejectStep(ApprovalChain $chain, User $approver, string $rejectionReason): ApprovalStep
+    {
+        if (blank($rejectionReason)) {
+            throw new DomainException('A rejection reason must be documented for audit compliance.');
+        }
+
+        return DB::transaction(function () use ($chain, $approver, $rejectionReason) {
+            $step = $chain->currentPendingStep();
+
+            if (! $step) {
+                throw new DomainException("Approval Chain #{$chain->id} has no pending steps.");
+            }
+
+            $this->enforceSegregationOfDuties($chain, $approver);
+
+            if (! $this->userSatisfiesRoleRequirement($approver, $step->required_role)) {
+                throw new DomainException(
+                    "Unauthorized: User '{$approver->name}' holds role '{$approver->role->value}', but step #{$step->step_number} requires '{$step->required_role}'."
+                );
+            }
+
+            $step->status = ApprovalStepStatus::Rejected;
+            $step->approver_user_id = $approver->id;
+            $step->decision_notes = $rejectionReason;
+            $step->decided_at = now();
+            $step->save();
+
+            $chain->status = 'rejected';
+            $chain->save();
+
+            $this->applyRejectedStateToTarget($chain, $rejectionReason);
+
+            $this->auditService->record(
+                $approver,
+                'ApprovalChain',
+                $chain->id,
+                'rejected_procurement_step',
+                ['step' => $step->step_number, 'status' => 'pending'],
+                ['step' => $step->step_number, 'status' => 'rejected', 'target_type' => $chain->chain_type->value, 'target_id' => $chain->target_id],
+            );
+
+            if ($chain->chain_type === ApprovalChainType::PurchaseOrder) {
+                $this->auditService->record(
+                    $approver,
+                    'PurchaseOrder',
+                    $chain->target_id,
+                    'rejected_purchase_order',
+                    ['status' => PurchaseOrderStatus::PendingApproval->value],
+                    ['status' => PurchaseOrderStatus::Cancelled->value, 'reason' => $rejectionReason],
+                );
+            }
+
+            return $step;
+        });
+    }
+
+    /**
+     * Enforces that a user cannot approve their own requisition or award.
+     */
+    private function enforceSegregationOfDuties(ApprovalChain $chain, User $approver): void
+    {
+        if ($chain->steps()
+            ->where('status', ApprovalStepStatus::Approved->value)
+            ->where('approver_user_id', $approver->id)
+            ->exists()) {
+            throw new DomainException('Segregation of Duties Violation: One user cannot decide multiple steps in the same approval chain.');
+        }
+
+        if ($chain->chain_type === ApprovalChainType::PurchaseRequest) {
+            $pr = PurchaseRequest::find($chain->target_id);
+            if ($pr && $pr->requester_id === $approver->id) {
+                throw new DomainException("Segregation of Duties Violation: Requester cannot approve their own Purchase Request #{$pr->pr_number}.");
+            }
+        } elseif ($chain->chain_type === ApprovalChainType::PurchaseOrder) {
+            $po = PurchaseOrder::find($chain->target_id);
+            if ($po && $po->created_by_user_id === $approver->id && ! $approver->isSuperAdministrator()) {
+                throw new DomainException("Segregation of Duties Violation: Issuer cannot approve their own Purchase Order #{$po->po_number}.");
+            }
+        }
+    }
+
+    private function userSatisfiesRoleRequirement(User $user, string $requiredRole): bool
+    {
+        if ($user->isSuperAdministrator()) {
+            return true;
+        }
+
+        if ($requiredRole === UserRole::Administrator->value && $user->isAdministrator()) {
+            return true;
+        }
+
+        return $user->role->value === $requiredRole;
+    }
+
+    private function notifyCurrentStep(ApprovalChain $chain, User $except): void
+    {
+        $step = $chain->currentPendingStep();
+        $role = $step === null ? null : UserRole::tryFrom($step->required_role);
+
+        if ($step === null || $role === null) {
+            return;
+        }
+
+        $this->notifications->sendToRoles(
+            [$role],
+            "approval-chain:{$chain->id}:step:{$step->id}",
+            'Procurement approval required',
+            sprintf(
+                '%s #%d is awaiting your step %d approval.',
+                $chain->chain_type->label(),
+                $chain->target_id,
+                $step->step_number,
+            ),
+            NotificationPriority::Info,
+            NotificationDestination::Procurement,
+            except: $except,
+        );
+    }
+
+    private function applyApprovedStateToTarget(ApprovalChain $chain): void
+    {
+        if ($chain->chain_type === ApprovalChainType::PurchaseRequest) {
+            $pr = PurchaseRequest::find($chain->target_id);
+            if ($pr) {
+                $pr->status = 'approved';
+                $pr->approved_at = now();
+                $pr->save();
+            }
+        } elseif ($chain->chain_type === ApprovalChainType::PurchaseOrder) {
+            $po = PurchaseOrder::find($chain->target_id);
+            if ($po) {
+                $po->status = 'approved';
+                $po->save();
+            }
+        }
+    }
+
+    private function applyRejectedStateToTarget(ApprovalChain $chain, string $reason): void
+    {
+        if ($chain->chain_type === ApprovalChainType::PurchaseRequest) {
+            $pr = PurchaseRequest::find($chain->target_id);
+            if ($pr) {
+                $pr->status = 'rejected';
+                $pr->rejection_reason = $reason;
+                $pr->save();
+
+                // Release the soft commitment back to cost center
+                $this->budgetService->releaseSoftCommitment($pr);
+            }
+        } elseif ($chain->chain_type === ApprovalChainType::PurchaseOrder) {
+            $po = PurchaseOrder::find($chain->target_id);
+            if ($po) {
+                $po->status = PurchaseOrderStatus::Cancelled->value;
+                $po->notes = trim(implode("\n", array_filter([
+                    $po->notes,
+                    "Approval rejected: {$reason}",
+                ])));
+                $po->save();
+
+                $this->budgetService->releaseHardEncumbrance($po);
+            }
+        }
+    }
+}

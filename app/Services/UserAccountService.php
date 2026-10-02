@@ -2,13 +2,21 @@
 
 namespace App\Services;
 
+use App\Enums\ActivationCancellationReason;
 use App\Enums\AuditAction;
+use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Models\AuditLog;
 use App\Models\User;
+use App\Notifications\AccountActivationCancelled;
+use App\Notifications\AccountCreated;
+use App\Services\Sms\SmsOtpDelivery;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Owns the rules that stop the user-management screen locking everyone out.
@@ -24,32 +32,32 @@ class UserAccountService
     public function __construct(
         private readonly PasswordHistoryService $passwords,
         private readonly AuditLogger $audit,
+        private readonly SmsOtpDelivery $sms,
     ) {}
 
     /**
      * Roles the actor may assign. Super Admin may manage Administrator
-     * accounts, while the protected Super Administrator role is never exposed
-     * as a creatable role.
+     * accounts, while the Super Administrator role is never exposed as a
+     * creatable or demotable role through the general account form.
      *
      * @return array<int, UserRole>
      */
     public function assignableRoles(User $actor, ?User $target = null): array
     {
-        $roles = collect(UserRole::cases())
-            ->filter(fn (UserRole $role) => $actor->isSuperAdministrator()
-                ? ! $role->isSuperAdministrator()
-                : ! $role->isAdministrator())
-            ->values()
-            ->all();
-
-        // The protected account may preserve its existing role while editing
-        // its own non-security profile fields. It still cannot assign that role
-        // to any other account.
-        if ($target?->isProtected() && $target->is($actor)) {
-            array_unshift($roles, UserRole::SuperAdministrator);
+        // Keep every existing Super Administrator on that role during ordinary
+        // account edits. Additional Super Administrators created by the CLI are
+        // intentionally not protected records, so checking only is_protected
+        // would silently submit the first visible role from the HTML select.
+        if ($actor->isSuperAdministrator() && $target?->isSuperAdministrator()) {
+            return [UserRole::SuperAdministrator];
         }
 
-        return $roles;
+        return collect(UserRole::cases())
+            ->filter(fn (UserRole $role) => $actor->isSuperAdministrator()
+                ? ! $role->isSuperAdministrator()
+                : ! $role->isAdministrator() && ! $role->grants(Permission::ViewAuditTrail))
+            ->values()
+            ->all();
     }
 
     /**
@@ -95,31 +103,30 @@ class UserAccountService
      */
     public function create(array $attributes, User $actor): User
     {
-        return $this->passwords->usePassword($attributes['password'], function (string $passwordHash) use ($attributes, $actor): User {
+        $user = DB::transaction(function () use ($attributes, $actor): User {
             $role = UserRole::from($attributes['role']);
             $this->assertCanAssignRole($actor, $role);
 
             $user = new User([
                 ...$this->nameAttributes($attributes),
                 'email' => $attributes['email'],
-                'password' => $passwordHash,
+                'password' => null,
                 'role' => $role,
-                'status' => $attributes['status'] ?? UserStatus::Active->value,
+                'status' => UserStatus::PendingActivation,
                 'employee_id' => $this->nextEmployeeId(),
                 'department' => $attributes['department'],
                 'phone' => $attributes['phone'] ?? null,
             ]);
 
-            // An administrator created this account in person, so there is nobody
-            // to send a confirmation link to. Set outside the fillable list on
-            // purpose: email_verified_at must never be mass-assignable from a
-            // request, so passing it to User::create() would be dropped silently.
-            $user->email_verified_at = now();
-
             $user->save();
 
             return $user;
         });
+
+        $user->notify(new AccountCreated);
+        $this->sms->sendAccountCreated($user);
+
+        return $user;
     }
 
     /**
@@ -130,7 +137,10 @@ class UserAccountService
      */
     public function update(User $user, array $attributes, User $actor): User
     {
-        return DB::transaction(function () use ($user, $attributes, $actor): User {
+        $emailChanged = $attributes['email'] !== $user->email;
+        $phoneChanged = ($attributes['phone'] ?? null) !== $user->phone;
+
+        $user = DB::transaction(function () use ($user, $attributes, $actor, $emailChanged, $phoneChanged): User {
             $this->assertCanManage($actor, $user);
 
             $newRole = UserRole::from($attributes['role']);
@@ -140,6 +150,18 @@ class UserAccountService
             if ($user->isProtected() && $attributes['email'] !== $user->email) {
                 throw ValidationException::withMessages([
                     'email' => ['The protected Super Administrator email cannot be changed.'],
+                ]);
+            }
+
+            if ($user->isArchived() && $newStatus !== UserStatus::Archived) {
+                throw ValidationException::withMessages([
+                    'status' => ['Archived user accounts must be restored through the Archive workspace.'],
+                ]);
+            }
+
+            if ($user->isCancelled() && $newStatus !== UserStatus::Cancelled) {
+                throw ValidationException::withMessages([
+                    'status' => ['Cancelled activations must be restarted through the Re-invite action.'],
                 ]);
             }
 
@@ -160,11 +182,16 @@ class UserAccountService
                 'phone' => $attributes['phone'] ?? null,
             ]);
 
+            if ($emailChanged) {
+                $user->email_verified_at = null;
+            }
+
             // Blank means "leave it alone" — the edit form does not echo the
             // existing password back, so an empty field is not a request to
             // clear it.
-            if (! empty($attributes['password'])) {
+            if (! empty($attributes['password']) && ! $user->requiresActivation()) {
                 return $this->passwords->usePassword(
+                    $user,
                     $attributes['password'],
                     function (string $passwordHash) use ($user): User {
                         $user->password = $passwordHash;
@@ -177,17 +204,44 @@ class UserAccountService
 
             $user->save();
 
+            if (($emailChanged || $phoneChanged) && $user->isPendingActivation()) {
+                $user->accountActivationChallenge()->delete();
+            }
+
             return $user;
         });
+
+        if ($emailChanged) {
+            if ($user->isPendingActivation()) {
+                $user->notify(new AccountCreated);
+            } elseif (! $user->isCancelled()) {
+                $user->sendEmailVerificationNotification();
+            }
+        }
+
+        return $user;
     }
 
     /**
-     * Flip an account between active and inactive.
+     * Flip an account between active and inactive, or restart activation when
+     * a cancelled invitation left the account without a password.
      */
     public function toggleStatus(User $user, User $actor): User
     {
         return DB::transaction(function () use ($user, $actor): User {
             $this->assertCanManage($actor, $user);
+
+            if ($user->isArchived()) {
+                throw ValidationException::withMessages([
+                    'status' => ['Archived user accounts cannot be activated via status toggle. Use the Restore workflow in the Archive workspace.'],
+                ]);
+            }
+
+            if ($user->isPendingActivation()) {
+                throw ValidationException::withMessages([
+                    'status' => ['Pending accounts become active only after the user verifies an OTP and creates a password.'],
+                ]);
+            }
 
             if ($user->isActive()) {
                 $this->assertNotSelf($user, $actor, 'You cannot deactivate your own account.');
@@ -198,13 +252,128 @@ class UserAccountService
 
                 $user->status = UserStatus::Inactive;
             } else {
-                $user->status = UserStatus::Active;
+                $user->status = $user->requiresActivation()
+                    ? UserStatus::PendingActivation
+                    : UserStatus::Active;
+
+                if ($user->status === UserStatus::PendingActivation) {
+                    $user->activation_cancellation_reason = null;
+                    $user->activation_cancellation_details = null;
+                    $user->activation_cancelled_at = null;
+                    $user->activation_cancelled_by = null;
+                    $user->activation_cancellation_notice_sent_at = null;
+                }
             }
 
             $user->save();
 
             return $user;
         });
+    }
+
+    public function cancelInvitation(
+        User $user,
+        User $actor,
+        ActivationCancellationReason $reason,
+        ?string $details,
+    ): User {
+        return DB::transaction(function () use ($user, $actor, $reason, $details): User {
+            $lockedUser = User::query()->lockForUpdate()->findOrFail($user->getKey());
+
+            $this->assertCanManage($actor, $lockedUser);
+
+            if (! $lockedUser->isPendingActivation()) {
+                throw ValidationException::withMessages([
+                    'status' => ['Only pending invitations can be cancelled.'],
+                ]);
+            }
+
+            $lockedUser->accountActivationChallenge()->delete();
+            $lockedUser->forceFill([
+                'status' => UserStatus::Cancelled,
+                'activation_cancellation_reason' => $reason,
+                'activation_cancellation_details' => $details,
+                'activation_cancelled_at' => now(),
+                'activation_cancelled_by' => $actor->getKey(),
+                'activation_cancellation_notice_sent_at' => null,
+            ])->saveQuietly();
+
+            $this->audit->log(
+                AuditAction::AccountActivationCancelled,
+                $actor,
+                "Cancelled account activation for {$lockedUser->name}.",
+                $lockedUser,
+                $lockedUser->name,
+                oldValues: ['status' => UserStatus::PendingActivation->value],
+                newValues: [
+                    'status' => UserStatus::Cancelled->value,
+                    'reason' => $reason->label(),
+                    'additional_details' => $details,
+                ],
+                businessReason: $reason->label(),
+            );
+
+            return $lockedUser;
+        });
+    }
+
+    public function sendCancellationNotice(User $user, User $actor, bool $resend = false): bool
+    {
+        if (! $user->isCancelled() || $user->activation_cancellation_reason === null) {
+            throw ValidationException::withMessages([
+                'status' => ['Only cancelled activation requests have a cancellation notice.'],
+            ]);
+        }
+
+        try {
+            $creatorEmail = AuditLog::query()
+                ->with('actor:id,email')
+                ->where('action', AuditAction::CreatedUser->value)
+                ->where('target_type', $user->getMorphClass())
+                ->where('target_id', (string) $user->getKey())
+                ->oldest('id')
+                ->first()
+                ?->actor
+                ?->email;
+
+            $user->notify(new AccountActivationCancelled(
+                $user->activation_cancellation_reason,
+                $user->activation_cancellation_details,
+                $creatorEmail,
+            ));
+        } catch (Throwable $exception) {
+            Log::warning('Account activation cancellation notice could not be sent.', [
+                'user_id' => $user->getKey(),
+                'exception_class' => $exception::class,
+            ]);
+
+            if ($resend) {
+                $this->audit->log(
+                    AuditAction::AccountActivationCancellationNoticeResent,
+                    $actor,
+                    "Could not resend the account activation cancellation notice for {$user->name}.",
+                    $user,
+                    $user->name,
+                    outcome: 'failure',
+                );
+            }
+
+            return false;
+        }
+
+        $user->forceFill(['activation_cancellation_notice_sent_at' => now()])->saveQuietly();
+
+        if ($resend) {
+            $this->audit->log(
+                AuditAction::AccountActivationCancellationNoticeResent,
+                $actor,
+                "Resent the account activation cancellation notice for {$user->name}.",
+                $user,
+                $user->name,
+            );
+        }
+
+        return true;
     }
 
     public function unlock(User $user, User $actor): User
@@ -224,8 +393,10 @@ class UserAccountService
 
             $oldValues = [
                 'failed_login_attempts' => (int) $lockedUser->failed_login_attempts,
+                'login_retry_at' => $lockedUser->login_retry_at?->toIso8601String(),
                 'login_locked_until' => $lockedUser->login_locked_until?->toIso8601String(),
                 'login_lockout_count' => (int) $lockedUser->login_lockout_count,
+                'lock_reason' => LoginLockoutService::REPEATED_FAILURES_REASON,
             ];
 
             $lockedUser->forceFill([
@@ -251,19 +422,6 @@ class UserAccountService
 
             return $lockedUser;
         });
-    }
-
-    public function resetPassword(User $user, string $password): User
-    {
-        return $this->passwords->usePassword(
-            $password,
-            function (string $passwordHash) use ($user): User {
-                $user->password = $passwordHash;
-                $user->save();
-
-                return $user;
-            },
-        );
     }
 
     /**
@@ -307,9 +465,11 @@ class UserAccountService
             return;
         }
 
-        $message = $role->isSuperAdministrator()
-            ? 'The Super Administrator role is reserved for the protected system account.'
-            : 'Only a Super Administrator may assign the Administrator role.';
+        $message = match (true) {
+            $role->isSuperAdministrator() => 'The Super Administrator role is reserved for the protected system account.',
+            $role->grants(Permission::ViewAuditTrail) => 'Only a Super Administrator may assign an Audit Trail role.',
+            default => 'Only a Super Administrator may assign the Administrator role.',
+        };
 
         throw ValidationException::withMessages(['role' => [$message]]);
     }

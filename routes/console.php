@@ -10,3 +10,8 @@ Artisan::command('inspire', function () {
 
 // SWS: refresh stock rollups and sweep for low-stock/expiry conditions.
 Schedule::command('inventory:check-alerts')->dailyAt('01:00');
+Schedule::command('procurement:send-approval-reminders')->dailyAt('01:05')->withoutOverlapping();
+Schedule::command('suppliers:check-compliance')->dailyAt('01:15')->withoutOverlapping();
+Schedule::command('procurement:close-expired-rfqs')->everyMinute()->withoutOverlapping();
+Schedule::command('privacy:enforce-retention')->dailyAt('02:00')->withoutOverlapping();
+Schedule::command('reports:run-scheduled')->everyMinute()->withoutOverlapping()->onOneServer();

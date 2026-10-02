@@ -3,134 +3,145 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="description" content="HIMS keeps hospital procurement, stock levels, and replenishment on one record — from warehouse to ward.">
+        <meta name="description" content="HIMS connects hospital procurement, central warehouse inventory, and ward replenishment on one operational record.">
         <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
         <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
         <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}">
         <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}">
         <title>HIMS | Supply Chain &amp; Inventory Management</title>
+        @include('layouts.partials.theme-script')
+        @include('layouts.partials.navigation-loading-state')
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="bg-neutral-950 text-neutral-100 antialiased">
+    @php
+        $hasLogin = Route::has('login');
+        $dashboardUrl = $hasLogin && \App\Support\AuthenticationContext::authenticatedGuard() !== null
+            ? route(\App\Support\AuthenticationContext::dashboardRoute())
+            : null;
+    @endphp
+    <body class="min-h-screen bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100">
+        @include('layouts.partials.loading-overlay')
+
         <div class="relative min-h-screen overflow-hidden">
-            {{-- Decorative backdrop. Content and contrast remain intact without it. --}}
-            <div class="absolute inset-0 z-0" aria-hidden="true">
-                <img src="{{ asset('img/landingpage.jpg') }}" alt="" class="h-full w-full animate-slow-zoom object-cover object-center will-change-transform" />
-                <div class="absolute inset-0 bg-neutral-950/65"></div>
-                <div class="absolute inset-0 bg-gradient-to-r from-neutral-950 via-neutral-950/90 via-50% to-neutral-950/45"></div>
-                <div class="absolute inset-0 bg-gradient-to-b from-neutral-950/70 via-transparent to-neutral-950"></div>
-                <div class="absolute -left-24 top-24 h-80 w-80 animate-float-slow rounded-full bg-primary-600/20 blur-3xl will-change-transform"></div>
-                <div class="absolute right-0 top-1/3 h-96 w-96 animate-drift-slow rounded-full bg-primary-500/10 blur-3xl will-change-transform"></div>
+            {{-- Hospital campus background integrated with pure neutral gray overlays --}}
+            <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+                <img src="{{ asset('img/landingpage.jpg') }}" alt="" class="h-full w-full object-cover object-center animate-slow-zoom will-change-transform opacity-30 dark:opacity-20" />
+                <div class="absolute inset-0 bg-gradient-to-r from-neutral-50 via-neutral-50/92 to-neutral-50/75 dark:from-neutral-950 dark:via-neutral-950/90 dark:to-neutral-950/70"></div>
+                <div class="absolute inset-0 bg-gradient-to-b from-neutral-50/80 via-transparent to-neutral-50 dark:from-neutral-950/80 dark:via-transparent dark:to-neutral-950"></div>
             </div>
 
-            <div class="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 lg:px-8">
-                <header class="flex animate-fade-in items-center justify-between border-b border-white/10 py-5">
-                    <a href="{{ url('/') }}" class="group flex items-center gap-3 rounded-lg focus-visible:ring-offset-neutral-950">
-                        <img src="{{ asset('img/hims-logo.png') }}" alt="" class="h-10 w-10 rounded-lg bg-white object-cover ring-1 ring-inset ring-white/20 transition duration-300 group-hover:scale-105 group-hover:ring-primary-300/40" />
-                        <span>
-                            <span class="block text-base font-semibold tracking-tight text-white">HIMS</span>
-                            <span class="hidden text-[10px] font-medium uppercase tracking-[0.16em] text-neutral-400 sm:block">Hospital operations</span>
+            <div class="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 sm:px-6 lg:px-8">
+                {{-- Header (Locked height h-20 so it never changes size between pages) --}}
+                <header class="flex h-20 shrink-0 items-center justify-between border-b border-neutral-200 dark:border-neutral-800">
+                    <a href="{{ url('/') }}" class="group flex items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-50 dark:focus-visible:ring-offset-neutral-950">
+                        <img src="{{ asset('img/hims-logo.png') }}" alt="" class="h-10 w-10 shrink-0 rounded-lg bg-white object-cover ring-1 ring-neutral-200 dark:ring-neutral-700">
+                        <span class="min-w-0">
+                            <span class="block text-sm sm:text-base font-bold tracking-tight text-neutral-950 dark:text-neutral-50 leading-tight">Dr. Jose N. Rodriguez Memorial Hospital and Sanitarium</span>
+                            <span class="block text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400 mt-0.5">Hospital Operations</span>
                         </span>
                     </a>
 
-                    @if (Route::has('login'))
-                        <nav aria-label="Account navigation">
-                            @if (\App\Support\AuthenticationContext::authenticatedGuard() !== null)
-                                <a href="{{ route(\App\Support\AuthenticationContext::dashboardRoute()) }}" class="group inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white transition duration-300 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/15 focus-visible:ring-offset-neutral-950">
-                                    Dashboard
-                                    <x-ui.icon name="chevron-right" class="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
-                                </a>
-                            @else
-                                <a href="{{ route('login') }}" class="group inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white transition duration-300 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/15 focus-visible:ring-offset-neutral-950">
-                                    Staff log in
-                                    <x-ui.icon name="chevron-right" class="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
-                                </a>
-                            @endif
-                        </nav>
-                    @endif
+                    <div class="flex items-center gap-3">
+                        <x-ui.theme-toggle size="sm" />
+                        @if ($dashboardUrl)
+                            <x-ui.button variant="secondary" size="sm" :href="$dashboardUrl">Dashboard</x-ui.button>
+                        @endif
+                    </div>
                 </header>
 
-                <main class="flex flex-1 flex-col justify-center py-14 sm:py-16 lg:py-20">
+                {{-- Hero & Content --}}
+                <main class="flex flex-1 flex-col justify-center py-12 sm:py-16 lg:py-20">
                     <div class="max-w-3xl">
-                        <section>
-                            {{-- The hero reveals top-to-bottom; each delay is one beat after the last. --}}
-                            <p class="inline-flex w-fit max-w-full animate-fade-up items-center gap-2 rounded-full border border-primary-300/20 bg-primary-400/10 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-primary-200 [animation-delay:120ms] sm:text-xs sm:tracking-widest">
-                                <span class="h-1.5 w-1.5 shrink-0 animate-ping-dot rounded-full bg-primary-400"></span>
-                                <span>Hospital Inventory Management System</span>
-                            </p>
+                        <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-400">
+                            Supply Chain &amp; Inventory Management
+                        </p>
 
-                            {{-- Keep both phrases as plain text for the landing-page contract. --}}
-                            <h1 class="mt-6 max-w-2xl animate-fade-up text-balance text-4xl font-semibold leading-[1.08] tracking-tight text-white [animation-delay:240ms] sm:text-5xl lg:text-6xl">
-                                Supply Chain &amp; Inventory Management that keeps care moving.
-                            </h1>
+                        <h1 id="landing-title" class="mt-4 text-balance text-3xl font-extrabold tracking-tight text-neutral-950 dark:text-neutral-50 sm:text-5xl sm:leading-[1.12]">
+                            From supply request to ward, every handoff has a record.
+                        </h1>
 
-                            <p class="mt-6 max-w-xl animate-fade-up text-pretty text-base leading-7 text-neutral-300 [animation-delay:360ms] sm:text-lg sm:leading-8">
-                                Connect procurement, stock visibility, and replenishment in one dependable workspace—from the central warehouse to every ward.
-                            </p>
+                        <p class="mt-5 max-w-2xl text-base leading-relaxed text-neutral-600 dark:text-neutral-300 sm:text-lg">
+                            An accountable operational workflow connecting procurement, central warehouse inventory, and ward replenishment on one verifiable record.
+                        </p>
 
-                            @if (Route::has('login'))
-                                <div class="mt-9 flex animate-fade-up flex-col gap-4 [animation-delay:480ms] sm:flex-row sm:items-center">
-                                    @if (\App\Support\AuthenticationContext::authenticatedGuard() !== null)
-                                        <a href="{{ route(\App\Support\AuthenticationContext::dashboardRoute()) }}" class="group relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-lg bg-primary-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary-950/30 transition duration-300 hover:-translate-y-0.5 hover:bg-primary-500 hover:shadow-xl hover:shadow-primary-950/40 focus-visible:ring-primary-400 focus-visible:ring-offset-neutral-950">
-                                            {{-- Light sweeps across the button on hover only, so nothing loops in the background. --}}
-                                            <span class="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full" aria-hidden="true"></span>
-                                            <span class="relative">Open dashboard</span>
-                                            <x-ui.icon name="chevron-right" class="relative h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                                        </a>
-                                    @else
-                                        <a href="{{ route('login') }}" class="group relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-lg bg-primary-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary-950/30 transition duration-300 hover:-translate-y-0.5 hover:bg-primary-500 hover:shadow-xl hover:shadow-primary-950/40 focus-visible:ring-primary-400 focus-visible:ring-offset-neutral-950">
-                                            <span class="pointer-events-none absolute inset-0 -translate-x-full animate-sheen bg-gradient-to-r from-transparent via-white/20 to-transparent" aria-hidden="true"></span>
-                                            <span class="relative">Log in to HIMS</span>
-                                            <x-ui.icon name="chevron-right" class="relative h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                                        </a>
-                                    @endif
-
-                                    <span class="inline-flex items-center justify-center gap-2 text-xs text-neutral-400 sm:justify-start">
-                                        <x-ui.icon name="shield-check" class="h-4 w-4 text-primary-300" />
-                                        Secure access for authorized staff
-                                    </span>
-                                </div>
+                        <div class="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
+                            @if ($hasLogin)
+                                <a href="{{ $dashboardUrl ?? route('login') }}" class="group inline-flex min-h-12 items-center justify-center gap-3 rounded-lg bg-primary-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-500 active:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950">
+                                    <x-ui.icon name="lock-closed" class="h-4 w-4 text-white/80 transition group-hover:scale-105" />
+                                    <span>{{ $dashboardUrl ? 'Open Dashboard' : 'Log in to HIMS' }}</span>
+                                    <x-ui.icon name="arrow-right" class="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                                </a>
                             @endif
 
-                        </section>
+                            <span class="text-xs text-neutral-500 dark:text-neutral-400">
+                                Restricted to authorized hospital personnel
+                            </span>
+                        </div>
                     </div>
+
+                    {{-- Supply Route Pipeline --}}
+                    <section aria-labelledby="route-title" class="mt-14 border-t border-neutral-200 pt-10 dark:border-neutral-800 sm:mt-18">
+                        <h2 id="route-title" class="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500 dark:text-neutral-400">
+                            The Hospital Supply Route
+                        </h2>
+
+                        <ol class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Hospital supply route stages">
+                            <li class="rounded-xl border border-neutral-200 bg-white/90 p-5 shadow-xs backdrop-blur-md transition hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/80 dark:hover:border-neutral-700">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-mono text-xs font-bold text-neutral-500 dark:text-neutral-400">01</span>
+                                    <x-ui.icon name="clipboard-document-list" class="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
+                                </div>
+                                <h3 class="mt-4 text-sm font-bold text-neutral-900 dark:text-neutral-100">Procurement</h3>
+                                <p class="mt-1.5 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+                                    Supply requests, supplier quotation matrices, and purchase orders.
+                                </p>
+                            </li>
+
+                            <li class="rounded-xl border border-neutral-200 bg-white/90 p-5 shadow-xs backdrop-blur-md transition hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/80 dark:hover:border-neutral-700">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-mono text-xs font-bold text-neutral-500 dark:text-neutral-400">02</span>
+                                    <x-ui.icon name="building-storefront" class="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
+                                </div>
+                                <h3 class="mt-4 text-sm font-bold text-neutral-900 dark:text-neutral-100">Central Warehouse</h3>
+                                <p class="mt-1.5 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+                                    Receiving inspection, storage location mapping, and batch &amp; lot control.
+                                </p>
+                            </li>
+
+                            <li class="rounded-xl border border-neutral-200 bg-white/90 p-5 shadow-xs backdrop-blur-md transition hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/80 dark:hover:border-neutral-700">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-mono text-xs font-bold text-neutral-500 dark:text-neutral-400">03</span>
+                                    <x-ui.icon name="truck" class="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
+                                </div>
+                                <h3 class="mt-4 text-sm font-bold text-neutral-900 dark:text-neutral-100">Ward Supply</h3>
+                                <p class="mt-1.5 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+                                    Stock movement from central stores to care units with dual-custody verification.
+                                </p>
+                            </li>
+
+                            <li class="rounded-xl border border-neutral-200 bg-white/90 p-5 shadow-xs backdrop-blur-md transition hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/80 dark:hover:border-neutral-700">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-mono text-xs font-bold text-neutral-500 dark:text-neutral-400">04</span>
+                                    <x-ui.icon name="document-check" class="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
+                                </div>
+                                <h3 class="mt-4 text-sm font-bold text-neutral-900 dark:text-neutral-100">Audit &amp; Reporting</h3>
+                                <p class="mt-1.5 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+                                    Perpetual inventory tracking, actor-attributed logging, and audit-ready reports.
+                                </p>
+                            </li>
+                        </ol>
+                    </section>
                 </main>
 
-                @php
-                    $features = [
-                        ['icon' => 'truck', 'title' => 'Procurement', 'body' => 'Move requests, supplier quotes, and purchase orders through one controlled process.'],
-                        ['icon' => 'cube', 'title' => 'Inventory control', 'body' => 'See batches, stock levels, and movement across warehouses, wards, and pharmacies.'],
-                        ['icon' => 'chart-bar', 'title' => 'Reporting', 'body' => 'Turn daily warehouse activity into clear planning and audit-ready reports.'],
-                    ];
-                @endphp
-
-                <section class="grid border-y border-white/10 sm:grid-cols-3" aria-label="HIMS core capabilities">
-                    @foreach ($features as $index => $feature)
-                        {{-- Cards land left-to-right, picking up where the hero stagger ended. --}}
-                        <article
-                            class="group animate-fade-up py-6 sm:px-6 sm:first:pl-0 sm:last:pr-0 [&:not(:last-child)]:border-b [&:not(:last-child)]:border-white/10 sm:[&:not(:last-child)]:border-b-0 sm:[&:not(:last-child)]:border-r"
-                            style="animation-delay: {{ 620 + $index * 120 }}ms"
-                        >
-                            <div class="flex items-start gap-4">
-                                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-primary-300 ring-1 ring-inset ring-white/10 transition duration-300 group-hover:-translate-y-0.5 group-hover:scale-110 group-hover:bg-primary-400/10 group-hover:ring-primary-300/20">
-                                    <x-ui.icon :name="$feature['icon']" class="h-4 w-4" />
-                                </span>
-                                <div>
-                                    <h2 class="text-sm font-semibold text-white transition-colors duration-300 group-hover:text-primary-200">{{ $feature['title'] }}</h2>
-                                    <p class="mt-1.5 text-xs leading-5 text-neutral-400">{{ $feature['body'] }}</p>
-                                </div>
-                            </div>
-                        </article>
-                    @endforeach
-                </section>
-
-                <footer class="flex animate-fade-in flex-col gap-2 py-6 text-xs text-neutral-500 [animation-delay:900ms] sm:flex-row sm:items-center sm:justify-between">
-                    <p>&copy; {{ date('Y') }} HIMS — hospital supply chain operations.</p>
-                    <p>From warehouse to ward, on one record.</p>
+                {{-- Footer --}}
+                <footer class="flex flex-col gap-3 border-t border-neutral-200 py-5 text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400 sm:flex-row sm:items-center sm:justify-between">
+                    <p>&copy; {{ date('Y') }} HIMS &middot; Hospital Operations Platform</p>
+                    <div class="flex items-center gap-5 font-medium">
+                        <a href="{{ route('privacy.notice') }}" class="transition hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:text-white">Privacy Notice</a>
+                        <a href="{{ route('terms') }}" class="transition hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:text-white">Terms of Use</a>
+                    </div>
                 </footer>
             </div>
         </div>
-
-        @include('layouts.partials.loading-overlay')
     </body>
 </html>
