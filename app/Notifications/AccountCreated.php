@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
@@ -21,7 +22,7 @@ class AccountCreated extends Notification
         $data = [
             'appName' => config('app.name'),
             'name' => $notifiable->name,
-            'activationUrl' => route('activation.start'),
+            'activationUrl' => (new VerifyEmail)->toMail($notifiable)->actionUrl,
         ];
 
         return (new MailMessage)

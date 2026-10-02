@@ -9,6 +9,7 @@ use App\Enums\UserStatus;
 use App\Models\AccountActivationChallenge;
 use App\Models\User;
 use App\Notifications\AccountActivationOtp;
+use App\Notifications\AccountCreated;
 use App\Support\AuthenticationContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -92,6 +93,33 @@ class AccountActivationTest extends TestCase
             'password' => 'Activated2!Secure',
         ])->assertRedirect(route('dashboard', absolute: false));
         $this->assertAuthenticated(AuthenticationContext::WEB_GUARD);
+    }
+
+    public function test_activation_email_link_opens_password_setup_and_redirects_to_the_users_login_panel(): void
+    {
+        $user = User::factory()->unverified()->role(UserRole::Administrator)->create([
+            'status' => UserStatus::PendingActivation,
+            'password' => null,
+        ]);
+        $url = (new AccountCreated)->toMail($user)->viewData['activationUrl'];
+
+        $this->get($url)
+            ->assertRedirect(route('activation.password'))
+            ->assertSessionHas('status', 'Email verified. Create your password to finish activating your HIMS account.');
+
+        $this->assertTrue($user->fresh()->hasVerifiedEmail());
+        $this->assertDatabaseHas('account_activation_challenges', [
+            'user_id' => $user->id,
+            'channel' => 'email',
+        ]);
+
+        $this->post(route('activation.password.store'), [
+            'password' => 'Activated2!Secure',
+            'password_confirmation' => 'Activated2!Secure',
+        ])->assertRedirect(route('admin.login'))
+            ->assertSessionHas('status', 'Account activated. You can now sign in with your new password.');
+
+        $this->assertSame(UserStatus::Active, $user->fresh()->status);
     }
 
     public function test_admin_created_user_completes_sms_otp_activation(): void

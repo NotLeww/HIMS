@@ -158,6 +158,34 @@ class AccountActivationService
                 ->exists();
     }
 
+    public function verifyEmailLink(User $user): ?User
+    {
+        return DB::transaction(function () use ($user): ?User {
+            $lockedUser = User::query()->lockForUpdate()->find($user->getKey());
+
+            if (! $lockedUser?->isPendingActivation() || filled($lockedUser->getAuthPassword())) {
+                return null;
+            }
+
+            AccountActivationChallenge::query()->updateOrCreate(
+                ['user_id' => $lockedUser->getKey()],
+                [
+                    'channel' => 'email',
+                    'otp_hash' => null,
+                    'expires_at' => null,
+                    'resend_available_at' => null,
+                    'failed_attempts' => 0,
+                    'verified_at' => now(),
+                    'consumed_at' => null,
+                ],
+            );
+
+            $lockedUser->forceFill(['email_verified_at' => now()])->saveQuietly();
+
+            return $lockedUser;
+        }, 3);
+    }
+
     public function complete(User $user, #[\SensitiveParameter] string $password): ?User
     {
         return DB::transaction(function () use ($user, $password): ?User {

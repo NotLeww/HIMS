@@ -242,7 +242,7 @@ class UserManagementTest extends TestCase
             $html = view($mail->view['html'], $mail->viewData)->render();
 
             return $mail->view['html'] === 'emails.auth.account-created'
-                && $mail->viewData['activationUrl'] === route('activation.start')
+                && str_contains($mail->viewData['activationUrl'], '/verify-email/'.$created->id.'/')
                 && str_contains($html, 'background:#174c86')
                 && str_contains($html, 'Activate HIMS Account');
         });
