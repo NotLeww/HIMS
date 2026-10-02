@@ -715,6 +715,83 @@ class EnterpriseProcurementTest extends TestCase
         $this->assertSame(RequisitionStatus::Approved, $pr->status);
     }
 
+    public function test_purchase_request_approval_card_displays_requested_items(): void
+    {
+        $this->withoutVite();
+
+        [$costCenter, $budget, $requester] = $this->createCostCenterWithBudget(100000.00);
+        $approver = $this->createManager();
+        $item = $this->createItem('Sterile Examination Gloves', 'GLV-EXAM');
+        $pr = PurchaseRequest::create([
+            'pr_number' => 'PR-2026-ITEMS',
+            'requester_id' => $requester->id,
+            'cost_center_id' => $costCenter->id,
+            'title' => 'Clinical consumables',
+            'status' => RequisitionStatus::PendingApproval,
+            'total_estimated_amount' => 12500.00,
+        ]);
+        PurchaseRequestLine::create([
+            'purchase_request_id' => $pr->id,
+            'item_id' => $item->id,
+            'line_number' => 1,
+            'item_description' => 'Powder-free nitrile gloves',
+            'quantity' => 25,
+            'uom' => 'box',
+            'estimated_unit_price' => 500.00,
+            'estimated_total_price' => 12500.00,
+        ]);
+        app(ApprovalRoutingEngine::class)->routePurchaseRequest($pr);
+
+        $this->actingAs($approver)
+            ->get(route('inventory.purchases', ['tab' => 'doa_approvals']))
+            ->assertOk()
+            ->assertSee('Requested items')
+            ->assertSee('Sterile Examination Gloves')
+            ->assertSee('Powder-free nitrile gloves')
+            ->assertSee('12,500.00');
+    }
+
+    public function test_one_user_cannot_decide_multiple_steps_in_the_same_approval_chain(): void
+    {
+        $this->withoutVite();
+        [$costCenter, $budget, $requester] = $this->createCostCenterWithBudget(100000.00);
+        $superAdmin = $this->createSuperAdmin();
+        $pr = PurchaseRequest::create([
+            'pr_number' => 'PR-2026-INDEPENDENT',
+            'requester_id' => $requester->id,
+            'cost_center_id' => $costCenter->id,
+            'title' => 'Independent multi-step approval',
+            'status' => RequisitionStatus::PendingApproval,
+            'total_estimated_amount' => 62500.00,
+        ]);
+        $routingEngine = app(ApprovalRoutingEngine::class);
+        $chain = $routingEngine->routePurchaseRequest($pr);
+
+        $routingEngine->approveStep($chain, $superAdmin);
+
+        try {
+            $routingEngine->approveStep($chain->fresh(), $superAdmin);
+            $this->fail('The same user approved two steps in one approval chain.');
+        } catch (DomainException $exception) {
+            $this->assertStringContainsString('One user cannot decide multiple steps', $exception->getMessage());
+        }
+
+        try {
+            $routingEngine->rejectStep($chain->fresh(), $superAdmin, 'Attempted second decision.');
+            $this->fail('The same user decided a second step in one approval chain.');
+        } catch (DomainException $exception) {
+            $this->assertStringContainsString('One user cannot decide multiple steps', $exception->getMessage());
+        }
+
+        $this->assertSame(ApprovalStepStatus::Pending, $chain->steps()->where('step_number', 2)->firstOrFail()->status);
+        $this->actingAs($superAdmin)
+            ->get(route('inventory.purchases', ['tab' => 'doa_approvals']))
+            ->assertOk()
+            ->assertSee('Your approval is recorded')
+            ->assertDontSee('Authorize Step')
+            ->assertDontSee('Reject Step');
+    }
+
     // =========================================================================
     // 5. PO Conversion, cXML Generation & PO Revision Amendment Tests
     // =========================================================================

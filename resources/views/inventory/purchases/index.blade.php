@@ -77,6 +77,7 @@
 
     <div
         x-data="procurementWorkspace({{ Js::from($procurementWorkspaceConfig) }})"
+        x-init="$nextTick(() => document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: 'start' }))"
         x-effect="if (activeTab === 'legacy_canvass') $dispatch('hims-load-legacy-procurement')"
         class="space-y-6"
     >
@@ -1108,190 +1109,331 @@
             {{-- ======================================================== TAB 4: Delegation of Authority (DOA) Hub --}}
             @can('approve_purchase_order')
             <div x-show="activeTab === 'doa_approvals'" x-cloak class="space-y-6">
-                <div class="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
-                    <div class="flex items-center justify-between border-b border-neutral-100 pb-4">
-                        <div>
-                            <h3 class="text-lg font-bold text-neutral-900">Delegation of Authority (DOA) Approval Chains</h3>
-                            <p class="text-sm text-neutral-500">Tiered financial governance thresholds with cryptographic audit signing tokens and self-approval restrictions.</p>
+                <section class="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900/90" aria-labelledby="doa-heading">
+                    <header class="flex flex-col gap-4 border-b border-neutral-200 bg-neutral-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 dark:border-neutral-800 dark:bg-neutral-900">
+                        <div class="flex min-w-0 items-start gap-3">
+                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-200 dark:bg-primary-950/60 dark:text-primary-300 dark:ring-primary-800">
+                                <x-ui.icon name="shield-check" class="h-5 w-5" />
+                            </span>
+                            <div class="min-w-0">
+                                <h3 id="doa-heading" class="text-base font-bold text-neutral-950 sm:text-lg dark:text-white">Delegation of Authority Approval Chains</h3>
+                                <p class="mt-0.5 text-xs leading-relaxed text-neutral-600 sm:text-sm dark:text-neutral-400">Review financial thresholds, approval routes, and purchase-order commitments before authorizing.</p>
+                            </div>
                         </div>
-                        <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Segregation of Duties Enforced</span>
-                    </div>
+                        <div class="flex shrink-0 items-center gap-2 text-xs font-semibold text-amber-800 dark:text-amber-300">
+                            <x-ui.icon name="shield-check" class="h-4 w-4" />
+                            <span>Segregation of duties enforced</span>
+                        </div>
+                    </header>
 
-                    <div class="mt-4 space-y-4">
+                    <div class="space-y-3 p-3 sm:p-4">
                         @forelse($approvalChains as $chain)
-                            <div class="rounded-lg border border-neutral-200 p-4 hover:border-primary-200 transition">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <span class="text-xs font-bold uppercase tracking-wider text-primary-700">{{ $chain->chain_type->label() }}</span>
-                                        <h4 class="text-base font-bold text-neutral-900">Chain #{{ $chain->id }} — Commitment: ₱{{ number_format($chain->total_commitment_amount, 2) }}</h4>
-                                    </div>
-                                    <span class="rounded-full px-2.5 py-1 text-xs font-semibold uppercase tracking-wider {{ $chain->status === 'approved' ? 'bg-emerald-50 text-emerald-700' : ($chain->status === 'rejected' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700') }}">
-                                        {{ $chain->status }}
-                                    </span>
-                                </div>
-
-                                {{-- Steps Graph --}}
-                                <div class="mt-3 grid gap-3 sm:grid-cols-2 md:grid-cols-4">
-                                    @foreach($chain->steps as $step)
-                                        <div class="rounded-md border {{ $step->status->value === 'approved' ? 'border-emerald-200 bg-emerald-50/40' : ($step->status->value === 'rejected' ? 'border-rose-200 bg-rose-50/40' : 'border-neutral-200 bg-neutral-50') }} p-3">
-                                            <div class="flex items-center justify-between text-xs">
-                                                <span class="font-semibold text-neutral-500">Step {{ $step->step_number }}</span>
-                                                <span class="font-bold {{ $step->status->value === 'approved' ? 'text-emerald-700' : ($step->status->value === 'rejected' ? 'text-rose-700' : 'text-amber-600') }}">
-                                                    {{ $step->status->label() }}
-                                                </span>
+                            @php
+                                $targetPo = $chain->chain_type === \App\Enums\ApprovalChainType::PurchaseOrder ? $chain->purchaseOrder : null;
+                                $targetPr = $chain->chain_type === \App\Enums\ApprovalChainType::PurchaseRequest ? $chain->purchaseRequest : null;
+                                $currentUserHasApprovedStep = $chain->steps->contains(
+                                    fn ($step): bool => $step->status === \App\Enums\ApprovalStepStatus::Approved
+                                        && $step->approver_user_id === auth()->id()
+                                );
+                                $chainTone = match ($chain->status) {
+                                    'approved' => [
+                                        'shell' => 'border-emerald-200 dark:border-emerald-900/70',
+                                        'header' => 'bg-gradient-to-r from-emerald-50 via-white to-white dark:from-emerald-950/55 dark:via-neutral-950 dark:to-neutral-950',
+                                        'iconClass' => 'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:ring-emerald-800',
+                                    ],
+                                    'rejected', 'cancelled' => [
+                                        'shell' => 'border-rose-200 dark:border-rose-900/70',
+                                        'header' => 'bg-gradient-to-r from-rose-50 via-white to-white dark:from-rose-950/55 dark:via-neutral-950 dark:to-neutral-950',
+                                        'iconClass' => 'bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-950/80 dark:text-rose-300 dark:ring-rose-800',
+                                    ],
+                                    default => [
+                                        'shell' => 'border-amber-200 dark:border-amber-900/70',
+                                        'header' => 'bg-gradient-to-r from-amber-50 via-white to-white dark:from-amber-950/55 dark:via-neutral-950 dark:to-neutral-950',
+                                        'iconClass' => 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-950/80 dark:text-amber-300 dark:ring-amber-800',
+                                    ],
+                                };
+                            @endphp
+                            <article id="approval-chain-{{ $chain->id }}" class="scroll-mt-24 overflow-hidden rounded-xl border {{ $chainTone['shell'] }} bg-neutral-50/70 shadow-xs dark:bg-neutral-950" aria-labelledby="approval-chain-title-{{ $chain->id }}">
+                                <div class="flex flex-col gap-3 border-b border-inherit px-4 py-3 sm:flex-row sm:items-center sm:justify-between {{ $chainTone['header'] }}">
+                                    <div class="flex min-w-0 items-center gap-3">
+                                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset {{ $chainTone['iconClass'] }}">
+                                            <x-ui.icon name="clipboard-document-list" class="h-5 w-5" />
+                                        </span>
+                                        <div class="min-w-0">
+                                            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                                <h4 id="approval-chain-title-{{ $chain->id }}" class="text-sm font-bold text-neutral-950 sm:text-base dark:text-white">Chain #{{ $chain->id }}</h4>
+                                                <span class="rounded-md bg-primary-50 px-2 py-1 text-[10px] font-semibold text-primary-700 ring-1 ring-inset ring-primary-200 dark:bg-primary-950/70 dark:text-primary-300 dark:ring-primary-800/80">{{ $chain->chain_type->label() }}</span>
                                             </div>
-                                            <p class="mt-1 text-xs font-medium text-neutral-900">Role: {{ $step->required_role === 'inventory_manager' ? 'Inventory Manager (or Super Administrator)' : ucwords(str_replace('_', ' ', $step->required_role)) }}</p>
-                                            <p class="text-[11px] text-neutral-500">Threshold: ₱{{ number_format($step->threshold_min, 0) }} @if($step->threshold_max) - ₱{{ number_format($step->threshold_max, 0) }} @else + @endif</p>
-                                            @if($step->digital_signature_token)
-                                                <p class="mt-1 text-[10px] font-mono text-neutral-400 truncate" title="{{ $step->digital_signature_token }}">Sig: {{ substr($step->digital_signature_token, 0, 16) }}...</p>
+                                            @if($targetPo)
+                                                <p class="mt-0.5 truncate text-xs text-neutral-600 dark:text-neutral-400" title="PO #{{ $targetPo->po_number }} · {{ $targetPo->supplier?->name ?? 'Supplier' }}">PO #{{ $targetPo->po_number }} · {{ $targetPo->supplier?->name ?? 'Supplier' }}</p>
                                             @endif
                                         </div>
-                                    @endforeach
+                                    </div>
+                                    <div class="flex items-center justify-between gap-4 sm:justify-end sm:border-l sm:border-neutral-300/70 sm:pl-4 dark:sm:border-neutral-700">
+                                        <div class="text-left sm:text-right">
+                                            <p class="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Commitment</p>
+                                            <p class="text-base font-black tabular-nums text-neutral-950 sm:text-lg dark:text-white">₱{{ number_format($chain->total_commitment_amount, 2) }}</p>
+                                        </div>
+                                        <x-ui.badge :status="$chain->status" dot class="px-3 py-1.5 font-bold uppercase tracking-wide">{{ $chain->status }}</x-ui.badge>
+                                    </div>
                                 </div>
 
-                                {{-- Target Purchase Order Line Items Cost Breakdown --}}
-                                @if($chain->chain_type === \App\Enums\ApprovalChainType::PurchaseOrder && $chain->purchaseOrder)
-                                    @php
-                                        $targetPo = $chain->purchaseOrder;
-                                    @endphp
-                                    <div class="mt-4 rounded-lg border border-neutral-200/80 bg-neutral-50/50 dark:border-neutral-800 dark:bg-neutral-900/50 p-3">
-                                        <div class="flex items-center justify-between pb-2 border-b border-neutral-200/60 dark:border-neutral-800 text-xs">
-                                            <span class="font-semibold text-neutral-800 dark:text-neutral-200">Target Order: PO #{{ $targetPo->po_number }} · {{ $targetPo->supplier?->name ?? 'Supplier' }}</span>
-                                            <span class="text-neutral-500 dark:text-neutral-400 font-medium">Item Pricing &amp; Commitment Breakdown</span>
+                                <div class="grid min-w-0 gap-2.5 p-2.5 {{ $targetPo || $targetPr ? 'lg:grid-cols-[minmax(20rem,0.47fr)_minmax(0,1fr)]' : '' }}">
+                                    <section class="min-w-0 rounded-lg border border-neutral-200 bg-white p-2.5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-neutral-900 dark:to-neutral-950" aria-label="Approval route">
+                                        <div class="mb-2 flex items-center justify-between gap-3">
+                                            <div class="flex items-center gap-2">
+                                                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md ring-1 ring-inset {{ $chainTone['iconClass'] }}">
+                                                    <x-ui.icon name="users" class="h-3.5 w-3.5" />
+                                                </span>
+                                                <h5 class="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Approval route</h5>
+                                            </div>
+                                            <span class="text-xs tabular-nums text-neutral-500 dark:text-neutral-400">{{ $chain->steps->count() }} {{ \Illuminate\Support\Str::plural('step', $chain->steps->count()) }}</span>
                                         </div>
-                                        <div class="mt-2 overflow-x-auto">
+                                        <div class="space-y-2">
+                                            @foreach($chain->steps as $step)
+                                                @php
+                                                    $stepTone = match ($step->status->value) {
+                                                        'approved' => [
+                                                            'box' => 'border-emerald-200 bg-neutral-50 dark:border-emerald-900/80 dark:bg-neutral-950/45',
+                                                            'marker' => 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+                                                            'status' => 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+                                                        ],
+                                                        'rejected' => [
+                                                            'box' => 'border-rose-200 bg-neutral-50 dark:border-rose-900/80 dark:bg-neutral-950/45',
+                                                            'marker' => 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+                                                            'status' => 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+                                                        ],
+                                                        'skipped' => [
+                                                            'box' => 'border-neutral-200 bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-950/45',
+                                                            'marker' => 'bg-neutral-200 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300',
+                                                            'status' => 'bg-neutral-200 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200',
+                                                        ],
+                                                        default => [
+                                                            'box' => 'border-amber-200 bg-neutral-50 dark:border-amber-900/80 dark:bg-neutral-950/45',
+                                                            'marker' => 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+                                                            'status' => 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+                                                        ],
+                                                    };
+                                                @endphp
+                                                <div class="rounded-lg border px-3 py-2.5 {{ $stepTone['box'] }}">
+                                                    <div class="relative flex items-start gap-2.5">
+                                                        <span class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold {{ $stepTone['marker'] }}">
+                                                            {{ $step->step_number }}
+                                                        </span>
+                                                        <span class="absolute left-3.5 top-8 h-4 border-l border-dashed border-neutral-300 dark:border-neutral-600" aria-hidden="true"></span>
+                                                        <div class="min-w-0 flex-1">
+                                                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                                                <span class="text-xs font-bold text-neutral-900 dark:text-neutral-100">Step {{ $step->step_number }}</span>
+                                                                <span class="rounded-md px-2 py-1 text-[10px] font-bold {{ $stepTone['status'] }}">{{ $step->status->label() }}</span>
+                                                            </div>
+                                                            <p class="mt-1 text-xs font-semibold leading-snug text-neutral-800 dark:text-neutral-200">{{ $step->required_role === 'inventory_manager' ? 'Inventory Manager (or Super Administrator)' : ucwords(str_replace('_', ' ', $step->required_role)) }}</p>
+                                                            <p class="mt-0.5 text-[11px] tabular-nums text-neutral-600 dark:text-neutral-400">₱{{ number_format($step->threshold_min, 0) }} @if($step->threshold_max) – ₱{{ number_format($step->threshold_max, 0) }} @else and above @endif</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </section>
+
+                                    {{-- Target Purchase Order Line Items Cost Breakdown --}}
+                                    @if($targetPo)
+                                    <section class="min-w-0 rounded-lg border border-neutral-200 bg-white p-2.5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-neutral-900 dark:to-neutral-950" aria-label="Purchase order commitment breakdown">
+                                        <div class="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                            <div class="flex min-w-0 items-start gap-2">
+                                                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md ring-1 ring-inset {{ $chainTone['iconClass'] }}">
+                                                    <x-ui.icon name="cube" class="h-3.5 w-3.5" />
+                                                </span>
+                                                <div class="min-w-0">
+                                                <h5 class="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Order commitment</h5>
+                                                <p class="mt-0.5 truncate text-xs text-neutral-500 dark:text-neutral-400" title="PO #{{ $targetPo->po_number }} · {{ $targetPo->supplier?->name ?? 'Supplier' }}">PO #{{ $targetPo->po_number }} · {{ $targetPo->supplier?->name ?? 'Supplier' }}</p>
+                                                </div>
+                                            </div>
+                                            <span class="shrink-0 text-xs font-medium text-neutral-500 dark:text-neutral-400">Item pricing breakdown</span>
+                                        </div>
+                                        <div class="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-700/80">
                                             <table class="min-w-full text-left text-xs">
-                                                <thead class="bg-neutral-100/80 dark:bg-neutral-800/80 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">
+                                                <thead class="bg-neutral-100/90 text-[11px] font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
                                                     <tr>
-                                                        <th scope="col" class="px-2.5 py-1.5">Item Name</th>
-                                                        <th scope="col" class="px-2.5 py-1.5 text-right">Quantity</th>
-                                                        <th scope="col" class="px-2.5 py-1.5 text-center">Unit</th>
-                                                        <th scope="col" class="px-2.5 py-1.5 text-right">Price per Unit</th>
-                                                        <th scope="col" class="px-2.5 py-1.5 text-right">Total Price</th>
+                                                        <th scope="col" class="px-3 py-2">Item</th>
+                                                        <th scope="col" class="px-3 py-2 text-right">Quantity</th>
+                                                        <th scope="col" class="px-3 py-2 text-center">Unit</th>
+                                                        <th scope="col" class="px-3 py-2 text-right">Unit price</th>
+                                                        <th scope="col" class="px-3 py-2 text-right">Line total</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody class="divide-y divide-neutral-200/50 bg-white dark:divide-neutral-800 dark:bg-neutral-900/40">
+                                                <tbody class="divide-y divide-neutral-200 bg-white dark:divide-neutral-800 dark:bg-neutral-950/60">
                                                     @forelse($targetPo->lines as $line)
                                                         @php
                                                             $lineUnit = $line->purchase_unit ?: ($line->item?->unit ?: 'unit');
                                                         @endphp
-                                                        <tr>
-                                                            <td class="px-2.5 py-2">
-                                                                <span class="font-medium text-neutral-900 dark:text-neutral-100">{{ $line->item?->name ?? 'Item' }}</span>
+                                                        <tr class="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/60">
+                                                            <td class="px-3 py-2.5">
+                                                                <span class="font-semibold text-neutral-900 dark:text-neutral-100">{{ $line->item?->name ?? 'Item' }}</span>
                                                                 @if($line->conversionFactor() > 1)
-                                                                    <span class="ml-1 text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">({{ $line->conversionDisplay() }})</span>
+                                                                    <span class="mt-0.5 block text-[10px] text-neutral-500 dark:text-neutral-400">{{ $line->conversionDisplay() }}</span>
                                                                 @endif
                                                             </td>
-                                                            <td class="px-2.5 py-2 text-right tabular-nums font-semibold text-neutral-900 dark:text-neutral-100">
+                                                            <td class="px-3 py-2.5 text-right font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">
                                                                 {{ number_format($line->ordered_quantity) }}
                                                                 @if($line->conversionFactor() > 1)
-                                                                    <span class="text-[10px] text-neutral-400 dark:text-neutral-500 font-normal">({{ number_format($line->orderedBaseQuantity()) }} base)</span>
+                                                                    <span class="block text-[10px] font-normal text-neutral-500 dark:text-neutral-400">{{ number_format($line->orderedBaseQuantity()) }} base</span>
                                                                 @endif
                                                             </td>
-                                                            <td class="px-2.5 py-2 text-center capitalize text-neutral-700 dark:text-neutral-300">
-                                                                {{ $lineUnit }}
-                                                            </td>
-                                                            <td class="px-2.5 py-2 text-right font-mono tabular-nums text-neutral-700 dark:text-neutral-300">
-                                                                ₱{{ number_format((float) $line->unit_price, 2) }}/{{ $lineUnit }}
-                                                            </td>
-                                                            <td class="px-2.5 py-2 text-right font-mono font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">
-                                                                ₱{{ number_format($line->lineTotal(), 2) }}
-                                                            </td>
+                                                            <td class="px-3 py-2.5 text-center capitalize text-neutral-700 dark:text-neutral-300">{{ $lineUnit }}</td>
+                                                            <td class="px-3 py-2.5 text-right tabular-nums text-neutral-700 dark:text-neutral-300">₱{{ number_format((float) $line->unit_price, 2) }}/{{ $lineUnit }}</td>
+                                                            <td class="px-3 py-2.5 text-right font-bold tabular-nums text-neutral-900 dark:text-neutral-100">₱{{ number_format($line->lineTotal(), 2) }}</td>
                                                         </tr>
                                                     @empty
                                                         @php
                                                             $singleUnit = $targetPo->purchase_unit ?: ($targetPo->item?->unit ?: 'unit');
                                                             $singleUnitPrice = $targetPo->quantity > 0 ? ($targetPo->unit_cost ?: round($targetPo->total_amount / $targetPo->quantity, 2)) : 0;
                                                         @endphp
-                                                        <tr>
-                                                            <td class="px-2.5 py-2">
-                                                                <span class="font-medium text-neutral-900 dark:text-neutral-100">{{ $targetPo->item?->name ?? 'Direct Item' }}</span>
+                                                        <tr class="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/60">
+                                                            <td class="px-3 py-2.5">
+                                                                <span class="font-semibold text-neutral-900 dark:text-neutral-100">{{ $targetPo->item?->name ?? 'Direct Item' }}</span>
                                                                 @if($targetPo->conversion_factor > 1)
-                                                                    <span class="ml-1 text-[10px] text-neutral-500 dark:text-neutral-400 font-mono">(1 {{ $singleUnit }} = {{ (int) $targetPo->conversion_factor }} {{ $targetPo->item?->unit }})</span>
+                                                                    <span class="mt-0.5 block text-[10px] text-neutral-500 dark:text-neutral-400">1 {{ $singleUnit }} = {{ (int) $targetPo->conversion_factor }} {{ $targetPo->item?->unit }}</span>
                                                                 @endif
                                                             </td>
-                                                            <td class="px-2.5 py-2 text-right tabular-nums font-semibold text-neutral-900 dark:text-neutral-100">
+                                                            <td class="px-3 py-2.5 text-right font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">
                                                                 {{ number_format($targetPo->quantity) }}
                                                                 @if($targetPo->conversion_factor > 1)
-                                                                    <span class="text-[10px] text-neutral-400 dark:text-neutral-500 font-normal">({{ number_format($targetPo->orderedBaseQuantity()) }} base)</span>
+                                                                    <span class="block text-[10px] font-normal text-neutral-500 dark:text-neutral-400">{{ number_format($targetPo->orderedBaseQuantity()) }} base</span>
                                                                 @endif
                                                             </td>
-                                                            <td class="px-2.5 py-2 text-center capitalize text-neutral-700 dark:text-neutral-300">
-                                                                {{ $singleUnit }}
-                                                            </td>
-                                                            <td class="px-2.5 py-2 text-right font-mono tabular-nums text-neutral-700 dark:text-neutral-300">
-                                                                ₱{{ number_format($singleUnitPrice, 2) }}/{{ $singleUnit }}
-                                                            </td>
-                                                            <td class="px-2.5 py-2 text-right font-mono font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">
-                                                                ₱{{ number_format((float) $targetPo->total_amount, 2) }}
-                                                            </td>
+                                                            <td class="px-3 py-2.5 text-center capitalize text-neutral-700 dark:text-neutral-300">{{ $singleUnit }}</td>
+                                                            <td class="px-3 py-2.5 text-right tabular-nums text-neutral-700 dark:text-neutral-300">₱{{ number_format($singleUnitPrice, 2) }}/{{ $singleUnit }}</td>
+                                                            <td class="px-3 py-2.5 text-right font-bold tabular-nums text-neutral-900 dark:text-neutral-100">₱{{ number_format((float) $targetPo->total_amount, 2) }}</td>
                                                         </tr>
                                                     @endforelse
                                                 </tbody>
-                                                <tfoot class="border-t border-neutral-200 bg-neutral-50 font-semibold text-neutral-900 dark:border-neutral-800 dark:bg-neutral-800/80 dark:text-neutral-100">
+                                                <tfoot class="border-t border-primary-100 bg-primary-50/70 dark:border-primary-900/50 dark:bg-primary-950/25">
                                                     <tr>
-                                                        <td colspan="4" class="px-2.5 py-1.5 text-right text-xs text-neutral-700 dark:text-neutral-300">Purchase Order Commitment Total:</td>
-                                                        <td class="px-2.5 py-1.5 text-right font-mono tabular-nums text-xs font-bold text-primary-700 dark:text-primary-400">
-                                                            ₱{{ number_format($targetPo->grandTotal(), 2) }}
-                                                        </td>
+                                                        <td colspan="4" class="px-3 py-2 text-right text-xs font-semibold text-neutral-700 dark:text-neutral-300">Purchase order total</td>
+                                                        <td class="px-3 py-2 text-right text-sm font-black tabular-nums text-primary-700 dark:text-primary-300">₱{{ number_format($targetPo->grandTotal(), 2) }}</td>
                                                     </tr>
                                                 </tfoot>
                                             </table>
                                         </div>
-                                    </div>
-                                @endif
+                                    </section>
+                                    @elseif($targetPr)
+                                    <section class="min-w-0 rounded-lg border border-neutral-200 bg-white p-2.5 dark:border-neutral-800 dark:bg-gradient-to-br dark:from-neutral-900 dark:to-neutral-950" aria-label="Purchase request item breakdown">
+                                        <div class="mb-2 flex items-center justify-between gap-3">
+                                            <div class="flex items-center gap-2">
+                                                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md ring-1 ring-inset {{ $chainTone['iconClass'] }}">
+                                                    <x-ui.icon name="cube" class="h-3.5 w-3.5" />
+                                                </span>
+                                                <h5 class="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Requested items</h5>
+                                            </div>
+                                            <span class="text-xs tabular-nums text-neutral-500 dark:text-neutral-400">{{ $targetPr->lines->count() }} {{ \Illuminate\Support\Str::plural('item', $targetPr->lines->count()) }}</span>
+                                        </div>
+                                        <div class="overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-700/80">
+                                            <table class="min-w-full text-left text-xs">
+                                                <thead class="bg-neutral-100/90 text-[11px] font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                                                    <tr>
+                                                        <th scope="col" class="px-3 py-2">#</th>
+                                                        <th scope="col" class="px-3 py-2">Item description</th>
+                                                        <th scope="col" class="px-3 py-2 text-right">Qty</th>
+                                                        <th scope="col" class="px-3 py-2 text-center">Unit</th>
+                                                        <th scope="col" class="px-3 py-2 text-right">Est. unit cost</th>
+                                                        <th scope="col" class="px-3 py-2 text-right">Subtotal</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-neutral-200 bg-white dark:divide-neutral-800 dark:bg-neutral-950/60">
+                                                    @forelse($targetPr->lines as $line)
+                                                        <tr class="transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/60">
+                                                            <td class="px-3 py-2.5 tabular-nums text-neutral-500 dark:text-neutral-400">{{ $line->line_number }}</td>
+                                                            <td class="px-3 py-2.5">
+                                                                <span class="font-semibold text-neutral-900 dark:text-neutral-100">{{ $line->item?->name ?? $line->item_description }}</span>
+                                                                @if($line->item_description && $line->item_description !== $line->item?->name)
+                                                                    <span class="mt-0.5 block text-[10px] text-neutral-500 dark:text-neutral-400">{{ $line->item_description }}</span>
+                                                                @endif
+                                                            </td>
+                                                            <td class="px-3 py-2.5 text-right font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">{{ number_format($line->quantity) }}</td>
+                                                            <td class="px-3 py-2.5 text-center text-neutral-700 dark:text-neutral-300">{{ $line->uom ?: 'unit' }}</td>
+                                                            <td class="px-3 py-2.5 text-right tabular-nums text-neutral-700 dark:text-neutral-300">₱{{ number_format((float) $line->estimated_unit_price, 2) }}</td>
+                                                            <td class="px-3 py-2.5 text-right font-bold tabular-nums text-neutral-900 dark:text-neutral-100">₱{{ number_format((float) $line->estimated_total_price, 2) }}</td>
+                                                        </tr>
+                                                    @empty
+                                                        <tr>
+                                                            <td colspan="6" class="px-3 py-6 text-center text-sm text-neutral-500 dark:text-neutral-400">No requested items recorded.</td>
+                                                        </tr>
+                                                    @endforelse
+                                                </tbody>
+                                                <tfoot class="border-t border-primary-100 bg-primary-50/70 dark:border-primary-900/50 dark:bg-primary-950/25">
+                                                    <tr>
+                                                        <td colspan="5" class="px-3 py-2 text-right text-xs font-semibold text-neutral-700 dark:text-neutral-300">Total requested amount</td>
+                                                        <td class="px-3 py-2 text-right text-sm font-black tabular-nums text-primary-700 dark:text-primary-300">₱{{ number_format((float) $targetPr->total_estimated_amount, 2) }}</td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+                                    </section>
+                                    @endif
+                                </div>
 
                                 @if($chain->status === 'pending')
                                     @can('approve_purchase_order')
-                                    <div class="mt-4 flex items-center justify-end gap-2 border-t border-neutral-100 pt-3">
-                                        @if($targetPo?->delivery_date?->lt(today()))
-                                            <x-ui.button
-                                                type="button"
-                                                size="sm"
-                                                icon="calendar"
-                                                x-on:click="openDeliveryApproval({{ Js::from([
-                                                    'id' => $targetPo->id,
-                                                    'number' => $targetPo->po_number,
-                                                    'approve_url' => route('inventory.purchases.orders.approve', $targetPo),
-                                                    'current_delivery_date' => $targetPo->delivery_date->format('M j, Y'),
-                                                ]) }})"
-                                            >Update Delivery Date &amp; Approve</x-ui.button>
-                                        @else
-                                        <form method="POST" action="{{ route('inventory.purchases.approval-chains.approve', $chain) }}"
-                                              data-confirm-title="Authorize procurement approval step"
-                                              data-confirm-message="Are you sure you want to authorize this approval step for Chain #{{ $chain->id }} (₱{{ number_format($chain->total_commitment_amount, 2) }})?"
-                                              data-confirm-label="Authorize Step">
-                                            @csrf
-                                            <button type="submit" class="rounded bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">
-                                                Authorize Step
-                                            </button>
-                                        </form>
-                                        @endif
-                                        <form method="POST" action="{{ route('inventory.purchases.approval-chains.reject', $chain) }}"
-                                              data-confirm-title="Reject procurement approval step"
-                                              data-confirm-message="Are you sure you want to reject this approval chain? The procurement commitment will be halted."
-                                              data-confirm-label="Reject Step"
-                                              data-confirm-variant="danger">
-                                            @csrf
-                                            <input type="hidden" name="rejection_reason" value="Executive budget re-allocation">
-                                            <button type="submit" class="rounded border border-neutral-300 px-3.5 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-100">
-                                                Reject Step
-                                            </button>
-                                        </form>
-                                    </div>
+                                    @if($currentUserHasApprovedStep)
+                                    <footer class="border-t border-amber-200 bg-amber-50/50 px-4 py-3 dark:border-amber-900/70 dark:bg-amber-950/20">
+                                        <p class="text-xs font-medium text-amber-900 dark:text-amber-200">Your approval is recorded. Another authorized approver must complete the remaining step.</p>
+                                    </footer>
+                                    @else
+                                    <footer class="flex flex-col gap-3 border-t border-amber-200 bg-amber-50/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-amber-900/70 dark:bg-amber-950/20">
+                                        <p class="text-xs font-medium text-amber-900 dark:text-amber-200">This chain is awaiting an authorized decision.</p>
+                                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                            @if($targetPo?->delivery_date?->lt(today()))
+                                                <x-ui.button
+                                                    type="button"
+                                                    size="sm"
+                                                    icon="calendar"
+                                                    x-on:click="openDeliveryApproval({{ Js::from([
+                                                        'id' => $targetPo->id,
+                                                        'number' => $targetPo->po_number,
+                                                        'approve_url' => route('inventory.purchases.orders.approve', $targetPo),
+                                                        'current_delivery_date' => $targetPo->delivery_date->format('M j, Y'),
+                                                    ]) }})"
+                                                >Update Delivery Date &amp; Approve</x-ui.button>
+                                            @else
+                                                <form method="POST" action="{{ route('inventory.purchases.approval-chains.approve', ['chain' => $chain, 'approval_page' => $approvalChains->currentPage()]) }}"
+                                                      data-confirm-title="Authorize procurement approval step"
+                                                      data-confirm-message="Are you sure you want to authorize this approval step for Chain #{{ $chain->id }} (₱{{ number_format($chain->total_commitment_amount, 2) }})?"
+                                                      data-confirm-label="Authorize Step">
+                                                    @csrf
+                                                    <x-ui.button type="submit" size="sm" icon="check-circle" data-loading-text="Authorizing...">Authorize Step</x-ui.button>
+                                                </form>
+                                            @endif
+                                            <form method="POST" action="{{ route('inventory.purchases.approval-chains.reject', ['chain' => $chain, 'approval_page' => $approvalChains->currentPage()]) }}"
+                                                  data-confirm-title="Reject procurement approval step"
+                                                  data-confirm-message="Are you sure you want to reject this approval chain? The procurement commitment will be halted."
+                                                  data-confirm-label="Reject Step"
+                                                  data-confirm-variant="danger">
+                                                @csrf
+                                                <input type="hidden" name="rejection_reason" value="Executive budget re-allocation">
+                                                <x-ui.button type="submit" variant="danger" size="sm" icon="x-mark" data-loading-text="Rejecting...">Reject Step</x-ui.button>
+                                            </form>
+                                        </div>
+                                    </footer>
+                                    @endif
                                     @endcan
                                 @endif
-                            </div>
+                            </article>
                         @empty
-                            <p class="text-sm text-neutral-500 text-center py-6">No approval chains active.</p>
+                            <div class="rounded-xl border border-dashed border-neutral-300 px-4 py-10 text-center dark:border-neutral-700">
+                                <span class="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                                    <x-ui.icon name="shield-check" class="h-5 w-5" />
+                                </span>
+                                <p class="mt-3 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No approval chains require review</p>
+                                <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">New purchase-order approvals will appear here.</p>
+                            </div>
                         @endforelse
                     </div>
                     @if ($approvalChains->hasPages())
-                        <div class="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+                        <div class="border-t border-neutral-200 px-4 py-4 dark:border-neutral-800">
                             {{ $approvalChains->appends(['tab' => 'doa_approvals'])->onEachSide(1)->links() }}
                         </div>
                     @endif
-                </div>
+                </section>
             </div>
             @endcan
 

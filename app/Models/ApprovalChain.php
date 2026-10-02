@@ -43,4 +43,9 @@ class ApprovalChain extends Model
     {
         return $this->belongsTo(PurchaseOrder::class, 'target_id');
     }
+
+    public function purchaseRequest(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseRequest::class, 'target_id');
+    }
 }

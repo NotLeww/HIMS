@@ -485,9 +485,21 @@ class PurchaseOrderWorkspaceTest extends TestCase
         $this->assertSame('pending_approval', $po->fresh()->status);
 
         $this->actingAs($approver)
-            ->post(route('inventory.purchases.approval-chains.approve', $chain), ['decision_notes' => 'Budget and need verified.'])
+            ->post(route('inventory.purchases.approval-chains.approve', ['chain' => $chain, 'approval_page' => 1]), ['decision_notes' => 'Budget and need verified.'])
+            ->assertRedirect(route('inventory.purchases', ['tab' => 'doa_approvals', 'approval_page' => 1]).'#approval-chain-'.$chain->id)
             ->assertSessionHas('success');
         $this->assertSame('approved', $po->fresh()->status);
+        $approvalReference = $chain->steps()->firstOrFail()->digital_signature_token;
+        $this->assertSame($approvalReference, ProcurementAuditLog::query()
+            ->where('entity_name', 'ApprovalChain')
+            ->where('entity_id', $chain->id)
+            ->where('action_type', 'approved_procurement_step')
+            ->firstOrFail()
+            ->new_values['approval_reference']);
+        $this->actingAs($approver)->get(route('inventory.purchases'))->assertDontSee($approvalReference);
+        $this->actingAs(User::factory()->auditor()->create())
+            ->get(route('inventory.purchases', ['tab' => 'audit_trail']))
+            ->assertSee($approvalReference);
         $this->assertDatabaseHas('procurement_audit_logs', [
             'entity_name' => 'PurchaseOrder',
             'entity_id' => $po->id,
@@ -499,9 +511,11 @@ class PurchaseOrderWorkspaceTest extends TestCase
         $this->actingAs($issuer)->post('/inventory/purchases/orders', $payload)->assertSessionHas('success');
         $rejectedPo = PurchaseOrder::latest('id')->firstOrFail();
         $this->actingAs($approver)
-            ->post(route('inventory.purchases.approval-chains.reject', $rejectedPo->approvalChain), [
+            ->post(route('inventory.purchases.approval-chains.reject', ['chain' => $rejectedPo->approvalChain, 'approval_page' => 1]), [
                 'rejection_reason' => 'Replenishment is no longer required.',
-            ])->assertSessionHas('info');
+            ])
+            ->assertRedirect(route('inventory.purchases', ['tab' => 'doa_approvals', 'approval_page' => 1]).'#approval-chain-'.$rejectedPo->approvalChain->id)
+            ->assertSessionHas('info');
 
         $this->assertSame('cancelled', $rejectedPo->fresh()->status);
         $this->assertSame(0.0, (float) $rejectedPo->fresh()->total_encumbered_amount);

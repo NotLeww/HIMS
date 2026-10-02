@@ -142,7 +142,7 @@ class ProcurementController extends Controller implements HasMiddleware
         $categories = ProcurementCategory::where('is_active', true)->orderBy('name')->get();
 
         // Pending & Active Approval Chains
-        $approvalChains = ApprovalChain::with(['steps.approver', 'purchaseOrder.lines.item', 'purchaseOrder.supplier'])
+        $approvalChains = ApprovalChain::with(['steps.approver', 'purchaseOrder.lines.item', 'purchaseOrder.supplier', 'purchaseRequest.lines.item'])
             ->latest('id')
             ->paginate(10, ['*'], 'approval_page')
             ->withQueryString();
@@ -589,6 +589,10 @@ class ProcurementController extends Controller implements HasMiddleware
      */
     public function approveStepWeb(Request $request, ApprovalChain $chain): RedirectResponse
     {
+        $returnUrl = route('inventory.purchases', [
+            'tab' => 'doa_approvals',
+            'approval_page' => max(1, $request->integer('approval_page', 1)),
+        ]).'#approval-chain-'.$chain->id;
         $validated = $request->validate([
             'decision_notes' => ['nullable', 'string', 'max:255'],
         ]);
@@ -596,9 +600,9 @@ class ProcurementController extends Controller implements HasMiddleware
         try {
             $this->approvalEngine->approveStep($chain, auth()->user(), $validated['decision_notes'] ?? null);
 
-            return redirect()->route('inventory.purchases')->with('success', 'Approval step authorized successfully.');
+            return redirect($returnUrl)->with('success', 'Approval step authorized successfully.');
         } catch (DomainException $e) {
-            return redirect()->route('inventory.purchases')->withErrors(['approval' => $e->getMessage()]);
+            return redirect($returnUrl)->withErrors(['approval' => $e->getMessage()]);
         }
     }
 
@@ -607,6 +611,10 @@ class ProcurementController extends Controller implements HasMiddleware
      */
     public function rejectStepWeb(Request $request, ApprovalChain $chain): RedirectResponse
     {
+        $returnUrl = route('inventory.purchases', [
+            'tab' => 'doa_approvals',
+            'approval_page' => max(1, $request->integer('approval_page', 1)),
+        ]).'#approval-chain-'.$chain->id;
         $validated = $request->validate([
             'rejection_reason' => ['required', 'string', 'max:255'],
         ]);
@@ -614,9 +622,9 @@ class ProcurementController extends Controller implements HasMiddleware
         try {
             $this->approvalEngine->rejectStep($chain, auth()->user(), $validated['rejection_reason']);
 
-            return redirect()->route('inventory.purchases')->with('info', 'Request has been rejected and funds released.');
+            return redirect($returnUrl)->with('info', 'Request has been rejected and funds released.');
         } catch (DomainException $e) {
-            return redirect()->route('inventory.purchases')->withErrors(['approval' => $e->getMessage()]);
+            return redirect($returnUrl)->withErrors(['approval' => $e->getMessage()]);
         }
     }
 

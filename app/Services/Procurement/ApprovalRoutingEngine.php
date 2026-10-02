@@ -159,7 +159,7 @@ class ApprovalRoutingEngine
                 );
             }
 
-            // Generate immutable digital signing token
+            // Generate the immutable approval audit reference.
             $signingToken = hash('sha256', "CHAIN:{$chain->id}:STEP:{$step->step_number}:APPROVER:{$approver->id}:AMOUNT:{$chain->total_commitment_amount}:TIME:".now()->timestamp);
 
             $step->status = ApprovalStepStatus::Approved;
@@ -183,7 +183,7 @@ class ApprovalRoutingEngine
                 $chain->id,
                 'approved_procurement_step',
                 ['step' => $step->step_number, 'status' => 'pending'],
-                ['step' => $step->step_number, 'status' => 'approved', 'target_type' => $chain->chain_type->value, 'target_id' => $chain->target_id],
+                ['step' => $step->step_number, 'status' => 'approved', 'target_type' => $chain->chain_type->value, 'target_id' => $chain->target_id, 'approval_reference' => $signingToken],
             );
 
             if ($chain->status === 'approved' && $chain->chain_type === ApprovalChainType::PurchaseOrder) {
@@ -232,6 +232,14 @@ class ApprovalRoutingEngine
                 throw new DomainException("Approval Chain #{$chain->id} has no pending steps.");
             }
 
+            $this->enforceSegregationOfDuties($chain, $approver);
+
+            if (! $this->userSatisfiesRoleRequirement($approver, $step->required_role)) {
+                throw new DomainException(
+                    "Unauthorized: User '{$approver->name}' holds role '{$approver->role->value}', but step #{$step->step_number} requires '{$step->required_role}'."
+                );
+            }
+
             $step->status = ApprovalStepStatus::Rejected;
             $step->approver_user_id = $approver->id;
             $step->decision_notes = $rejectionReason;
@@ -272,6 +280,13 @@ class ApprovalRoutingEngine
      */
     private function enforceSegregationOfDuties(ApprovalChain $chain, User $approver): void
     {
+        if ($chain->steps()
+            ->where('status', ApprovalStepStatus::Approved->value)
+            ->where('approver_user_id', $approver->id)
+            ->exists()) {
+            throw new DomainException('Segregation of Duties Violation: One user cannot decide multiple steps in the same approval chain.');
+        }
+
         if ($chain->chain_type === ApprovalChainType::PurchaseRequest) {
             $pr = PurchaseRequest::find($chain->target_id);
             if ($pr && $pr->requester_id === $approver->id) {
