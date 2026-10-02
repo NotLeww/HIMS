@@ -98,6 +98,10 @@ class PurchaseOrderWorkspaceTest extends TestCase
             ->assertSee('Procurement &amp; Purchase Orders', false)
             ->assertSee('Prepare Purchase Order')
             ->assertSee('Purchase Order Pipeline')
+            ->assertSee(route('inventory.purchases', ['po_status' => 'open']).'#purchase-orders', false)
+            ->assertSee(route('inventory.purchases', ['po_status' => 'awaiting_approval']).'#purchase-orders', false)
+            ->assertSee(route('inventory.purchases', ['po_status' => 'in_fulfillment']).'#purchase-orders', false)
+            ->assertSee(route('inventory.purchases', ['po_date' => 'overdue']).'#purchase-orders', false)
             ->assertSee('name="item_id"', false)
             ->assertSee('name="quantity"', false)
             ->assertSee('name="supplier_id"', false)
@@ -314,6 +318,27 @@ class PurchaseOrderWorkspaceTest extends TestCase
             'delivery_date' => today()->subDay(),
             'requested_at' => now()->subDays(2),
         ]);
+        PurchaseOrder::create([
+            'po_number' => 'PO-FILTER-AWAITING',
+            'supplier_id' => $supplier->id,
+            'item_id' => $item->id,
+            'quantity' => 1,
+            'unit_cost' => 125.50,
+            'total_amount' => 125.50,
+            'status' => 'pending_approval',
+            'requested_at' => now(),
+        ]);
+        PurchaseOrder::create([
+            'po_number' => 'PO-FILTER-FULFILLMENT',
+            'supplier_id' => $supplier->id,
+            'item_id' => $item->id,
+            'quantity' => 1,
+            'unit_cost' => 125.50,
+            'total_amount' => 125.50,
+            'status' => 'dispatched',
+            'requested_at' => now(),
+            'dispatched_at' => now(),
+        ]);
 
         $this->actingAs($manager)->get('/inventory/purchases?po_search=FILTER-MATCH&po_status=approved&po_date=7')
             ->assertOk()
@@ -328,12 +353,30 @@ class PurchaseOrderWorkspaceTest extends TestCase
 
         $this->actingAs($manager)->get('/inventory/purchases?po_status=open')
             ->assertOk()
-            ->assertViewHas('purchaseOrders', fn ($orders) => $orders->total() === 1)
+            ->assertViewHas('purchaseOrders', fn ($orders) => $orders->total() === 2
+                && $orders->contains('po_number', 'PO-FILTER-MATCH')
+                && $orders->contains('po_number', 'PO-FILTER-FULFILLMENT')
+                && ! $orders->contains('po_number', 'PO-FILTER-AWAITING'))
             ->assertSee('<option value="open" selected>Open</option>', false)
             ->assertSee('PO-FILTER-MATCH')
+            ->assertSee('PO-FILTER-FULFILLMENT')
             ->assertDontSee('PO-FILTER-HIDDEN')
             ->assertDontSee('PO-FILTER-FUTURE')
             ->assertDontSee('PO-FILTER-DRAFT-OVERDUE');
+
+        $this->actingAs($manager)->get('/inventory/purchases?po_status=awaiting_approval')
+            ->assertOk()
+            ->assertViewHas('purchaseOrders', fn ($orders) => $orders->total() === 1
+                && $orders->contains('po_number', 'PO-FILTER-AWAITING'))
+            ->assertSee('<option value="awaiting_approval" selected>Awaiting Approval</option>', false)
+            ->assertSee('PO-FILTER-AWAITING');
+
+        $this->actingAs($manager)->get('/inventory/purchases?po_status=in_fulfillment')
+            ->assertOk()
+            ->assertViewHas('purchaseOrders', fn ($orders) => $orders->total() === 1
+                && $orders->contains('po_number', 'PO-FILTER-FULFILLMENT'))
+            ->assertSee('<option value="in_fulfillment" selected>In Fulfillment</option>', false)
+            ->assertSee('PO-FILTER-FULFILLMENT');
 
         $this->actingAs($manager)->get('/inventory/purchases?po_search=NO-SUCH-ORDER')
             ->assertOk()

@@ -49,9 +49,11 @@
     @if ($tooltipDetails) data-metric-details="{{ json_encode($tooltipDetails) }}" @endif
     @if ($summaryTitle) data-metric-title="{{ $summaryTitle }}" @endif
     {{ $attributes->merge([
-        'class' => 'group relative flex flex-col justify-between rounded-xl border border-neutral-200/90 bg-white shadow-xs transition-[box-shadow,border-color] motion-safe:duration-150 hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900/95 dark:hover:border-neutral-700 '
+        'class' => 'group relative flex flex-col justify-between rounded-xl border border-neutral-200/90 bg-white shadow-xs transition-[box-shadow,border-color,background-color] motion-safe:duration-150 dark:border-neutral-800 dark:bg-neutral-900/95 '
             .($compact ? 'p-4 sm:p-5' : 'p-5')
-            .($href ? ' focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950' : ''),
+            .($href
+                ? ' cursor-pointer hover:border-primary-300 hover:shadow-sm active:bg-neutral-50 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:hover:border-primary-700 dark:active:bg-neutral-800/80 dark:focus-visible:ring-offset-neutral-950'
+                : ' hover:border-neutral-300 dark:hover:border-neutral-700'),
     ]) }}
 >
     <div>

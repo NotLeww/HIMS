@@ -184,7 +184,9 @@ class ProcurementController extends Controller implements HasMiddleware
                     ->orWhereHas('lines.item', fn ($item) => $item->where('name', 'like', "%{$poSearch}%"));
             }))
             ->when($poStatus === 'open', fn ($query) => $query->issuedOpen())
-            ->when($poStatus !== '' && $poStatus !== 'open', fn ($query) => $query->where('status', $poStatus))
+            ->when($poStatus === 'awaiting_approval', fn ($query) => $query->whereIn('status', ['submitted', 'pending', 'pending_approval']))
+            ->when($poStatus === 'in_fulfillment', fn ($query) => $query->whereIn('status', ['dispatched', 'acknowledged', 'partially_fulfilled']))
+            ->when($poStatus !== '' && ! in_array($poStatus, ['open', 'awaiting_approval', 'in_fulfillment'], true), fn ($query) => $query->where('status', $poStatus))
             ->when(in_array($poDate, ['7', '30', '90'], true), fn ($query) => $query
                 ->where('requested_at', '>=', now()->subDays((int) $poDate)))
             ->when($poDate === 'overdue', fn ($query) => $query
@@ -201,7 +203,11 @@ class ProcurementController extends Controller implements HasMiddleware
             ->latest('requested_at')
             ->paginate($poPerPage, ['*'], 'po_page')
             ->withQueryString();
-        $poStatusOptions = collect(['open' => 'Open'])->merge(PurchaseOrder::query()
+        $poStatusOptions = collect([
+            'open' => 'Open',
+            'awaiting_approval' => 'Awaiting Approval',
+            'in_fulfillment' => 'In Fulfillment',
+        ])->merge(PurchaseOrder::query()
             ->select('status')
             ->distinct()
             ->orderBy('status')
