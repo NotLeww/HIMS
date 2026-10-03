@@ -1346,11 +1346,47 @@
         @endif
 
         {{-- Tab 3: Movements & Consumption --}}
-        <div x-show="activeTab === 'movements'" x-cloak class="space-y-6 print:!block">
-            <div>
-                <x-ui.card title="Most Consumed Items" subtitle="By units issued or taken out." :padding="false">
+        <div x-show="activeTab === 'movements'" x-cloak class="space-y-4 print:!block">
+            <div
+                x-data="{
+                    consumedSearch: '',
+                    consumedSearchIndex: @js($topConsumedItems->map(fn ($row) => strtolower($row->item.' '.$row->sku))->values()),
+                    get hasConsumedMatches() {
+                        const query = this.consumedSearch.trim().toLowerCase();
+                        return !query || this.consumedSearchIndex.some(value => value.includes(query));
+                    }
+                }"
+            >
+                <x-ui.card :padding="false">
+                    <x-slot name="header">
+                        <div class="flex items-start gap-3">
+                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700 ring-1 ring-primary-100 dark:bg-primary-950/70 dark:text-primary-300 dark:ring-primary-800/60">
+                                <x-ui.icon name="chart-bar" class="h-5 w-5" />
+                            </span>
+                            <div class="min-w-0">
+                                <h2 class="text-base font-bold text-neutral-950 dark:text-white">Most Consumed Items</h2>
+                                <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">By units issued or taken out.</p>
+                            </div>
+                        </div>
+                    </x-slot>
+                    @if ($topConsumedItems->count() > 1)
+                        <x-slot name="actions">
+                            <label class="relative block w-full sm:w-72">
+                                <span class="sr-only">Search most consumed items</span>
+                                <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-neutral-400">
+                                    <x-ui.icon name="magnifying-glass" class="h-4 w-4" />
+                                </span>
+                                <input
+                                    type="search"
+                                    x-model.debounce.150ms="consumedSearch"
+                                    placeholder="Search items or SKU..."
+                                    class="w-full rounded-xl border border-neutral-300 bg-white py-2 pl-9 pr-3 text-xs text-neutral-900 shadow-2xs placeholder:text-neutral-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white dark:placeholder:text-neutral-500"
+                                />
+                            </label>
+                        </x-slot>
+                    @endif
                     <x-ui.table :sticky-header="false">
-                        <x-ui.table.head>
+                        <x-ui.table.head class="bg-primary-50/70 dark:bg-primary-950/35">
                             <x-ui.table.th class="px-3 py-2.5">Item</x-ui.table.th>
                             <x-ui.table.th numeric class="px-3 py-2.5">Consumed</x-ui.table.th>
                             <x-ui.table.th numeric class="px-3 py-2.5">On Hand</x-ui.table.th>
@@ -1360,10 +1396,12 @@
                         </x-ui.table.head>
                         <tbody>
                             @forelse ($topConsumedItems as $row)
-                                <x-ui.table.row>
+                                <x-ui.table.row
+                                    x-show="!consumedSearch.trim() || @js(strtolower($row->item.' '.$row->sku)).includes(consumedSearch.trim().toLowerCase())"
+                                >
                                     <x-ui.table.td class="px-3 py-2.5">
-                                        <span class="font-medium text-neutral-900">{{ $row->item }}</span>
-                                        <span class="block text-xs text-neutral-500">
+                                        <span class="font-semibold text-neutral-900 dark:text-neutral-100">{{ $row->item }}</span>
+                                        <span class="block text-xs text-neutral-500 dark:text-neutral-400">
                                             {{ $row->sku }} &middot; {{ $row->movements }} movements
                                         </span>
                                     </x-ui.table.td>
@@ -1383,15 +1421,30 @@
                                     title="Nothing consumed in this window"
                                     message="Stock out and issuance movements are what this counts." />
                             @endforelse
+                            @if ($topConsumedItems->isNotEmpty())
+                                <tr x-show="consumedSearch.trim() && !hasConsumedMatches" class="border-b border-neutral-100 dark:border-neutral-800">
+                                    <td colspan="{{ $canViewFinancialData ? 4 : 3 }}" class="px-4 py-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
+                                        No consumed items match “<span class="font-semibold text-neutral-700 dark:text-neutral-200" x-text="consumedSearch"></span>”.
+                                    </td>
+                                </tr>
+                            @endif
                         </tbody>
                     </x-ui.table>
                 </x-ui.card>
             </div>
 
-            <x-ui.card
-                title="Movement History"
-                :subtitle="$recentMovements->count().' most recent in this window'"
-                :padding="false">
+            <x-ui.card :padding="false">
+                <x-slot name="header">
+                    <div class="flex items-start gap-3">
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700 ring-1 ring-primary-100 dark:bg-primary-950/70 dark:text-primary-300 dark:ring-primary-800/60">
+                            <x-ui.icon name="arrows-right-left" class="h-5 w-5" />
+                        </span>
+                        <div class="min-w-0">
+                            <h2 class="text-base font-bold text-neutral-950 dark:text-white">Movement History</h2>
+                            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ $recentMovements->count() }} most recent in this window</p>
+                        </div>
+                    </div>
+                </x-slot>
                 <x-slot name="actions">
                     <x-ui.button variant="ghost" size="sm" :href="route('inventory.stock-movements')" class="print:hidden">
                         View all &rarr;
@@ -1399,7 +1452,7 @@
                 </x-slot>
 
                 <x-ui.table :sticky-header="false">
-                    <x-ui.table.head>
+                    <x-ui.table.head class="bg-primary-50/70 dark:bg-primary-950/35">
                         <x-ui.table.th class="px-3 py-2.5">Item</x-ui.table.th>
                         <x-ui.table.th class="px-3 py-2.5">Type</x-ui.table.th>
                         <x-ui.table.th numeric class="px-3 py-2.5">Qty</x-ui.table.th>
@@ -1411,9 +1464,9 @@
                         @forelse ($recentMovements as $movement)
                             <x-ui.table.row>
                                 <x-ui.table.td class="px-3 py-2.5">
-                                    <span class="font-medium text-neutral-900">{{ $movement->item?->name ?? '—' }}</span>
+                                    <span class="font-semibold text-neutral-900 dark:text-neutral-100">{{ $movement->item?->name ?? '—' }}</span>
                                     @if ($movement->item?->sku)
-                                        <span class="block text-xs text-neutral-500 font-mono">{{ $movement->item->sku }}</span>
+                                        <span class="block font-mono text-xs text-neutral-500 dark:text-neutral-400">{{ $movement->item->sku }}</span>
                                     @endif
                                 </x-ui.table.td>
                                 <x-ui.table.td class="px-3 py-2.5">
