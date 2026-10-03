@@ -6,6 +6,8 @@
         </div>
     </x-slot>
 
+            {{-- SWS Consolidated Workflow Navigation --}}
+            @include('inventory.warehousing.partials.workflow_nav')
 
             {{-- High-Level KPI Matrix --}}
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -57,10 +59,6 @@
                     <p class="mt-3.5 truncate border-t border-neutral-100 pt-2.5 text-xs font-medium text-neutral-600 dark:border-neutral-800/80 dark:text-neutral-300 sm:text-sm">Operating room serial consumption tracking · Bill-Only PRs</p>
                 </div>
             </div>
-
-            {{-- SWS Consolidated Workflow Navigation --}}
-            @include('inventory.warehousing.partials.workflow_nav')
-
 
             {{-- Recent Warehouse Operational Tasks & Scans --}}
             <div class="grid gap-6 lg:grid-cols-2">

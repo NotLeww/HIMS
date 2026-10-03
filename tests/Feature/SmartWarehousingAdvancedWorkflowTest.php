@@ -493,6 +493,13 @@ class SmartWarehousingAdvancedWorkflowTest extends TestCase
             ->assertDontSee('IoT Telemetry Monitor')
             ->assertDontSee('Cold Chain & Environmental Telemetry');
 
+        $dashboardContent = $dashboardResponse->getContent();
+        $workflowNavigationPosition = strpos($dashboardContent, 'data-workflow-navigation');
+        $metricCardsPosition = strpos($dashboardContent, 'data-metric-title="Active warehouse tasks"');
+        $this->assertNotFalse($workflowNavigationPosition);
+        $this->assertNotFalse($metricCardsPosition);
+        $this->assertLessThan($metricCardsPosition, $workflowNavigationPosition);
+
         // Verify IoT Telemetry routes are completely eliminated (404 Not Found)
         $this->actingAs($user)
             ->get('/inventory/warehousing/telemetry')

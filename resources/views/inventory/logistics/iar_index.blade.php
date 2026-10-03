@@ -83,22 +83,23 @@
             @endcan
 
             {{-- Filter & Search Bar --}}
-            <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <div class="rounded-2xl border border-neutral-200 bg-white p-3 shadow-xs dark:border-neutral-800 dark:bg-neutral-900 sm:p-4" data-iar-filter-toolbar>
                 <form method="GET" action="{{ route('inventory.logistics.iar.index') }}" class="grid gap-3 md:grid-cols-12">
-                    <div class="md:col-span-6">
+                    <div class="md:col-span-7">
                         <label for="search" class="sr-only">Search</label>
                         <div class="relative">
                             <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                                <svg class="h-4 w-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                <x-ui.icon name="magnifying-glass" class="h-4 w-4 text-neutral-400" />
                             </div>
                             <input type="text" name="search" id="search" value="{{ request('search') }}"
-                                   placeholder="Search IAR #, PO #, DR #, or Sales Invoice #..."
-                                   class="block w-full rounded-lg border-neutral-300 pl-10 text-sm focus:border-primary-500 focus:ring-primary-500">
+                                   placeholder="Search IAR, PO, DR, invoice, supplier, or item..."
+                                   class="block min-h-11 w-full rounded-xl border-neutral-300 bg-white pl-10 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100">
                         </div>
                     </div>
 
-                    <div class="md:col-span-4">
-                        <select name="status" class="block w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
+                    <div class="md:col-span-3">
+                        <label for="status" class="sr-only">Status</label>
+                        <select name="status" id="status" class="block min-h-11 w-full rounded-xl border-neutral-300 bg-white text-sm text-neutral-900 focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100">
                             <option value="">All Statuses</option>
                             <option value="pending_inspection" {{ request('status') === 'pending_inspection' ? 'selected' : '' }}>Pending Technical Inspection</option>
                             <option value="inspected_passed" {{ request('status') === 'inspected_passed' ? 'selected' : '' }}>Inspected (Awaiting Property Acceptance)</option>
@@ -109,12 +110,13 @@
                     </div>
 
                     <div class="flex items-center gap-2 md:col-span-2">
-                        <button type="submit" class="w-full rounded-lg bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800">
-                            Filter
+                        <button type="submit" class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white">
+                            <x-ui.icon name="magnifying-glass" class="h-4 w-4" />
+                            Search
                         </button>
                         @if(request()->hasAny(['search', 'status']))
-                            <a href="{{ route('inventory.logistics.iar.index') }}" class="rounded-lg border border-neutral-300 p-2 text-neutral-600 hover:bg-neutral-50" title="Reset">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            <a href="{{ route('inventory.logistics.iar.index') }}" class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-neutral-300 text-neutral-600 transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800" title="Reset filters" aria-label="Reset filters">
+                                <x-ui.icon name="x-mark" class="h-4 w-4" />
                             </a>
                         @endif
                     </div>
@@ -122,106 +124,114 @@
             </div>
 
             {{-- IAR Table --}}
-            <div class="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
+            <div class="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xs dark:border-neutral-800 dark:bg-neutral-900" data-iar-ledger>
                 <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-neutral-200 text-left text-sm">
-                        <thead class="bg-neutral-50 text-xs font-semibold uppercase tracking-wider text-neutral-600">
+                    <table class="min-w-[1120px] w-full text-left text-sm">
+                        <thead class="border-b border-neutral-200 bg-primary-50/40 text-[11px] font-bold uppercase tracking-wide text-primary-900 dark:border-neutral-800 dark:bg-primary-950/20 dark:text-primary-200">
                             <tr>
-                                <th class="px-6 py-3.5">IAR Reference</th>
-                                <th class="px-6 py-3.5">PO & Entity</th>
-                                <th class="px-6 py-3.5">Commercial Proof (BIR)</th>
-                                <th class="px-6 py-3.5">Technical Inspection</th>
-                                <th class="px-6 py-3.5">Custodial Acceptance</th>
-                                <th class="px-6 py-3.5">COA Transmittal</th>
-                                <th class="px-6 py-3.5 text-right">Action</th>
+                                <th scope="col" class="w-[15%] px-5 py-4">IAR Reference</th>
+                                <th scope="col" class="w-[23%] border-l border-neutral-200/70 px-5 py-4 dark:border-neutral-800">PO &amp; Entity</th>
+                                <th scope="col" class="w-[15%] border-l border-neutral-200/70 px-5 py-4 dark:border-neutral-800">Commercial Proof (BIR)</th>
+                                <th scope="col" class="w-[13%] border-l border-neutral-200/70 px-5 py-4 dark:border-neutral-800">Technical<br>Inspection</th>
+                                <th scope="col" class="w-[13%] border-l border-neutral-200/70 px-5 py-4 dark:border-neutral-800">Custodial<br>Acceptance</th>
+                                <th scope="col" class="w-[11%] border-l border-neutral-200/70 px-5 py-4 dark:border-neutral-800">COA Transmittal</th>
+                                <th scope="col" class="w-[10%] border-l border-neutral-200/70 px-5 py-4 text-right dark:border-neutral-800">Action</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-neutral-200 bg-white">
+                        <tbody class="divide-y divide-neutral-200 bg-white dark:divide-neutral-800 dark:bg-neutral-900">
                             @forelse($iars as $iar)
-                                <tr class="hover:bg-neutral-50">
-                                    <td class="px-6 py-4">
-                                        <div class="font-bold text-neutral-900">{{ $iar->iar_number }}</div>
-                                        <div class="text-xs text-neutral-500">{{ $iar->created_at->format('M d, Y') }}</div>
-                                        <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold
-                                            @if($iar->status === 'accepted') bg-emerald-100 text-emerald-800
-                                            @elseif($iar->status === 'inspected_passed') bg-blue-100 text-blue-800
-                                            @elseif($iar->status === 'inspected_failed' || $iar->status === 'rejected') bg-red-100 text-red-800
-                                            @else bg-amber-100 text-amber-800 @endif">
+                                <tr class="align-top transition-colors hover:bg-neutral-50/70 dark:hover:bg-neutral-800/40">
+                                    <td class="px-5 py-4">
+                                        <div class="font-bold leading-5 text-neutral-950 dark:text-white">{{ $iar->iar_number }}</div>
+                                        <div class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ $iar->created_at->format('M d, Y') }}</div>
+                                        <span class="mt-2 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-semibold
+                                            @if($iar->status === 'accepted') bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300
+                                            @elseif($iar->status === 'inspected_passed') bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300
+                                            @elseif($iar->status === 'inspected_failed' || $iar->status === 'rejected') bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300
+                                            @else bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 @endif">
+                                            <x-ui.icon name="{{ $iar->status === 'accepted' ? 'check-circle' : ($iar->status === 'pending_inspection' ? 'clock' : 'information-circle') }}" class="h-3.5 w-3.5" />
                                             {{ ucwords(str_replace('_', ' ', $iar->status)) }}
                                         </span>
                                     </td>
 
-                                    <td class="px-6 py-4 text-xs">
-                                        <div class="font-semibold text-neutral-900">{{ $iar->purchaseOrder->po_number ?? 'Direct Receipt' }}</div>
-                                        <div class="text-neutral-500">{{ $iar->supplier->name ?? 'N/A' }}</div>
+                                    <td class="border-l border-neutral-200/70 px-5 py-4 text-xs dark:border-neutral-800">
+                                        <div class="font-bold text-neutral-900 dark:text-neutral-100">{{ $iar->purchaseOrder->po_number ?? 'Direct Receipt' }}</div>
+                                        <div class="mt-1 leading-4 text-neutral-500 dark:text-neutral-400">{{ $iar->supplier->name ?? 'N/A' }}</div>
                                     </td>
 
-                                    <td class="px-6 py-4 text-xs">
-                                        <div>DR: <span class="font-mono font-semibold text-neutral-800">{{ $iar->goodsReceiptNote->dr_number ?? 'None' }}</span></div>
-                                        <div class="mt-0.5">SI: <span class="font-mono font-semibold text-neutral-800">{{ $iar->invoice_number ?? 'Pending' }}</span></div>
+                                    <td class="border-l border-neutral-200/70 px-5 py-4 text-xs text-neutral-600 dark:border-neutral-800 dark:text-neutral-300">
+                                        <div>DR: <span class="font-semibold text-neutral-900 dark:text-neutral-100">{{ $iar->goodsReceiptNote->dr_number ?? 'None' }}</span></div>
+                                        <div class="mt-1">SI: <span class="font-semibold text-neutral-900 dark:text-neutral-100">{{ $iar->invoice_number ?? 'Pending' }}</span></div>
                                     </td>
 
-                                    <td class="px-6 py-4 text-xs">
+                                    <td class="border-l border-neutral-200/70 px-5 py-4 text-xs dark:border-neutral-800">
                                         @if($iar->inspection_date)
-                                            <div class="flex items-center gap-1.5 font-semibold text-emerald-700"><x-ui.icon name="check-circle" class="h-4 w-4 shrink-0" /> Completed</div>
-                                            <div class="text-neutral-500">{{ $iar->inspectedBy->name ?? 'Inspector' }}</div>
-                                            <div class="text-[10px] text-neutral-400">{{ $iar->inspection_date->format('M d, Y') }}</div>
+                                            <span class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"><x-ui.icon name="check-circle" class="h-3.5 w-3.5" /> Completed</span>
+                                            <div class="mt-1.5 text-neutral-500 dark:text-neutral-400">{{ $iar->inspectedBy->name ?? 'Inspector' }}</div>
+                                            <div class="mt-0.5 text-[11px] text-neutral-400">{{ $iar->inspection_date->format('M d, Y') }}</div>
                                         @else
-                                            <span class="inline-flex rounded bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                                            <span class="inline-flex items-center gap-1.5 rounded-lg bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                                                <x-ui.icon name="clock" class="h-3.5 w-3.5" />
                                                 Awaiting Inspection
                                             </span>
                                         @endif
                                     </td>
 
-                                    <td class="px-6 py-4 text-xs">
+                                    <td class="border-l border-neutral-200/70 px-5 py-4 text-xs dark:border-neutral-800">
                                         @if($iar->acceptance_date)
-                                            <div class="flex items-center gap-1.5 font-semibold text-emerald-700"><x-ui.icon name="check-circle" class="h-4 w-4 shrink-0" /> Accepted</div>
-                                            <div class="text-neutral-500">{{ $iar->acceptedBy->name ?? 'Custodian' }}</div>
-                                            @if($iar->liquidated_damages_amount > 0)
-                                                <div class="mt-0.5 font-bold text-red-600">
-                                                    Penalty: ₱{{ number_format($iar->liquidated_damages_amount, 2) }}
-                                                </div>
-                                            @endif
+                                            <span class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"><x-ui.icon name="check-circle" class="h-3.5 w-3.5" /> Accepted</span>
+                                            <div class="mt-1.5 text-neutral-500 dark:text-neutral-400">{{ $iar->acceptedBy->name ?? 'Custodian' }}</div>
+                                            <div class="mt-0.5 text-[11px] text-neutral-400">{{ $iar->acceptance_date->format('M d, Y') }}</div>
                                         @else
-                                            <span class="text-neutral-400">Pending</span>
+                                            <span class="inline-flex items-center gap-1.5 rounded-lg bg-primary-50 px-2.5 py-1 text-[11px] font-semibold text-primary-700 dark:bg-primary-950/60 dark:text-primary-300"><x-ui.icon name="clock" class="h-3.5 w-3.5" /> Pending</span>
                                         @endif
                                     </td>
 
-                                    <td class="px-6 py-4 text-xs">
+                                    <td class="border-l border-neutral-200/70 px-5 py-4 text-xs dark:border-neutral-800">
                                         @if($iar->coa_transmitted_at)
-                                            <div class="flex items-center gap-1.5 font-bold text-purple-800"><x-ui.icon name="check-circle" class="h-4 w-4 shrink-0" /> Transmitted</div>
-                                            <div class="text-neutral-500">{{ $iar->coa_transmitted_at->format('M d, Y') }}</div>
-                                            <div class="font-mono text-[10px] text-neutral-400">Rec: {{ $iar->coa_received_by }}</div>
+                                            <span class="inline-flex items-center gap-1.5 rounded-lg bg-purple-100 px-2.5 py-1 text-[11px] font-semibold text-purple-800 dark:bg-purple-950/60 dark:text-purple-300"><x-ui.icon name="check-circle" class="h-3.5 w-3.5" /> Transmitted</span>
+                                            <div class="mt-1.5 text-neutral-500 dark:text-neutral-400">{{ $iar->coa_transmitted_at->format('M d, Y') }}</div>
+                                            <div class="mt-0.5 text-[10px] text-neutral-400">Rec: {{ $iar->coa_received_by }}</div>
                                         @elseif($iar->isAccepted())
                                             @if(!$iar->coa_transmittal_deadline_at)
                                                 <span class="text-neutral-400">Deadline not recorded</span>
                                             @elseif($iar->isCoaDeadlineOverdue())
-                                                <span class="inline-flex rounded bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800">
-                                                    <x-ui.icon name="exclamation-triangle" class="inline-block h-3.5 w-3.5 align-text-bottom" /> OVERDUE
+                                                <span class="inline-flex items-center gap-1.5 rounded-lg bg-red-100 px-2.5 py-1 text-[11px] font-bold text-red-800 dark:bg-red-950/60 dark:text-red-300">
+                                                    <x-ui.icon name="exclamation-triangle" class="h-3.5 w-3.5" /> Overdue
                                                 </span>
                                             @elseif($iar->isCoaDeadlineDueWithin())
-                                                <span class="inline-flex rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                                                    ⏳ Due within 5 days
+                                                <span class="inline-flex items-center gap-1.5 rounded-lg bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                                                    <x-ui.icon name="clock" class="h-3.5 w-3.5" /> Due within 5 days
                                                 </span>
                                             @else
-                                                <span class="text-neutral-500">Due {{ $iar->coa_transmittal_deadline_at->format('M d, Y') }}</span>
+                                                <span class="text-neutral-500 dark:text-neutral-400">Due {{ $iar->coa_transmittal_deadline_at->format('M d, Y') }}</span>
                                             @endif
                                         @else
                                             <span class="text-neutral-300">N/A</span>
                                         @endif
+                                        @if($iar->liquidated_damages_amount > 0)
+                                            <div class="mt-2 font-bold text-red-600 dark:text-red-400">
+                                                Penalty: ₱{{ number_format($iar->liquidated_damages_amount, 2) }}
+                                            </div>
+                                        @endif
                                     </td>
 
-                                    <td class="px-6 py-4 text-right">
+                                    <td class="border-l border-neutral-200/70 px-5 py-4 text-right dark:border-neutral-800">
                                         <a href="{{ route('inventory.logistics.iar.show', $iar) }}"
-                                           class="inline-flex items-center gap-1 rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800">
-                                            View Report &rarr;
+                                           class="inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-900 transition hover:border-primary-300 hover:bg-primary-50 hover:text-primary-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-800">
+                                            <x-ui.icon name="document-text" class="h-4 w-4" />
+                                            View Report
                                         </a>
                                     </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="px-6 py-12 text-center text-sm text-neutral-500">
-                                        No Inspection and Acceptance Reports found.
+                                    <td colspan="7" class="px-6 py-12 text-center text-sm text-neutral-500 dark:text-neutral-400">
+                                        <x-ui.icon name="magnifying-glass" class="mx-auto mb-3 h-6 w-6 text-neutral-400" />
+                                        <p class="font-semibold text-neutral-700 dark:text-neutral-300">No matching IAR records found.</p>
+                                        @if(request()->hasAny(['search', 'status']))
+                                            <p class="mt-1">Try another keyword or <a href="{{ route('inventory.logistics.iar.index') }}" class="font-semibold text-primary-700 hover:underline dark:text-primary-300">clear the filters</a>.</p>
+                                        @endif
                                     </td>
                                 </tr>
                             @endforelse
@@ -229,11 +239,15 @@
                     </table>
                 </div>
 
-                @if($iars->hasPages())
-                    <div class="border-t border-neutral-200 px-4 py-3 sm:px-5 dark:border-neutral-800">
-                        {{ $iars->links() }}
-                    </div>
-                @endif
+                <div class="flex flex-col gap-3 border-t border-neutral-200 px-4 py-3 text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                    <p>
+                        Showing <span class="font-semibold tabular-nums text-neutral-700 dark:text-neutral-300">{{ $iars->firstItem() ?? 0 }}–{{ $iars->lastItem() ?? 0 }}</span>
+                        of <span class="font-semibold tabular-nums text-neutral-700 dark:text-neutral-300">{{ $iars->total() }}</span> records
+                    </p>
+                    @if($iars->hasPages())
+                        <div>{{ $iars->links() }}</div>
+                    @endif
+                </div>
             </div>
 
             {{-- Generate IAR Modal --}}

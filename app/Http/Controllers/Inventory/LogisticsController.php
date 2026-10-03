@@ -400,12 +400,32 @@ class LogisticsController extends Controller implements HasMiddleware
             'acceptedBy',
         ]);
 
-        if ($search = $request->input('search')) {
+        if ($search = trim((string) $request->input('search'))) {
             $query->where(function ($q) use ($search) {
                 $q->where('iar_number', 'like', "%{$search}%")
                     ->orWhere('invoice_number', 'like', "%{$search}%")
-                    ->orWhereHas('purchaseOrder', fn ($po) => $po->where('po_number', 'like', "%{$search}%"))
-                    ->orWhereHas('goodsReceiptNote', fn ($grn) => $grn->where('dr_number', 'like', "%{$search}%"));
+                    ->orWhereHas('supplier', fn ($supplier) => $supplier->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('purchaseOrder', fn ($po) => $po
+                        ->where('po_number', 'like', "%{$search}%")
+                        ->orWhere('entity_name', 'like', "%{$search}%")
+                        ->orWhereHas('item', fn ($item) => $item
+                            ->where('name', 'like', "%{$search}%")
+                            ->orWhere('sku', 'like', "%{$search}%")
+                            ->orWhere('barcode_value', 'like', "%{$search}%")
+                            ->orWhere('generic_name', 'like', "%{$search}%"))
+                        ->orWhereHas('lines.item', fn ($item) => $item
+                            ->where('name', 'like', "%{$search}%")
+                            ->orWhere('sku', 'like', "%{$search}%")
+                            ->orWhere('barcode_value', 'like', "%{$search}%")
+                            ->orWhere('generic_name', 'like', "%{$search}%")))
+                    ->orWhereHas('goodsReceiptNote', fn ($grn) => $grn
+                        ->where('dr_number', 'like', "%{$search}%")
+                        ->orWhere('sales_invoice_number', 'like', "%{$search}%")
+                        ->orWhereHas('lines.item', fn ($item) => $item
+                            ->where('name', 'like', "%{$search}%")
+                            ->orWhere('sku', 'like', "%{$search}%")
+                            ->orWhere('barcode_value', 'like', "%{$search}%")
+                            ->orWhere('generic_name', 'like', "%{$search}%")));
             });
         }
 
