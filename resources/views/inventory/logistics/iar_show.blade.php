@@ -11,11 +11,27 @@
                 </div>
                 <h2 class="mt-1 text-2xl font-bold text-neutral-900">{{ $iar->iar_number }}</h2>
             </div>
-            <div class="flex items-center gap-2">
-                <a href="{{ route('inventory.logistics.iar.print', ['iar' => $iar, 'print' => 1]) }}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 shadow-sm hover:bg-neutral-50">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+            <div class="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:items-center">
+                <x-ui.button
+                    :href="route('inventory.logistics.iar.download', $iar)"
+                    icon="arrow-down-tray"
+                    class="w-full sm:w-auto"
+                    data-hims-download
+                    data-loading-text="Preparing IAR PDF..."
+                    :data-download-name="\Illuminate\Support\Str::slug($iar->iar_number).'.pdf'"
+                >
+                    Download PDF
+                </x-ui.button>
+                <x-ui.button
+                    :href="route('inventory.logistics.iar.print', ['iar' => $iar, 'print' => 1])"
+                    variant="secondary"
+                    icon="printer"
+                    target="_blank"
+                    rel="noopener"
+                    class="w-full sm:w-auto"
+                >
                     Print GAM App. 50
-                </a>
+                </x-ui.button>
             </div>
         </div>
     </x-slot>

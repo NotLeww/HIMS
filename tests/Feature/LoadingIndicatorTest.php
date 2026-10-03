@@ -107,7 +107,7 @@ class LoadingIndicatorTest extends TestCase
         foreach ([route('login'), route('privacy.notice'), route('terms'), url('/')] as $url) {
             $content = $this->get($url)->assertOk()->getContent();
 
-            $statePosition = strpos($content, "sessionStorage.getItem(storageKey)");
+            $statePosition = strpos($content, 'sessionStorage.getItem(storageKey)');
             $overlayPosition = strpos($content, 'data-hims-loading-overlay');
 
             $this->assertNotFalse($statePosition);
@@ -134,7 +134,7 @@ class LoadingIndicatorTest extends TestCase
         $styles = file_get_contents(resource_path('css/app.css'));
 
         $this->assertStringContainsString(
-            '@apply absolute inset-0 bg-neutral-950/35 backdrop-blur-[2px];',
+            '@apply absolute inset-0 bg-neutral-950/40;',
             $styles,
         );
     }

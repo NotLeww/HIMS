@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\GoodsReceiptNote;
 use App\Models\GoodsReceiptNoteLine;
+use App\Models\InspectionAcceptanceReport;
 use Illuminate\Support\Str;
 
 class DemoPdfBuilder
@@ -161,6 +162,126 @@ class DemoPdfBuilder
                     ],
                 ],
                 ['heading' => 'INVOICE SUMMARY', 'lines' => $summary],
+            ],
+        );
+    }
+
+    /**
+     * Build an Inspection and Acceptance Report from its recorded transaction data.
+     */
+    public static function createInspectionAcceptanceReport(InspectionAcceptanceReport $report): string
+    {
+        $report->loadMissing([
+            'goodsReceiptNote.lines.item',
+            'purchaseOrder.costCenter',
+            'purchaseOrder.purchaseRequest.costCenter',
+            'purchaseOrder.purchaseRequest.requester',
+            'supplier',
+            'inspectedBy',
+            'acceptedBy',
+            'documents',
+        ]);
+
+        $receipt = $report->goodsReceiptNote;
+        $purchaseOrder = $report->purchaseOrder;
+        $costCenter = $purchaseOrder?->costCenter ?? $purchaseOrder?->purchaseRequest?->costCenter;
+        $department = $costCenter?->department
+            ?? $costCenter?->name
+            ?? $purchaseOrder?->purchaseRequest?->requester?->department;
+        $total = 0.0;
+
+        $items = collect($receipt?->lines)->map(function (GoodsReceiptNoteLine $line) use (&$total): array {
+            $quantity = (float) $line->received_quantity;
+            $unitCost = (float) ($line->unit_cost ?? $line->item?->unit_cost ?? 0);
+            $amount = $quantity * $unitCost;
+            $total += $amount;
+
+            return [
+                $line->item?->name ?? 'Item description not recorded',
+                $line->item?->sku ?? 'Not recorded',
+                $line->batch_number ?: 'Not recorded',
+                $line->item?->unit ?? $line->purchase_unit ?? 'Not recorded',
+                number_format($quantity, 2),
+                number_format($amount, 2),
+            ];
+        })->all();
+
+        $coaStatus = match (true) {
+            $report->coa_transmitted_at !== null => 'Transmitted on '.$report->coa_transmitted_at->format('Y-m-d').($report->coa_received_by ? ' to '.$report->coa_received_by : ''),
+            $report->isAccepted() => 'Pending transmittal; deadline '.($report->coa_transmittal_deadline_at?->format('Y-m-d') ?? 'not recorded'),
+            default => 'Pending custodial acceptance',
+        };
+
+        $sections = [
+            [
+                'heading' => 'DOCUMENT PARTICULARS',
+                'lines' => [
+                    'Entity: '.($purchaseOrder?->entity_name ?: 'Not recorded'),
+                    'Supplier: '.($report->supplier?->name ?: 'Not recorded'),
+                    'Purchase Order: '.($purchaseOrder?->po_number ?: 'Not recorded'),
+                    'Requisitioning Office: '.($department ?: 'Not recorded'),
+                    'Responsibility Center: '.($costCenter?->code ?: 'Not recorded'),
+                    'Fund Cluster: '.($purchaseOrder?->fund_cluster ?: 'Not recorded'),
+                    'IAR Number / Date: '.$report->iar_number.' / '.($report->iar_date?->format('Y-m-d') ?? 'Not recorded'),
+                    'Invoice Number: '.($report->invoice_number ?: 'Not recorded'),
+                    'Delivery Receipt: '.($receipt?->dr_number ?: 'Not recorded'),
+                    'Goods Receipt: '.($receipt?->grn_number ?: 'Not recorded'),
+                ],
+            ],
+            [
+                'heading' => 'ITEMS DELIVERED',
+                'table' => [
+                    'headers' => ['Item Description', 'SKU', 'Batch', 'Unit', 'Quantity', 'Amount (PHP)'],
+                    'widths' => [2.8, 1.1, 1.1, 0.8, 0.8, 1.2],
+                    'rows' => $items ?: [['No delivered item lines are recorded.', '', '', '', '', '']],
+                ],
+            ],
+            [
+                'heading' => 'INSPECTION AND ACCEPTANCE CERTIFICATION',
+                'lines' => collect([
+                    'Inspection Status: '.Str::headline($report->inspection_status ?: 'Not recorded'),
+                    'Inspection Date: '.($report->inspection_date?->format('Y-m-d') ?? 'Not recorded'),
+                    'Inspection Officer: '.($report->inspectedBy?->name ?: 'Not yet signed'),
+                    $report->inspection_findings ? 'Inspection Findings: '.$report->inspection_findings : null,
+                    'Delivery Status: '.Str::headline($report->delivery_status ?: 'Not recorded'),
+                    'Acceptance Date: '.($report->acceptance_date?->format('Y-m-d') ?? 'Not recorded'),
+                    'Property / Supply Custodian: '.($report->acceptedBy?->name ?: 'Not yet signed'),
+                    'Total Value of Delivery: PHP '.number_format($total, 2),
+                    'Delay: '.((int) $report->days_delayed).' day(s)',
+                    'Liquidated Damages: PHP '.number_format((float) $report->liquidated_damages_amount, 2),
+                    'COA Five-Day Transmittal: '.$coaStatus,
+                    $report->notes ? 'Acceptance Remarks: '.$report->notes : null,
+                ])->filter()->values()->all(),
+            ],
+        ];
+
+        if ($report->documents->isNotEmpty()) {
+            $sections[] = [
+                'heading' => 'SUPPORTING DOCUMENT REGISTER',
+                'table' => [
+                    'headers' => ['Type', 'Document Title', 'Reference', 'Tracking No.', 'Status'],
+                    'widths' => [1.2, 2.4, 1.2, 1.5, 0.9],
+                    'rows' => $report->documents->map(fn ($document): array => [
+                        $document->document_type?->label() ?? 'Other Supporting Document',
+                        $document->title,
+                        $document->reference_number ?: 'Not recorded',
+                        $document->tracking_number,
+                        Str::headline($document->status),
+                    ])->all(),
+                ],
+            ];
+        }
+
+        return self::create(
+            title: 'INSPECTION AND ACCEPTANCE REPORT',
+            sections: $sections,
+            subtitle: 'COA GAM Appendix 50 | '.$report->iar_number,
+            branding: [
+                'organization' => $purchaseOrder?->entity_name ?: config('privacy.hospital_name'),
+                'address' => config('privacy.hospital_address'),
+                'system' => config('privacy.system_name'),
+                'logo_path' => public_path('img/hims-logo.png'),
+                'footer' => 'HIMS Official Record | Document Reference: '.$report->iar_number,
             ],
         );
     }

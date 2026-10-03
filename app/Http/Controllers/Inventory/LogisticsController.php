@@ -18,12 +18,15 @@ use App\Services\Logistics\ChainOfCustodyService;
 use App\Services\Logistics\DocumentTrackingService;
 use App\Services\Logistics\InspectionAcceptanceService;
 use App\Services\Logistics\ShipmentTrackingService;
+use App\Support\DemoPdfBuilder;
 use App\Support\MetricDetails;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use InvalidArgumentException;
@@ -46,6 +49,7 @@ class LogisticsController extends Controller implements HasMiddleware
                 'iarIndex',
                 'iarShow',
                 'iarPrint',
+                'iarDownload',
                 'chainOfCustody',
                 'risShow',
             ]),
@@ -473,6 +477,22 @@ class LogisticsController extends Controller implements HasMiddleware
         return view('inventory.logistics.iar_print', [
             'iar' => $iar,
             'autoPrint' => $request->boolean('print'),
+        ]);
+    }
+
+    /**
+     * Download a data-driven PDF copy of the IAR.
+     */
+    public function iarDownload(InspectionAcceptanceReport $iar): Response
+    {
+        $this->loadIarDocumentRelations($iar);
+        $pdf = DemoPdfBuilder::createInspectionAcceptanceReport($iar);
+        $filename = Str::slug($iar->iar_number ?: 'inspection-acceptance-report').'.pdf';
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Content-Length' => (string) strlen($pdf),
         ]);
     }
 

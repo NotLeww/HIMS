@@ -10,7 +10,7 @@
 
         <title>419 | Page Expired &middot; HIMS</title>
 
-        <link rel="preconnect" href="https://fonts.bunny.net">
+        @include('layouts.partials.font-loader')
         @vite('resources/css/app.css')
     </head>
     <body class="h-full bg-neutral-50 font-sans text-neutral-800 antialiased">

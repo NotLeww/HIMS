@@ -7,7 +7,7 @@
     $sizeClasses = match($size) {
         'sm' => 'h-8 w-8 text-xs',
         'lg' => 'h-10 w-10 text-sm',
-        default => 'h-9 w-9 text-sm',
+        default => 'h-11 w-11 text-sm sm:h-9 sm:w-9',
     };
     $iconSize = match($size) {
         'sm' => 'w-4 h-4',

@@ -29,6 +29,7 @@ use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use LogicException;
@@ -515,6 +516,73 @@ class DocumentTrackingAndLogisticsTest extends TestCase
         ]);
     }
 
+    public function test_missing_generated_receiving_documents_are_rebuilt_from_linked_database_data(): void
+    {
+        Storage::fake('local');
+        extract($this->createSetup());
+
+        $purchaseOrder = PurchaseOrder::create([
+            'po_number' => 'PO-RECOVERY-001',
+            'supplier_id' => $supplier->id,
+            'item_id' => $item->id,
+            'quantity' => 2,
+            'unit_cost' => 725.50,
+            'total_amount' => 1451.00,
+            'status' => PurchaseOrderStatus::Approved->value,
+            'requested_by_id' => $buyer->id,
+        ]);
+        $receipt = GoodsReceiptNote::create([
+            'grn_number' => 'GRN-RECOVERY-001',
+            'dr_number' => 'DR-RECOVERY-001',
+            'sales_invoice_number' => 'SI-RECOVERY-001',
+            'purchase_order_id' => $purchaseOrder->id,
+            'supplier_id' => $supplier->id,
+            'received_by_id' => $buyer->id,
+            'received_at' => now(),
+            'receipt_status' => 'received',
+        ]);
+        GoodsReceiptNoteLine::create([
+            'goods_receipt_note_id' => $receipt->id,
+            'item_id' => $item->id,
+            'purchase_unit' => 'box',
+            'received_quantity' => 2,
+            'unit_cost' => 725.50,
+            'status' => 'accepted',
+        ]);
+
+        foreach ([DocumentType::DeliveryReceipt, DocumentType::SalesInvoice] as $type) {
+            $path = 'logistics_documents/'.str_replace('_', '-', $type->value).'-recovered.pdf';
+            $document = LogisticsDocument::create([
+                'tracking_number' => 'DOC-'.$type->numberPrefix().'-RECOVERY-001',
+                'document_type' => $type,
+                'title' => $type->label(),
+                'reference_number' => $type === DocumentType::DeliveryReceipt ? 'DR-RECOVERY-001' : 'SI-RECOVERY-001',
+                'supplier_id' => $supplier->id,
+                'purchase_order_id' => $purchaseOrder->id,
+                'goods_receipt_note_id' => $receipt->id,
+                'status' => 'verified',
+                'file_path' => $path,
+                'file_name' => basename($path),
+                'original_name' => basename($path),
+                'mime_type' => 'application/pdf',
+                'file_size_bytes' => 0,
+                'disk' => 'local',
+                'uploaded_by_id' => $buyer->id,
+                'version_number' => 1,
+            ]);
+
+            $response = $this->actingAs($buyer)
+                ->get(route('inventory.logistics.documents.download', $document));
+
+            $response->assertOk()->assertDownload(basename($path));
+            Storage::disk('local')->assertExists($path);
+            $contents = Storage::disk('local')->get($path);
+            $this->assertStringStartsWith('%PDF-', $contents);
+            $this->assertSame(strlen($contents), $document->fresh()->file_size_bytes);
+            $this->assertSame(hash('sha256', $contents), $document->fresh()->sha256_checksum);
+        }
+    }
+
     public function test_inaccessible_document_storage_returns_not_found_without_a_download_audit(): void
     {
         Storage::fake('local');
@@ -708,7 +776,16 @@ class DocumentTrackingAndLogisticsTest extends TestCase
 
         $this->get(route('inventory.logistics.iar.show', $iar))
             ->assertOk()
-            ->assertSee(route('inventory.logistics.iar.print', ['iar' => $iar, 'print' => 1]), false);
+            ->assertSee(route('inventory.logistics.iar.print', ['iar' => $iar, 'print' => 1]), false)
+            ->assertSee(route('inventory.logistics.iar.download', $iar), false)
+            ->assertSee('Download PDF');
+
+        $download = $this->get(route('inventory.logistics.iar.download', $iar));
+        $download->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf')
+            ->assertHeader('Content-Disposition', 'attachment; filename="'.Str::slug($iar->iar_number).'.pdf"');
+        $this->assertStringStartsWith('%PDF-', $download->getContent());
+        $this->assertStringContainsString($iar->iar_number, $download->getContent());
     }
 
     public function test_iar_print_view_does_not_fabricate_missing_optional_metadata(): void
@@ -789,6 +866,8 @@ class DocumentTrackingAndLogisticsTest extends TestCase
 
         $this->actingAs($viewer)
             ->get(route('inventory.logistics.iar.print', $iar))
+            ->assertForbidden();
+        $this->get(route('inventory.logistics.iar.download', $iar))
             ->assertForbidden();
     }
 
