@@ -12,7 +12,7 @@
         {{-- Top Summary Metric Cards --}}
         <div class="grid gap-3.5 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
             {{-- Card 1: Out of Stock (Critical Shortage) --}}
-            <div class="rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-neutral-300 dark:hover:border-neutral-700 transition-all duration-150">
+            <a href="#alerts-list" aria-controls="alerts-list" aria-label="Show out-of-stock alerts" data-alert-filter="out_of_stock" data-metric-title="Out-of-stock items" data-metric-details="[]" class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between cursor-pointer hover:border-rose-300 hover:shadow-sm active:bg-neutral-50 aria-[current=true]:border-rose-400 aria-[current=true]:ring-1 aria-[current=true]:ring-rose-300 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 dark:hover:border-rose-700 dark:active:bg-neutral-800/80 dark:aria-[current=true]:border-rose-600 dark:aria-[current=true]:ring-rose-700 dark:focus-visible:ring-offset-neutral-950 transition-[box-shadow,border-color,background-color] motion-safe:duration-150">
                 {{-- Zone 1: Header --}}
                 <div class="flex items-center justify-between gap-2">
                     <p class="text-xs sm:text-sm font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">Out of Stock</p>
@@ -29,10 +29,10 @@
                 <div class="mt-3.5 flex items-center border-t border-neutral-100 pt-2.5 dark:border-neutral-800/80">
                     <span class="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-300 truncate">Zero on hand available</span>
                 </div>
-            </div>
+            </a>
 
             {{-- Card 2: Low Stock Warnings (Reorder Trigger) --}}
-            <div class="rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-neutral-300 dark:hover:border-neutral-700 transition-all duration-150">
+            <a href="#alerts-list" aria-controls="alerts-list" aria-label="Show low-stock alerts" data-alert-filter="low_stock" data-metric-title="Low-stock items" data-metric-details="[]" class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between cursor-pointer hover:border-amber-300 hover:shadow-sm active:bg-neutral-50 aria-[current=true]:border-amber-400 aria-[current=true]:ring-1 aria-[current=true]:ring-amber-300 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:hover:border-amber-700 dark:active:bg-neutral-800/80 dark:aria-[current=true]:border-amber-600 dark:aria-[current=true]:ring-amber-700 dark:focus-visible:ring-offset-neutral-950 transition-[box-shadow,border-color,background-color] motion-safe:duration-150">
                 {{-- Zone 1: Header --}}
                 <div class="flex items-center justify-between gap-2">
                     <p class="text-xs sm:text-sm font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">Low Stock Warnings</p>
@@ -49,10 +49,10 @@
                 <div class="mt-3.5 flex items-center border-t border-neutral-100 pt-2.5 dark:border-neutral-800/80">
                     <span class="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-300 truncate">Below reorder threshold</span>
                 </div>
-            </div>
+            </a>
 
             {{-- Card 3: Active Expiring Batches --}}
-            <div class="rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-neutral-300 dark:hover:border-neutral-700 transition-all duration-150">
+            <a href="#alerts-list" aria-controls="alerts-list" aria-label="Show batches expiring soon" data-alert-filter="expiring_soon" data-metric-title="Batches expiring within 90 days" data-metric-details="[]" class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between cursor-pointer hover:border-indigo-300 hover:shadow-sm active:bg-neutral-50 aria-[current=true]:border-indigo-400 aria-[current=true]:ring-1 aria-[current=true]:ring-indigo-300 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:hover:border-indigo-700 dark:active:bg-neutral-800/80 dark:aria-[current=true]:border-indigo-600 dark:aria-[current=true]:ring-indigo-700 dark:focus-visible:ring-offset-neutral-950 transition-[box-shadow,border-color,background-color] motion-safe:duration-150">
                 {{-- Zone 1: Header --}}
                 <div class="flex items-center justify-between gap-2">
                     <p class="text-xs sm:text-sm font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Expiring Soon</p>
@@ -69,10 +69,10 @@
                 <div class="mt-3.5 flex items-center border-t border-neutral-100 pt-2.5 dark:border-neutral-800/80">
                     <span class="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-300 truncate">1&ndash;90 days remaining, including critical</span>
                 </div>
-            </div>
+            </a>
 
             {{-- Card 4: Expired Batches --}}
-            <div class="rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-neutral-300 dark:hover:border-neutral-700 transition-all duration-150">
+            <a href="#alerts-list" aria-controls="alerts-list" aria-label="Show expired-batch alerts" data-alert-filter="expired" data-metric-title="Expired batches" data-metric-details="[]" class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between cursor-pointer hover:border-rose-300 hover:shadow-sm active:bg-neutral-50 aria-[current=true]:border-rose-400 aria-[current=true]:ring-1 aria-[current=true]:ring-rose-300 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 dark:hover:border-rose-700 dark:active:bg-neutral-800/80 dark:aria-[current=true]:border-rose-600 dark:aria-[current=true]:ring-rose-700 dark:focus-visible:ring-offset-neutral-950 transition-[box-shadow,border-color,background-color] motion-safe:duration-150">
                 <div class="flex items-center justify-between gap-2">
                     <p class="text-xs sm:text-sm font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">Expired Batches</p>
                     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/80 dark:text-rose-300 dark:ring-rose-800/50">
@@ -86,7 +86,7 @@
                 <div class="mt-3.5 flex items-center border-t border-neutral-100 pt-2.5 dark:border-neutral-800/80">
                     <span class="text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-300 truncate">0 days remaining or past due</span>
                 </div>
-            </div>
+            </a>
         </div>
 
         {{-- Main Alerts Section (Viewport-Fitting with Internal Scroll) --}}
@@ -99,7 +99,12 @@
             </x-slot:header>
 
             <x-slot:actions>
-                <x-ui.loader id="alerts-api-status" size="sm" label="Scanning stock levels..." class="text-xs text-neutral-500 dark:text-neutral-400" />
+                <div class="flex items-center gap-2">
+                    <button id="alerts-clear-filter" type="button" hidden class="inline-flex min-h-9 items-center rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-2xs transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 dark:focus-visible:ring-offset-neutral-900">
+                        Show all alerts
+                    </button>
+                    <x-ui.loader id="alerts-api-status" size="sm" label="Scanning stock levels..." class="text-xs text-neutral-500 dark:text-neutral-400" />
+                </div>
             </x-slot:actions>
 
             {{-- Viewport-Constrained Scrollable Body --}}
@@ -446,6 +451,105 @@
                 .replace(/'/g, '&#039;');
         }
 
+        let activeAlertFilter = 'all';
+
+        const alertFilterLabels = {
+            out_of_stock: 'out-of-stock items',
+            low_stock: 'low-stock items',
+            expiring_soon: 'batches expiring soon',
+            expired: 'expired batches',
+        };
+
+        function metricDetails(records, formatter, emptyMessage) {
+            const details = records.slice(0, 5).map(formatter).filter(Boolean);
+
+            if (details.length === 0) return [emptyMessage];
+
+            const remaining = records.length - details.length;
+            if (remaining > 0) {
+                details.push(`${remaining.toLocaleString()} more — open the card to view all`);
+            }
+
+            return details;
+        }
+
+        function setMetricDetails(filter, records, formatter, emptyMessage) {
+            const card = document.querySelector(`[data-alert-filter="${filter}"]`);
+            if (!card) return;
+
+            card.dataset.metricDetails = JSON.stringify(metricDetails(records, formatter, emptyMessage));
+        }
+
+        function setAlertVisibility(element, visible) {
+            element.hidden = !visible;
+
+            if (visible) element.style.removeProperty('display');
+            else element.style.setProperty('display', 'none', 'important');
+        }
+
+        function applyAlertFilter() {
+            const container = document.getElementById('alerts-list');
+            if (!container) return;
+
+            const itemCards = Array.from(container.querySelectorAll('[data-alert-kind]'));
+            itemCards.forEach(card => {
+                setAlertVisibility(card, activeAlertFilter === 'all' || card.dataset.alertKind === activeAlertFilter);
+            });
+
+            let visibleCount = 0;
+            container.querySelectorAll('[data-alert-section]').forEach(section => {
+                const sectionCards = Array.from(section.querySelectorAll('[data-alert-kind]'));
+                const sectionVisibleCount = sectionCards.filter(card => !card.hidden).length;
+                setAlertVisibility(section, activeAlertFilter === 'all' || sectionVisibleCount > 0);
+                visibleCount += sectionVisibleCount;
+                section.querySelectorAll('[data-alert-visible-count]').forEach(count => {
+                    count.textContent = sectionVisibleCount.toLocaleString();
+                });
+            });
+
+            container.querySelector('[data-alert-filter-empty]')?.remove();
+            const allEmptyState = container.querySelector('[data-alert-empty-all]');
+            if (allEmptyState) setAlertVisibility(allEmptyState, activeAlertFilter === 'all');
+
+            if (activeAlertFilter !== 'all' && visibleCount === 0) {
+                const emptyState = document.createElement('div');
+                emptyState.dataset.alertFilterEmpty = '';
+                emptyState.className = 'rounded-xl border border-dashed border-neutral-300 bg-neutral-50/60 p-8 text-center dark:border-neutral-700 dark:bg-neutral-800/30';
+
+                const title = document.createElement('p');
+                title.className = 'text-sm font-semibold text-neutral-800 dark:text-neutral-200';
+                title.textContent = `No ${alertFilterLabels[activeAlertFilter]} found`;
+
+                const message = document.createElement('p');
+                message.className = 'mt-1 text-xs text-neutral-500 dark:text-neutral-400';
+                message.textContent = 'Select Show all alerts to return to the complete attention queue.';
+                emptyState.append(title, message);
+                container.append(emptyState);
+            }
+
+            const clearFilter = document.getElementById('alerts-clear-filter');
+            if (clearFilter) setAlertVisibility(clearFilter, activeAlertFilter !== 'all');
+
+            document.querySelectorAll('[data-alert-filter]').forEach(card => {
+                if (card.dataset.alertFilter === activeAlertFilter) card.setAttribute('aria-current', 'true');
+                else card.removeAttribute('aria-current');
+            });
+        }
+
+        function initializeAlertFilters() {
+            document.querySelectorAll('[data-alert-filter]').forEach(card => {
+                card.addEventListener('click', () => {
+                    activeAlertFilter = card.dataset.alertFilter;
+                    applyAlertFilter();
+                });
+            });
+
+            document.getElementById('alerts-clear-filter')?.addEventListener('click', () => {
+                activeAlertFilter = 'all';
+                applyAlertFilter();
+            });
+        }
+
         async function fetchAllInventoryItems() {
             const items = [];
             let page = 1;
@@ -528,6 +632,31 @@
                     .filter(batch => batch.expiry_status === 'expired')
                     .sort(byRemainingDays);
 
+                setMetricDetails(
+                    'out_of_stock',
+                    outOfStock,
+                    item => `${item.name || 'Unknown item'} (${item.sku || 'No SKU'}) — ${parseInt(item.quantity_on_hand, 10) || 0} on hand`,
+                    'No items are currently out of stock',
+                );
+                setMetricDetails(
+                    'low_stock',
+                    lowStockOnly,
+                    item => `${item.name || 'Unknown item'} (${item.sku || 'No SKU'}) — ${parseInt(item.quantity_on_hand, 10) || 0} on hand / reorder at ${parseInt(item.reorder_level || item.reorder_point || 0, 10)}`,
+                    'No items are currently below their reorder threshold',
+                );
+                setMetricDetails(
+                    'expiring_soon',
+                    expiringSoon,
+                    batch => `${batch.name || 'Unknown item'} · ${batch.batch_number || 'Unnumbered batch'} — ${batch.days_remaining} days remaining`,
+                    'No stocked batches expire within 90 days',
+                );
+                setMetricDetails(
+                    'expired',
+                    expired,
+                    batch => `${batch.name || 'Unknown item'} · ${batch.batch_number || 'Unnumbered batch'} — ${Math.abs(batch.days_remaining || 0)} days overdue`,
+                    'No stocked batches are expired',
+                );
+
                 // Update Stat Cards
                 if (statOutOfStock) statOutOfStock.textContent = outOfStock.length.toLocaleString();
                 if (statLowStock) statLowStock.textContent = lowStockOnly.length.toLocaleString();
@@ -537,7 +666,7 @@
                 if (allLowOrOut.length === 0 && expiringSoon.length === 0 && expired.length === 0) {
                     container.className = 'w-full';
                     container.innerHTML = `
-                        <div class="rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50/60 dark:bg-neutral-800/30 p-8 text-center">
+                        <div data-alert-empty-all class="rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50/60 dark:bg-neutral-800/30 p-8 text-center">
                             <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 mb-3">
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -560,7 +689,7 @@
                     // 1. Low Stock & Depleted Inventory Card
                     if (hasLowStock) {
                         cards.push(`
-                            <div class="${isSingleCategory ? 'col-span-1' : ''} rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/20 p-4 sm:p-5 shadow-2xs">
+                            <div data-alert-section="stock" class="${isSingleCategory ? 'col-span-1' : ''} rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/20 p-4 sm:p-5 shadow-2xs">
                                 <div class="flex items-center justify-between pb-3 border-b border-rose-200/70 dark:border-rose-900/40">
                                     <div class="flex items-center gap-2.5">
                                         <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-300 ring-1 ring-rose-200 dark:ring-rose-800/50">
@@ -570,12 +699,12 @@
                                         </span>
                                         <div>
                                             <h3 class="text-xs sm:text-sm font-bold text-rose-900 dark:text-rose-200">Reorder &amp; Low Stock Triggers</h3>
-                                            <p class="text-[11px] text-rose-700 dark:text-rose-300">${allLowOrOut.length} item(s) require replenishment</p>
+                                            <p class="text-[11px] text-rose-700 dark:text-rose-300"><span data-alert-visible-count>${allLowOrOut.length}</span> item(s) require replenishment</p>
                                         </div>
                                     </div>
                                     <span class="inline-flex items-center gap-1.5 rounded-full bg-rose-100 dark:bg-rose-900/70 px-2.5 py-1 text-xs font-bold text-rose-800 dark:text-rose-200 tabular-nums">
                                         <span class="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                                        ${allLowOrOut.length} alerts
+                                        <span data-alert-visible-count>${allLowOrOut.length}</span> alerts
                                     </span>
                                 </div>
                                 <div class="mt-3.5 ${itemsGridClass}">
@@ -598,7 +727,7 @@
                                         const borderAccent = isOut ? 'border-l-rose-500' : 'border-l-amber-500';
 
                                         return `
-                                            <div class="rounded-xl bg-white dark:bg-neutral-900 p-3.5 shadow-2xs border border-neutral-200/90 dark:border-neutral-800 border-l-4 ${borderAccent} hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-xs transition-all flex flex-col justify-between">
+                                            <div data-alert-kind="${isOut ? 'out_of_stock' : 'low_stock'}" class="rounded-xl bg-white dark:bg-neutral-900 p-3.5 shadow-2xs border border-neutral-200/90 dark:border-neutral-800 border-l-4 ${borderAccent} hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-xs transition-all flex flex-col justify-between">
                                                 <div>
                                                     <div class="flex items-start justify-between gap-2">
                                                         <div class="min-w-0 flex-1">
@@ -645,7 +774,7 @@
                     // 2. Active Expiring Inventory Card
                     if (hasExpiring) {
                         cards.push(`
-                            <div class="${isSingleCategory ? 'col-span-1' : ''} rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/40 dark:bg-indigo-950/20 p-4 sm:p-5 shadow-2xs">
+                            <div data-alert-section="expiring_soon" class="${isSingleCategory ? 'col-span-1' : ''} rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/40 dark:bg-indigo-950/20 p-4 sm:p-5 shadow-2xs">
                                 <div class="flex items-center justify-between pb-3 border-b border-indigo-200/70 dark:border-indigo-900/40">
                                     <div class="flex items-center gap-2.5">
                                         <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-800/50">
@@ -655,12 +784,12 @@
                                         </span>
                                         <div>
                                             <h3 class="text-xs sm:text-sm font-bold text-indigo-900 dark:text-indigo-200">Expiring Soon Inventory</h3>
-                                            <p class="text-[11px] text-indigo-700 dark:text-indigo-300">${expiringSoon.length} batch(es) with 1&ndash;90 days remaining</p>
+                                            <p class="text-[11px] text-indigo-700 dark:text-indigo-300"><span data-alert-visible-count>${expiringSoon.length}</span> batch(es) with 1&ndash;90 days remaining</p>
                                         </div>
                                     </div>
                                     <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 dark:bg-indigo-900/70 px-2.5 py-1 text-xs font-bold text-indigo-800 dark:text-indigo-200 tabular-nums">
                                         <span class="h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
-                                        ${expiringSoon.length} batches
+                                        <span data-alert-visible-count>${expiringSoon.length}</span> batches
                                     </span>
                                 </div>
                                 <div class="mt-3.5 ${itemsGridClass}">
@@ -676,7 +805,7 @@
                                         const isCritical = item.expiry_status === 'critical';
 
                                         return `
-                                            <div class="rounded-xl bg-white dark:bg-neutral-900 p-3.5 shadow-2xs border border-neutral-200/90 dark:border-neutral-800 border-l-4 border-l-indigo-500 hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-xs transition-all flex flex-col justify-between">
+                                            <div data-alert-kind="expiring_soon" class="rounded-xl bg-white dark:bg-neutral-900 p-3.5 shadow-2xs border border-neutral-200/90 dark:border-neutral-800 border-l-4 border-l-indigo-500 hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-xs transition-all flex flex-col justify-between">
                                                 <div>
                                                     <div class="flex items-start justify-between gap-2">
                                                         <div class="min-w-0 flex-1">
@@ -723,7 +852,7 @@
                     // 3. Expired Inventory Card
                     if (hasExpired) {
                         cards.push(`
-                            <div class="${isSingleCategory ? 'col-span-1' : ''} rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/20 p-4 sm:p-5 shadow-2xs">
+                            <div data-alert-section="expired" class="${isSingleCategory ? 'col-span-1' : ''} rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/20 p-4 sm:p-5 shadow-2xs">
                                 <div class="flex items-center justify-between pb-3 border-b border-rose-200/70 dark:border-rose-900/40">
                                     <div>
                                         <h3 class="text-xs sm:text-sm font-bold text-rose-900 dark:text-rose-200">Expired Inventory</h3>
@@ -731,7 +860,7 @@
                                     </div>
                                     <span class="inline-flex items-center gap-1.5 rounded-full bg-rose-100 dark:bg-rose-900/70 px-2.5 py-1 text-xs font-bold text-rose-800 dark:text-rose-200 tabular-nums">
                                         <span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
-                                        ${expired.length} batches
+                                        <span data-alert-visible-count>${expired.length}</span> batches
                                     </span>
                                 </div>
                                 <div class="mt-3.5 ${itemsGridClass}">
@@ -743,7 +872,7 @@
                                         const elapsedLabel = item.days_remaining === 0 ? 'Expired today' : `${Math.abs(item.days_remaining)}d overdue`;
 
                                         return `
-                                            <div class="rounded-xl bg-white dark:bg-neutral-900 p-3.5 shadow-2xs border border-neutral-200/90 dark:border-neutral-800 border-l-4 border-l-rose-500 flex flex-col justify-between">
+                                            <div data-alert-kind="expired" class="rounded-xl bg-white dark:bg-neutral-900 p-3.5 shadow-2xs border border-neutral-200/90 dark:border-neutral-800 border-l-4 border-l-rose-500 flex flex-col justify-between">
                                                 <div>
                                                     <div class="flex items-start justify-between gap-2">
                                                         <div class="min-w-0 flex-1">
@@ -781,6 +910,8 @@
                     container.className = isSingleCategory ? 'grid gap-4 grid-cols-1' : 'grid gap-4 lg:grid-cols-2';
                     container.innerHTML = cards.join('');
                 }
+
+                applyAlertFilter();
 
                 // Hide loader cleanly without showing 'Alerts loaded from API.' text
                 if (status) {
@@ -857,6 +988,9 @@
             }
         };
 
-        document.addEventListener('DOMContentLoaded', loadAlertsFromApi);
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeAlertFilters();
+            loadAlertsFromApi();
+        });
     </script>
 </x-app-layout>
