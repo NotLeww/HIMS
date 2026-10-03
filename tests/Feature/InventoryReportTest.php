@@ -1575,6 +1575,93 @@ class InventoryReportTest extends TestCase
             ->assertJsonPath('empty_message', 'No items have reserved units under the active filters.');
     }
 
+    public function test_analytics_segments_filter_expiry_and_procurement_drilldowns(): void
+    {
+        $reader = $this->reader();
+        $location = $this->location();
+        $item = $this->stockedItem('Segmented Item', 'SEGMENT-ITEM', 20, 25.00, location: $location);
+        $lowStock = $this->stockedItem('Reserved Low Item', 'RESERVED-LOW', 2, 10.00, reorderLevel: 5);
+        $outOfStock = $this->stockedItem('Reserved Out Item', 'RESERVED-OUT', 0, 10.00, reorderLevel: 5);
+        $lowStock->update(['reserved_quantity' => 1]);
+        $outOfStock->update(['reserved_quantity' => 1]);
+
+        foreach ([
+            ['EXPIRED-SEGMENT', now()->subDay()],
+            ['EXPIRING-SEGMENT', now()->addDays(10)],
+        ] as [$batchNumber, $expiryDate]) {
+            $batch = ItemBatch::create([
+                'item_id' => $item->id,
+                'batch_number' => $batchNumber,
+                'expiry_date' => $expiryDate->toDateString(),
+                'unit_cost' => 25.00,
+                'status' => 'active',
+            ]);
+
+            ItemStockLevel::create([
+                'item_id' => $item->id,
+                'item_batch_id' => $batch->id,
+                'storage_location_id' => $location->id,
+                'quantity' => 10,
+                'reserved_quantity' => 0,
+            ]);
+        }
+
+        $supplier = Supplier::create(['name' => 'Segmented Supplier', 'status' => 'active']);
+        foreach ([
+            ['PO-ACCEPTED-SEGMENT', 'received'],
+            ['PO-OUTSTANDING-SEGMENT', 'pending'],
+        ] as [$poNumber, $status]) {
+            PurchaseOrder::create([
+                'po_number' => $poNumber,
+                'supplier_id' => $supplier->id,
+                'item_id' => $item->id,
+                'quantity' => 10,
+                'unit_cost' => 25.00,
+                'total_amount' => 250.00,
+                'status' => $status,
+                'requested_at' => now()->subDay(),
+                'received_at' => $status === 'received' ? now() : null,
+            ]);
+        }
+
+        $this->actingAs($reader)
+            ->getJson('/inventory/reports/generate?report_type=expiry_exposure&format=json&period=30&expiry_status=expired')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.batch_number', 'EXPIRED-SEGMENT')
+            ->assertJsonMissing(['batch_number' => 'EXPIRING-SEGMENT']);
+
+        $this->actingAs($reader)
+            ->getJson('/inventory/reports/generate?report_type=procurement_expense&format=json&period=30&procurement_metric=accepted')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.po_number', 'PO-ACCEPTED-SEGMENT')
+            ->assertJsonMissing(['po_number' => 'PO-OUTSTANDING-SEGMENT']);
+
+        $this->actingAs($reader)
+            ->getJson('/inventory/reports/generate?report_type=procurement_expense&format=json&period=30&procurement_metric=outstanding')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.po_number', 'PO-OUTSTANDING-SEGMENT')
+            ->assertJsonMissing(['po_number' => 'PO-ACCEPTED-SEGMENT']);
+
+        $this->actingAs($reader)
+            ->getJson('/inventory/reports/generate?report_type=stock_status&format=json&status=needs_attention&reserved_only=1')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonMissing(['name' => 'Segmented Item']);
+
+        $this->actingAs($reader)
+            ->getJson('/inventory/reports/generate?report_type=expiry_exposure&format=json&expiry_status=invalid')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('expiry_status');
+
+        $this->actingAs($reader)
+            ->getJson('/inventory/reports/generate?report_type=procurement_expense&format=json&procurement_metric=invalid')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('procurement_metric');
+    }
+
     public function test_chart_drilldown_modal_provides_responsive_cards_and_a_scrollable_table_view(): void
     {
         $this->actingAs($this->reader())
@@ -1614,7 +1701,8 @@ class InventoryReportTest extends TestCase
 
         $page->assertOk()
             ->assertSee('data-metric-summary=', false)
-            ->assertSee('data-metric-details=', false)
+            ->assertDontSee('data-metric-details=', false)
+            ->assertSee('data-chart-item="true"', false)
             ->assertSee('2xl:grid-cols-12', false)
             ->assertSee('units on hand')
             ->assertSee('Healthy stock')
@@ -1640,7 +1728,6 @@ class InventoryReportTest extends TestCase
             ->assertSee('aria-label="View batches contributing to expiry risk"', false)
             ->assertSee('aria-label="View stock movement ledger records"', false)
             ->assertSee('aria-label="View purchase orders included in procurement spending"', false)
-            ->assertSee('href="#inventory-health"', false)
             ->assertSee('id="inventory-health"', false)
             ->assertSee('data-drilldown-title="Total Items — Inventory Records"', false)
             ->assertSee('data-drilldown-title="Expiry Risk Units — Affected Batches"', false)
@@ -1656,6 +1743,11 @@ class InventoryReportTest extends TestCase
         $this->assertTrue($drilldownUrls->contains(fn (string $url) => str_contains($url, 'report_type=expiry_exposure')));
         $this->assertTrue($drilldownUrls->contains(fn (string $url) => str_contains($url, 'report_type=movement_history')));
         $this->assertTrue($drilldownUrls->contains(fn (string $url) => str_contains($url, 'report_type=procurement_expense')));
+        $this->assertTrue($drilldownUrls->contains(fn (string $url) => str_contains($url, 'movement_type=stock_in')));
+        $this->assertTrue($drilldownUrls->contains(fn (string $url) => str_contains($url, 'expiry_status=expired')));
+        $this->assertTrue($drilldownUrls->contains(fn (string $url) => str_contains($url, 'expiry_status=expiring_soon')));
+        $this->assertTrue($drilldownUrls->contains(fn (string $url) => str_contains($url, 'procurement_metric=accepted')));
+        $this->assertTrue($drilldownUrls->contains(fn (string $url) => str_contains($url, 'procurement_metric=outstanding')));
     }
 
     public function test_chart_drilldown_modal_preserves_page_scroll_position_and_prevents_scroll_to_top(): void

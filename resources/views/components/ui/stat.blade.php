@@ -49,7 +49,6 @@
             'value' => 'text-rose-600 dark:text-rose-400',
         ],
     ];
-    $tag = $href ? 'a' : 'div';
     $tooltipDetails = collect($details)->filter(fn ($detail) => is_string($detail) && trim($detail) !== '')->values()->all();
     $breakdownItems = collect($breakdown)
         ->filter(fn ($item) => is_array($item) && isset($item['label'], $item['value']))
@@ -61,8 +60,14 @@
             'label' => (string) $item['label'],
             'value' => max(0, (float) $item['value']),
             'tone' => $item['tone'] ?? 'primary',
+            'url' => $item['url'] ?? null,
+            'title' => $item['title'] ?? $item['label'],
+            'summary' => $item['summary'] ?? null,
+            'focus' => $item['focus'] ?? null,
         ])
         ->values();
+    $hasInteractiveChart = $chartItems->contains(fn (array $item) => filled($item['url']));
+    $tag = $href && ! $hasInteractiveChart ? 'a' : 'div';
     $chartTotal = (float) $chartItems->sum('value');
     $chartMaximum = max(1, (float) $chartItems->max('value'));
     $chartTones = [
@@ -89,10 +94,10 @@
 @endphp
 
 <{{ $tag }}
-    @if ($href) href="{{ $href }}" @endif
-    @if ($summary) data-metric-summary="{{ $summary }}" @endif
-    @if ($tooltipDetails) data-metric-details="{{ json_encode($tooltipDetails) }}" @endif
-    @if ($summaryTitle) data-metric-title="{{ $summaryTitle }}" @endif
+    @if ($tag === 'a') href="{{ $href }}" @endif
+    @if (!$hasInteractiveChart && $summary) data-metric-summary="{{ $summary }}" @endif
+    @if (!$hasInteractiveChart && $tooltipDetails) data-metric-details="{{ json_encode($tooltipDetails) }}" @endif
+    @if (!$hasInteractiveChart && $summaryTitle) data-metric-title="{{ $summaryTitle }}" @endif
     {{ $attributes->merge([
         'class' => 'group relative flex min-w-0 flex-col justify-between overflow-hidden border shadow-xs transition-[box-shadow,border-color,background-color] motion-safe:duration-150 '
             .($analytics
@@ -134,7 +139,7 @@
         </div>
 
         @if ($chartItems->isNotEmpty())
-            <div class="mt-3" role="img" aria-label="{{ $chartLabel ?? $label.' comparison' }}">
+            <div class="mt-3" role="{{ $hasInteractiveChart ? 'group' : 'img' }}" aria-label="{{ $chartLabel ?? $label.' comparison' }}">
                 @if ($chartLabel)
                     <p class="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{{ $chartLabel }}</p>
                 @endif
@@ -142,7 +147,22 @@
                 @if ($chartType === 'bars')
                     <div class="grid items-start gap-2" style="grid-template-columns: repeat({{ $chartItems->count() }}, minmax(0, 1fr));">
                         @foreach ($chartItems as $item)
-                            <div class="flex min-w-0 flex-col gap-1.5" title="{{ $item['label'] }}: {{ number_format($item['value'], 2) }}">
+                            @php $chartItemTag = filled($item['url']) ? 'button' : 'div'; @endphp
+                            <{{ $chartItemTag }}
+                                @if ($chartItemTag === 'button')
+                                    type="button"
+                                    data-chart-item="true"
+                                    data-metric-title="{{ $item['title'] }}"
+                                    @if ($item['summary']) data-metric-summary="{{ $item['summary'] }}" @endif
+                                    data-drilldown-url="{{ $item['url'] }}"
+                                    data-drilldown-title="{{ $item['title'] }}"
+                                    data-drilldown-focus="{{ $item['focus'] }}"
+                                    x-on:click.stop.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
+                                    aria-label="View {{ $item['label'] }} records"
+                                @endif
+                                class="flex min-w-0 flex-col gap-1.5 rounded-md {{ $chartItemTag === 'button' ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900' : '' }}"
+                                title="{{ $item['label'] }}: {{ number_format($item['value'], 2) }}"
+                            >
                                 <div class="flex h-9 items-end overflow-hidden rounded-md bg-neutral-100 dark:bg-neutral-800">
                                     <span
                                         class="block w-full rounded-md {{ $chartTones[$item['tone']] ?? $chartTones['primary'] }}"
@@ -151,13 +171,28 @@
                                 </div>
                                 <span class="text-center text-[9px] font-medium leading-tight text-neutral-500 dark:text-neutral-400">{{ $item['label'] }}</span>
                                 <span class="text-center text-sm font-black leading-none tabular-nums text-neutral-900 dark:text-white">{{ number_format($item['value']) }}</span>
-                            </div>
+                            </{{ $chartItemTag }}>
                         @endforeach
                     </div>
                 @elseif ($chartType === 'comparison')
                     <div class="grid gap-2" style="grid-template-columns: repeat({{ $chartItems->count() }}, minmax(0, 1fr));">
                         @foreach ($chartItems as $item)
-                            <div class="min-w-0" title="{{ $item['label'] }}: {{ number_format($item['value'], 2) }}">
+                            @php $chartItemTag = filled($item['url']) ? 'button' : 'div'; @endphp
+                            <{{ $chartItemTag }}
+                                @if ($chartItemTag === 'button')
+                                    type="button"
+                                    data-chart-item="true"
+                                    data-metric-title="{{ $item['title'] }}"
+                                    @if ($item['summary']) data-metric-summary="{{ $item['summary'] }}" @endif
+                                    data-drilldown-url="{{ $item['url'] }}"
+                                    data-drilldown-title="{{ $item['title'] }}"
+                                    data-drilldown-focus="{{ $item['focus'] }}"
+                                    x-on:click.stop.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
+                                    aria-label="View {{ $item['label'] }} records"
+                                @endif
+                                class="min-w-0 rounded-md {{ $chartItemTag === 'button' ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-900' : '' }}"
+                                title="{{ $item['label'] }}: {{ number_format($item['value'], 2) }}"
+                            >
                                 <div class="h-3 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
                                     <span
                                         class="block h-full rounded-full {{ $chartTones[$item['tone']] ?? $chartTones['primary'] }}"
@@ -168,20 +203,30 @@
                                     <span class="h-2 w-2 shrink-0 rounded-full {{ $chartTones[$item['tone']] ?? $chartTones['primary'] }}"></span>
                                     <span class="truncate text-[10px] font-semibold text-neutral-500 dark:text-neutral-400">{{ $item['label'] }}</span>
                                 </div>
-                            </div>
+                            </{{ $chartItemTag }}>
                         @endforeach
                     </div>
                 @else
                     <div class="flex h-3 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
-                        @if ($chartTotal > 0)
-                            @foreach ($chartItems as $item)
-                                <span
-                                    class="h-full {{ $chartTones[$item['tone']] ?? $chartTones['primary'] }}"
-                                    style="width: {{ round(($item['value'] / $chartTotal) * 100, 2) }}%;"
-                                    title="{{ $item['label'] }}: {{ number_format($item['value'], 2) }}"
-                                ></span>
-                            @endforeach
-                        @endif
+                        @foreach ($chartItems as $item)
+                            @php $chartItemTag = filled($item['url']) ? 'button' : 'span'; @endphp
+                            <{{ $chartItemTag }}
+                                @if ($chartItemTag === 'button')
+                                    type="button"
+                                    data-chart-item="true"
+                                    data-metric-title="{{ $item['title'] }}"
+                                    @if ($item['summary']) data-metric-summary="{{ $item['summary'] }}" @endif
+                                    data-drilldown-url="{{ $item['url'] }}"
+                                    data-drilldown-title="{{ $item['title'] }}"
+                                    data-drilldown-focus="{{ $item['focus'] }}"
+                                    x-on:click.stop.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
+                                    aria-label="View {{ $item['label'] }} records"
+                                @endif
+                                class="h-full {{ $chartTotal > 0 ? ($chartTones[$item['tone']] ?? $chartTones['primary']) : 'bg-transparent hover:bg-neutral-200/70 dark:hover:bg-neutral-700/70' }} {{ $chartItemTag === 'button' ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500' : '' }}"
+                                style="width: {{ $chartTotal > 0 ? round(($item['value'] / $chartTotal) * 100, 2) : round(100 / max(1, $chartItems->count()), 2) }}%;"
+                                title="{{ $item['label'] }}: {{ number_format($item['value'], 2) }}"
+                            ></{{ $chartItemTag }}>
+                        @endforeach
                     </div>
                 @endif
             </div>
@@ -192,8 +237,22 @@
                 @foreach ($breakdownItems as $breakdownIndex => $item)
                     @php
                         $breakdownTone = $item['tone'] ?? data_get($chartItems->get($breakdownIndex), 'tone', 'neutral');
+                        $breakdownItemTag = filled($item['url'] ?? null) ? 'button' : 'div';
                     @endphp
-                    <div class="min-w-0 {{ $analytics ? 'rounded-xl border px-2.5 py-2.5 '.($breakdownSurfaces[$breakdownTone] ?? $breakdownSurfaces['neutral']) : '' }}">
+                    <{{ $breakdownItemTag }}
+                        @if ($breakdownItemTag === 'button')
+                            type="button"
+                            data-chart-item="true"
+                            data-metric-title="{{ $item['title'] ?? $item['label'] }}"
+                            @if (!empty($item['summary'])) data-metric-summary="{{ $item['summary'] }}" @endif
+                            data-drilldown-url="{{ $item['url'] }}"
+                            data-drilldown-title="{{ $item['title'] ?? $item['label'] }}"
+                            data-drilldown-focus="{{ $item['focus'] ?? '' }}"
+                            x-on:click.stop.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
+                            aria-label="View {{ $item['label'] }} records"
+                        @endif
+                        class="min-w-0 text-left {{ $analytics ? 'rounded-xl border px-2.5 py-2.5 '.($breakdownSurfaces[$breakdownTone] ?? $breakdownSurfaces['neutral']) : '' }} {{ $breakdownItemTag === 'button' ? 'cursor-pointer transition hover:border-primary-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:border-primary-700' : '' }}"
+                    >
                         <dt class="flex min-w-0 items-start text-[10px] font-bold uppercase text-neutral-500 dark:text-neutral-400 {{ $analytics ? 'gap-1.5 leading-tight tracking-normal' : 'gap-2 truncate tracking-wide' }}">
                             @if ($analytics)
                                 <span class="mt-0.5 h-2 w-2 shrink-0 rounded-full {{ $chartTones[$breakdownTone] ?? $chartTones['neutral'] }}"></span>
@@ -201,7 +260,7 @@
                             <span class="{{ $analytics ? 'whitespace-normal [overflow-wrap:normal] [word-break:normal]' : 'truncate' }}">{{ $item['label'] }}</span>
                         </dt>
                         <dd class="mt-1 truncate text-sm font-black tabular-nums text-neutral-950 dark:text-white sm:text-base" title="{{ $item['value'] }}">{{ $item['value'] }}</dd>
-                    </div>
+                    </{{ $breakdownItemTag }}>
                 @endforeach
             </dl>
         @endif

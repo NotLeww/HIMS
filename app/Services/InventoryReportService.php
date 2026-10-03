@@ -231,6 +231,13 @@ class InventoryReportService
         return InventoryItem::stockStatusFor($quantity, $reorderLevel);
     }
 
+    private function matchesStockStatusFilter(string $status, ?string $filter): bool
+    {
+        return ! $filter || ($filter === 'needs_attention'
+            ? in_array($status, ['low_stock', 'out_of_stock'], true)
+            : $status === $filter);
+    }
+
     /**
      * Items bucketed into in stock / low stock / out of stock.
      *
@@ -281,7 +288,7 @@ class InventoryReportService
             ->get();
 
         foreach ($rows as $row) {
-            if ($statusFilter && $statusFilter !== $row->stock_status) {
+            if (! $this->matchesStockStatusFilter($row->stock_status, $statusFilter)) {
                 continue;
             }
 
@@ -362,7 +369,10 @@ class InventoryReportService
     public function valuationByCategory(?int $categoryId = null, ?int $locationId = null, ?string $statusFilter = null): Collection
     {
         return $this->inventorySnapshot($categoryId, $locationId)
-            ->filter(fn (object $item) => ! $statusFilter || $this->stockStatusKey((int) $item->quantity_on_hand, (int) $item->reorder_level) === $statusFilter)
+            ->filter(fn (object $item) => $this->matchesStockStatusFilter(
+                $this->stockStatusKey((int) $item->quantity_on_hand, (int) $item->reorder_level),
+                $statusFilter
+            ))
             ->groupBy('category')
             ->map(fn (Collection $items, string $category) => (object) [
                 'category' => $category,
@@ -383,7 +393,10 @@ class InventoryReportService
     {
         $allowedItemIds = $statusFilter
             ? $this->inventorySnapshot($categoryId, $locationId)
-                ->filter(fn (object $item) => $this->stockStatusKey((int) $item->quantity_on_hand, (int) $item->reorder_level) === $statusFilter)
+                ->filter(fn (object $item) => $this->matchesStockStatusFilter(
+                    $this->stockStatusKey((int) $item->quantity_on_hand, (int) $item->reorder_level),
+                    $statusFilter
+                ))
                 ->pluck('id')
             : null;
 
@@ -732,6 +745,8 @@ class InventoryReportService
         $movementType = ! empty($filters['movement_type']) ? (string) $filters['movement_type'] : null;
         $status = ! empty($filters['status']) && $filters['status'] !== 'all' ? (string) $filters['status'] : null;
         $reservedOnly = (bool) ($filters['reserved_only'] ?? false);
+        $expiryStatus = ! empty($filters['expiry_status']) ? (string) $filters['expiry_status'] : null;
+        $procurementMetric = ! empty($filters['procurement_metric']) ? (string) $filters['procurement_metric'] : null;
         $sortBy = ! empty($filters['sort_by']) ? (string) $filters['sort_by'] : null;
         $sortDir = strtolower((string) ($filters['sort_direction'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
 
@@ -803,9 +818,9 @@ class InventoryReportService
             'stock_status' => $this->generateStockStatusReport($meta, $categoryId, $locationId, $status, $sortBy, $sortDir, $canViewFinancial, $reservedOnly),
             'valuation' => $this->generateValuationReport($meta, $categoryId, $locationId, $status, $sortBy, $sortDir, $canViewFinancial),
             'stock_by_location' => $this->generateStockByLocationReport($meta, $categoryId, $locationId, $status, $sortBy, $sortDir, $canViewFinancial),
-            'expiry_exposure' => $this->generateExpiryExposureReport($meta, $locationId, $categoryId, $sortBy, $sortDir, $canViewFinancial),
+            'expiry_exposure' => $this->generateExpiryExposureReport($meta, $locationId, $categoryId, $sortBy, $sortDir, $canViewFinancial, $expiryStatus),
             'movement_history' => $this->generateMovementHistoryReport($meta, $from, $to, $movementType, $locationId, $categoryId, $sortBy, $sortDir, $canViewFinancial),
-            'procurement_expense' => $this->generateProcurementExpenseReport($meta, $from, $to, $supplierId, $sortBy, $sortDir, $canViewFinancial),
+            'procurement_expense' => $this->generateProcurementExpenseReport($meta, $from, $to, $supplierId, $sortBy, $sortDir, $canViewFinancial, $procurementMetric),
             'spend_by_supplier' => $this->generateSpendBySupplierReport($meta, $from, $to, $supplierId, $sortBy, $sortDir, $canViewFinancial),
             'most_consumed' => $this->generateMostConsumedReport($meta, $from, $to, $categoryId, $locationId, $sortBy, $sortDir, $canViewFinancial),
             'movements_by_type' => $this->generateMovementsByTypeReport($meta, $from, $to, $movementType, $locationId, $categoryId, $sortBy, $sortDir, $canViewFinancial),
@@ -850,7 +865,9 @@ class InventoryReportService
         });
 
         if ($statusFilter) {
-            $classified = $classified->filter(fn ($r) => $r['status_key'] === $statusFilter)->values();
+            $classified = $classified
+                ->filter(fn ($row) => $this->matchesStockStatusFilter($row['status_key'], $statusFilter))
+                ->values();
         }
         if ($reservedOnly) {
             $classified = $classified->filter(fn ($row) => $row['reserved_quantity'] > 0)->values();
@@ -1063,7 +1080,7 @@ class InventoryReportService
     /**
      * Expiry Exposure Report generation.
      */
-    protected function generateExpiryExposureReport(array $meta, ?int $locationId, ?int $categoryId, ?string $sortBy, string $sortDir, bool $canViewFinancial): array
+    protected function generateExpiryExposureReport(array $meta, ?int $locationId, ?int $categoryId, ?string $sortBy, string $sortDir, bool $canViewFinancial, ?string $expiryStatus = null): array
     {
         $stockLevelScope = fn ($query) => $query->when(
             $locationId,
@@ -1083,7 +1100,11 @@ class InventoryReportService
 
         $expired = $batches->filter(fn (ItemBatch $b) => $b->isExpired());
         $expiringSoon = $batches->filter(fn (ItemBatch $b) => $b->isExpiringSoon());
-        $atRisk = $expired->merge($expiringSoon)->values();
+        $atRisk = match ($expiryStatus) {
+            'expired' => $expired->values(),
+            'expiring_soon' => $expiringSoon->values(),
+            default => $expired->merge($expiringSoon)->values(),
+        };
 
         $rows = $atRisk->map(function (ItemBatch $batch) {
             $cost = (float) ($batch->unit_cost ?? $batch->item?->unit_cost ?? 0);
@@ -1291,7 +1312,7 @@ class InventoryReportService
     /**
      * Procurement Expense Report generation.
      */
-    protected function generateProcurementExpenseReport(array $meta, Carbon $from, Carbon $to, ?int $supplierId, ?string $sortBy, string $sortDir, bool $canViewFinancial): array
+    protected function generateProcurementExpenseReport(array $meta, Carbon $from, Carbon $to, ?int $supplierId, ?string $sortBy, string $sortDir, bool $canViewFinancial, ?string $procurementMetric = null): array
     {
         if (! $canViewFinancial) {
             abort(403, 'You do not have permission to view procurement financial reports.');
@@ -1332,6 +1353,12 @@ class InventoryReportService
             ];
         });
 
+        $rows = match ($procurementMetric) {
+            'accepted' => $rows->filter(fn (array $row) => $row['accepted_value'] > 0)->values(),
+            'outstanding' => $rows->filter(fn (array $row) => $row['outstanding_value'] > 0)->values(),
+            default => $rows,
+        };
+
         // Sorting
         $rows = (match ($sortBy) {
             'supplier' => $sortDir === 'asc' ? $rows->sortBy('supplier') : $rows->sortByDesc('supplier'),
@@ -1341,12 +1368,13 @@ class InventoryReportService
             default => $sortDir === 'asc' ? $rows->sortBy('timestamp') : $rows->sortByDesc('timestamp'),
         })->values();
 
-        $spend = $this->procurementSpend($from, $to, $supplierId);
+        $spend = $procurementMetric === null ? $this->procurementSpend($from, $to, $supplierId) : null;
 
-        $totalOrdersCount = $orders->count();
-        $totalOrderedVal = (float) $orders->sum('total_amount');
-        $receivedVal = (float) $spend['received']['value'];
-        $outstandingVal = (float) $spend['outstanding']['value'];
+        $totalOrdersCount = $rows->count();
+        $totalOrderedVal = (float) $rows->sum('total_amount');
+        $receivedVal = $spend ? (float) $spend['received']['value'] : (float) $rows->sum('accepted_value');
+        $outstandingVal = $spend ? (float) $spend['outstanding']['value'] : (float) $rows->sum('outstanding_value');
+        $outstandingOrders = $spend ? (int) $spend['outstanding']['orders'] : $rows->where('outstanding_value', '>', 0)->count();
         $avgOrderVal = $totalOrdersCount > 0 ? round($totalOrderedVal / $totalOrdersCount, 2) : 0.0;
 
         $columns = [
@@ -1367,7 +1395,7 @@ class InventoryReportService
             'Purchase Orders Placed' => $totalOrdersCount,
             'Total Ordered Amount' => '₱'.number_format($totalOrderedVal, 2),
             'QC Accepted / Legacy Received' => '₱'.number_format($receivedVal, 2),
-            'Outstanding Commitments' => '₱'.number_format($outstandingVal, 2).' ('.$spend['outstanding']['orders'].' POs)',
+            'Outstanding Commitments' => '₱'.number_format($outstandingVal, 2).' ('.$outstandingOrders.' POs)',
             'Average Order Value' => '₱'.number_format($avgOrderVal, 2),
         ];
 

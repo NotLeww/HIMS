@@ -16,6 +16,7 @@
                 'reserved' => 'stock_status',
                 'movement_type' => 'movement_history',
                 'supplier' => 'procurement_expense',
+                'procurement_metric' => 'procurement_expense',
                 default => 'expiry_exposure',
             },
         ];
@@ -29,6 +30,10 @@
             }
         } elseif ($type === 'movement_type') {
             $parameters['movement_type'] = $value ?? ($activeFilters['movement_type'] ?? null);
+        } elseif ($type === 'expiry') {
+            $parameters['expiry_status'] = $value;
+        } elseif ($type === 'procurement_metric') {
+            $parameters['procurement_metric'] = $value;
         } elseif ($type === 'supplier') {
             $parameters['supplier_id'] = $value;
         }
@@ -737,13 +742,13 @@
             aria-label="View item-level records for total items"
             chart-label="Item distribution"
             :chart="[
-                ['label' => 'In stock', 'value' => $stockStatus['in_stock']['items'], 'tone' => 'success'],
-                ['label' => 'Low stock', 'value' => $stockStatus['low_stock']['items'], 'tone' => 'warning'],
-                ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['items'], 'tone' => 'danger'],
+                ['label' => 'In stock', 'value' => $stockStatus['in_stock']['items'], 'tone' => 'success', 'url' => $drilldownUrl('stock_status', 'in_stock'), 'title' => 'Total Items — In Stock', 'summary' => number_format($stockStatus['in_stock']['items']).' in-stock items with '.number_format($stockStatus['in_stock']['units']).' units on hand.', 'focus' => 'items'],
+                ['label' => 'Low stock', 'value' => $stockStatus['low_stock']['items'], 'tone' => 'warning', 'url' => $drilldownUrl('stock_status', 'low_stock'), 'title' => 'Total Items — Low Stock', 'summary' => number_format($stockStatus['low_stock']['items']).' low-stock items with '.number_format($stockStatus['low_stock']['units']).' units on hand.', 'focus' => 'items'],
+                ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['items'], 'tone' => 'danger', 'url' => $drilldownUrl('stock_status', 'out_of_stock'), 'title' => 'Total Items — Out of Stock', 'summary' => number_format($stockStatus['out_of_stock']['items']).' out-of-stock items.', 'focus' => 'items'],
             ]"
             :breakdown="[
-                ['label' => 'In stock', 'value' => number_format($stockStatus['in_stock']['items']).' items', 'tone' => 'success'],
-                ['label' => 'Needs attention', 'value' => number_format($summary['needs_attention']).' items', 'tone' => 'warning'],
+                ['label' => 'In stock', 'value' => number_format($stockStatus['in_stock']['items']).' items', 'tone' => 'success', 'url' => $drilldownUrl('stock_status', 'in_stock'), 'title' => 'Total Items — In Stock', 'summary' => number_format($stockStatus['in_stock']['items']).' matching in-stock items.', 'focus' => 'items'],
+                ['label' => 'Needs attention', 'value' => number_format($summary['needs_attention']).' items', 'tone' => 'warning', 'url' => $drilldownUrl('stock_status', 'needs_attention'), 'title' => 'Total Items — Needs Attention', 'summary' => number_format($summary['needs_attention']).' low-stock or out-of-stock items need attention.', 'focus' => 'items'],
             ]"
             hint-icon="clipboard-document-list"
             :hint="number_format($summary['units_on_hand']).' units on hand in the filtered snapshot'" />
@@ -771,14 +776,14 @@
             aria-label="View item-level stock valuation records"
             chart-label="Value by stock status"
             :chart="[
-                ['label' => 'Healthy', 'value' => $stockStatus['in_stock']['value'], 'tone' => 'success'],
-                ['label' => 'Low stock', 'value' => $stockStatus['low_stock']['value'], 'tone' => 'warning'],
-                ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['value'], 'tone' => 'danger'],
+                ['label' => 'Healthy', 'value' => $stockStatus['in_stock']['value'], 'tone' => 'success', 'url' => $drilldownUrl('stock_status', 'in_stock'), 'title' => 'Stock Valuation — Healthy Stock', 'summary' => '₱'.number_format($stockStatus['in_stock']['value'], 2).' across '.number_format($stockStatus['in_stock']['items']).' in-stock items.', 'focus' => 'valuation'],
+                ['label' => 'Low stock', 'value' => $stockStatus['low_stock']['value'], 'tone' => 'warning', 'url' => $drilldownUrl('stock_status', 'low_stock'), 'title' => 'Stock Valuation — Low Stock', 'summary' => '₱'.number_format($stockStatus['low_stock']['value'], 2).' across '.number_format($stockStatus['low_stock']['items']).' low-stock items.', 'focus' => 'valuation'],
+                ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['value'], 'tone' => 'danger', 'url' => $drilldownUrl('stock_status', 'out_of_stock'), 'title' => 'Stock Valuation — Out of Stock', 'summary' => number_format($stockStatus['out_of_stock']['items']).' out-of-stock items currently contribute ₱'.number_format($stockStatus['out_of_stock']['value'], 2).'.', 'focus' => 'valuation'],
             ]"
             :breakdown="[
-                ['label' => 'Healthy stock', 'value' => '₱'.number_format($stockStatus['in_stock']['value'], 2), 'tone' => 'success'],
-                ['label' => 'Low stock', 'value' => '₱'.number_format($stockStatus['low_stock']['value'], 2), 'tone' => 'warning'],
-                ['label' => 'Units valued', 'value' => number_format($summary['units_on_hand']), 'tone' => 'neutral'],
+                ['label' => 'Healthy stock', 'value' => '₱'.number_format($stockStatus['in_stock']['value'], 2), 'tone' => 'success', 'url' => $drilldownUrl('stock_status', 'in_stock'), 'title' => 'Stock Valuation — Healthy Stock', 'summary' => '₱'.number_format($stockStatus['in_stock']['value'], 2).' in healthy stock.', 'focus' => 'valuation'],
+                ['label' => 'Low stock', 'value' => '₱'.number_format($stockStatus['low_stock']['value'], 2), 'tone' => 'warning', 'url' => $drilldownUrl('stock_status', 'low_stock'), 'title' => 'Stock Valuation — Low Stock', 'summary' => '₱'.number_format($stockStatus['low_stock']['value'], 2).' in low stock.', 'focus' => 'valuation'],
+                ['label' => 'Units valued', 'value' => number_format($summary['units_on_hand']), 'tone' => 'neutral', 'url' => $drilldownUrl('stock_status'), 'title' => 'Stock Valuation — Units Valued', 'summary' => number_format($summary['units_on_hand']).' filtered units contribute to the current valuation.', 'focus' => 'valuation'],
             ]"
             hint-icon="document-text"
             hint="Filtered units on hand × unit cost." />
@@ -804,12 +809,12 @@
             aria-label="View low-stock and out-of-stock breakdown"
             chart-label="Attention distribution"
             :chart="[
-                ['label' => 'Low stock', 'value' => $stockStatus['low_stock']['items'], 'tone' => 'warning'],
-                ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['items'], 'tone' => 'danger'],
+                ['label' => 'Low stock', 'value' => $stockStatus['low_stock']['items'], 'tone' => 'warning', 'url' => $drilldownUrl('stock_status', 'low_stock'), 'title' => 'Inventory Attention — Low Stock', 'summary' => number_format($stockStatus['low_stock']['items']).' items are at or below their reorder level.', 'focus' => 'stock'],
+                ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['items'], 'tone' => 'danger', 'url' => $drilldownUrl('stock_status', 'out_of_stock'), 'title' => 'Inventory Attention — Out of Stock', 'summary' => number_format($stockStatus['out_of_stock']['items']).' items have no units on hand.', 'focus' => 'stock'],
             ]"
             :breakdown="[
-                ['label' => 'Low stock', 'value' => number_format($stockStatus['low_stock']['items']), 'tone' => 'warning'],
-                ['label' => 'Out of stock', 'value' => number_format($stockStatus['out_of_stock']['items']), 'tone' => 'danger'],
+                ['label' => 'Low stock', 'value' => number_format($stockStatus['low_stock']['items']), 'tone' => 'warning', 'url' => $drilldownUrl('stock_status', 'low_stock'), 'title' => 'Inventory Attention — Low Stock', 'summary' => number_format($stockStatus['low_stock']['items']).' matching low-stock items.', 'focus' => 'stock'],
+                ['label' => 'Out of stock', 'value' => number_format($stockStatus['out_of_stock']['items']), 'tone' => 'danger', 'url' => $drilldownUrl('stock_status', 'out_of_stock'), 'title' => 'Inventory Attention — Out of Stock', 'summary' => number_format($stockStatus['out_of_stock']['items']).' matching out-of-stock items.', 'focus' => 'stock'],
             ]"
             hint="At or below reorder level, or out of stock." />
 
@@ -834,13 +839,13 @@
             aria-label="View item-level reserved unit records"
             chart-label="Reserved by stock status"
             :chart="[
-                ['label' => 'In stock', 'value' => $stockStatus['in_stock']['reserved'], 'tone' => 'success'],
-                ['label' => 'Low stock', 'value' => $stockStatus['low_stock']['reserved'], 'tone' => 'warning'],
-                ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['reserved'], 'tone' => 'danger'],
+                ['label' => 'In stock', 'value' => $stockStatus['in_stock']['reserved'], 'tone' => 'success', 'url' => $drilldownUrl('reserved', 'in_stock'), 'title' => 'Reserved Units — In Stock', 'summary' => number_format($stockStatus['in_stock']['reserved']).' reserved units belong to in-stock items.', 'focus' => 'reserved'],
+                ['label' => 'Low stock', 'value' => $stockStatus['low_stock']['reserved'], 'tone' => 'warning', 'url' => $drilldownUrl('reserved', 'low_stock'), 'title' => 'Reserved Units — Low Stock', 'summary' => number_format($stockStatus['low_stock']['reserved']).' reserved units belong to low-stock items.', 'focus' => 'reserved'],
+                ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['reserved'], 'tone' => 'danger', 'url' => $drilldownUrl('reserved', 'out_of_stock'), 'title' => 'Reserved Units — Out of Stock', 'summary' => number_format($stockStatus['out_of_stock']['reserved']).' reserved units belong to out-of-stock items.', 'focus' => 'reserved'],
             ]"
             :breakdown="[
-                ['label' => 'In-stock reserved', 'value' => number_format($stockStatus['in_stock']['reserved']), 'tone' => 'success'],
-                ['label' => 'At-risk reserved', 'value' => number_format($stockStatus['low_stock']['reserved'] + $stockStatus['out_of_stock']['reserved']), 'tone' => 'warning'],
+                ['label' => 'In-stock reserved', 'value' => number_format($stockStatus['in_stock']['reserved']), 'tone' => 'success', 'url' => $drilldownUrl('reserved', 'in_stock'), 'title' => 'Reserved Units — In Stock', 'summary' => number_format($stockStatus['in_stock']['reserved']).' matching reserved units.', 'focus' => 'reserved'],
+                ['label' => 'At-risk reserved', 'value' => number_format($stockStatus['low_stock']['reserved'] + $stockStatus['out_of_stock']['reserved']), 'tone' => 'warning', 'url' => $drilldownUrl('reserved', 'needs_attention'), 'title' => 'Reserved Units — At Risk', 'summary' => number_format($stockStatus['low_stock']['reserved'] + $stockStatus['out_of_stock']['reserved']).' reserved units belong to low-stock or out-of-stock items.', 'focus' => 'reserved'],
             ]"
             hint="Committed elsewhere and unavailable to issue." />
 
@@ -865,12 +870,12 @@
             aria-label="View batches contributing to expiry risk"
             chart-label="Expiry exposure"
             :chart="[
-                ['label' => 'Expired', 'value' => $expiry['expired']['units'], 'tone' => 'danger'],
-                ['label' => 'Expiring soon', 'value' => $expiry['expiring_soon']['units'], 'tone' => 'warning'],
+                ['label' => 'Expired', 'value' => $expiry['expired']['units'], 'tone' => 'danger', 'url' => $drilldownUrl('expiry', 'expired'), 'title' => 'Expiry Risk — Expired Batches', 'summary' => number_format($expiry['expired']['units']).' expired units across '.number_format($expiry['expired']['batches']).' batches.', 'focus' => 'expiry'],
+                ['label' => 'Expiring soon', 'value' => $expiry['expiring_soon']['units'], 'tone' => 'warning', 'url' => $drilldownUrl('expiry', 'expiring_soon'), 'title' => 'Expiry Risk — Expiring Soon', 'summary' => number_format($expiry['expiring_soon']['units']).' expiring-soon units across '.number_format($expiry['expiring_soon']['batches']).' batches.', 'focus' => 'expiry'],
             ]"
             :breakdown="[
-                ['label' => 'Expired', 'value' => number_format($expiry['expired']['units']), 'tone' => 'danger'],
-                ['label' => 'Expiring soon', 'value' => number_format($expiry['expiring_soon']['units']), 'tone' => 'warning'],
+                ['label' => 'Expired', 'value' => number_format($expiry['expired']['units']), 'tone' => 'danger', 'url' => $drilldownUrl('expiry', 'expired'), 'title' => 'Expiry Risk — Expired Batches', 'summary' => number_format($expiry['expired']['units']).' expired units across '.number_format($expiry['expired']['batches']).' batches.', 'focus' => 'expiry'],
+                ['label' => 'Expiring soon', 'value' => number_format($expiry['expiring_soon']['units']), 'tone' => 'warning', 'url' => $drilldownUrl('expiry', 'expiring_soon'), 'title' => 'Expiry Risk — Expiring Soon', 'summary' => number_format($expiry['expiring_soon']['units']).' expiring-soon units across '.number_format($expiry['expiring_soon']['batches']).' batches.', 'focus' => 'expiry'],
             ]"
             :hint="number_format($expiry['expired']['batches'] + $expiry['expiring_soon']['batches']).' affected batches'" />
 
@@ -902,6 +907,10 @@
                     'label' => $row['type']->label(),
                     'value' => $row['movements'],
                     'tone' => 'primary',
+                    'url' => $drilldownUrl('movement_type', $row['type']->value),
+                    'title' => 'Stock Movements — '.$row['type']->label(),
+                    'summary' => number_format($row['movements']).' matching '.$row['type']->label().' events totaling '.number_format($row['units']).' units.',
+                    'focus' => 'movement',
                 ])
                 ->values()
                 ->all()"
@@ -932,14 +941,14 @@
             chart-label="Procurement value comparison"
             chart-type="comparison"
             :chart="[
-                ['label' => 'Ordered', 'value' => $spend['ordered']['value'], 'tone' => 'primary'],
-                ['label' => 'QC accepted', 'value' => $spend['received']['value'], 'tone' => 'success'],
-                ['label' => 'Outstanding', 'value' => $spend['outstanding']['value'], 'tone' => 'warning'],
+                ['label' => 'Ordered', 'value' => $spend['ordered']['value'], 'tone' => 'primary', 'url' => $drilldownUrl('procurement_metric', 'ordered'), 'title' => 'Procurement Spending — Ordered', 'summary' => '₱'.number_format($spend['ordered']['value'], 2).' ordered across '.number_format($spend['ordered']['orders']).' purchase orders.', 'focus' => 'spending'],
+                ['label' => 'QC accepted', 'value' => $spend['received']['value'], 'tone' => 'success', 'url' => $drilldownUrl('procurement_metric', 'accepted'), 'title' => 'Procurement Spending — QC Accepted', 'summary' => '₱'.number_format($spend['received']['value'], 2).' has been accepted through quality control.', 'focus' => 'accepted'],
+                ['label' => 'Outstanding', 'value' => $spend['outstanding']['value'], 'tone' => 'warning', 'url' => $drilldownUrl('procurement_metric', 'outstanding'), 'title' => 'Procurement Spending — Outstanding', 'summary' => '₱'.number_format($spend['outstanding']['value'], 2).' remains outstanding across '.number_format($spend['outstanding']['orders']).' purchase orders.', 'focus' => 'outstanding'],
             ]"
             :breakdown="[
-                ['label' => 'Ordered', 'value' => '₱'.number_format($spend['ordered']['value'], 2), 'tone' => 'primary'],
-                ['label' => 'QC accepted', 'value' => '₱'.number_format($spend['received']['value'], 2), 'tone' => 'success'],
-                ['label' => 'Outstanding', 'value' => '₱'.number_format($spend['outstanding']['value'], 2), 'tone' => 'warning'],
+                ['label' => 'Ordered', 'value' => '₱'.number_format($spend['ordered']['value'], 2), 'tone' => 'primary', 'url' => $drilldownUrl('procurement_metric', 'ordered'), 'title' => 'Procurement Spending — Ordered', 'summary' => '₱'.number_format($spend['ordered']['value'], 2).' ordered.', 'focus' => 'spending'],
+                ['label' => 'QC accepted', 'value' => '₱'.number_format($spend['received']['value'], 2), 'tone' => 'success', 'url' => $drilldownUrl('procurement_metric', 'accepted'), 'title' => 'Procurement Spending — QC Accepted', 'summary' => '₱'.number_format($spend['received']['value'], 2).' QC accepted.', 'focus' => 'accepted'],
+                ['label' => 'Outstanding', 'value' => '₱'.number_format($spend['outstanding']['value'], 2), 'tone' => 'warning', 'url' => $drilldownUrl('procurement_metric', 'outstanding'), 'title' => 'Procurement Spending — Outstanding', 'summary' => '₱'.number_format($spend['outstanding']['value'], 2).' outstanding.', 'focus' => 'outstanding'],
             ]"
             hint-icon="clipboard-document-list"
             :hint="number_format($spend['ordered']['orders']).' purchase orders in period'" />
@@ -2302,6 +2311,8 @@
                         expiry: ['units', 'days_remaining', 'risk_value'],
                         movement: ['quantity', 'value', 'moved_at'],
                         spending: ['total_amount', 'accepted_value', 'outstanding_value'],
+                        accepted: ['accepted_value', 'total_amount', 'outstanding_value'],
+                        outstanding: ['outstanding_value', 'total_amount', 'accepted_value'],
                     };
                     const preferred = priorities[this.focus] || [];
                     const selected = preferred
