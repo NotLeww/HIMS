@@ -78,9 +78,20 @@
 <x-app-layout>
     <x-ui.page-header
         title="Inventory Analytics"
-        subtitle="Insights on stock, movements, and procurement across all hospital locations."
+        subtitle="Healthcare inventory overview and key metrics."
         :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Reports' => null]">
         <x-slot name="actions">
+            <div class="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white/90 px-4 py-3 text-xs font-medium text-neutral-600 shadow-xs dark:border-neutral-700 dark:bg-neutral-900/90 dark:text-neutral-300">
+                <span class="inline-flex items-center gap-2">
+                    <x-ui.icon name="calendar" class="h-4 w-4 text-primary-600 dark:text-primary-300" />
+                    <span>Snapshot</span>
+                </span>
+                <span class="h-5 w-px bg-neutral-200 dark:bg-neutral-700" aria-hidden="true"></span>
+                <a href="{{ route('inventory.items') }}" class="font-semibold text-primary-700 hover:text-primary-800 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-primary-300 dark:hover:text-primary-200">
+                    Live Inventory View
+                </a>
+            </div>
+
             {{-- Dashboard Timeline Filter Dropdown --}}
             <div x-data="dashboardTimelineFilter({
                     period: '{{ $currentPeriod }}',
@@ -706,6 +717,7 @@
 
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-12">
         <x-ui.stat
+            analytics
             compact
             class="2xl:col-span-3"
             label="Total items"
@@ -730,13 +742,15 @@
                 ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['items'], 'tone' => 'danger'],
             ]"
             :breakdown="[
-                ['label' => 'In stock', 'value' => number_format($stockStatus['in_stock']['items']).' items'],
-                ['label' => 'Needs attention', 'value' => number_format($summary['needs_attention']).' items'],
+                ['label' => 'In stock', 'value' => number_format($stockStatus['in_stock']['items']).' items', 'tone' => 'success'],
+                ['label' => 'Needs attention', 'value' => number_format($summary['needs_attention']).' items', 'tone' => 'warning'],
             ]"
+            hint-icon="clipboard-document-list"
             :hint="number_format($summary['units_on_hand']).' units on hand in the filtered snapshot'" />
 
         @if ($canViewFinancialData)
         <x-ui.stat
+            analytics
             compact
             featured
             class="2xl:col-span-6"
@@ -762,14 +776,16 @@
                 ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['value'], 'tone' => 'danger'],
             ]"
             :breakdown="[
-                ['label' => 'Healthy stock', 'value' => '₱'.number_format($stockStatus['in_stock']['value'], 2)],
-                ['label' => 'Low stock', 'value' => '₱'.number_format($stockStatus['low_stock']['value'], 2)],
-                ['label' => 'Units valued', 'value' => number_format($summary['units_on_hand'])],
+                ['label' => 'Healthy stock', 'value' => '₱'.number_format($stockStatus['in_stock']['value'], 2), 'tone' => 'success'],
+                ['label' => 'Low stock', 'value' => '₱'.number_format($stockStatus['low_stock']['value'], 2), 'tone' => 'warning'],
+                ['label' => 'Units valued', 'value' => number_format($summary['units_on_hand']), 'tone' => 'neutral'],
             ]"
+            hint-icon="document-text"
             hint="Filtered units on hand × unit cost." />
         @endif
 
         <x-ui.stat
+            analytics
             compact
             class="2xl:col-span-3"
             label="Low / out of stock"
@@ -792,12 +808,13 @@
                 ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['items'], 'tone' => 'danger'],
             ]"
             :breakdown="[
-                ['label' => 'Low stock', 'value' => number_format($stockStatus['low_stock']['items'])],
-                ['label' => 'Out of stock', 'value' => number_format($stockStatus['out_of_stock']['items'])],
+                ['label' => 'Low stock', 'value' => number_format($stockStatus['low_stock']['items']), 'tone' => 'warning'],
+                ['label' => 'Out of stock', 'value' => number_format($stockStatus['out_of_stock']['items']), 'tone' => 'danger'],
             ]"
             hint="At or below reorder level, or out of stock." />
 
         <x-ui.stat
+            analytics
             compact
             class="2xl:col-span-2"
             label="Reserved units"
@@ -822,12 +839,13 @@
                 ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['reserved'], 'tone' => 'danger'],
             ]"
             :breakdown="[
-                ['label' => 'In-stock reserved', 'value' => number_format($stockStatus['in_stock']['reserved'])],
-                ['label' => 'At-risk reserved', 'value' => number_format($stockStatus['low_stock']['reserved'] + $stockStatus['out_of_stock']['reserved'])],
+                ['label' => 'In-stock reserved', 'value' => number_format($stockStatus['in_stock']['reserved']), 'tone' => 'success'],
+                ['label' => 'At-risk reserved', 'value' => number_format($stockStatus['low_stock']['reserved'] + $stockStatus['out_of_stock']['reserved']), 'tone' => 'warning'],
             ]"
             hint="Committed elsewhere and unavailable to issue." />
 
         <x-ui.stat
+            analytics
             compact
             class="2xl:col-span-2"
             label="Expiry risk units"
@@ -851,12 +869,13 @@
                 ['label' => 'Expiring soon', 'value' => $expiry['expiring_soon']['units'], 'tone' => 'warning'],
             ]"
             :breakdown="[
-                ['label' => 'Expired', 'value' => number_format($expiry['expired']['units'])],
-                ['label' => 'Expiring soon', 'value' => number_format($expiry['expiring_soon']['units'])],
+                ['label' => 'Expired', 'value' => number_format($expiry['expired']['units']), 'tone' => 'danger'],
+                ['label' => 'Expiring soon', 'value' => number_format($expiry['expiring_soon']['units']), 'tone' => 'warning'],
             ]"
             :hint="number_format($expiry['expired']['batches'] + $expiry['expiring_soon']['batches']).' affected batches'" />
 
         <x-ui.stat
+            analytics
             compact
             class="2xl:col-span-2"
             label="Stock movements"
@@ -886,14 +905,12 @@
                 ])
                 ->values()
                 ->all()"
-            :breakdown="[
-                ['label' => 'Units in', 'value' => number_format($movementTotals['units_in'])],
-                ['label' => 'Units out', 'value' => number_format($movementTotals['units_out'])],
-            ]"
+            hint-icon="calendar"
             :hint="$period['description']" />
 
         @if ($canViewFinancialData)
         <x-ui.stat
+            analytics
             compact
             featured
             class="2xl:col-span-6"
@@ -913,17 +930,18 @@
             x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
             aria-label="View purchase orders included in procurement spending"
             chart-label="Procurement value comparison"
-            chart-type="bars"
+            chart-type="comparison"
             :chart="[
                 ['label' => 'Ordered', 'value' => $spend['ordered']['value'], 'tone' => 'primary'],
                 ['label' => 'QC accepted', 'value' => $spend['received']['value'], 'tone' => 'success'],
                 ['label' => 'Outstanding', 'value' => $spend['outstanding']['value'], 'tone' => 'warning'],
             ]"
             :breakdown="[
-                ['label' => 'QC accepted', 'value' => '₱'.number_format($spend['received']['value'], 2)],
-                ['label' => 'Outstanding', 'value' => '₱'.number_format($spend['outstanding']['value'], 2)],
-                ['label' => 'Purchase orders', 'value' => number_format($spend['ordered']['orders'])],
+                ['label' => 'Ordered', 'value' => '₱'.number_format($spend['ordered']['value'], 2), 'tone' => 'primary'],
+                ['label' => 'QC accepted', 'value' => '₱'.number_format($spend['received']['value'], 2), 'tone' => 'success'],
+                ['label' => 'Outstanding', 'value' => '₱'.number_format($spend['outstanding']['value'], 2), 'tone' => 'warning'],
             ]"
+            hint-icon="clipboard-document-list"
             :hint="number_format($spend['ordered']['orders']).' purchase orders in period'" />
         @endif
     </div>
