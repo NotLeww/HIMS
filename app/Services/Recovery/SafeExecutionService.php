@@ -3,9 +3,6 @@
 namespace App\Services\Recovery;
 
 use App\Enums\AuditAction;
-use App\Enums\NotificationDestination;
-use App\Enums\NotificationPriority;
-use App\Enums\Permission;
 use App\Enums\RecoveryFailureType;
 use App\Enums\RecoveryRetryHandler;
 use App\Enums\RecoveryStatus;
@@ -13,7 +10,6 @@ use App\Exceptions\SafeOperationException;
 use App\Models\SystemRecoveryRecord;
 use App\Models\User;
 use App\Services\AuditLogger;
-use App\Services\HimsNotificationService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,8 +25,7 @@ use Throwable;
  * A record is written only when an operation actually failed; nothing here
  * fabricates an incident. Stack traces are never persisted — they belong in the
  * server log, and the stored copy of the failure message is redacted so that
- * credentials captured in an exception never reach operator notifications or
- * the Audit Trail.
+ * credentials captured in an exception never reach the Audit Trail.
  */
 class SafeExecutionService
 {
@@ -63,10 +58,7 @@ class SafeExecutionService
         'job_id',
     ];
 
-    public function __construct(
-        private readonly AuditLogger $auditLogger,
-        private readonly HimsNotificationService $notifications,
-    ) {}
+    public function __construct(private readonly AuditLogger $auditLogger) {}
 
     /**
      * Execute a critical database operation within an atomic transaction.
@@ -291,22 +283,6 @@ class SafeExecutionService
         } catch (Throwable $auditException) {
             Log::error('Failed to write audit log for recovery record.', [
                 'exception' => $auditException,
-            ]);
-        }
-
-        try {
-            $this->notifications->sendToPermission(
-                Permission::ManageSystemRecovery,
-                "system-recovery-record:{$record->id}",
-                'Critical system event',
-                "Incident {$errorId} in {$module} was logged securely for technical review.",
-                NotificationPriority::Critical,
-                NotificationDestination::Dashboard,
-            );
-        } catch (Throwable $notificationException) {
-            Log::error('Failed to create a recovery notification.', [
-                'recovery_record_id' => $record->id,
-                'exception_class' => $notificationException::class,
             ]);
         }
 

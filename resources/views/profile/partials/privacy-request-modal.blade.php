@@ -52,7 +52,7 @@
                 </div>
 
                 <div x-show="requestType === 'erasure'" x-cloak class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-                    This requests deletion of eligible personal information, not destruction of required HIMS records. Completion disables account access, revokes active sessions and trusted devices, and may be irreversible.
+                    This requests deletion of eligible personal information, not destruction of required HIMS records. Completion disables account access, revokes active sessions and trusted browsers, and may be irreversible.
                 </div>
 
                 <div>

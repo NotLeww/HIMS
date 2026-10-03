@@ -72,21 +72,19 @@
         }).filter(Boolean);
     },
 }">
-    @if (! $isEdit)
-        <div class="mb-4 flex justify-end">
-            <x-ui.button
-                type="button"
-                variant="secondary"
-                size="sm"
-                icon="shield-check"
-                x-on:click="$dispatch('open-modal', '{{ $rolePermissionsModalName }}')">
-                View Role Permissions
-            </x-ui.button>
-        </div>
-    @endif
+    <div class="space-y-2.5">
+        <section class="rounded-xl border border-neutral-200 bg-neutral-50/40 p-3 dark:border-neutral-800 dark:bg-neutral-950/20 sm:p-4" aria-labelledby="{{ $isEdit ? 'edit' : 'create' }}-user-personal-heading">
+            <div class="mb-3 flex items-center gap-2.5">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">
+                    <x-ui.icon name="user-circle" class="h-5 w-5" />
+                </span>
+                <div class="min-w-0">
+                    <h3 id="{{ $isEdit ? 'edit' : 'create' }}-user-personal-heading" class="text-sm font-semibold text-neutral-950 dark:text-white">Personal Information</h3>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400">Enter the employee's basic details.</p>
+                </div>
+            </div>
 
-    <div class="grid gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-12">
-        <div class="grid gap-x-4 gap-y-3 sm:grid-cols-2 md:col-span-2 lg:grid-cols-3 xl:col-span-12">
+            <div class="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
             <x-ui.field
                 name="surname"
                 label="Surname"
@@ -121,137 +119,181 @@
                 x-on:input="sanitizeNamePart($event)"
                 x-on:blur="$el.value = $el.value.trim()"
                 placeholder="Optional" />
-        </div>
-
-        <div class="min-w-0 md:col-span-2 xl:col-span-6">
-            <x-ui.field
-                name="email"
-                label="Email"
-                type="email"
-                :value="$user?->email"
-                required
-                autocomplete="off"
-                placeholder="e.g. maria.cruz@djnrmhs.gov.ph" />
-        </div>
-
-        <div class="min-w-0 xl:col-span-3">
-            <x-ui.field
-                name="phone"
-                label="Contact Number"
-                type="tel"
-                :value="$user?->phone"
-                required
-                inputmode="numeric"
-                autocomplete="off"
-                minlength="11"
-                maxlength="11"
-                pattern="09[0-9]{9}"
-                title="Enter exactly 11 digits beginning with 09."
-                x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '').slice(0, 11)"
-                placeholder="09XXXXXXXXX" />
-        </div>
-
-        <div class="min-w-0 xl:col-span-3">
-            <x-ui.field
-                name="employee_id"
-                label="Employee ID"
-                :value="$user?->employee_id ?? 'Generated automatically after creation'"
-                disabled />
-        </div>
-
-        <div class="min-w-0 xl:col-span-3">
-            <x-ui.field
-                name="department"
-                label="Department"
-                type="select"
-                :value="$user?->department"
-                :options="$departments"
-                placeholder="Select a department"
-                required />
-        </div>
-
-        <div class="min-w-0 {{ $isEdit ? 'xl:col-span-4' : 'xl:col-span-9' }}">
-            <x-ui.field
-                name="role"
-                label="Role"
-                type="select"
-                required
-                x-model="role">
-                @foreach ($roles as $roleOption)
-                    <option value="{{ $roleOption->value }}"
-                            @selected(old('role', $user?->role?->value) === $roleOption->value)>
-                        {{ $roleOption->label() }}
-                    </option>
-                @endforeach
-            </x-ui.field>
-            <div class="mt-1.5 flex items-center justify-between" x-show="detail" x-cloak>
-                <span class="text-xs text-neutral-500 dark:text-neutral-400">Controls system access</span>
-                <span class="text-xs text-neutral-500 dark:text-neutral-400 tabular-nums"
-                      x-text="detail ? `${detail.total_count} permissions` : ''"></span>
             </div>
-        </div>
+        </section>
 
-        @if ($isEdit)
-            @if ($user->isArchived() || $user->isPendingActivation() || $user->isCancelled())
-                <div class="min-w-0 xl:col-span-5">
-                    <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">Status</label>
-                    <div class="flex min-h-10 items-center justify-between gap-3 rounded-md border border-neutral-200 bg-neutral-100 px-3 py-2 text-xs dark:border-neutral-700 dark:bg-neutral-800">
-                        <x-ui.badge class="shrink-0" :status="$user->status->value">{{ $user->status->label() }}</x-ui.badge>
-                        <span class="min-w-0 text-right leading-snug text-neutral-500 dark:text-neutral-400">
-                            {{ match (true) {
-                                $user->isArchived() => 'Restore through the Archive workspace.',
-                                $user->isCancelled() => 'Use Re-invite to restart activation.',
-                                default => 'OTP verification and password setup required.',
-                            } }}
-                        </span>
-                    </div>
-                    <input type="hidden" name="status" value="{{ $user->status->value }}">
+        <section class="rounded-xl border border-neutral-200 bg-neutral-50/40 p-3 dark:border-neutral-800 dark:bg-neutral-950/20 sm:p-4" aria-labelledby="{{ $isEdit ? 'edit' : 'create' }}-user-contact-heading">
+            <div class="mb-3 flex items-center gap-2.5">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">
+                    <x-ui.icon name="envelope" class="h-5 w-5" />
+                </span>
+                <div class="min-w-0">
+                    <h3 id="{{ $isEdit ? 'edit' : 'create' }}-user-contact-heading" class="text-sm font-semibold text-neutral-950 dark:text-white">Contact Information</h3>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400">Provide a valid email and contact number.</p>
                 </div>
-            @else
-                <div class="min-w-0 xl:col-span-5">
+            </div>
+
+            <div class="grid gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-12">
+                <div class="min-w-0 md:col-span-2 xl:col-span-6">
                     <x-ui.field
-                        name="status"
-                        label="Status"
+                        name="email"
+                        label="Email"
+                        type="email"
+                        :value="$user?->email"
+                        required
+                        autocomplete="off"
+                        placeholder="e.g. maria.cruz@djnrmhs.gov.ph" />
+                </div>
+
+                <div class="min-w-0 xl:col-span-3">
+                    <x-ui.field
+                        name="phone"
+                        label="Contact Number"
+                        type="tel"
+                        :value="$user?->phone"
+                        required
+                        inputmode="numeric"
+                        autocomplete="off"
+                        minlength="11"
+                        maxlength="11"
+                        pattern="09[0-9]{9}"
+                        title="Enter exactly 11 digits beginning with 09."
+                        x-on:input="$el.value = $el.value.replace(/[^0-9]/g, '').slice(0, 11)"
+                        placeholder="09XXXXXXXXX" />
+                </div>
+
+                <div class="min-w-0 xl:col-span-3">
+                    <x-ui.field
+                        name="employee_id"
+                        label="Employee ID"
+                        :value="$user?->employee_id ?? 'Generated automatically after creation'"
+                        disabled />
+                </div>
+            </div>
+        </section>
+
+        <section class="rounded-xl border border-neutral-200 bg-neutral-50/40 p-3 dark:border-neutral-800 dark:bg-neutral-950/20 sm:p-4" aria-labelledby="{{ $isEdit ? 'edit' : 'create' }}-user-access-heading">
+            <div class="mb-3 flex items-center gap-2.5">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">
+                    <x-ui.icon name="lock-closed" class="h-5 w-5" />
+                </span>
+                <div class="min-w-0">
+                    <h3 id="{{ $isEdit ? 'edit' : 'create' }}-user-access-heading" class="text-sm font-semibold text-neutral-950 dark:text-white">Access &amp; Role</h3>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400">Assign a department and role. These settings control system access.</p>
+                </div>
+            </div>
+
+            <div class="grid gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-12">
+                <div class="min-w-0 {{ $isEdit ? 'xl:col-span-3' : 'xl:col-span-6' }}">
+                    <x-ui.field
+                        name="department"
+                        label="Department"
+                        type="select"
+                        :value="$user?->department"
+                        :options="$departments"
+                        placeholder="Select a department"
+                        required />
+                </div>
+
+                <div class="min-w-0 {{ $isEdit ? 'xl:col-span-4' : 'xl:col-span-6' }}">
+                    <x-ui.field
+                        name="role"
+                        label="Role"
                         type="select"
                         required
-                        :value="$user->status->value"
-                        :options="\App\Enums\UserStatus::options()"
-                        hint="Inactive accounts are signed out and cannot sign back in." />
+                        x-model="role">
+                        @foreach ($roles as $roleOption)
+                            <option value="{{ $roleOption->value }}"
+                                    @selected(old('role', $user?->role?->value) === $roleOption->value)>
+                                {{ $roleOption->label() }}
+                            </option>
+                        @endforeach
+                    </x-ui.field>
+                    <div class="mt-1.5 flex items-center justify-between" x-show="detail" x-cloak>
+                        <span class="text-xs text-neutral-500 dark:text-neutral-400">Controls system access</span>
+                        <span class="text-xs tabular-nums text-neutral-500 dark:text-neutral-400"
+                              x-text="detail ? `${detail.total_count} permissions` : ''"></span>
+                    </div>
                 </div>
-            @endif
-        @endif
+
+                @if ($isEdit)
+                    @if ($user->isArchived() || $user->isPendingActivation() || $user->isCancelled())
+                        <div class="min-w-0 xl:col-span-5">
+                            <label class="mb-1.5 block text-sm font-medium text-neutral-700 dark:text-neutral-300">Status</label>
+                            <div class="flex min-h-10 items-center justify-between gap-3 rounded-md border border-neutral-200 bg-neutral-100 px-3 py-2 text-xs dark:border-neutral-700 dark:bg-neutral-800">
+                                <x-ui.badge class="shrink-0" :status="$user->status->value">{{ $user->status->label() }}</x-ui.badge>
+                                <span class="min-w-0 text-right leading-snug text-neutral-500 dark:text-neutral-400">
+                                    {{ match (true) {
+                                        $user->isArchived() => 'Restore through the Archive workspace.',
+                                        $user->isCancelled() => 'Use Re-invite to restart activation.',
+                                        default => 'OTP verification and password setup required.',
+                                    } }}
+                                </span>
+                            </div>
+                            <input type="hidden" name="status" value="{{ $user->status->value }}">
+                        </div>
+                    @else
+                        <div class="min-w-0 xl:col-span-5">
+                            <x-ui.field
+                                name="status"
+                                label="Status"
+                                type="select"
+                                required
+                                :value="$user->status->value"
+                                :options="\App\Enums\UserStatus::options()"
+                                hint="Inactive accounts are signed out and cannot sign back in." />
+                        </div>
+                    @endif
+                @endif
+            </div>
+        </section>
 
         @if ($isEdit && ! $user->requiresActivation())
-            <div class="min-w-0 md:col-span-1 xl:col-span-6">
-                <x-ui.field
-                    name="password"
-                    label="New Password"
-                    type="password"
-                    autocomplete="new-password"
-                    minlength="8"
-                    pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9\s]).{8,}"
-                    title="{{ \App\Rules\PasswordStandard::REQUIREMENTS }}"
-                    x-model="password"
-                    hint="Leave blank to keep the current password." />
-            </div>
+            <details
+                data-account-security
+                class="group rounded-xl border border-neutral-200 bg-neutral-50/40 dark:border-neutral-800 dark:bg-neutral-950/20"
+                @if ($errors->has('password') || $errors->has('password_confirmation')) open @endif>
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 sm:px-4">
+                    <span class="flex min-w-0 items-center gap-2.5">
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">
+                            <x-ui.icon name="key" class="h-5 w-5" />
+                        </span>
+                        <span class="min-w-0">
+                            <span id="edit-user-security-heading" class="block text-sm font-semibold text-neutral-950 dark:text-white">Reset password</span>
+                            <span class="block text-xs text-neutral-500 dark:text-neutral-400">Optional—expand only when an account reset is required.</span>
+                        </span>
+                    </span>
+                    <x-ui.icon name="chevron-down" class="h-4 w-4 shrink-0 text-neutral-500 transition-transform group-open:rotate-180" />
+                </summary>
 
-            <div class="min-w-0 md:col-span-1 xl:col-span-6">
-                <x-ui.field
-                    name="password_confirmation"
-                    label="Confirm Password"
-                    type="password"
-                    autocomplete="new-password"
-                    x-model="passwordConfirmation" />
-            </div>
+                <div class="border-t border-neutral-200 px-3 pb-3 pt-3 dark:border-neutral-800 sm:px-4 sm:pb-4">
+                    <div class="grid gap-x-4 gap-y-3 md:grid-cols-2">
+                        <x-ui.field
+                            name="password"
+                            label="New Password"
+                            type="password"
+                            autocomplete="new-password"
+                            minlength="8"
+                            pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9\s]).{8,}"
+                            title="{{ \App\Rules\PasswordStandard::REQUIREMENTS }}"
+                            x-model="password"
+                            hint="Leave blank to keep the current password." />
+
+                        <x-ui.field
+                            name="password_confirmation"
+                            label="Confirm Password"
+                            type="password"
+                            autocomplete="new-password"
+                            x-model="passwordConfirmation" />
+                    </div>
+
+                    <div class="mt-3" x-show="password.length > 0" x-cloak>
+                        <x-auth.password-requirements />
+                    </div>
+                </div>
+            </details>
         @endif
-
     </div>
-
-    @if ($isEdit && ! $user->isPendingActivation())
-        <div class="mt-4">
-            <x-auth.password-requirements />
-        </div>
-    @endif
 
     {{-- Role Permissions Detail Modal --}}
     <x-ui.modal :name="$rolePermissionsModalName" title="Role permissions" maxWidth="3xl">

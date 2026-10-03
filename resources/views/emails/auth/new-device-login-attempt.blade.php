@@ -19,20 +19,19 @@
                 <tr>
                     <td style="padding:32px;">
                         <h1 style="margin:0;font-size:24px;line-height:32px;">New sign-in attempt</h1>
-                        <p style="margin:16px 0 0;color:#525252;font-size:15px;line-height:24px;">An unrecognized device is attempting to sign in to your HIMS account.</p>
+                        <p style="margin:16px 0 0;color:#525252;font-size:15px;line-height:24px;">An unrecognized browser is attempting to sign in to your HIMS account.</p>
 
                         <div style="margin:20px 0;padding:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;line-height:22px;">
-                            <div><strong>Device:</strong> {{ $deviceSummary }}</div>
+                            <div><strong>Browser:</strong> {{ $deviceSummary }}</div>
                             @if ($ipAddress)
                                 <div style="margin-top:4px;"><strong>IP Address:</strong> {{ $ipAddress }}</div>
                             @endif
                             <div style="margin-top:4px;"><strong>Time:</strong> {{ $requestedAt }}</div>
                         </div>
 
-                        <p style="margin:16px 0;color:#525252;font-size:14px;line-height:22px;">Review this request within {{ $expiresInMinutes }} minutes. Opening a link does not make a decision; you must explicitly confirm on the next page.</p>
                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                             <tr><td style="padding:4px 0;"><a href="{{ $approveOnceUrl }}" style="display:block;padding:12px 16px;border-radius:8px;background:#1d4ed8;color:#ffffff;text-align:center;text-decoration:none;font-size:14px;font-weight:700;">Approve Once</a></td></tr>
-                            <tr><td style="padding:4px 0;"><a href="{{ $approveTrustUrl }}" style="display:block;padding:12px 16px;border-radius:8px;background:#171717;color:#ffffff;text-align:center;text-decoration:none;font-size:14px;font-weight:700;">Approve &amp; Trust This Device</a></td></tr>
+                            <tr><td style="padding:4px 0;"><a href="{{ $approveTrustUrl }}" style="display:block;padding:12px 16px;border-radius:8px;background:#171717;color:#ffffff;text-align:center;text-decoration:none;font-size:14px;font-weight:700;">Approve &amp; Trust This Browser</a></td></tr>
                             <tr><td style="padding:4px 0;"><a href="{{ $denyUrl }}" style="display:block;padding:12px 16px;border-radius:8px;border:1px solid #dc2626;color:#b91c1c;text-align:center;text-decoration:none;font-size:14px;font-weight:700;">Deny Sign-In</a></td></tr>
                         </table>
 

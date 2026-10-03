@@ -71,7 +71,7 @@ class ProcurementWorkflowTest extends TestCase
         ]);
     }
 
-    private function request(?Supplier $supplier = null): ProcurementRequest
+    private function request(?Supplier $supplier = null, string $status = 'pending'): ProcurementRequest
     {
         return ProcurementRequest::create([
             'request_number' => 'REQ-20260808120000',
@@ -79,6 +79,7 @@ class ProcurementWorkflowTest extends TestCase
             'item_id' => $this->item()->id,
             'requested_quantity' => 1000,
             'priority' => 'medium',
+            'status' => $status,
             'supplier_id' => $supplier?->id,
         ]);
     }
@@ -113,7 +114,7 @@ class ProcurementWorkflowTest extends TestCase
      */
     public function test_the_procurement_screen_offers_a_quote_form(): void
     {
-        $this->request($this->supplier());
+        $this->request($this->supplier(), 'approved');
 
         $this->actingAs($this->procurementOfficer())
             ->get('/inventory/purchases')
@@ -121,6 +122,8 @@ class ProcurementWorkflowTest extends TestCase
             ->assertSee('Stage 3 &bull; Supplier quotation', false)
             ->assertSee('name="procurement_request_id"', false)
             ->assertSee('name="quoted_price"', false)
+            ->assertSee('Continue with Approved Request')
+            ->assertSee('Create Request')
             // The request has to be selectable, not just the field present.
             ->assertSee('REQ-20260808120000');
     }
@@ -128,7 +131,7 @@ class ProcurementWorkflowTest extends TestCase
     public function test_submitting_a_quote_records_it_against_the_request(): void
     {
         $supplier = $this->supplier();
-        $procurementRequest = $this->request($supplier);
+        $procurementRequest = $this->request($supplier, 'approved');
 
         $this->actingAs($this->procurementOfficer())
             ->post('/inventory/purchases/quotes', [
@@ -157,7 +160,7 @@ class ProcurementWorkflowTest extends TestCase
      */
     public function test_one_request_accepts_competing_quotes_from_several_vendors(): void
     {
-        $procurementRequest = $this->request();
+        $procurementRequest = $this->request(status: 'approved');
         $officer = $this->procurementOfficer();
 
         foreach ([['Jeffrey Corporation', 41500], ['Metro Med Supply', 39800]] as [$name, $price]) {
@@ -185,18 +188,41 @@ class ProcurementWorkflowTest extends TestCase
         $this->assertDatabaseCount('supplier_quotes', 0);
     }
 
+    public function test_a_quote_cannot_be_recorded_against_an_unapproved_request(): void
+    {
+        $supplier = $this->supplier();
+        $procurementRequest = $this->request($supplier);
+
+        foreach (['pending', 'rejected'] as $status) {
+            $procurementRequest->update(['status' => $status]);
+
+            $this->actingAs($this->procurementOfficer())
+                ->post('/inventory/purchases/quotes', [
+                    'procurement_request_id' => $procurementRequest->id,
+                    'supplier_id' => $supplier->id,
+                    'quoted_price' => 41500.50,
+                ])
+                ->assertSessionHasErrors([
+                    'procurement_request_id' => 'Select an approved procurement request.',
+                ]);
+        }
+
+        $this->assertDatabaseCount('supplier_quotes', 0);
+    }
+
     /**
      * With nothing to attach to, the form would submit into a validation error
      * every time, so the screen says what to do instead of offering it.
      */
-    public function test_the_quote_form_is_withheld_until_a_request_exists(): void
+    public function test_the_quote_form_is_withheld_until_an_approved_request_exists(): void
     {
         $this->supplier();
+        $this->request();
 
         $this->actingAs($this->procurementOfficer())
             ->get('/inventory/purchases')
             ->assertStatus(200)
-            ->assertSee('Create a procurement request first')
+            ->assertSee('Approve a procurement request first')
             ->assertDontSee('name="quoted_price"', false);
     }
 
@@ -220,8 +246,6 @@ class ProcurementWorkflowTest extends TestCase
     {
         $procurementRequest = $this->request($this->supplier());
 
-        // Read it back rather than trusting the instance create() returned —
-        // `pending` is a database default, so it only exists after a select.
         $this->assertSame('pending', $procurementRequest->fresh()->status);
 
         $this->actingAs($this->procurementOfficer())

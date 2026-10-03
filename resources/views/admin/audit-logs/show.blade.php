@@ -101,6 +101,10 @@
                         <dt class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">Device</dt>
                         <dd class="mt-1 font-medium text-neutral-800 break-words">{{ $log->deviceSummary() ?? 'Unavailable' }}</dd>
                     </div>
+                    <div>
+                        <dt class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">IP Address</dt>
+                        <dd class="mt-1 break-all font-mono font-medium text-neutral-800">{{ $log->ip_address ?? 'Not recorded' }}</dd>
+                    </div>
                     @php
                         $hasCoordinates = $log->location_latitude !== null && $log->location_longitude !== null;
                         $resolvedPlace = $log->placeName();

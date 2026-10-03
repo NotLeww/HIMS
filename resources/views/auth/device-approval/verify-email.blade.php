@@ -1,5 +1,5 @@
 <x-guest-layout
-    :title="$panel->label().' Device Verification'"
+    :title="$panel->label().' Browser Verification'"
     portal="{{ $panel->value }}"
 >
     <div
@@ -34,10 +34,10 @@
             </div>
 
             <h1 class="mt-3 text-2xl font-bold tracking-tight text-neutral-900">
-                Verify New Device
+                Verify New Browser
             </h1>
             <p class="mt-2 text-sm leading-relaxed text-neutral-600">
-                You are signing in from an unrecognized device. We sent a 6-digit confirmation code to <span class="font-semibold text-neutral-900">{{ $maskedEmail }}</span>.
+                You are signing in from an unrecognized browser. We sent a 6-digit confirmation code to <span class="font-semibold text-neutral-900">{{ $maskedEmail }}</span>.
             </p>
         </header>
 
@@ -82,7 +82,7 @@
                         class="mt-0.5 rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
                     />
                     <span>
-                        <strong class="font-medium text-neutral-800">Trust this device for 30 days</strong>
+                        <strong class="font-medium text-neutral-800">Trust this browser profile for 30 days</strong>
                         <br>
                         <span class="text-neutral-500">Do not ask for verification again on this browser for the next 30 days.</span>
                     </span>
@@ -93,7 +93,7 @@
                 type="submit"
                 class="w-full rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition"
             >
-                Confirm Device & Sign In
+                Confirm Browser & Sign In
             </button>
         </form>
 

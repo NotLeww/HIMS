@@ -414,32 +414,6 @@
         }
     }
 
-    /* This compact dashboard table is sized to fit; keep its fallback touch
-       scrolling available on narrow screens without drawing a scrollbar. */
-    .dashboard-pending-orders .hims-table-scroll {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-    }
-
-    .dashboard-pending-orders .hims-table-scroll::-webkit-scrollbar {
-        display: none !important;
-        width: 0 !important;
-        height: 0 !important;
-    }
-
-    /* User management table is sized to fit desktop screens; keep fallback touch
-       scrolling available without drawing a persistent horizontal scrollbar. */
-    .users-accounts-table .hims-table-scroll {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-    }
-
-    .users-accounts-table .hims-table-scroll::-webkit-scrollbar {
-        display: none !important;
-        width: 0 !important;
-        height: 0 !important;
-    }
-
     /*
      * The supplier directory fits six columns into a card that narrows to about
      * 700px once the app sidebar and the decision-summary aside are both in
@@ -454,21 +428,6 @@
 
     .hims-table-scroll:has(.supplier-directory-table) {
         overflow-x: auto;
-    }
-
-    /* Audit logs table fits desktop and tablet layouts; suppress persistent horizontal scrollbar */
-    .audit-logs-table .hims-table-scroll,
-    .hims-table-scroll:has(.audit-logs-table) {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-        overflow-x: hidden;
-    }
-
-    .audit-logs-table .hims-table-scroll::-webkit-scrollbar,
-    .hims-table-scroll:has(.audit-logs-table)::-webkit-scrollbar {
-        display: none !important;
-        width: 0 !important;
-        height: 0 !important;
     }
 
     .audit-logs-table th,
@@ -1079,21 +1038,35 @@
     }
 
     /*
-     * Wide tables and tab lists remain horizontally scrollable without a
-     * visual scrollbar creating a bar across the interface.
+     * Wide tables and tab lists expose their horizontal overflow. This keeps
+     * touch scrolling available and gives mobile users a visible scroll cue.
      */
     .overflow-x-auto {
-        -ms-overflow-style: none;
+        -ms-overflow-style: auto;
         -webkit-overflow-scrolling: touch;
         overscroll-behavior-inline: contain;
-        scrollbar-width: none;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(115, 115, 115, 0.65) transparent;
         touch-action: pan-x pan-y;
     }
 
     .overflow-x-auto::-webkit-scrollbar {
-        display: none;
-        height: 0;
-        width: 0;
+        display: block;
+        height: 6px;
+        width: 6px;
+    }
+
+    .overflow-x-auto::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .overflow-x-auto::-webkit-scrollbar-thumb {
+        background-color: rgba(115, 115, 115, 0.55);
+        border-radius: 9999px;
+    }
+
+    .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(82, 82, 82, 0.8);
     }
 
     /*

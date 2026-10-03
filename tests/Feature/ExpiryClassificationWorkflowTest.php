@@ -153,6 +153,13 @@ class ExpiryClassificationWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('1&ndash;90 days remaining, including critical', false)
             ->assertSee('id="stat-expired"', false)
+            ->assertSee('id="alerts-search"', false)
+            ->assertSee('id="alerts-category"', false)
+            ->assertSee('id="alerts-priority"', false)
+            ->assertSee('2xl:grid-cols-5', false)
+            ->assertSee('function inventoryItemIcon(item)', false)
+            ->assertSee('/(syringe|needle)/', false)
+            ->assertSee('/(mask|respirator)/', false)
             ->assertSee("['expiring_soon', 'critical'].includes(batch.expiry_status)", false)
             ->assertSee("batch.expiry_status === 'expired'", false);
     }

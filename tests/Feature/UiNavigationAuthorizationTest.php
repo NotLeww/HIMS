@@ -146,10 +146,15 @@ class UiNavigationAuthorizationTest extends TestCase
         $permissionMatrix = file_get_contents(resource_path('views/admin/permissions/index.blade.php'));
         $inventoryItems = file_get_contents(resource_path('views/inventory/items/index.blade.php'));
         $procurement = file_get_contents(resource_path('views/inventory/purchases/index.blade.php'));
+        $auditLogs = file_get_contents(resource_path('views/admin/audit-logs/index.blade.php'));
+        $inventoryImport = file_get_contents(resource_path('views/inventory/import/index.blade.php'));
+        $warehouseLocations = file_get_contents(resource_path('views/inventory/warehousing/locations.blade.php'));
+        $legalDocumentStyles = file_get_contents(resource_path('views/legal/partials/official_document_styles.blade.php'));
+        $iarDocumentStyles = file_get_contents(resource_path('views/inventory/logistics/partials/iar_document_styles.blade.php'));
 
         $this->assertIsString($css);
         $this->assertStringContainsString('overflow-x: clip', $css);
-        $this->assertStringContainsString('scrollbar-width: none', $css);
+        $this->assertStringContainsString('scrollbar-width: thin', $css);
         $this->assertStringContainsString('.overflow-x-auto::-webkit-scrollbar', $css);
         $this->assertStringContainsString('hims-app-shell', $layout);
         $this->assertStringContainsString('hims-app-content', $layout);
@@ -159,6 +164,11 @@ class UiNavigationAuthorizationTest extends TestCase
         $this->assertStringContainsString('<x-ui.table :sticky-header="false"', $permissionMatrix);
         $this->assertStringContainsString('sm:flex-wrap sm:items-center', $inventoryItems);
         $this->assertStringContainsString('sm:grid-cols-2 xl:grid-cols-[minmax(10rem,1fr)_auto_auto_auto_auto]', $procurement);
+        $this->assertStringNotContainsString('[&_.hims-table-scroll]:overflow-x-hidden', $auditLogs);
+        $this->assertStringContainsString('hims-table-scroll max-h-[360px] overflow-x-auto overflow-y-auto', $inventoryImport);
+        $this->assertStringContainsString('hims-table-scroll overflow-x-auto', $warehouseLocations);
+        $this->assertStringContainsString('.doc-table-scroll', $legalDocumentStyles);
+        $this->assertStringContainsString('.iar-document__table-scroll', $iarDocumentStyles);
     }
 
     public function test_sidebar_navigation_strictly_reflects_role_and_panel_boundaries(): void

@@ -181,7 +181,7 @@
                                     {{-- Document Details --}}
                                     <td class="px-5 py-3.5 align-top">
                                         <div class="flex items-start gap-2.5">
-                                            <span class="inline-flex shrink-0 items-center justify-center rounded-md px-2 py-0.5 text-[11px] font-bold ring-1 ring-inset {{ $badgeColor }}" title="{{ $doc->document_type->label() }}">
+                                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold ring-1 ring-inset {{ $badgeColor }}" title="{{ $doc->document_type->label() }}">
                                                 {{ $abbr }}
                                             </span>
                                             <div class="min-w-0">

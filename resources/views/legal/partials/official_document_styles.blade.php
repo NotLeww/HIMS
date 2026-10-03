@@ -94,6 +94,20 @@
         font-size: 9pt;
         line-height: 1.45;
     }
+    .doc-table-scroll {
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        scrollbar-color: #737373 transparent;
+    }
+    .doc-table-scroll::-webkit-scrollbar {
+        height: 6px;
+    }
+    .doc-table-scroll::-webkit-scrollbar-thumb {
+        background-color: #737373;
+        border-radius: 9999px;
+    }
     .doc-table th {
         background-color: var(--doc-bg-header);
         color: var(--doc-heading);
@@ -110,6 +124,12 @@
         border: 1pt solid var(--doc-line-light);
         color: var(--doc-ink);
         vertical-align: top;
+    }
+
+    @media screen and (max-width: 767px) {
+        .doc-table-scroll .doc-table {
+            min-width: 42rem;
+        }
     }
     .doc-meta-label {
         font-weight: 700;
@@ -169,6 +189,14 @@
        Tailwind dark:* classes, transparent/muted text, and browser quirks.
        ========================================================================== */
     @media print {
+        .doc-table-scroll {
+            overflow: visible !important;
+        }
+
+        .doc-table-scroll .doc-table {
+            min-width: 0 !important;
+        }
+
         /* Reset print viewport and destroy screen UI */
         html, body {
             background: #ffffff !important;

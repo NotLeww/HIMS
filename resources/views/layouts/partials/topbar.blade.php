@@ -249,7 +249,45 @@
     <x-ui.theme-toggle />
 
     {{-- Persistent, role-aware notifications --}}
-    <div class="relative" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
+    <div
+        class="relative"
+        x-data="{
+            open: false,
+            nextUrl: @js($topbarNotificationsNextUrl),
+            loading: false,
+            loadError: '',
+            statusMessage: '',
+            async loadMore() {
+                if (!this.nextUrl || this.loading) return;
+
+                this.loading = true;
+                this.loadError = '';
+
+                try {
+                    const response = await fetch(this.nextUrl, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+
+                    if (!response.ok) throw new Error('Notification request failed.');
+
+                    const data = await response.json();
+                    this.$refs.notificationItems.insertAdjacentHTML('beforeend', data.html);
+                    this.nextUrl = data.next_url;
+                    this.statusMessage = data.loaded_count > 0
+                        ? `Loaded ${data.loaded_count} more notifications.`
+                        : 'All notifications are loaded.';
+                } catch (error) {
+                    this.loadError = 'Could not load older notifications. Please try again.';
+                } finally {
+                    this.loading = false;
+                }
+            }
+        }"
+        x-on:keydown.escape.window="open = false"
+    >
         <button
             type="button"
             x-on:click="open = !open"
@@ -306,68 +344,11 @@
             </div>
 
             <div class="max-h-[min(70vh,32rem)] w-full min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain">
-                @forelse($topbarNotifications as $notification)
-                    @php
-                        $priority = \App\Enums\NotificationPriority::tryFrom((string) ($notification->data['priority'] ?? ''))
-                            ?? \App\Enums\NotificationPriority::Info;
-                        $isUnread = $notification->read_at === null;
-                        $accent = match($priority) {
-                            \App\Enums\NotificationPriority::Critical => 'bg-rose-500',
-                            \App\Enums\NotificationPriority::Warning => 'bg-amber-400',
-                            default => 'bg-primary-400',
-                        };
-                        $timestamp = $notification->created_at->diffInSeconds(now()) < 45
-                            ? 'Just now'
-                            : $notification->created_at->diffForHumans();
-                    @endphp
-                    <div class="grid w-full min-w-0 max-w-full grid-cols-[3px_minmax(0,1fr)_2.25rem] overflow-hidden border-b border-neutral-100 last:border-b-0 dark:border-neutral-800/80
-                                {{ $isUnread ? 'bg-primary-50/55 dark:bg-primary-950/20' : 'bg-white dark:bg-neutral-900' }}">
-                        <span class="{{ $accent }}" aria-hidden="true"></span>
-                        <a href="{{ route('notifications.open', $notification->id) }}"
-                           class="min-w-0 overflow-hidden px-3 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 focus-visible:outline-none focus-visible:ring-2
-                                  focus-visible:ring-inset focus-visible:ring-primary-500">
-                            <div class="flex items-start justify-between gap-2">
-                                <p class="truncate text-sm {{ $isUnread ? 'font-semibold text-neutral-950 dark:text-neutral-50' : 'font-medium text-neutral-800 dark:text-neutral-200' }}">
-                                    {{ $notification->data['title'] ?? 'HIMS notification' }}
-                                </p>
-                                @if($priority === \App\Enums\NotificationPriority::Critical)
-                                    <span class="shrink-0 rounded-full bg-rose-100 dark:bg-rose-950/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-700 dark:text-rose-300">
-                                        Critical
-                                    </span>
-                                @endif
-                            </div>
-                            <p class="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-neutral-600 [overflow-wrap:anywhere] dark:text-neutral-400">
-                                {{ $notification->data['message'] ?? '' }}
-                            </p>
-                            <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-neutral-500 dark:text-neutral-400">
-                                <time datetime="{{ $notification->created_at->toIso8601String() }}">{{ $timestamp }}</time>
-                                @if($isUnread)
-                                    <span class="inline-flex items-center gap-1 font-medium text-primary-700 dark:text-primary-400">
-                                        <span class="h-1.5 w-1.5 rounded-full bg-primary-600 dark:bg-primary-500" aria-hidden="true"></span>
-                                        Unread
-                                    </span>
-                                @else
-                                    <span>Read</span>
-                                @endif
-                            </div>
-                        </a>
-                        <div class="flex min-w-0 items-start justify-center pt-3">
-                            @if($isUnread)
-                                <form method="POST" action="{{ route('notifications.read', $notification->id) }}">
-                                    @csrf
-                                    @method('PATCH')
-                                    <button type="submit"
-                                            class="rounded-md p-1.5 text-neutral-400 hover:bg-white hover:text-primary-700 dark:text-neutral-500 dark:hover:bg-neutral-800 dark:hover:text-primary-400
-                                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                                            title="Mark as read">
-                                        <span class="sr-only">Mark {{ $notification->data['title'] ?? 'notification' }} as read</span>
-                                        <x-ui.icon name="check" class="h-4 w-4" />
-                                    </button>
-                                </form>
-                            @endif
-                        </div>
-                    </div>
-                @empty
+                <div x-ref="notificationItems" :aria-busy="loading">
+                    @include('layouts.partials.notification-items', ['notifications' => $topbarNotifications])
+                </div>
+
+                @if($topbarNotifications->isEmpty())
                     <div class="flex flex-col items-center px-6 py-10 text-center">
                         <span class="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500">
                             <x-ui.icon name="bell-alert" class="h-5 w-5" />
@@ -377,7 +358,22 @@
                             Important updates that need your attention will appear here.
                         </p>
                     </div>
-                @endforelse
+                @endif
+
+                <div x-show="nextUrl || loadError" x-cloak class="border-t border-neutral-200 p-3 dark:border-neutral-800">
+                    <p x-show="loadError" x-text="loadError" role="alert" class="mb-2 text-center text-xs text-danger-700 dark:text-danger-300"></p>
+                    <button
+                        x-show="nextUrl"
+                        type="button"
+                        x-on:click="loadMore()"
+                        :disabled="loading"
+                        :aria-busy="loading"
+                        class="flex min-h-11 w-full items-center justify-center rounded-lg bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-200 disabled:cursor-wait disabled:opacity-70 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                    >
+                        <span x-text="loading ? 'Loading older notifications...' : (loadError ? 'Try again' : 'See previous notifications')"></span>
+                    </button>
+                    <p class="sr-only" aria-live="polite" x-text="statusMessage"></p>
+                </div>
             </div>
         </div>
     </div>

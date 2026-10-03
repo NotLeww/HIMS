@@ -443,7 +443,28 @@
 
     @unless ($openEditUserModal)
         <x-ui.modal name="create-user-modal" title="Add User" maxWidth="6xl">
-            <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.store')) }}" class="space-y-5" autocomplete="off"
+            <x-slot:header>
+                <div class="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex min-w-0 items-center gap-3">
+                        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">
+                            <x-ui.icon name="user-circle" class="h-6 w-6" />
+                        </span>
+                        <div class="min-w-0">
+                            <h2 id="create-user-modal-title" class="text-lg font-semibold text-neutral-950 dark:text-white">Add User</h2>
+                            <p class="mt-0.5 text-sm text-neutral-500 dark:text-neutral-400">Create a new employee account for hospital operations.</p>
+                        </div>
+                    </div>
+                    <x-ui.button
+                        type="button"
+                        variant="secondary"
+                        icon="shield-check"
+                        x-on:click="$dispatch('open-modal', 'form-role-permissions-modal')">
+                        View Role Permissions
+                    </x-ui.button>
+                </div>
+            </x-slot:header>
+
+            <form id="create-user-form" method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.store')) }}" class="space-y-4" autocomplete="off"
                   @if (auth()->user()?->isSuperAdministrator())
                       data-super-admin-password="create"
                   @else
@@ -454,20 +475,21 @@
                 @csrf
                 <input type="hidden" name="form_context" value="create_user">
 
-                <p class="text-sm text-neutral-600 dark:text-neutral-300">Fields marked with an asterisk are required.</p>
-
                 @include('admin.users.partials.form', ['user' => null, 'roles' => $createRoles])
+            </form>
 
-                <div class="flex flex-col gap-3 border-t border-neutral-200 pt-4 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between">
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                        Employee accounts are provisioned for hospital operations. Activity is recorded in accordance with the <a href="{{ route('privacy.notice', ['return' => url()->current()]) }}" target="_blank" rel="opener" class="text-primary-600 underline hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">Privacy Notice</a>.
-                    </p>
-                    <div class="flex w-full shrink-0 flex-col-reverse justify-end gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <x-slot:footer>
+                <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="flex min-w-0 items-start gap-2 rounded-lg bg-primary-50 px-3 py-2.5 text-xs text-primary-800 dark:bg-primary-950/50 dark:text-primary-200">
+                        <x-ui.icon name="information-circle" class="mt-0.5 h-4 w-4 shrink-0" />
+                        <p>Employee accounts are provisioned for hospital operations. Activity is recorded in accordance with the <a href="{{ route('privacy.notice', ['return' => url()->current()]) }}" target="_blank" rel="opener" class="font-medium text-primary-700 underline underline-offset-2 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200">Privacy Notice</a>.</p>
+                    </div>
+                    <div class="flex shrink-0 flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                         <x-ui.button type="button" variant="secondary" x-data x-on:click="$dispatch('close-modal', 'create-user-modal')">Cancel</x-ui.button>
-                        <x-ui.button type="submit" icon="plus" data-loading-text="Creating account...">Create Account</x-ui.button>
+                        <x-ui.button type="submit" form="create-user-form" icon="plus" data-loading-text="Creating account...">Create Account</x-ui.button>
                     </div>
                 </div>
-            </form>
+            </x-slot:footer>
         </x-ui.modal>
     @endunless
 
@@ -475,23 +497,25 @@
         @php($editRolePermissionsModalName = 'edit-user-role-permissions-'.$editUser->getKey())
         <x-ui.modal
             name="edit-user-modal"
-            title="Edit Account"
+            title="Edit User"
             maxWidth="6xl"
             :close-url="route(\App\Support\AuthenticationContext::administrationRoute('users.index'))">
             <x-slot:header>
-                <div class="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="min-w-0">
-                        <h2 id="edit-user-modal-title" class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                            Edit Account
-                        </h2>
-                        <p class="mt-0.5 truncate text-xs text-neutral-500 dark:text-neutral-400">
+                <div class="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex min-w-0 items-center gap-3">
+                        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">
+                            <x-ui.icon name="user-circle" class="h-6 w-6" />
+                        </span>
+                        <div class="min-w-0">
+                            <h2 id="edit-user-modal-title" class="text-lg font-semibold text-neutral-950 dark:text-white">Edit User</h2>
+                        <p class="mt-0.5 truncate text-sm text-neutral-500 dark:text-neutral-400">
                             {{ $editUser->name }} · {{ $editUser->email }}
                         </p>
+                        </div>
                     </div>
                     <x-ui.button
                         type="button"
                         variant="secondary"
-                        size="sm"
                         icon="shield-check"
                         x-on:click="$dispatch('open-modal', '{{ $editRolePermissionsModalName }}')">
                         View Role Permissions
@@ -499,7 +523,7 @@
                 </div>
             </x-slot:header>
 
-            <form method="POST"
+            <form id="edit-user-form" method="POST"
                   action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.update'), $editUser) }}"
                   class="space-y-4"
                   autocomplete="off"
@@ -535,13 +559,20 @@
                     'departments' => $editDepartments,
                 ])
 
-                <div class="flex flex-col-reverse gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-end">
-                    <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('users.index'))">
-                        Cancel
-                    </x-ui.button>
-                    <x-ui.button type="submit" data-loading-text="Saving changes...">Save Changes</x-ui.button>
-                </div>
             </form>
+
+            <x-slot:footer>
+                <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="flex min-w-0 items-start gap-2 rounded-lg bg-primary-50 px-3 py-2.5 text-xs text-primary-800 dark:bg-primary-950/50 dark:text-primary-200">
+                        <x-ui.icon name="information-circle" class="mt-0.5 h-4 w-4 shrink-0" />
+                        <p>Changes to employee identity, access, status, or credentials are recorded in the account audit trail.</p>
+                    </div>
+                    <div class="flex shrink-0 flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                        <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('users.index'))">Cancel</x-ui.button>
+                        <x-ui.button type="submit" form="edit-user-form" data-loading-text="Saving changes...">Save Changes</x-ui.button>
+                    </div>
+                </div>
+            </x-slot:footer>
         </x-ui.modal>
     @endif
 

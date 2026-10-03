@@ -33,7 +33,7 @@ class SessionTakeoverNotification extends Notification
         ];
 
         return (new MailMessage)
-            ->subject('HIMS session transferred to recognized device')
+            ->subject('HIMS session transferred to trusted browser')
             ->view('emails.auth.session-takeover', $data)
             ->text('emails.auth.session-takeover-text', $data);
     }
