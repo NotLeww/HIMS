@@ -196,32 +196,32 @@
                     <h3 id="device-approval-title" class="mt-2 text-xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
                         Is this you?
                     </h3>
-                    <p id="device-approval-description" class="mt-1 text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                    <p id="device-approval-description" class="mt-1 text-sm text-neutral-700 dark:text-neutral-400 leading-relaxed">
                         An unrecognized device entered the correct password for your account and is requesting access.
                     </p>
                 </div>
             </div>
 
-            <div class="mt-5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/40 p-4 text-xs space-y-2.5 text-neutral-600 dark:text-neutral-400">
+            <div class="mt-5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/40 p-4 text-xs space-y-2.5 text-neutral-700 dark:text-neutral-400">
                 <div class="flex items-center justify-between">
-                    <span class="text-neutral-500">Device & Browser:</span>
+                    <span class="font-medium text-neutral-600 dark:text-neutral-400">Device & Browser:</span>
                     <span class="font-semibold text-neutral-900 dark:text-neutral-200" x-text="pendingRequest ? `${pendingRequest.browser} on ${pendingRequest.platform}` : 'Unknown'"></span>
                 </div>
                 <div class="flex items-center justify-between">
-                    <span class="text-neutral-500">Network address:</span>
+                    <span class="font-medium text-neutral-600 dark:text-neutral-400">Network address:</span>
                     <span class="font-mono text-neutral-900 dark:text-neutral-200" x-text="pendingRequest?.ip_address || 'Unknown'"></span>
                 </div>
                 <div class="flex items-center justify-between">
-                    <span class="text-neutral-500">Requested:</span>
+                    <span class="font-medium text-neutral-600 dark:text-neutral-400">Requested:</span>
                     <span class="text-neutral-900 dark:text-neutral-200" x-text="pendingRequest ? `${pendingRequest.time_ago} (${pendingRequest.requested_at})` : 'Just now'"></span>
                 </div>
                 <div class="flex items-center justify-between">
-                    <span class="text-neutral-500">Device Status:</span>
+                    <span class="font-medium text-neutral-600 dark:text-neutral-400">Device Status:</span>
                     <span class="font-medium text-amber-700 dark:text-amber-400">Unrecognized Device</span>
                 </div>
             </div>
 
-            <div class="mt-4 rounded-lg bg-neutral-100/70 dark:bg-neutral-800/50 p-3 text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+            <div class="mt-4 rounded-lg bg-neutral-100/70 dark:bg-neutral-800/50 p-3 text-xs text-neutral-700 dark:text-neutral-400 leading-relaxed">
                 <span class="font-medium text-neutral-800 dark:text-neutral-200">Notice:</span>
                 HIMS enforces single-active-device access. Approving will transfer your session and log out this device immediately.
             </div>
