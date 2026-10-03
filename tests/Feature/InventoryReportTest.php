@@ -1554,6 +1554,7 @@ class InventoryReportTest extends TestCase
             ->assertOk()
             ->assertSee("viewMode: 'cards'", false)
             ->assertSee('Search drill-down records...', false)
+            ->assertSee('x-show="rowCount > 1"', false)
             ->assertSee("viewMode === 'cards'", false)
             ->assertSee("viewMode === 'table'", false)
             ->assertSee('hims-table-scroll w-full overflow-x-auto', false)

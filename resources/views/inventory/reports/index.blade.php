@@ -1175,65 +1175,101 @@
 
         {{-- Tab 2: Procurement & Spending --}}
         @if ($canViewFinancialData)
-        <div x-show="activeTab === 'procurement'" x-cloak class="space-y-6 print:!block">
-            <x-ui.card
-                title="Procurement Expense"
-                :subtitle="'Purchase orders raised in the last '.$period['days'].' days, plus everything still outstanding.'">
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <div class="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3">
-                        <p class="text-xs font-medium uppercase tracking-wide text-neutral-500">Ordered</p>
-                        <p class="mt-1.5 text-xl font-semibold tabular-nums text-neutral-900">
-                            ₱{{ number_format($spend['ordered']['value'], 2) }}
+        <div x-show="activeTab === 'procurement'" x-cloak class="space-y-4 print:!block">
+            <section class="space-y-4">
+                <div class="flex items-center gap-3">
+                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm">
+                        <x-ui.icon name="shopping-cart" class="h-5 w-5" />
+                    </span>
+                    <div class="min-w-0">
+                        <h2 class="text-xl font-bold tracking-tight text-neutral-950 dark:text-white">Procurement Expense</h2>
+                        <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                            Purchase orders raised in the last {{ $period['days'] }} days, plus everything still outstanding.
                         </p>
-                        <p class="mt-0.5 text-xs text-neutral-500">{{ $spend['ordered']['orders'] }} purchase orders</p>
-                    </div>
-
-                    <div class="rounded-md border border-success-200 bg-success-50 px-4 py-3">
-                        <p class="text-xs font-medium uppercase tracking-wide text-success-700">QC Accepted</p>
-                        <p class="mt-1.5 text-xl font-semibold tabular-nums text-success-800">
-                            ₱{{ number_format($spend['received']['value'], 2) }}
-                        </p>
-                        <p class="mt-0.5 text-xs text-success-700">{{ $spend['received']['orders'] }} purchase orders with accepted goods</p>
-                    </div>
-
-                    <div class="rounded-md border border-warning-200 bg-warning-50 px-4 py-3">
-                        <p class="text-xs font-medium uppercase tracking-wide text-warning-700">Outstanding</p>
-                        <p class="mt-1.5 text-xl font-semibold tabular-nums text-warning-800">
-                            ₱{{ number_format($spend['outstanding']['value'], 2) }}
-                        </p>
-                        <p class="mt-0.5 text-xs text-warning-700">
-                            {{ $spend['outstanding']['orders'] }} awaiting acceptance, all time
-                        </p>
-                    </div>
-
-                    <div class="rounded-md border border-neutral-200 bg-neutral-50 px-4 py-3">
-                        <p class="text-xs font-medium uppercase tracking-wide text-neutral-500">Average order</p>
-                        <p class="mt-1.5 text-xl font-semibold tabular-nums text-neutral-900">
-                            ₱{{ number_format($spend['average_order_value'], 2) }}
-                        </p>
-                        <p class="mt-0.5 text-xs text-neutral-500">Across orders raised in the window</p>
                     </div>
                 </div>
 
-                <p class="mt-4 text-xs text-neutral-500">
-                    Ordered is dated by order creation. QC accepted value is dated by disposition; legacy completed orders use their receipt date.
-                    Outstanding is the value still awaiting acceptance across open orders.
-                </p>
-            </x-ui.card>
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div class="flex items-center gap-3 rounded-xl border border-primary-200 bg-primary-50/50 p-4 dark:border-primary-900 dark:bg-primary-950/30">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300">
+                            <x-ui.icon name="clipboard-document-list" class="h-5 w-5" />
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">Ordered</p>
+                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-neutral-950 dark:text-white">₱{{ number_format($spend['ordered']['value'], 2) }}</p>
+                            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ $spend['ordered']['orders'] }} purchase orders</p>
+                        </div>
+                    </div>
 
-            <x-ui.card title="Receiving Reconciliation" subtitle="Latest 100 GRN lines in the selected period. Purchase quantities use the shown UOM; warehouse quantities use base units. Current available is the shared lot or item balance and may include other receipts.">
+                    <div class="flex items-center gap-3 rounded-xl border border-success-200 bg-success-50 p-4 dark:border-success-900 dark:bg-success-950/40">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-success-100 text-success-700 dark:bg-success-900 dark:text-success-300">
+                            <x-ui.icon name="check" class="h-5 w-5" />
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-success-700">QC Accepted</p>
+                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-success-800">₱{{ number_format($spend['received']['value'], 2) }}</p>
+                            <p class="mt-0.5 text-xs text-success-700">{{ $spend['received']['orders'] }} purchase orders with accepted goods</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-3 rounded-xl border border-warning-200 bg-warning-50 p-4 dark:border-warning-900 dark:bg-warning-950/40">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-warning-100 text-warning-700 dark:bg-warning-900 dark:text-warning-300">
+                            <x-ui.icon name="clock" class="h-5 w-5" />
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-warning-700">Outstanding</p>
+                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-warning-800">₱{{ number_format($spend['outstanding']['value'], 2) }}</p>
+                            <p class="mt-0.5 text-xs text-warning-700">{{ $spend['outstanding']['orders'] }} awaiting acceptance, all time</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-3 rounded-xl border border-violet-200 bg-violet-50/60 p-4 dark:border-violet-900 dark:bg-violet-950/40">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300">
+                            <x-ui.icon name="chart-bar" class="h-5 w-5" />
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-violet-700">Average order</p>
+                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-neutral-950 dark:text-white">₱{{ number_format($spend['average_order_value'], 2) }}</p>
+                            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Across orders raised in the window</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-2 rounded-lg border border-primary-200 bg-primary-50/50 px-3 py-2.5 text-xs text-primary-800 dark:border-primary-900 dark:bg-primary-950/30 dark:text-primary-200">
+                    <x-ui.icon name="information-circle" class="mt-0.5 h-4 w-4 shrink-0" />
+                    <p>
+                        Ordered is dated by order creation. QC accepted value is dated by disposition; legacy completed orders use their receipt date.
+                        Outstanding is the value still awaiting acceptance across open orders.
+                    </p>
+                </div>
+            </section>
+
+            <x-ui.card>
+                <x-slot name="header">
+                    <div class="flex items-start gap-3">
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-primary-950/80 dark:text-primary-300">
+                            <x-ui.icon name="cube" class="h-4 w-4" />
+                        </span>
+                        <div class="min-w-0">
+                            <h2 class="text-base font-bold text-neutral-950 dark:text-white">Receiving Reconciliation</h2>
+                            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                                Latest 100 GRN lines in the selected period. Purchase quantities use the shown UOM; warehouse quantities use base units. Current available is the shared lot or item balance and may include other receipts.
+                            </p>
+                        </div>
+                    </div>
+                </x-slot>
                 <div class="overflow-x-auto">
-                    <table class="min-w-[80rem] w-full text-left text-xs">
-                        <thead class="border-b border-neutral-200 text-neutral-600"><tr>
+                    <table class="min-w-[80rem] w-full border-separate border-spacing-0 text-left text-xs [&_td]:border-r [&_td]:border-neutral-100 [&_td:last-child]:border-r-0 [&_th]:border-r [&_th]:border-neutral-200 [&_th:last-child]:border-r-0 dark:[&_td]:border-neutral-800 dark:[&_th]:border-neutral-700">
+                        <thead class="bg-primary-50/70 text-neutral-700 dark:bg-primary-950/40 dark:text-neutral-300"><tr>
                             <th class="p-2">PO / GRN / Receiver</th><th class="p-2">Item / Batch / Expiry</th>
                             <th class="p-2">Conversion</th><th class="p-2">Ordered</th><th class="p-2">Delivered</th>
                             <th class="p-2">This GRN</th><th class="p-2">Accepted</th><th class="p-2">Rejected</th>
                             <th class="p-2">Pending QC</th><th class="p-2">Awaiting put-away</th><th class="p-2">Put away from GRN</th><th class="p-2">Current available</th>
                             <th class="p-2">Remaining receivable</th><th class="p-2">Outstanding</th><th class="p-2">Returned</th>
                         </tr></thead>
-                        <tbody class="divide-y divide-neutral-100">
+                        <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800">
                             @forelse($receivingReconciliation as $row)
-                                <tr>
+                                <tr class="transition-colors hover:bg-primary-50/40 dark:hover:bg-primary-950/20">
                                     <td class="p-2"><a class="font-semibold text-primary-700 hover:underline" href="{{ route('inventory.receiving.show', $row['grn']) }}">{{ $row['grn']->grn_number }}</a><br>{{ $row['po']?->po_number ?? 'Legacy' }}<br>{{ $row['receiver'] ?? 'Unknown' }}</td>
                                     <td class="p-2">{{ $row['item']?->name }}<br>{{ $row['batch'] ?? 'No batch' }}<br>{{ $row['expiry']?->format('Y-m-d') ?? 'No expiry' }}</td>
                                     <td class="p-2">1 {{ $row['purchase_unit'] }} = {{ $row['factor'] }} {{ $row['base_unit'] }}</td>
@@ -1250,12 +1286,27 @@
                 </div>
             </x-ui.card>
 
-            <x-ui.card title="PO Commitments by Supplier" :subtitle="$period['description'].' Select a bar to inspect its purchase orders.'">
+            <x-ui.card>
+                <x-slot name="header">
+                    <div class="flex items-start gap-3">
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-primary-950/80 dark:text-primary-300">
+                            <x-ui.icon name="chart-bar" class="h-4 w-4" />
+                        </span>
+                        <div class="min-w-0">
+                            <h2 class="text-base font-bold text-neutral-950 dark:text-white">PO Commitments by Supplier</h2>
+                            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ $period['description'] }} Bars compare commitment values; select a row to inspect its purchase orders.</p>
+                        </div>
+                    </div>
+                </x-slot>
                 @php $supplierSpendMax = max(1, (float) $spendBySupplier->max('value')); @endphp
-                <div class="space-y-2">
+                <div class="hidden grid-cols-[minmax(14rem,28rem)_minmax(0,1fr)_auto] items-center gap-4 border-b border-neutral-200 px-2 py-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:text-neutral-400 md:grid">
+                    <span>Supplier / receiving status</span>
+                    <span>Commitment vs. largest supplier</span>
+                    <span class="text-right">Value</span>
+                </div>
+                <div class="divide-y divide-neutral-100 dark:divide-neutral-800">
                     @forelse ($spendBySupplier as $row)
                         @php
-                            $rate = $row->orders > 0 ? round(($row->received_orders / $row->orders) * 100) : 0;
                             $spendShare = round(((float) $row->value / $supplierSpendMax) * 100);
                         @endphp
                         @if ($row->supplier_id)
@@ -1263,27 +1314,27 @@
                                data-drilldown-url="{{ $drilldownUrl('supplier', $row->supplier_id) }}"
                                data-drilldown-title="Procurement Spend — {{ $row->supplier }}"
                                x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle })"
-                               class="group block w-full rounded-lg p-2 text-left transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                               class="group grid w-full gap-2 px-2 py-2.5 text-left transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-neutral-800/60 md:grid-cols-[minmax(14rem,28rem)_minmax(0,1fr)_auto] md:items-center md:gap-4"
                                aria-label="View purchase orders for {{ $row->supplier }}">
-                                <div class="flex items-center justify-between gap-3 text-sm">
-                                    <span class="truncate font-medium text-neutral-800">{{ $row->supplier }}</span>
-                                    <span class="shrink-0 font-semibold tabular-nums text-neutral-900">₱{{ number_format($row->value, 2) }}</span>
+                                <div class="min-w-0">
+                                    <span class="block truncate text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ $row->supplier }}</span>
+                                    <span class="mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400">{{ number_format($row->received_orders) }} received out of {{ number_format($row->orders) }} {{ $row->orders == 1 ? 'order' : 'orders' }}</span>
                                 </div>
-                                <div class="mt-1.5 h-2.5 overflow-hidden rounded-full bg-neutral-100" aria-hidden="true">
+                                <div class="h-2.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" role="img" aria-label="{{ $spendShare }}% of the largest supplier commitment" title="{{ $spendShare }}% of the largest supplier commitment">
                                     <div class="h-full rounded-full bg-primary-500 transition-all group-hover:bg-primary-600" style="width: {{ $spendShare }}%"></div>
                                 </div>
-                                <p class="mt-1 text-xs text-neutral-500">{{ number_format($row->orders) }} orders · {{ $rate }}% received</p>
+                                <span class="shrink-0 text-sm font-bold tabular-nums text-neutral-950 dark:text-white">₱{{ number_format($row->value, 2) }}</span>
                             </button>
                         @else
-                            <div class="rounded-lg p-2">
-                                <div class="flex items-center justify-between gap-3 text-sm">
-                                    <span class="truncate font-medium text-neutral-800">{{ $row->supplier }}</span>
-                                    <span class="shrink-0 font-semibold tabular-nums text-neutral-900">₱{{ number_format($row->value, 2) }}</span>
+                            <div class="grid gap-2 px-2 py-2.5 md:grid-cols-[minmax(14rem,28rem)_minmax(0,1fr)_auto] md:items-center md:gap-4">
+                                <div class="min-w-0">
+                                    <span class="block truncate text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ $row->supplier }}</span>
+                                    <span class="mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400">{{ number_format($row->received_orders) }} received out of {{ number_format($row->orders) }} {{ $row->orders == 1 ? 'order' : 'orders' }} · Supplier record unavailable</span>
                                 </div>
-                                <div class="mt-1.5 h-2.5 overflow-hidden rounded-full bg-neutral-100" aria-hidden="true">
+                                <div class="h-2.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" role="img" aria-label="{{ $spendShare }}% of the largest supplier commitment" title="{{ $spendShare }}% of the largest supplier commitment">
                                     <div class="h-full rounded-full bg-neutral-400" style="width: {{ $spendShare }}%"></div>
                                 </div>
-                                <p class="mt-1 text-xs text-neutral-500">Unassigned orders cannot open a supplier record.</p>
+                                <span class="shrink-0 text-sm font-bold tabular-nums text-neutral-950 dark:text-white">₱{{ number_format($row->value, 2) }}</span>
                             </div>
                         @endif
                     @empty
@@ -1468,7 +1519,7 @@
             x-show="isOpen"
             x-cloak
             x-transition.opacity.duration.150ms
-            class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
+            class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-5"
             role="dialog"
             aria-modal="true"
             aria-labelledby="chart-drilldown-modal-title"
@@ -1477,7 +1528,7 @@
             <button
                 type="button"
                 tabindex="-1"
-                class="fixed inset-0 cursor-default bg-neutral-900/55"
+                class="fixed inset-0 cursor-default bg-neutral-950/60 backdrop-blur-[2px]"
                 aria-label="Close chart details"
                 x-on:click="closeModal()"
                 x-on:wheel.prevent
@@ -1487,42 +1538,102 @@
             <section
                 x-show="isOpen"
                 x-transition
-                class="relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)]"
+                class="relative flex max-h-[calc(100dvh-1rem)] w-full max-w-[96rem] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-900 sm:max-h-[calc(100dvh-2.5rem)]"
             >
-                <header class="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-200 px-4 py-4 sm:px-6">
-                    <div class="min-w-0">
-                        <p class="text-xs font-semibold uppercase tracking-wide text-primary-700">Chart drill-down</p>
-                        <h2 id="chart-drilldown-modal-title" class="mt-1 break-words text-base font-semibold text-neutral-900 sm:text-lg" x-text="title"></h2>
-                        <p class="mt-1 text-xs text-neutral-500" x-show="!loading && !errorMessage" x-text="resultSummary"></p>
+                <header class="flex shrink-0 flex-col gap-4 border-b border-neutral-200 px-4 py-4 dark:border-neutral-800 sm:flex-row sm:items-start sm:justify-between sm:px-6 sm:py-5">
+                    <div class="flex min-w-0 items-start gap-3 sm:gap-4">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700 ring-1 ring-primary-100 dark:bg-primary-950/70 dark:text-primary-300 dark:ring-primary-800/60 sm:h-12 sm:w-12">
+                            <x-ui.icon name="document-chart-bar" class="h-6 w-6" />
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">Chart drill-down</p>
+                            <h2 id="chart-drilldown-modal-title" class="mt-1 break-words text-lg font-bold leading-tight text-neutral-950 dark:text-white sm:text-xl" x-text="title"></h2>
+                            <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400" x-show="!loading && !errorMessage" x-text="resultSummary"></p>
+                        </div>
                     </div>
-                    <button
-                        x-ref="closeButton"
-                        type="button"
-                        x-on:click="closeModal()"
-                        class="-m-1 inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-md text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                    >
-                        <span class="sr-only">Close chart details</span>
-                        <x-ui.icon name="x-mark" class="h-5 w-5" />
-                    </button>
+                    <div class="flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-end">
+                        <div
+                            x-show="!loading && !errorMessage && rowCount > 0"
+                            class="inline-flex shrink-0 rounded-xl border border-neutral-200 bg-neutral-100 p-1 text-sm font-semibold dark:border-neutral-700 dark:bg-neutral-800"
+                            role="group"
+                            aria-label="Drill-down display mode"
+                        >
+                            <button
+                                type="button"
+                                x-on:click="viewMode = 'cards'"
+                                class="inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                                :class="viewMode === 'cards' ? 'bg-white text-primary-700 shadow-2xs font-bold dark:bg-neutral-900 dark:text-primary-300' : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white'"
+                                :aria-pressed="viewMode === 'cards'"
+                                title="Card stream (Fully responsive, zero horizontal scroll)"
+                            >
+                                <x-ui.icon name="squares-2x2" class="h-4 w-4" />
+                                <span>Cards</span>
+                            </button>
+                            <button
+                                type="button"
+                                x-on:click="viewMode = 'table'"
+                                class="inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                                :class="viewMode === 'table' ? 'bg-white text-primary-700 shadow-2xs font-bold dark:bg-neutral-900 dark:text-primary-300' : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white'"
+                                :aria-pressed="viewMode === 'table'"
+                                title="Table view (Compact fit, zero horizontal scroll)"
+                            >
+                                <x-ui.icon name="table-cells" class="h-4 w-4" />
+                                <span>Table</span>
+                            </button>
+                        </div>
+                        <button
+                            x-ref="closeButton"
+                            type="button"
+                            x-on:click="closeModal()"
+                            class="inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-lg text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-white sm:-mr-1"
+                        >
+                            <span class="sr-only">Close chart details</span>
+                            <x-ui.icon name="x-mark" class="h-5 w-5" />
+                        </button>
+                    </div>
                 </header>
 
                 <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain overflow-x-hidden p-4 sm:p-6">
-                    <div x-show="loading" class="flex min-h-48 items-center justify-center" role="status" aria-live="polite">
-                        <x-ui.loader label="Loading drill-down records..." size="lg" />
+                    <div x-show="loading" class="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900 sm:p-5" role="status" aria-live="polite">
+                        <span class="sr-only">Loading drill-down records...</span>
+                        <div class="space-y-5 motion-safe:animate-pulse" aria-hidden="true">
+                            <div class="flex items-start gap-3 sm:gap-4">
+                                <span class="h-12 w-12 shrink-0 rounded-xl bg-primary-100 dark:bg-primary-950/70"></span>
+                                <div class="min-w-0 flex-1 space-y-3 pt-0.5">
+                                    <div class="flex gap-2">
+                                        <span class="h-6 w-40 rounded-full bg-neutral-200 dark:bg-neutral-700"></span>
+                                        <span class="h-6 w-24 rounded-full bg-success-100 dark:bg-success-950/70"></span>
+                                    </div>
+                                    <span class="block h-5 w-full max-w-xl rounded-md bg-neutral-200 dark:bg-neutral-700"></span>
+                                    <span class="block h-4 w-full max-w-md rounded-md bg-neutral-100 dark:bg-neutral-800"></span>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                @for ($placeholder = 0; $placeholder < 8; $placeholder++)
+                                    <div class="flex min-h-24 items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50/80 p-3.5 dark:border-neutral-700 dark:bg-neutral-800/60">
+                                        <span class="h-10 w-10 shrink-0 rounded-xl bg-neutral-200 dark:bg-neutral-700"></span>
+                                        <span class="min-w-0 flex-1 space-y-2">
+                                            <span class="block h-3 w-20 rounded bg-neutral-200 dark:bg-neutral-700"></span>
+                                            <span class="block h-4 w-28 max-w-full rounded bg-neutral-300 dark:bg-neutral-600"></span>
+                                        </span>
+                                    </div>
+                                @endfor
+                            </div>
+                        </div>
                     </div>
 
                     <div
                         x-show="!loading && errorMessage"
-                        class="flex min-h-48 flex-col items-center justify-center rounded-lg border border-danger-200 bg-danger-50 p-6 text-center"
+                        class="flex min-h-48 flex-col items-center justify-center rounded-xl border border-danger-200 bg-danger-50 p-6 text-center dark:border-danger-800 dark:bg-danger-950/40"
                         role="alert"
                     >
                         <x-ui.icon name="exclamation-triangle" class="h-8 w-8 text-danger-600" />
-                        <p class="mt-3 text-sm font-semibold text-danger-800">Unable to load chart details</p>
-                        <p class="mt-1 max-w-lg text-sm text-danger-700" x-text="errorMessage"></p>
+                        <p class="mt-3 text-sm font-semibold text-danger-800 dark:text-danger-200">Unable to load chart details</p>
+                        <p class="mt-1 max-w-lg text-sm text-danger-700 dark:text-danger-300" x-text="errorMessage"></p>
                         <button
                             type="button"
                             x-on:click="retry()"
-                            class="mt-4 inline-flex min-h-10 items-center justify-center rounded-md border border-danger-300 bg-white px-4 py-2 text-sm font-semibold text-danger-700 hover:bg-danger-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-500"
+                            class="mt-4 inline-flex min-h-10 items-center justify-center rounded-lg border border-danger-300 bg-white px-4 py-2 text-sm font-semibold text-danger-700 hover:bg-danger-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-500 dark:border-danger-700 dark:bg-neutral-900 dark:text-danger-300 dark:hover:bg-danger-950"
                         >
                             Try again
                         </button>
@@ -1530,40 +1641,44 @@
 
                     <div
                         x-show="!loading && !errorMessage && rowCount === 0"
-                        class="flex min-h-48 flex-col items-center justify-center rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center"
+                        class="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center dark:border-neutral-700 dark:bg-neutral-800/50"
                         role="status"
                     >
                         <x-ui.icon name="chart-bar" class="h-8 w-8 text-neutral-400" />
-                        <p class="mt-3 text-sm font-semibold text-neutral-800">No data found</p>
-                        <p class="mt-1 max-w-lg text-sm text-neutral-500">No records match the selected chart value and active filters.</p>
+                        <p class="mt-3 text-sm font-semibold text-neutral-800 dark:text-neutral-100">No data found</p>
+                        <p class="mt-1 max-w-lg text-sm text-neutral-500 dark:text-neutral-400">No records match the selected chart value and active filters.</p>
                     </div>
 
-                    <div x-show="!loading && !errorMessage && rowCount > 0" class="space-y-3.5">
-                        {{-- Controls Bar: Search & View Switcher --}}
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pb-1">
+                    <div x-show="!loading && !errorMessage && rowCount > 0">
+                        {{-- Search is useful only when the drill-down contains multiple records. --}}
+                        <div x-show="rowCount > 1" class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div class="flex items-center gap-2">
-                                <div class="relative w-full sm:w-64">
-                                    <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-neutral-400">
-                                        <x-ui.icon name="magnifying-glass" class="h-3.5 w-3.5" />
+                                <div class="relative w-full sm:w-80">
+                                    <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-neutral-400">
+                                        <x-ui.icon name="magnifying-glass" class="h-4 w-4" />
                                     </span>
                                     <input
                                         type="text"
                                         x-model="searchQuery"
+                                        aria-label="Search drill-down records"
                                         placeholder="Search drill-down records..."
-                                        class="w-full rounded-lg border border-neutral-300 py-1.5 pl-8 pr-3 text-xs text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 shadow-2xs"
+                                        class="w-full rounded-xl border border-neutral-300 bg-white py-2.5 pl-10 pr-3 text-sm text-neutral-900 shadow-2xs placeholder:text-neutral-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white dark:placeholder:text-neutral-500"
                                     />
                                 </div>
                                 <button
                                     type="button"
                                     x-show="searchQuery"
                                     x-on:click="searchQuery = ''"
-                                    class="text-xs text-neutral-500 hover:text-neutral-800 underline shrink-0"
+                                    class="shrink-0 text-xs font-medium text-neutral-500 underline underline-offset-2 hover:text-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-neutral-400 dark:hover:text-white"
                                 >
                                     Clear
                                 </button>
                             </div>
 
-                            <div class="flex items-center justify-between sm:justify-end gap-2.5">
+                            <div
+                                x-show="(searchQuery && filteredRows.length !== rowCount) || (!searchQuery && rowCount > visibleRows.length)"
+                                class="flex items-center justify-between gap-2.5 sm:justify-end"
+                            >
                                 <p x-show="searchQuery && filteredRows.length !== rowCount" class="text-xs text-neutral-500">
                                     Showing <span class="font-bold text-neutral-800" x-text="filteredRows.length"></span> of <span x-text="rowCount"></span>
                                 </p>
@@ -1571,36 +1686,13 @@
                                     Showing first <span x-text="visibleRows.length"></span> records
                                 </p>
 
-                                {{-- View Switcher: Cards vs Table --}}
-                                <div class="inline-flex rounded-lg border border-neutral-200 bg-neutral-100 p-0.5 text-xs font-semibold shrink-0">
-                                    <button
-                                        type="button"
-                                        x-on:click="viewMode = 'cards'"
-                                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition"
-                                        :class="viewMode === 'cards' ? 'bg-white text-primary-700 shadow-2xs font-bold' : 'text-neutral-600 hover:text-neutral-900'"
-                                        title="Card stream (Fully responsive, zero horizontal scroll)"
-                                    >
-                                        <x-ui.icon name="squares-2x2" class="w-3.5 h-3.5" />
-                                        <span class="hidden sm:inline">Cards</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        x-on:click="viewMode = 'table'"
-                                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md transition"
-                                        :class="viewMode === 'table' ? 'bg-white text-primary-700 shadow-2xs font-bold' : 'text-neutral-600 hover:text-neutral-900'"
-                                        title="Table view (Compact fit, zero horizontal scroll)"
-                                    >
-                                        <x-ui.icon name="table-cells" class="w-3.5 h-3.5" />
-                                        <span class="hidden sm:inline">Table</span>
-                                    </button>
-                                </div>
                             </div>
                         </div>
 
                         {{-- Empty Search Results Notice --}}
                         <div
                             x-show="searchQuery && filteredRows.length === 0"
-                            class="rounded-xl border border-neutral-200 bg-neutral-50 p-6 text-center text-xs text-neutral-500"
+                            class="rounded-xl border border-neutral-200 bg-neutral-50 p-6 text-center text-xs text-neutral-500 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-400"
                         >
                             No drill-down records match "<span class="font-semibold text-neutral-700" x-text="searchQuery"></span>".
                         </div>
@@ -1608,50 +1700,53 @@
                         {{-- VIEW 1: Responsive Cards Stream (Zero Horizontal Bar) --}}
                         <div
                             x-show="viewMode === 'cards' && filteredRows.length > 0"
-                            class="space-y-3 w-full overflow-x-hidden max-h-[calc(100dvh-16rem)] overflow-y-auto pr-0.5"
+                            class="max-h-[calc(100dvh-16rem)] w-full space-y-4 overflow-x-hidden overflow-y-auto pr-0.5"
                         >
                             <template x-for="(row, rowIndex) in filteredRows" :key="row.id ?? rowIndex">
-                                <article class="rounded-xl border border-neutral-200 bg-white p-4 shadow-2xs hover:border-neutral-300 hover:shadow-xs transition space-y-3">
-                                    {{-- Card Top: Primary Ref / PO / ID + Badge + Date --}}
-                                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-2.5">
-                                        <div class="flex flex-wrap items-center gap-2">
-                                            <template x-if="getPrimaryRef(row)">
-                                                <span class="inline-flex items-center gap-1 rounded-md bg-neutral-100 px-2.5 py-1 text-xs font-mono font-bold text-neutral-800 border border-neutral-200">
-                                                    <span class="text-[10px] uppercase font-semibold text-neutral-400" x-text="getPrimaryRefLabel(row)"></span>
-                                                    <span x-text="getPrimaryRef(row)"></span>
-                                                </span>
-                                            </template>
-                                            <template x-if="getBadge(row)">
-                                                <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize" :class="getBadgeClass(row)" x-text="getBadge(row)"></span>
-                                            </template>
+                                <article class="space-y-5 rounded-2xl border border-neutral-200 bg-white p-4 shadow-2xs transition hover:border-neutral-300 hover:shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600 sm:p-5">
+                                    <div class="flex items-start gap-3 sm:gap-4">
+                                        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700 ring-1 ring-primary-100 dark:bg-primary-950/70 dark:text-primary-300 dark:ring-primary-800/60">
+                                            <x-ui.icon name="document-check" class="h-6 w-6" />
+                                        </span>
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <template x-if="getPrimaryRef(row)">
+                                                    <span class="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                                                        <span class="uppercase text-neutral-500 dark:text-neutral-400" x-text="getPrimaryRefLabel(row)"></span>
+                                                        <span class="font-bold tabular-nums text-neutral-900 dark:text-white" x-text="getPrimaryRef(row)"></span>
+                                                    </span>
+                                                </template>
+                                                <template x-if="getBadge(row)">
+                                                    <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold capitalize" :class="getBadgeClass(row)" x-text="getBadge(row)"></span>
+                                                </template>
+                                                <template x-if="getSku(row)">
+                                                    <span class="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300" x-text="'SKU: ' + getSku(row)"></span>
+                                                </template>
+                                            </div>
+                                            <h3 class="mt-3 break-words text-base font-bold leading-snug text-neutral-950 dark:text-white sm:text-lg" x-text="getItemTitle(row, rowIndex)"></h3>
+                                            <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Detailed record information from the selected data point.</p>
                                         </div>
-
-                                        <template x-if="getDateValue(row)">
-                                            <span class="text-xs text-neutral-500 tabular-nums flex items-center gap-1.5 shrink-0">
-                                                <x-ui.icon name="clock" class="w-3.5 h-3.5 text-neutral-400" />
-                                                <span x-text="getDateValue(row)"></span>
-                                            </span>
-                                        </template>
                                     </div>
 
-                                    {{-- Card Title: Item Description / Name & SKU --}}
-                                    <div class="flex flex-wrap items-baseline justify-between gap-2">
-                                        <h4 class="text-sm font-bold text-neutral-900 leading-snug break-words" x-text="getItemTitle(row, rowIndex)"></h4>
-                                        <template x-if="getSku(row)">
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-semibold text-neutral-600 bg-neutral-100 border border-neutral-200 shrink-0" x-text="'SKU: ' + getSku(row)"></span>
-                                        </template>
-                                    </div>
-
-                                    {{-- Card Attributes Grid: 2 cols on mobile, 3 on tablet, 4 on desktop, 100% width, ZERO horizontal scroll --}}
-                                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
+                                    {{-- Responsive attributes: one column on mobile, two on tablet, four on wide screens. --}}
+                                    <div class="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2 xl:grid-cols-4">
                                         <template x-for="[column, label] in getGridAttributes(row)" :key="column">
-                                            <div class="rounded-lg bg-neutral-50/90 p-2.5 border border-neutral-200/70">
-                                                <span class="block text-[10px] font-semibold uppercase tracking-wider text-neutral-400 truncate" x-text="label"></span>
-                                                <span
-                                                    class="mt-0.5 block font-semibold break-words"
-                                                    :class="isFinancialColumn(column) ? 'text-primary-700 font-bold tabular-nums font-mono text-xs' : (isNumericColumn(column) ? 'text-neutral-900 font-bold tabular-nums' : 'text-neutral-800')"
-                                                    x-text="formatCell(column, label, row[column])"
-                                                ></span>
+                                            <div class="flex min-h-24 items-center gap-3 rounded-xl border p-3.5" :class="getAttributeCardClass(column)">
+                                                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset" :class="getAttributeIconClass(column)">
+                                                    <template x-if="isDateColumn(column)"><x-ui.icon name="calendar" class="h-5 w-5" /></template>
+                                                    <template x-if="column === 'supplier' || column.includes('location')"><x-ui.icon name="building-office-2" class="h-5 w-5" /></template>
+                                                    <template x-if="isQuantityColumn(column)"><x-ui.icon name="cube" class="h-5 w-5" /></template>
+                                                    <template x-if="isFinancialColumn(column)"><x-ui.icon name="currency-dollar" class="h-5 w-5" /></template>
+                                                    <template x-if="!isDateColumn(column) && column !== 'supplier' && !column.includes('location') && !isQuantityColumn(column) && !isFinancialColumn(column)"><x-ui.icon name="document-text" class="h-5 w-5" /></template>
+                                                </span>
+                                                <div class="min-w-0">
+                                                    <span class="block text-[0.6875rem] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400" x-text="label"></span>
+                                                    <span
+                                                        class="mt-1 block break-words text-sm font-bold leading-snug"
+                                                        :class="getAttributeValueClass(column)"
+                                                        x-text="formatCell(column, label, row[column])"
+                                                    ></span>
+                                                </div>
                                             </div>
                                         </template>
                                     </div>
@@ -1662,27 +1757,27 @@
                         {{-- VIEW 2: Compact Table View (locally scrollable on narrow screens) --}}
                         <div
                             x-show="viewMode === 'table' && filteredRows.length > 0"
-                            class="hims-table-scroll w-full overflow-x-auto overflow-y-auto max-h-[calc(100dvh-16rem)] rounded-xl border border-neutral-200"
+                            class="hims-table-scroll w-full overflow-x-auto overflow-y-auto max-h-[calc(100dvh-16rem)] rounded-xl border border-neutral-200 dark:border-neutral-700"
                         >
                             <table class="min-w-[64rem] w-full divide-y divide-neutral-200 text-xs table-fixed">
-                                <thead class="sticky top-0 z-10 bg-neutral-50 shadow-2xs">
+                                <thead class="sticky top-0 z-10 bg-neutral-50 shadow-2xs dark:bg-neutral-800">
                                     <tr>
                                         <template x-for="([column, label]) in columnEntries" :key="column">
                                             <th
                                                 scope="col"
-                                                class="px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-neutral-600 break-words leading-tight"
+                                                class="break-words px-3 py-2.5 text-xs font-semibold uppercase leading-tight tracking-wider text-neutral-600 dark:text-neutral-300"
                                                 :class="isNumericColumn(column) ? 'text-right' : 'text-left'"
                                                 x-text="label"
                                             ></th>
                                         </template>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-neutral-100 bg-white">
+                                <tbody class="divide-y divide-neutral-100 bg-white dark:divide-neutral-800 dark:bg-neutral-900">
                                     <template x-for="(row, rowIndex) in filteredRows" :key="row.id ?? rowIndex">
-                                        <tr class="hover:bg-neutral-50/80 transition-colors">
+                                        <tr class="transition-colors hover:bg-neutral-50/80 dark:hover:bg-neutral-800/70">
                                             <template x-for="([column, label]) in columnEntries" :key="column">
                                                 <td
-                                                    class="px-3 py-2.5 text-neutral-700 break-words leading-normal"
+                                                    class="break-words px-3 py-2.5 leading-normal text-neutral-700 dark:text-neutral-300"
                                                     :class="isFinancialColumn(column) ? 'text-right font-mono font-bold text-primary-700' : (isNumericColumn(column) ? 'text-right tabular-nums font-medium' : 'text-left')"
                                                     x-text="formatCell(column, label, row[column])"
                                                 ></td>
@@ -1746,12 +1841,46 @@
                 },
 
                 isFinancialColumn(column) {
-                    return ['unit_cost', 'total_value', 'total_amount', 'risk_value', 'value', 'amount'].includes(column) ||
+                    return ['unit_cost', 'total_value', 'total_amount', 'accepted_value', 'outstanding_value', 'risk_value', 'value', 'amount'].includes(column) ||
                            (this.report?.columns?.[column] || '').includes('₱');
                 },
 
                 isNumericColumn(column) {
-                    return ['quantity_on_hand', 'reserved_quantity', 'available_quantity', 'reorder_level', 'unit_cost', 'total_value', 'quantity', 'value', 'units', 'risk_value', 'total_amount', 'days_remaining'].includes(column);
+                    return ['quantity_on_hand', 'reserved_quantity', 'available_quantity', 'reorder_level', 'unit_cost', 'total_value', 'quantity', 'value', 'units', 'risk_value', 'total_amount', 'accepted_value', 'outstanding_value', 'days_remaining'].includes(column);
+                },
+
+                isDateColumn(column) {
+                    return column.includes('date') || column.endsWith('_at');
+                },
+
+                isQuantityColumn(column) {
+                    return column === 'quantity' || column === 'units' || column.includes('quantity');
+                },
+
+                getAttributeCardClass(column) {
+                    if (column === 'accepted_value') return 'border-success-200 bg-success-50/70 dark:border-success-800/60 dark:bg-success-950/30';
+                    if (column === 'outstanding_value') return 'border-warning-200 bg-warning-50/70 dark:border-warning-800/60 dark:bg-warning-950/30';
+                    if (column === 'supplier' || column.includes('location')) return 'border-violet-200 bg-violet-50/60 dark:border-violet-800/60 dark:bg-violet-950/25';
+                    if (this.isQuantityColumn(column)) return 'border-success-200 bg-success-50/50 dark:border-success-800/60 dark:bg-success-950/25';
+                    if (this.isFinancialColumn(column) || column === 'requested_at') return 'border-primary-200 bg-primary-50/55 dark:border-primary-800/60 dark:bg-primary-950/25';
+                    return 'border-neutral-200 bg-neutral-50/80 dark:border-neutral-700 dark:bg-neutral-800/60';
+                },
+
+                getAttributeIconClass(column) {
+                    if (column === 'accepted_value') return 'bg-success-100 text-success-700 ring-success-200 dark:bg-success-900/50 dark:text-success-300 dark:ring-success-800';
+                    if (column === 'outstanding_value') return 'bg-warning-100 text-warning-700 ring-warning-200 dark:bg-warning-900/50 dark:text-warning-300 dark:ring-warning-800';
+                    if (column === 'supplier' || column.includes('location')) return 'bg-violet-100 text-violet-700 ring-violet-200 dark:bg-violet-900/50 dark:text-violet-300 dark:ring-violet-800';
+                    if (this.isQuantityColumn(column)) return 'bg-success-100 text-success-700 ring-success-200 dark:bg-success-900/50 dark:text-success-300 dark:ring-success-800';
+                    if (this.isFinancialColumn(column) || column === 'requested_at') return 'bg-primary-100 text-primary-700 ring-primary-200 dark:bg-primary-900/50 dark:text-primary-300 dark:ring-primary-800';
+                    return 'bg-neutral-200/70 text-neutral-600 ring-neutral-200 dark:bg-neutral-700 dark:text-neutral-300 dark:ring-neutral-600';
+                },
+
+                getAttributeValueClass(column) {
+                    if (column === 'accepted_value') return 'text-success-700 tabular-nums dark:text-success-300';
+                    if (column === 'outstanding_value') return 'text-warning-700 tabular-nums dark:text-warning-300';
+                    if (this.isFinancialColumn(column)) return 'text-primary-700 tabular-nums dark:text-primary-300';
+                    if (this.isNumericColumn(column)) return 'text-neutral-950 tabular-nums dark:text-white';
+                    return 'text-neutral-900 dark:text-neutral-100';
                 },
 
                 getPrimaryRef(row) {
@@ -1772,18 +1901,18 @@
                 getBadgeClass(row) {
                     const val = String(this.getBadge(row)).toLowerCase();
                     if (val.includes('stock_in') || val.includes('in_stock') || val.includes('received') || val.includes('approved') || val.includes('complete')) {
-                        return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+                        return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800';
                     }
                     if (val.includes('low_stock') || val.includes('expiring') || val.includes('pending') || val.includes('issued')) {
-                        return 'bg-amber-50 text-amber-700 border border-amber-200';
+                        return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800';
                     }
                     if (val.includes('out_of_stock') || val.includes('expired') || val.includes('damage') || val.includes('loss') || val.includes('reject')) {
-                        return 'bg-rose-50 text-rose-700 border border-rose-200';
+                        return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800';
                     }
                     if (val.includes('adjustment') || val.includes('transfer')) {
-                        return 'bg-primary-50 text-primary-700 border border-primary-200';
+                        return 'bg-primary-50 text-primary-700 border-primary-200 dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-800';
                     }
-                    return 'bg-neutral-100 text-neutral-700 border border-neutral-200';
+                    return 'bg-neutral-100 text-neutral-700 border-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:border-neutral-700';
                 },
 
                 getItemTitle(row, index) {
