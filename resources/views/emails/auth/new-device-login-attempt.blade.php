@@ -29,7 +29,6 @@
                             <div style="margin-top:4px;"><strong>Time:</strong> {{ $requestedAt }}</div>
                         </div>
 
-                        <p style="margin:16px 0;color:#525252;font-size:14px;line-height:22px;">Review this request within {{ $expiresInMinutes }} minutes. Opening a link does not make a decision; you must explicitly confirm on the next page.</p>
                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                             <tr><td style="padding:4px 0;"><a href="{{ $approveOnceUrl }}" style="display:block;padding:12px 16px;border-radius:8px;background:#1d4ed8;color:#ffffff;text-align:center;text-decoration:none;font-size:14px;font-weight:700;">Approve Once</a></td></tr>
                             <tr><td style="padding:4px 0;"><a href="{{ $approveTrustUrl }}" style="display:block;padding:12px 16px;border-radius:8px;background:#171717;color:#ffffff;text-align:center;text-decoration:none;font-size:14px;font-weight:700;">Approve &amp; Trust This Device</a></td></tr>

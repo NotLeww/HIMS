@@ -8,8 +8,6 @@ IP Address: {{ $ipAddress }}
 @endif
 Time: {{ $requestedAt }}
 
-Review within {{ $expiresInMinutes }} minutes. Opening a link does not make a decision; explicit confirmation is required.
-
 Approve Once: {{ $approveOnceUrl }}
 Approve & Trust This Device: {{ $approveTrustUrl }}
 Deny Sign-In: {{ $denyUrl }}
