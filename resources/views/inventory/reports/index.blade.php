@@ -757,7 +757,7 @@
     {{-- --------------------------------------------------- 2. stock status & executive health overview --}}
 
     <div class="grid items-stretch gap-4 lg:grid-cols-3">
-        <x-ui.card class="h-full">
+        <x-ui.card class="h-full [&>header]:py-3 [&>div]:p-4">
             <x-slot name="header">
                 <div class="flex items-start gap-3">
                     <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700 ring-1 ring-primary-200 dark:bg-primary-950/80 dark:text-primary-300 dark:ring-primary-800/50">
@@ -780,7 +780,7 @@
                 ];
             @endphp
 
-            <div class="space-y-4">
+            <div class="space-y-2">
                 @foreach ($bars as $key => $bar)
                     @php
                         $bucket = $stockStatus[$key];
@@ -792,7 +792,7 @@
                        data-drilldown-url="{{ $drilldownUrl('stock_status', $key) }}"
                        data-drilldown-title="Inventory Health — {{ $bar['label'] }}"
                        x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle })"
-                       class="group block w-full rounded-lg p-2 text-left transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-neutral-800/60"
+                       class="group block w-full rounded-lg p-1.5 text-left transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-neutral-800/60"
                        aria-label="View {{ $bar['label'] }} inventory records">
                         <div class="flex items-center justify-between gap-3">
                             <span>
@@ -804,7 +804,7 @@
                             </span>
                         </div>
 
-                        <div class="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" aria-hidden="true">
+                        <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" aria-hidden="true">
                             <div class="h-full rounded-full {{ $bar['bar'] }} transition-all group-hover:brightness-90" style="width: {{ $share }}%"></div>
                         </div>
 
@@ -819,7 +819,7 @@
             </div>
         </x-ui.card>
 
-        <x-ui.card class="h-full">
+        <x-ui.card class="h-full [&>header]:py-3 [&>div]:p-4">
             <x-slot name="header">
                 <div class="flex items-start gap-3">
                     <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:ring-emerald-800/50">
@@ -831,8 +831,17 @@
                     </div>
                 </div>
             </x-slot>
+            <x-slot name="actions">
+                <x-ui.button
+                    variant="ghost"
+                    size="sm"
+                    class="print:hidden"
+                    @click="$dispatch('open-report-tab', { tab: 'expiry' })">
+                    View batches &rarr;
+                </x-ui.button>
+            </x-slot>
             <div class="grid gap-3 sm:grid-cols-2">
-                <div class="rounded-lg border border-danger-200 bg-danger-50 px-3 py-3 dark:border-danger-900 dark:bg-danger-950/40">
+                <div class="rounded-lg border border-danger-200 bg-danger-50 px-3 py-2.5 dark:border-danger-900 dark:bg-danger-950/40">
                     <p class="text-xs font-semibold uppercase tracking-wide text-danger-700">Expired</p>
                     <p class="mt-1 text-lg font-semibold tabular-nums text-danger-800">
                         {{ number_format($expiry['expired']['units']) }}
@@ -846,7 +855,7 @@
                     </p>
                 </div>
 
-                <div class="rounded-lg border border-warning-200 bg-warning-50 px-3 py-3 dark:border-warning-900 dark:bg-warning-950/40">
+                <div class="rounded-lg border border-warning-200 bg-warning-50 px-3 py-2.5 dark:border-warning-900 dark:bg-warning-950/40">
                     <p class="text-xs font-semibold uppercase tracking-wide text-warning-700">Expiring soon</p>
                     <p class="mt-1 text-lg font-semibold tabular-nums text-warning-800">
                         {{ number_format($expiry['expiring_soon']['units']) }}
@@ -866,7 +875,7 @@
             </div>
 
             @if ($expiry['rows']->isNotEmpty())
-                <ul class="mt-4 space-y-2 border-t border-neutral-200 pt-3">
+                <ul class="mt-3 space-y-2 border-t border-neutral-200 pt-3">
                     @foreach ($expiry['rows']->take(3) as $batch)
                         <li class="flex items-center justify-between gap-3 text-sm">
                             <span class="min-w-0">
@@ -889,13 +898,13 @@
                     </p>
                 @endif
             @else
-                <p class="mt-4 rounded-lg border border-primary-100 bg-primary-50/50 px-3 py-2.5 text-xs text-neutral-600 dark:border-primary-900 dark:bg-primary-950/30 dark:text-neutral-300">
+                <p class="mt-3 rounded-lg border border-primary-100 bg-primary-50/50 px-3 py-2 text-xs text-neutral-600 dark:border-primary-900 dark:bg-primary-950/30 dark:text-neutral-300">
                     No dated batch is expired or inside its warning window.
                 </p>
             @endif
         </x-ui.card>
 
-        <x-ui.card class="h-full">
+        <x-ui.card class="h-full [&>header]:py-3 [&>div]:p-4">
             <x-slot name="header">
                 <div class="flex items-start gap-3">
                     <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700 ring-1 ring-primary-200 dark:bg-primary-950/80 dark:text-primary-300 dark:ring-primary-800/50">
@@ -911,14 +920,14 @@
                 <x-ui.button variant="ghost" size="sm" :href="route('inventory.stock-movements')">View ledger &rarr;</x-ui.button>
             </x-slot>
             @php $movementMax = max(1, (int) $movementsByType->max('movements')); @endphp
-            <div class="max-h-72 space-y-2 overflow-y-auto pr-1">
+            <div class="max-h-56 space-y-1 overflow-y-auto pr-1">
                 @foreach ($movementsByType as $row)
                     @php $movementShare = round(($row['movements'] / $movementMax) * 100); @endphp
                     <button type="button"
                        data-drilldown-url="{{ $drilldownUrl('movement_type', $row['type']->value) }}"
                        data-drilldown-title="Movement Activity — {{ $row['type']->label() }}"
                        x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle })"
-                       class="group block w-full rounded-lg p-2 text-left transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-neutral-800/60"
+                       class="group block w-full rounded-lg p-1.5 text-left transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-neutral-800/60"
                        aria-label="View {{ $row['type']->label() }} movement records">
                         <div class="flex items-center justify-between gap-3 text-xs">
                             <span class="truncate font-medium text-neutral-700 dark:text-neutral-300">{{ $row['type']->label() }}</span>
@@ -927,14 +936,14 @@
                                 <span class="font-normal text-neutral-500">· {{ number_format($row['units']) }} units</span>
                             </span>
                         </div>
-                        <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" aria-hidden="true">
+                        <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" aria-hidden="true">
                             <div class="h-full rounded-full bg-primary-500 transition-all group-hover:bg-primary-600" style="width: {{ $movementShare }}%"></div>
                         </div>
                     </button>
                 @endforeach
             </div>
 
-            <p class="mt-4 rounded-lg border border-primary-100 bg-primary-50/50 px-3 py-2.5 text-xs text-neutral-600 dark:border-primary-900 dark:bg-primary-950/30 dark:text-neutral-300">
+            <p class="mt-3 rounded-lg border border-primary-100 bg-primary-50/50 px-3 py-2 text-xs text-neutral-600 dark:border-primary-900 dark:bg-primary-950/30 dark:text-neutral-300">
                 Counts and units come directly from the filtered stock movement ledger; zero means no matching event occurred.
             </p>
         </x-ui.card>
@@ -942,7 +951,11 @@
 
     {{-- --------------------------------------------------- 3. interactive detailed report center --}}
 
-    <div x-data="{ activeTab: '{{ $canViewFinancialData ? 'valuation' : 'movements' }}' }" class="space-y-4">
+    <div
+        id="report-detail-tabs"
+        x-data="{ activeTab: '{{ $canViewFinancialData ? 'valuation' : 'movements' }}' }"
+        x-on:open-report-tab.window="activeTab = $event.detail.tab; $nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'start' }))"
+        class="space-y-4">
         {{-- Navigation tab bar (hidden on print) --}}
         <div class="rounded-xl border border-neutral-200 bg-white px-2 py-2 shadow-xs dark:border-neutral-800 dark:bg-neutral-900 print:hidden">
             <nav class="flex flex-wrap items-center gap-1.5" aria-label="Detailed Report Sections">

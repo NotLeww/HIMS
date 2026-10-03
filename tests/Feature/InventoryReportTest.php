@@ -147,6 +147,8 @@ class InventoryReportTest extends TestCase
 
         $response->assertStatus(200)
             ->assertSee('Valuation &amp; Locations', false)
+            ->assertSee('View batches', false)
+            ->assertSee('open-report-tab', false)
             ->assertSee('Procurement &amp; Spending', false)
             ->assertSee('Movements &amp; Consumption', false)
             ->assertSee('Expiry Risk Batches', false)
