@@ -1146,6 +1146,7 @@ class DocumentTrackingAndLogisticsTest extends TestCase
         $response->assertSee('Actions', false);
         $response->assertSee('w-80 min-w-80', false);
         $response->assertSee('grid-cols-[2rem_6rem_4rem_4rem]', false);
+        $response->assertSee('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', false);
 
         // Check that submitted doc has both Verify and Revise
         $response->assertSee('Submitted Delivery Receipt');
