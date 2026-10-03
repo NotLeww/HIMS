@@ -1543,8 +1543,36 @@ class InventoryReportTest extends TestCase
         $this->actingAs($this->reader())
             ->get('/inventory/reports')
             ->assertOk()
-            ->assertSee('displayLimit: 100', false)
+            ->assertSee('pageSize: 10', false)
+            ->assertSee('get paginatedRows()', false)
+            ->assertSee('aria-label="Drill-down record pagination"', false)
             ->assertSee('overflow-y-auto overscroll-contain', false);
+    }
+
+    public function test_reserved_units_drilldown_only_returns_items_with_reserved_stock(): void
+    {
+        $reserved = $this->stockedItem('Reserved Item', 'RESERVED-ITEM', 20, 5.00);
+        $unreserved = $this->stockedItem('Unreserved Item', 'UNRESERVED-ITEM', 30, 6.00);
+        $reserved->update(['reserved_quantity' => 4]);
+
+        $url = '/inventory/reports/generate?report_type=stock_status&format=json&period=30&reserved_only=1';
+
+        $this->actingAs($this->reader())
+            ->getJson($url)
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.name', 'Reserved Item')
+            ->assertJsonPath('data.0.reserved_quantity', 4)
+            ->assertJsonMissing(['name' => $unreserved->name]);
+
+        $reserved->update(['reserved_quantity' => 0]);
+
+        $this->actingAs($this->reader())
+            ->getJson($url)
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonPath('is_empty', true)
+            ->assertJsonPath('empty_message', 'No items have reserved units under the active filters.');
     }
 
     public function test_chart_drilldown_modal_provides_responsive_cards_and_a_scrollable_table_view(): void
@@ -1553,13 +1581,77 @@ class InventoryReportTest extends TestCase
             ->get('/inventory/reports')
             ->assertOk()
             ->assertSee("viewMode: 'cards'", false)
-            ->assertSee('Search drill-down records...', false)
-            ->assertSee('x-show="rowCount > 1"', false)
+            ->assertSee('Search records, item name, SKU, barcode, or category...', false)
+            ->assertSee('searchQuery', false)
+            ->assertSee('filteredRows', false)
             ->assertSee("viewMode === 'cards'", false)
             ->assertSee("viewMode === 'table'", false)
+            ->assertSee('getBadgeLabel(row) {', false)
+            ->assertSee('getPrimaryMetricIcon(column) {', false)
+            ->assertSee('getPrimaryAttributes(row) {', false)
+            ->assertSee('getSupportingAttributes(row) {', false)
+            ->assertSee('getPrimaryMetricSurfaceClass(column) {', false)
+            ->assertSee('this.focus = request.focus || null;', false)
+            ->assertSee('x-show="getPrimaryAttributes(row).length > 0"', false)
+            ->assertSee('x-show="getSupportingAttributes(row).length > 0"', false)
+            ->assertSee('x-for="(row, rowIndex) in paginatedRows"', false)
+            ->assertSee('get pageItems()', false)
+            ->assertSee('x-for="item in pageItems"', false)
+            ->assertSee(':aria-current="item === currentPage ? \'page\' : null"', false)
+            ->assertSee('x-on:click="goToPage(currentPage - 1)"', false)
+            ->assertSee('x-on:click="goToPage(currentPage + 1)"', false)
+            ->assertDontSee('Page <span x-text="currentPage"', false)
             ->assertSee('hims-table-scroll w-full overflow-x-auto', false)
+            ->assertDontSee('max-h-[calc(100dvh-16rem)]', false)
             ->assertSee('min-w-[64rem]', false)
             ->assertSee('table-fixed', false);
+    }
+
+    public function test_summary_cards_have_accessible_tooltips_and_functional_detail_targets(): void
+    {
+        $page = $this->actingAs($this->reader())
+            ->get('/inventory/reports');
+
+        $page->assertOk()
+            ->assertSee('data-metric-summary=', false)
+            ->assertSee('data-metric-details=', false)
+            ->assertSee('2xl:grid-cols-12', false)
+            ->assertSee('units on hand')
+            ->assertSee('Healthy stock')
+            ->assertSee('QC accepted')
+            ->assertSee('Outstanding')
+            ->assertSee('Units in')
+            ->assertSee('Units out')
+            ->assertSee('aria-label="Item distribution"', false)
+            ->assertSee('aria-label="Value by stock status"', false)
+            ->assertSee('aria-label="Attention distribution"', false)
+            ->assertSee('aria-label="Reserved by stock status"', false)
+            ->assertSee('aria-label="Expiry exposure"', false)
+            ->assertSee('aria-label="Events by movement type"', false)
+            ->assertSee('aria-label="Procurement value comparison"', false)
+            ->assertSee('aria-label="View item-level records for total items"', false)
+            ->assertSee('aria-label="View item-level stock valuation records"', false)
+            ->assertSee('aria-label="View low-stock and out-of-stock breakdown"', false)
+            ->assertSee('aria-label="View item-level reserved unit records"', false)
+            ->assertSee('aria-label="View batches contributing to expiry risk"', false)
+            ->assertSee('aria-label="View stock movement ledger records"', false)
+            ->assertSee('aria-label="View purchase orders included in procurement spending"', false)
+            ->assertSee('href="#inventory-health"', false)
+            ->assertSee('id="inventory-health"', false)
+            ->assertSee('data-drilldown-title="Total Items — Inventory Records"', false)
+            ->assertSee('data-drilldown-title="Expiry Risk Units — Affected Batches"', false)
+            ->assertSee('data-drilldown-title="Stock Movements — Ledger Records"', false)
+            ->assertSee('data-drilldown-title="Procurement Spending — Purchase Orders"', false)
+            ->assertSee('reserved_only=1', false);
+
+        preg_match_all('/data-drilldown-url="([^"]+)"/', $page->getContent(), $matches);
+        $drilldownUrls = collect($matches[1] ?? [])
+            ->map(fn (string $url) => html_entity_decode($url, ENT_QUOTES | ENT_HTML5));
+
+        $this->assertTrue($drilldownUrls->contains(fn (string $url) => str_contains($url, 'report_type=stock_status')));
+        $this->assertTrue($drilldownUrls->contains(fn (string $url) => str_contains($url, 'report_type=expiry_exposure')));
+        $this->assertTrue($drilldownUrls->contains(fn (string $url) => str_contains($url, 'report_type=movement_history')));
+        $this->assertTrue($drilldownUrls->contains(fn (string $url) => str_contains($url, 'report_type=procurement_expense')));
     }
 
     public function test_chart_drilldown_modal_preserves_page_scroll_position_and_prevents_scroll_to_top(): void
@@ -1568,6 +1660,9 @@ class InventoryReportTest extends TestCase
             ->get('/inventory/reports')
             ->assertOk()
             ->assertSee('savedScrollY: null', false)
+            ->assertSee('rootOverflow: null', false)
+            ->assertSee("document.documentElement.style.overflow = 'hidden';", false)
+            ->assertSee('document.documentElement.style.overflow = this.rootOverflow;', false)
             ->assertSee('preventScroll: true', false)
             ->assertSee('x-on:wheel.prevent', false)
             ->assertSee('x-on:touchmove.prevent', false)

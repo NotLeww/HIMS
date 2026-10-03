@@ -136,6 +136,7 @@ class ReportController extends Controller implements HasMiddleware
             'supplier_id' => ['nullable', 'integer', 'exists:suppliers,id'],
             'movement_type' => ['nullable', 'string', Rule::enum(MovementType::class)],
             'status' => ['nullable', 'string', Rule::in(['all', 'in_stock', 'low_stock', 'out_of_stock'])],
+            'reserved_only' => ['nullable', 'boolean'],
             'sort_by' => ['nullable', 'string', Rule::in(['date', 'value', 'units', 'items', 'name', 'status', 'orders', 'utilisation', 'movements', 'amount', 'supplier', 'fulfilment'])],
             'sort_direction' => ['nullable', 'string', Rule::in(['asc', 'desc'])],
         ], [

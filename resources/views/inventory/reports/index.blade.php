@@ -13,6 +13,7 @@
             'format' => 'json',
             'report_type' => match ($type) {
                 'stock_status' => 'stock_status',
+                'reserved' => 'stock_status',
                 'movement_type' => 'movement_history',
                 'supplier' => 'procurement_expense',
                 default => 'expiry_exposure',
@@ -21,8 +22,11 @@
 
         unset($parameters['stock_status']);
 
-        if ($type === 'stock_status') {
+        if (in_array($type, ['stock_status', 'reserved'], true)) {
             $parameters['status'] = $value ?? ($activeFilters['stock_status'] ?? null);
+            if ($type === 'reserved') {
+                $parameters['reserved_only'] = 1;
+            }
         } elseif ($type === 'movement_type') {
             $parameters['movement_type'] = $value ?? ($activeFilters['movement_type'] ?? null);
         } elseif ($type === 'supplier') {
@@ -40,6 +44,35 @@
         : (!empty($period['is_custom'])
             ? 'the custom date range '.$period['from']->format('M d, Y').' to '.$period['to']->format('M d, Y')
             : 'the '.$period['days'].'-day window ending '.$period['to']->format('M d, Y'));
+    $stockStatusTooltipDetails = collect(['in_stock', 'low_stock', 'out_of_stock'])
+        ->map(fn (string $status) => match ($status) {
+            'in_stock' => number_format($stockStatus[$status]['items']).' in-stock items',
+            'low_stock' => number_format($stockStatus[$status]['items']).' low-stock items',
+            default => number_format($stockStatus[$status]['items']).' out-of-stock items',
+        })
+        ->all();
+    $reservedTooltipDetails = collect(['in_stock', 'low_stock', 'out_of_stock'])
+        ->map(fn (string $status) => match ($status) {
+            'in_stock' => number_format($stockStatus[$status]['reserved']).' reserved units from in-stock items',
+            'low_stock' => number_format($stockStatus[$status]['reserved']).' reserved units from low-stock items',
+            default => number_format($stockStatus[$status]['reserved']).' reserved units from out-of-stock items',
+        })
+        ->all();
+    $expiryTooltipDetails = [
+        number_format($expiry['expired']['units']).' expired units across '.number_format($expiry['expired']['batches']).' batches',
+        number_format($expiry['expiring_soon']['units']).' expiring-soon units across '.number_format($expiry['expiring_soon']['batches']).' batches',
+    ];
+    $movementTooltipDetails = $movementsByType
+        ->filter(fn (array $row) => $row['movements'] > 0)
+        ->take(5)
+        ->map(fn (array $row) => number_format($row['movements']).' '.$row['type']->label().' movements')
+        ->values()
+        ->all();
+    $procurementTooltipDetails = [
+        'Ordered: ₱'.number_format($spend['ordered']['value'], 2),
+        'QC accepted: ₱'.number_format($spend['received']['value'], 2),
+        'Outstanding: ₱'.number_format($spend['outstanding']['value'], 2),
+    ];
 @endphp
 
 <x-app-layout>
@@ -671,85 +704,226 @@
 
     {{-- ------------------------------------------------ 1. inventory summary --}}
 
-    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-12">
         <x-ui.stat
             compact
+            class="2xl:col-span-3"
             label="Total items"
             :value="number_format($summary['items'])"
+            suffix="items"
             icon="cube"
             tone="primary"
             context="Snapshot"
-            :sparkline="$valuationByCategory->pluck('items')->all()"
-            sparkline-label="Inventory item distribution by category"
-            :hint="number_format($summary['units_on_hand']).' units in the current filtered snapshot'" />
+            href="#report-detail-tabs"
+            summary="Open the item-level records included in the current filtered snapshot."
+            summary-title="Current stock status"
+            :details="$stockStatusTooltipDetails"
+            :data-drilldown-url="$drilldownUrl('stock_status')"
+            data-drilldown-title="Total Items — Inventory Records"
+            data-drilldown-focus="items"
+            x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
+            aria-label="View item-level records for total items"
+            chart-label="Item distribution"
+            :chart="[
+                ['label' => 'In stock', 'value' => $stockStatus['in_stock']['items'], 'tone' => 'success'],
+                ['label' => 'Low stock', 'value' => $stockStatus['low_stock']['items'], 'tone' => 'warning'],
+                ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['items'], 'tone' => 'danger'],
+            ]"
+            :breakdown="[
+                ['label' => 'In stock', 'value' => number_format($stockStatus['in_stock']['items']).' items'],
+                ['label' => 'Needs attention', 'value' => number_format($summary['needs_attention']).' items'],
+            ]"
+            :hint="number_format($summary['units_on_hand']).' units on hand in the filtered snapshot'" />
 
         @if ($canViewFinancialData)
         <x-ui.stat
             compact
+            featured
+            class="2xl:col-span-6"
             label="Stock valuation"
-            :value="'₱'.number_format($summary['stock_value'], 2)"
+            prefix="₱"
+            :value="number_format($summary['stock_value'], 2)"
             icon="chart-bar"
             tone="success"
             context="Snapshot"
-            :sparkline="$valuationByCategory->pluck('value')->all()"
-            sparkline-label="Stock value distribution by category"
+            href="#report-detail-tabs"
+            summary="Open the item-level quantities, unit costs, and total values behind this valuation."
+            summary-title="Valuation records"
+            :details="$stockStatusTooltipDetails"
+            :data-drilldown-url="$drilldownUrl('stock_status')"
+            data-drilldown-title="Stock Valuation — Inventory Records"
+            data-drilldown-focus="valuation"
+            x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
+            aria-label="View item-level stock valuation records"
+            chart-label="Value by stock status"
+            :chart="[
+                ['label' => 'Healthy', 'value' => $stockStatus['in_stock']['value'], 'tone' => 'success'],
+                ['label' => 'Low stock', 'value' => $stockStatus['low_stock']['value'], 'tone' => 'warning'],
+                ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['value'], 'tone' => 'danger'],
+            ]"
+            :breakdown="[
+                ['label' => 'Healthy stock', 'value' => '₱'.number_format($stockStatus['in_stock']['value'], 2)],
+                ['label' => 'Low stock', 'value' => '₱'.number_format($stockStatus['low_stock']['value'], 2)],
+                ['label' => 'Units valued', 'value' => number_format($summary['units_on_hand'])],
+            ]"
             hint="Filtered units on hand × unit cost." />
         @endif
 
         <x-ui.stat
             compact
+            class="2xl:col-span-3"
             label="Low / out of stock"
             :value="number_format($summary['needs_attention'])"
+            suffix="items"
             icon="exclamation-triangle"
             :tone="$summary['needs_attention'] > 0 ? 'warning' : 'success'"
             context="Snapshot"
-            :sparkline="[$stockStatus['low_stock']['items'], $stockStatus['out_of_stock']['items']]"
-            sparkline-label="Low-stock and out-of-stock item distribution"
+            href="#inventory-health"
+            summary="Open the status breakdown, then select Low stock or Out of stock to inspect its matching items."
+            summary-title="Items needing attention"
+            :details="[
+                number_format($stockStatus['low_stock']['items']).' low-stock items',
+                number_format($stockStatus['out_of_stock']['items']).' out-of-stock items',
+            ]"
+            aria-label="View low-stock and out-of-stock breakdown"
+            chart-label="Attention distribution"
+            :chart="[
+                ['label' => 'Low stock', 'value' => $stockStatus['low_stock']['items'], 'tone' => 'warning'],
+                ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['items'], 'tone' => 'danger'],
+            ]"
+            :breakdown="[
+                ['label' => 'Low stock', 'value' => number_format($stockStatus['low_stock']['items'])],
+                ['label' => 'Out of stock', 'value' => number_format($stockStatus['out_of_stock']['items'])],
+            ]"
             hint="At or below reorder level, or out of stock." />
 
         <x-ui.stat
             compact
+            class="2xl:col-span-2"
             label="Reserved units"
             :value="number_format($summary['reserved_units'])"
+            suffix="units"
             icon="clipboard-document-list"
             tone="primary"
             context="Snapshot"
-            :sparkline="collect($stockStatus)->pluck('reserved')->all()"
-            sparkline-label="Reserved unit distribution by stock status"
+            href="#report-detail-tabs"
+            summary="Open only the filtered items that currently have reserved units."
+            summary-title="Reserved-unit breakdown"
+            :details="$reservedTooltipDetails"
+            :data-drilldown-url="$drilldownUrl('reserved')"
+            data-drilldown-title="Reserved Units — Inventory Records"
+            data-drilldown-focus="reserved"
+            x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
+            aria-label="View item-level reserved unit records"
+            chart-label="Reserved by stock status"
+            :chart="[
+                ['label' => 'In stock', 'value' => $stockStatus['in_stock']['reserved'], 'tone' => 'success'],
+                ['label' => 'Low stock', 'value' => $stockStatus['low_stock']['reserved'], 'tone' => 'warning'],
+                ['label' => 'Out of stock', 'value' => $stockStatus['out_of_stock']['reserved'], 'tone' => 'danger'],
+            ]"
+            :breakdown="[
+                ['label' => 'In-stock reserved', 'value' => number_format($stockStatus['in_stock']['reserved'])],
+                ['label' => 'At-risk reserved', 'value' => number_format($stockStatus['low_stock']['reserved'] + $stockStatus['out_of_stock']['reserved'])],
+            ]"
             hint="Committed elsewhere and unavailable to issue." />
 
         <x-ui.stat
             compact
+            class="2xl:col-span-2"
             label="Expiry risk units"
             :value="number_format($expiryRiskUnits)"
+            suffix="units"
             icon="calendar"
             :tone="$expiryRiskUnits > 0 ? 'warning' : 'success'"
             context="Snapshot"
-            :sparkline="[$expiry['expired']['units'], $expiry['expiring_soon']['units']]"
-            sparkline-label="Expired and expiring-soon unit distribution"
+            href="#report-detail-tabs"
+            summary="Open the dated batches currently contributing to expiry exposure."
+            summary-title="Expiry exposure"
+            :details="$expiryTooltipDetails"
+            :data-drilldown-url="$drilldownUrl('expiry')"
+            data-drilldown-title="Expiry Risk Units — Affected Batches"
+            data-drilldown-focus="expiry"
+            x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
+            aria-label="View batches contributing to expiry risk"
+            chart-label="Expiry exposure"
+            :chart="[
+                ['label' => 'Expired', 'value' => $expiry['expired']['units'], 'tone' => 'danger'],
+                ['label' => 'Expiring soon', 'value' => $expiry['expiring_soon']['units'], 'tone' => 'warning'],
+            ]"
+            :breakdown="[
+                ['label' => 'Expired', 'value' => number_format($expiry['expired']['units'])],
+                ['label' => 'Expiring soon', 'value' => number_format($expiry['expiring_soon']['units'])],
+            ]"
             :hint="number_format($expiry['expired']['batches'] + $expiry['expiring_soon']['batches']).' affected batches'" />
 
         <x-ui.stat
             compact
+            class="2xl:col-span-2"
             label="Stock movements"
             :value="number_format($movementTotals['movements'])"
+            suffix="events"
             icon="arrows-right-left"
             tone="primary"
             :context="$period['days'].'d'"
-            :sparkline="$movementsByType->pluck('movements')->all()"
-            sparkline-label="Movement count distribution by movement type"
+            href="#report-detail-tabs"
+            summary="Open the matching stock movement ledger for the active filters and reporting period."
+            summary-title="Movement activity"
+            :details="$movementTooltipDetails"
+            :data-drilldown-url="$drilldownUrl('movement_type')"
+            data-drilldown-title="Stock Movements — Ledger Records"
+            data-drilldown-focus="movement"
+            x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
+            aria-label="View stock movement ledger records"
+            chart-label="Events by movement type"
+            chart-type="bars"
+            :chart="$movementsByType
+                ->sortByDesc('movements')
+                ->take(4)
+                ->map(fn (array $row) => [
+                    'label' => $row['type']->label(),
+                    'value' => $row['movements'],
+                    'tone' => 'primary',
+                ])
+                ->values()
+                ->all()"
+            :breakdown="[
+                ['label' => 'Units in', 'value' => number_format($movementTotals['units_in'])],
+                ['label' => 'Units out', 'value' => number_format($movementTotals['units_out'])],
+            ]"
             :hint="$period['description']" />
 
         @if ($canViewFinancialData)
         <x-ui.stat
             compact
+            featured
+            class="2xl:col-span-6"
             label="Procurement spending"
-            :value="'₱'.number_format($spend['ordered']['value'], 2)"
+            prefix="₱"
+            :value="number_format($spend['ordered']['value'], 2)"
             icon="truck"
             tone="primary"
             :context="$period['days'].'d'"
-            :sparkline="$spendBySupplier->pluck('value')->all()"
-            sparkline-label="Procurement spending distribution by supplier"
+            href="#report-detail-tabs"
+            summary="Open the purchase orders included in procurement spending for the active reporting period."
+            summary-title="Procurement values"
+            :details="$procurementTooltipDetails"
+            :data-drilldown-url="$drilldownUrl('supplier')"
+            data-drilldown-title="Procurement Spending — Purchase Orders"
+            data-drilldown-focus="spending"
+            x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
+            aria-label="View purchase orders included in procurement spending"
+            chart-label="Procurement value comparison"
+            chart-type="bars"
+            :chart="[
+                ['label' => 'Ordered', 'value' => $spend['ordered']['value'], 'tone' => 'primary'],
+                ['label' => 'QC accepted', 'value' => $spend['received']['value'], 'tone' => 'success'],
+                ['label' => 'Outstanding', 'value' => $spend['outstanding']['value'], 'tone' => 'warning'],
+            ]"
+            :breakdown="[
+                ['label' => 'QC accepted', 'value' => '₱'.number_format($spend['received']['value'], 2)],
+                ['label' => 'Outstanding', 'value' => '₱'.number_format($spend['outstanding']['value'], 2)],
+                ['label' => 'Purchase orders', 'value' => number_format($spend['ordered']['orders'])],
+            ]"
             :hint="number_format($spend['ordered']['orders']).' purchase orders in period'" />
         @endif
     </div>
@@ -757,7 +931,7 @@
     {{-- --------------------------------------------------- 2. stock status & executive health overview --}}
 
     <div class="grid items-stretch gap-4 lg:grid-cols-3">
-        <x-ui.card class="h-full [&>header]:py-3 [&>div]:p-4">
+        <x-ui.card id="inventory-health" class="h-full scroll-mt-4 [&>header]:py-3 [&>div]:p-4">
             <x-slot name="header">
                 <div class="flex items-start gap-3">
                     <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700 ring-1 ring-primary-200 dark:bg-primary-950/80 dark:text-primary-300 dark:ring-primary-800/50">
@@ -791,7 +965,8 @@
                     <button type="button"
                        data-drilldown-url="{{ $drilldownUrl('stock_status', $key) }}"
                        data-drilldown-title="Inventory Health — {{ $bar['label'] }}"
-                       x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle })"
+                       data-drilldown-focus="stock"
+                       x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
                        class="group block w-full rounded-lg p-1.5 text-left transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-neutral-800/60"
                        aria-label="View {{ $bar['label'] }} inventory records">
                         <div class="flex items-center justify-between gap-3">
@@ -926,7 +1101,8 @@
                     <button type="button"
                        data-drilldown-url="{{ $drilldownUrl('movement_type', $row['type']->value) }}"
                        data-drilldown-title="Movement Activity — {{ $row['type']->label() }}"
-                       x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle })"
+                       data-drilldown-focus="movement"
+                       x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
                        class="group block w-full rounded-lg p-1.5 text-left transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-neutral-800/60"
                        aria-label="View {{ $row['type']->label() }} movement records">
                         <div class="flex items-center justify-between gap-3 text-xs">
@@ -1313,7 +1489,8 @@
                             <button type="button"
                                data-drilldown-url="{{ $drilldownUrl('supplier', $row->supplier_id) }}"
                                data-drilldown-title="Procurement Spend — {{ $row->supplier }}"
-                               x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle })"
+                               data-drilldown-focus="spending"
+                               x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
                                class="group grid w-full gap-2 px-2 py-2.5 text-left transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-neutral-800/60 md:grid-cols-[minmax(14rem,28rem)_minmax(0,1fr)_auto] md:items-center md:gap-4"
                                aria-label="View purchase orders for {{ $row->supplier }}">
                                 <div class="min-w-0">
@@ -1591,49 +1768,20 @@
             <section
                 x-show="isOpen"
                 x-transition
-                class="relative flex max-h-[calc(100dvh-1rem)] w-full max-w-[96rem] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-900 sm:max-h-[calc(100dvh-2.5rem)]"
+                class="relative flex max-h-[calc(100dvh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-neutral-900 sm:max-h-[88dvh]"
             >
-                <header class="flex shrink-0 flex-col gap-4 border-b border-neutral-200 px-4 py-4 dark:border-neutral-800 sm:flex-row sm:items-start sm:justify-between sm:px-6 sm:py-5">
-                    <div class="flex min-w-0 items-start gap-3 sm:gap-4">
-                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700 ring-1 ring-primary-100 dark:bg-primary-950/70 dark:text-primary-300 dark:ring-primary-800/60 sm:h-12 sm:w-12">
-                            <x-ui.icon name="document-chart-bar" class="h-6 w-6" />
+                <header class="flex shrink-0 flex-col gap-3 border-b border-neutral-200 px-4 py-3 dark:border-neutral-800 sm:flex-row sm:items-start sm:justify-between sm:px-5 sm:py-4">
+                    <div class="flex min-w-0 items-start gap-3">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700 ring-1 ring-primary-100 dark:bg-primary-950/70 dark:text-primary-300 dark:ring-primary-800/60">
+                            <x-ui.icon name="document-chart-bar" class="h-5 w-5" />
                         </span>
                         <div class="min-w-0">
                             <p class="text-xs font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">Chart drill-down</p>
-                            <h2 id="chart-drilldown-modal-title" class="mt-1 break-words text-lg font-bold leading-tight text-neutral-950 dark:text-white sm:text-xl" x-text="title"></h2>
-                            <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400" x-show="!loading && !errorMessage" x-text="resultSummary"></p>
+                            <h2 id="chart-drilldown-modal-title" class="mt-0.5 break-words text-base font-bold leading-tight text-neutral-950 dark:text-white sm:text-lg" x-text="title"></h2>
+                            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400" x-show="!loading && !errorMessage" x-text="resultSummary"></p>
                         </div>
                     </div>
-                    <div class="flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-end">
-                        <div
-                            x-show="!loading && !errorMessage && rowCount > 0"
-                            class="inline-flex shrink-0 rounded-xl border border-neutral-200 bg-neutral-100 p-1 text-sm font-semibold dark:border-neutral-700 dark:bg-neutral-800"
-                            role="group"
-                            aria-label="Drill-down display mode"
-                        >
-                            <button
-                                type="button"
-                                x-on:click="viewMode = 'cards'"
-                                class="inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                                :class="viewMode === 'cards' ? 'bg-white text-primary-700 shadow-2xs font-bold dark:bg-neutral-900 dark:text-primary-300' : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white'"
-                                :aria-pressed="viewMode === 'cards'"
-                                title="Card stream (Fully responsive, zero horizontal scroll)"
-                            >
-                                <x-ui.icon name="squares-2x2" class="h-4 w-4" />
-                                <span>Cards</span>
-                            </button>
-                            <button
-                                type="button"
-                                x-on:click="viewMode = 'table'"
-                                class="inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                                :class="viewMode === 'table' ? 'bg-white text-primary-700 shadow-2xs font-bold dark:bg-neutral-900 dark:text-primary-300' : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white'"
-                                :aria-pressed="viewMode === 'table'"
-                                title="Table view (Compact fit, zero horizontal scroll)"
-                            >
-                                <x-ui.icon name="table-cells" class="h-4 w-4" />
-                                <span>Table</span>
-                            </button>
-                        </div>
+                    <div class="flex w-full shrink-0 items-center justify-end sm:w-auto">
                         <button
                             x-ref="closeButton"
                             type="button"
@@ -1646,29 +1794,33 @@
                     </div>
                 </header>
 
-                <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain overflow-x-hidden p-4 sm:p-6">
-                    <div x-show="loading" class="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900 sm:p-5" role="status" aria-live="polite">
+                <div x-ref="modalBody" class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-3 sm:p-4">
+                    <div x-show="loading" class="rounded-xl border border-neutral-200 bg-white p-3 dark:border-neutral-700 dark:bg-neutral-900 sm:p-4" role="status" aria-live="polite">
                         <span class="sr-only">Loading drill-down records...</span>
-                        <div class="space-y-5 motion-safe:animate-pulse" aria-hidden="true">
-                            <div class="flex items-start gap-3 sm:gap-4">
-                                <span class="h-12 w-12 shrink-0 rounded-xl bg-primary-100 dark:bg-primary-950/70"></span>
-                                <div class="min-w-0 flex-1 space-y-3 pt-0.5">
+                        <div class="space-y-3 motion-safe:animate-pulse" aria-hidden="true">
+                            <div class="flex items-start gap-3">
+                                <span class="h-9 w-9 shrink-0 rounded-lg bg-primary-100 dark:bg-primary-950/70"></span>
+                                <div class="min-w-0 flex-1 space-y-2 pt-0.5">
                                     <div class="flex gap-2">
-                                        <span class="h-6 w-40 rounded-full bg-neutral-200 dark:bg-neutral-700"></span>
-                                        <span class="h-6 w-24 rounded-full bg-success-100 dark:bg-success-950/70"></span>
+                                        <span class="h-5 w-36 rounded-full bg-neutral-200 dark:bg-neutral-700"></span>
+                                        <span class="h-5 w-20 rounded-full bg-success-100 dark:bg-success-950/70"></span>
                                     </div>
-                                    <span class="block h-5 w-full max-w-xl rounded-md bg-neutral-200 dark:bg-neutral-700"></span>
-                                    <span class="block h-4 w-full max-w-md rounded-md bg-neutral-100 dark:bg-neutral-800"></span>
+                                    <span class="block h-4 w-full max-w-lg rounded bg-neutral-200 dark:bg-neutral-700"></span>
                                 </div>
                             </div>
-                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                                @for ($placeholder = 0; $placeholder < 8; $placeholder++)
-                                    <div class="flex min-h-24 items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50/80 p-3.5 dark:border-neutral-700 dark:bg-neutral-800/60">
-                                        <span class="h-10 w-10 shrink-0 rounded-xl bg-neutral-200 dark:bg-neutral-700"></span>
-                                        <span class="min-w-0 flex-1 space-y-2">
-                                            <span class="block h-3 w-20 rounded bg-neutral-200 dark:bg-neutral-700"></span>
-                                            <span class="block h-4 w-28 max-w-full rounded bg-neutral-300 dark:bg-neutral-600"></span>
-                                        </span>
+                            <div class="grid overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50/70 dark:border-neutral-700 dark:bg-neutral-800/60 sm:grid-cols-3">
+                                @for ($placeholder = 0; $placeholder < 3; $placeholder++)
+                                    <div class="space-y-2 p-3 sm:border-l sm:first:border-l-0 sm:border-neutral-200 sm:dark:border-neutral-700">
+                                        <span class="block h-3 w-24 rounded bg-neutral-200 dark:bg-neutral-700"></span>
+                                        <span class="block h-5 w-32 max-w-full rounded bg-neutral-300 dark:bg-neutral-600"></span>
+                                    </div>
+                                @endfor
+                            </div>
+                            <div class="grid gap-x-5 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+                                @for ($placeholder = 0; $placeholder < 4; $placeholder++)
+                                    <div class="space-y-2 border-t border-neutral-100 pt-2 dark:border-neutral-800">
+                                        <span class="block h-3 w-20 rounded bg-neutral-200 dark:bg-neutral-700"></span>
+                                        <span class="block h-4 w-28 max-w-full rounded bg-neutral-300 dark:bg-neutral-600"></span>
                                     </div>
                                 @endfor
                             </div>
@@ -1699,110 +1851,144 @@
                     >
                         <x-ui.icon name="chart-bar" class="h-8 w-8 text-neutral-400" />
                         <p class="mt-3 text-sm font-semibold text-neutral-800 dark:text-neutral-100">No data found</p>
-                        <p class="mt-1 max-w-lg text-sm text-neutral-500 dark:text-neutral-400">No records match the selected chart value and active filters.</p>
+                        <p
+                            class="mt-1 max-w-lg text-sm text-neutral-500 dark:text-neutral-400"
+                            x-text="report?.empty_message || 'No records match the selected chart value and active filters.'"
+                        ></p>
                     </div>
 
                     <div x-show="!loading && !errorMessage && rowCount > 0">
-                        {{-- Search is useful only when the drill-down contains multiple records. --}}
-                        <div x-show="rowCount > 1" class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div class="flex items-center gap-2">
-                                <div class="relative w-full sm:w-80">
-                                    <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-neutral-400">
-                                        <x-ui.icon name="magnifying-glass" class="h-4 w-4" />
-                                    </span>
-                                    <input
-                                        type="text"
-                                        x-model="searchQuery"
-                                        aria-label="Search drill-down records"
-                                        placeholder="Search drill-down records..."
-                                        class="w-full rounded-xl border border-neutral-300 bg-white py-2.5 pl-10 pr-3 text-sm text-neutral-900 shadow-2xs placeholder:text-neutral-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white dark:placeholder:text-neutral-500"
-                                    />
-                                </div>
-                                <button
-                                    type="button"
-                                    x-show="searchQuery"
-                                    x-on:click="searchQuery = ''"
-                                    class="shrink-0 text-xs font-medium text-neutral-500 underline underline-offset-2 hover:text-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-neutral-400 dark:hover:text-white"
-                                >
-                                    Clear
-                                </button>
-                            </div>
+                        <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <label class="relative block w-full sm:max-w-md">
+                                <span class="sr-only">Search drill-down records</span>
+                                <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-neutral-400">
+                                    <x-ui.icon name="magnifying-glass" class="h-4 w-4" />
+                                </span>
+                                <input
+                                    type="search"
+                                    x-model.debounce.150ms="searchQuery"
+                                    x-on:input="currentPage = 1"
+                                    placeholder="Search records, item name, SKU, barcode, or category..."
+                                    class="w-full rounded-xl border border-neutral-300 bg-white py-2.5 pl-10 pr-3 text-sm text-neutral-900 shadow-2xs placeholder:text-neutral-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white dark:placeholder:text-neutral-500"
+                                />
+                            </label>
 
                             <div
-                                x-show="(searchQuery && filteredRows.length !== rowCount) || (!searchQuery && rowCount > visibleRows.length)"
-                                class="flex items-center justify-between gap-2.5 sm:justify-end"
+                                class="inline-flex shrink-0 self-end rounded-xl border border-neutral-200 bg-neutral-100 p-1 text-sm font-semibold dark:border-neutral-700 dark:bg-neutral-800 sm:self-auto"
+                                role="group"
+                                aria-label="Drill-down display mode"
                             >
-                                <p x-show="searchQuery && filteredRows.length !== rowCount" class="text-xs text-neutral-500">
-                                    Showing <span class="font-bold text-neutral-800" x-text="filteredRows.length"></span> of <span x-text="rowCount"></span>
-                                </p>
-                                <p x-show="!searchQuery && rowCount > visibleRows.length" class="text-xs text-neutral-500">
-                                    Showing first <span x-text="visibleRows.length"></span> records
-                                </p>
-
+                                <button
+                                    type="button"
+                                    x-on:click="viewMode = 'cards'"
+                                    class="inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                                    :class="viewMode === 'cards' ? 'bg-white text-primary-700 shadow-2xs font-bold dark:bg-neutral-900 dark:text-primary-300' : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white'"
+                                    :aria-pressed="viewMode === 'cards'"
+                                >
+                                    <x-ui.icon name="squares-2x2" class="h-4 w-4" />
+                                    <span>Cards</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    x-on:click="viewMode = 'table'"
+                                    class="inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                                    :class="viewMode === 'table' ? 'bg-white text-primary-700 shadow-2xs font-bold dark:bg-neutral-900 dark:text-primary-300' : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white'"
+                                    :aria-pressed="viewMode === 'table'"
+                                >
+                                    <x-ui.icon name="table-cells" class="h-4 w-4" />
+                                    <span>Table</span>
+                                </button>
                             </div>
                         </div>
 
-                        {{-- Empty Search Results Notice --}}
                         <div
-                            x-show="searchQuery && filteredRows.length === 0"
-                            class="rounded-xl border border-neutral-200 bg-neutral-50 p-6 text-center text-xs text-neutral-500 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-400"
+                            x-show="searchQuery.trim() && filteredRows.length === 0"
+                            class="mb-4 rounded-xl border border-neutral-200 bg-neutral-50 p-5 text-center text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300"
                         >
-                            No drill-down records match "<span class="font-semibold text-neutral-700" x-text="searchQuery"></span>".
+                            No drill-down records match “<span class="font-semibold" x-text="searchQuery"></span>”.
                         </div>
 
                         {{-- VIEW 1: Responsive Cards Stream (Zero Horizontal Bar) --}}
                         <div
                             x-show="viewMode === 'cards' && filteredRows.length > 0"
-                            class="max-h-[calc(100dvh-16rem)] w-full space-y-4 overflow-x-hidden overflow-y-auto pr-0.5"
+                            class="w-full space-y-3"
                         >
-                            <template x-for="(row, rowIndex) in filteredRows" :key="row.id ?? rowIndex">
-                                <article class="space-y-5 rounded-2xl border border-neutral-200 bg-white p-4 shadow-2xs transition hover:border-neutral-300 hover:shadow-sm dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600 sm:p-5">
-                                    <div class="flex items-start gap-3 sm:gap-4">
-                                        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700 ring-1 ring-primary-100 dark:bg-primary-950/70 dark:text-primary-300 dark:ring-primary-800/60">
-                                            <x-ui.icon name="document-check" class="h-6 w-6" />
+                            <template x-for="(row, rowIndex) in paginatedRows" :key="row.id ?? rowIndex">
+                                <article class="space-y-3 rounded-xl border border-neutral-200 bg-white p-3 shadow-2xs transition hover:border-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:hover:border-neutral-600 sm:p-4">
+                                    <div class="flex items-start gap-3">
+                                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-700 ring-1 ring-primary-100 dark:bg-primary-950/70 dark:text-primary-300 dark:ring-primary-800/60">
+                                            <x-ui.icon name="document-check" class="h-4 w-4" />
                                         </span>
                                         <div class="min-w-0 flex-1">
-                                            <div class="flex flex-wrap items-center gap-2">
+                                            <div class="flex flex-wrap items-center gap-1.5">
                                                 <template x-if="getPrimaryRef(row)">
-                                                    <span class="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                                                    <span class="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[11px] font-semibold text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
                                                         <span class="uppercase text-neutral-500 dark:text-neutral-400" x-text="getPrimaryRefLabel(row)"></span>
                                                         <span class="font-bold tabular-nums text-neutral-900 dark:text-white" x-text="getPrimaryRef(row)"></span>
                                                     </span>
                                                 </template>
                                                 <template x-if="getBadge(row)">
-                                                    <span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold capitalize" :class="getBadgeClass(row)" x-text="getBadge(row)"></span>
+                                                    <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold" :class="getBadgeClass(row)" x-text="getBadgeLabel(row)"></span>
                                                 </template>
                                                 <template x-if="getSku(row)">
-                                                    <span class="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300" x-text="'SKU: ' + getSku(row)"></span>
+                                                    <span class="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[11px] font-semibold text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300" x-text="'SKU: ' + getSku(row)"></span>
                                                 </template>
                                             </div>
-                                            <h3 class="mt-3 break-words text-base font-bold leading-snug text-neutral-950 dark:text-white sm:text-lg" x-text="getItemTitle(row, rowIndex)"></h3>
-                                            <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Detailed record information from the selected data point.</p>
+                                            <h3 class="mt-2 break-words text-sm font-bold leading-snug text-neutral-950 dark:text-white sm:text-base" x-text="getItemTitle(row, pageOffset + rowIndex)"></h3>
                                         </div>
                                     </div>
 
-                                    {{-- Responsive attributes: one column on mobile, two on tablet, four on wide screens. --}}
-                                    <div class="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2 xl:grid-cols-4">
-                                        <template x-for="[column, label] in getGridAttributes(row)" :key="column">
-                                            <div class="flex min-h-24 items-center gap-3 rounded-xl border p-3.5" :class="getAttributeCardClass(column)">
-                                                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset" :class="getAttributeIconClass(column)">
-                                                    <template x-if="isDateColumn(column)"><x-ui.icon name="calendar" class="h-5 w-5" /></template>
-                                                    <template x-if="column === 'supplier' || column.includes('location')"><x-ui.icon name="building-office-2" class="h-5 w-5" /></template>
-                                                    <template x-if="isQuantityColumn(column)"><x-ui.icon name="cube" class="h-5 w-5" /></template>
-                                                    <template x-if="isFinancialColumn(column)"><x-ui.icon name="currency-dollar" class="h-5 w-5" /></template>
-                                                    <template x-if="!isDateColumn(column) && column !== 'supplier' && !column.includes('location') && !isQuantityColumn(column) && !isFinancialColumn(column)"><x-ui.icon name="document-text" class="h-5 w-5" /></template>
+                                    {{-- The selected KPI controls which record values lead the card hierarchy. --}}
+                                    <dl x-show="getPrimaryAttributes(row).length > 0" class="grid overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50/70 text-xs dark:border-neutral-700 dark:bg-neutral-800/50 sm:grid-cols-3">
+                                        <template x-for="([column, label], metricIndex) in getPrimaryAttributes(row)" :key="column">
+                                            <div
+                                                class="flex min-w-0 items-center gap-3 border-t border-neutral-200 p-3 first:border-t-0 dark:border-neutral-700 sm:border-l sm:border-t-0 sm:first:border-l-0"
+                                                :class="getPrimaryMetricSurfaceClass(column)"
+                                            >
+                                                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1" :class="getAttributeIconClass(column)" aria-hidden="true">
+                                                    <template x-if="getPrimaryMetricIcon(column) === 'tag'">
+                                                        <x-ui.icon name="tag" class="h-5 w-5" />
+                                                    </template>
+                                                    <template x-if="getPrimaryMetricIcon(column) === 'cube'">
+                                                        <x-ui.icon name="cube" class="h-5 w-5" />
+                                                    </template>
+                                                    <template x-if="getPrimaryMetricIcon(column) === 'calendar'">
+                                                        <x-ui.icon name="calendar" class="h-5 w-5" />
+                                                    </template>
+                                                    <template x-if="getPrimaryMetricIcon(column) === 'building'">
+                                                        <x-ui.icon name="building-office-2" class="h-5 w-5" />
+                                                    </template>
+                                                    <template x-if="getPrimaryMetricIcon(column) === 'currency'">
+                                                        <x-ui.icon name="currency-dollar" class="h-5 w-5" />
+                                                    </template>
+                                                    <template x-if="getPrimaryMetricIcon(column) === 'document'">
+                                                        <x-ui.icon name="document-text" class="h-5 w-5" />
+                                                    </template>
                                                 </span>
                                                 <div class="min-w-0">
-                                                    <span class="block text-[0.6875rem] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400" x-text="label"></span>
-                                                    <span
-                                                        class="mt-1 block break-words text-sm font-bold leading-snug"
-                                                        :class="getAttributeValueClass(column)"
+                                                    <dt class="text-[0.625rem] font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400" x-text="label"></dt>
+                                                    <dd
+                                                        class="mt-1 break-words font-black leading-tight"
+                                                        :class="[getAttributeValueClass(column), metricIndex === 0 ? 'text-xl sm:text-2xl' : 'text-base sm:text-lg']"
                                                         x-text="formatCell(column, label, row[column])"
-                                                    ></span>
+                                                    ></dd>
                                                 </div>
                                             </div>
                                         </template>
-                                    </div>
+                                    </dl>
+
+                                    <dl x-show="getSupportingAttributes(row).length > 0" class="grid gap-x-5 gap-y-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
+                                        <template x-for="[column, label] in getSupportingAttributes(row)" :key="column">
+                                            <div class="min-w-0 border-t border-neutral-100 pt-2 dark:border-neutral-800">
+                                                <dt class="text-[0.625rem] font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400" x-text="label"></dt>
+                                                <dd
+                                                    class="mt-0.5 break-words font-semibold leading-snug"
+                                                    :class="getAttributeValueClass(column)"
+                                                    x-text="formatCell(column, label, row[column])"
+                                                ></dd>
+                                            </div>
+                                        </template>
+                                    </dl>
                                 </article>
                             </template>
                         </div>
@@ -1810,7 +1996,7 @@
                         {{-- VIEW 2: Compact Table View (locally scrollable on narrow screens) --}}
                         <div
                             x-show="viewMode === 'table' && filteredRows.length > 0"
-                            class="hims-table-scroll w-full overflow-x-auto overflow-y-auto max-h-[calc(100dvh-16rem)] rounded-xl border border-neutral-200 dark:border-neutral-700"
+                            class="hims-table-scroll w-full overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-700"
                         >
                             <table class="min-w-[64rem] w-full divide-y divide-neutral-200 text-xs table-fixed">
                                 <thead class="sticky top-0 z-10 bg-neutral-50 shadow-2xs dark:bg-neutral-800">
@@ -1826,7 +2012,7 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-neutral-100 bg-white dark:divide-neutral-800 dark:bg-neutral-900">
-                                    <template x-for="(row, rowIndex) in filteredRows" :key="row.id ?? rowIndex">
+                                    <template x-for="(row, rowIndex) in paginatedRows" :key="row.id ?? rowIndex">
                                         <tr class="transition-colors hover:bg-neutral-50/80 dark:hover:bg-neutral-800/70">
                                             <template x-for="([column, label]) in columnEntries" :key="column">
                                                 <td
@@ -1840,6 +2026,47 @@
                                 </tbody>
                             </table>
                         </div>
+
+                        <nav
+                            x-show="totalPages > 1"
+                            class="mt-4 flex flex-col gap-3 border-t border-neutral-200 pt-3 text-xs dark:border-neutral-700 sm:flex-row sm:items-center sm:justify-between"
+                            aria-label="Drill-down record pagination"
+                        >
+                            <p class="text-neutral-600 dark:text-neutral-400">
+                                Showing
+                                <span class="font-semibold tabular-nums text-neutral-900 dark:text-neutral-100" x-text="pageStart"></span>–<span class="font-semibold tabular-nums text-neutral-900 dark:text-neutral-100" x-text="pageEnd"></span>
+                                of <span class="font-semibold tabular-nums text-neutral-900 dark:text-neutral-100" x-text="filteredRows.length"></span>
+                            </p>
+                            <div class="flex flex-wrap items-center gap-1 sm:justify-end">
+                                <button
+                                    type="button"
+                                    x-on:click="goToPage(currentPage - 1)"
+                                    :disabled="currentPage === 1"
+                                    class="inline-flex min-h-8 items-center justify-center rounded-lg border border-neutral-300 bg-white px-3 font-semibold text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:bg-neutral-100/60 disabled:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700/80 dark:disabled:border-neutral-800 dark:disabled:bg-neutral-800/40 dark:disabled:text-neutral-600"
+                                >Previous</button>
+                                <template x-for="item in pageItems" :key="String(item)">
+                                    <button
+                                        type="button"
+                                        x-on:click="typeof item === 'number' && goToPage(item)"
+                                        :disabled="typeof item !== 'number'"
+                                        :aria-current="item === currentPage ? 'page' : null"
+                                        :aria-label="typeof item === 'number' ? `Go to page ${item}` : 'More pages'"
+                                        :class="typeof item !== 'number'
+                                            ? 'inline-flex min-h-8 min-w-8 cursor-default items-center justify-center border border-transparent px-1 font-medium text-neutral-400 dark:text-neutral-500'
+                                            : item === currentPage
+                                                ? 'inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg bg-neutral-900 px-2.5 py-1.5 font-semibold text-white shadow-2xs dark:bg-primary-600'
+                                                : 'inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg border border-neutral-300 bg-white px-2.5 py-1.5 font-medium text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700/80'"
+                                        x-text="typeof item === 'number' ? item : String.fromCharCode(8230)"
+                                    ></button>
+                                </template>
+                                <button
+                                    type="button"
+                                    x-on:click="goToPage(currentPage + 1)"
+                                    :disabled="currentPage === totalPages"
+                                    class="inline-flex min-h-8 items-center justify-center rounded-lg border border-neutral-300 bg-white px-3 font-semibold text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:bg-neutral-100/60 disabled:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700/80 dark:disabled:border-neutral-800 dark:disabled:bg-neutral-800/40 dark:disabled:text-neutral-600"
+                                >Next</button>
+                            </div>
+                        </nav>
                     </div>
                 </div>
             </section>
@@ -1858,30 +2085,76 @@
                 abortController: null,
                 requestSequence: 0,
                 returnFocusTo: null,
-                displayLimit: 100,
+                rootOverflow: null,
+                pageSize: 10,
+                currentPage: 1,
                 viewMode: 'cards',
+                focus: null,
                 searchQuery: '',
 
                 get rows() {
                     return Array.isArray(this.report?.data) ? this.report.data : [];
                 },
 
-                get visibleRows() {
-                    return this.rows.slice(0, this.displayLimit);
+                get rowCount() {
+                    return this.rows.length;
                 },
 
                 get filteredRows() {
-                    const query = this.searchQuery.trim().toLowerCase();
-                    if (!query) return this.visibleRows;
-                    return this.visibleRows.filter(row => {
-                        return Object.values(row).some(val =>
-                            val !== null && val !== undefined && String(val).toLowerCase().includes(query)
-                        );
-                    });
+                    const query = this.searchQuery.trim().toLocaleLowerCase();
+                    if (!query) return this.rows;
+
+                    return this.rows.filter(row => this.columnEntries.some(([column]) =>
+                        String(row[column] ?? '').toLocaleLowerCase().includes(query)
+                    ));
                 },
 
-                get rowCount() {
-                    return this.rows.length;
+                get totalPages() {
+                    return Math.max(1, Math.ceil(this.filteredRows.length / this.pageSize));
+                },
+
+                get pageItems() {
+                    if (this.totalPages <= 7) {
+                        return Array.from({ length: this.totalPages }, (_, index) => index + 1);
+                    }
+
+                    if (this.currentPage <= 4) {
+                        return [1, 2, 3, 4, 5, 'ellipsis-right', this.totalPages];
+                    }
+
+                    if (this.currentPage >= this.totalPages - 3) {
+                        return [
+                            1,
+                            'ellipsis-left',
+                            ...Array.from({ length: 5 }, (_, index) => this.totalPages - 4 + index),
+                        ];
+                    }
+
+                    return [
+                        1,
+                        'ellipsis-left',
+                        this.currentPage - 1,
+                        this.currentPage,
+                        this.currentPage + 1,
+                        'ellipsis-right',
+                        this.totalPages,
+                    ];
+                },
+
+                get pageOffset() {
+                    return (this.currentPage - 1) * this.pageSize;
+                },
+
+                get pageStart() {
+                    return this.filteredRows.length === 0 ? 0 : this.pageOffset + 1;
+                },
+
+                get pageEnd() {
+                    return Math.min(this.pageOffset + this.pageSize, this.filteredRows.length);
+                },
+
+                get paginatedRows() {
+                    return this.filteredRows.slice(this.pageOffset, this.pageEnd);
                 },
 
                 get columnEntries() {
@@ -1937,18 +2210,25 @@
                 },
 
                 getPrimaryRef(row) {
-                    return row.reference_number || row.po_number || row.batch || '';
+                    return row.reference_number || row.po_number || row.batch_number || row.batch || row.id || '';
                 },
 
                 getPrimaryRefLabel(row) {
                     if (row.reference_number) return 'Ref #';
                     if (row.po_number) return 'PO #';
-                    if (row.batch) return 'Batch #';
+                    if (row.batch_number || row.batch) return 'Batch #';
+                    if (row.id) return 'Ref #';
                     return 'ID';
                 },
 
                 getBadge(row) {
-                    return row.movement_type || row.status || '';
+                    return row.movement_type || row.type || row.status || '';
+                },
+
+                getBadgeLabel(row) {
+                    return String(this.getBadge(row))
+                        .replaceAll('_', ' ')
+                        .replace(/\b\w/g, character => character.toUpperCase());
                 },
 
                 getBadgeClass(row) {
@@ -1977,7 +2257,7 @@
                 },
 
                 getDateValue(row) {
-                    return row.occurred_at || row.date || row.expiry_date || '';
+                    return row.occurred_at || row.moved_at || row.requested_at || row.date || row.expiry_date || '';
                 },
 
                 getGridAttributes(row) {
@@ -1986,12 +2266,74 @@
                     ]);
                     if (this.getBadge(row)) {
                         excludedCols.add('movement_type');
+                        excludedCols.add('type');
                         excludedCols.add('status');
                     }
-                    return this.columnEntries.filter(([col]) => !excludedCols.has(col));
+                    return this.columnEntries.filter(([col]) =>
+                        !excludedCols.has(col) && row[col] !== null && row[col] !== undefined && row[col] !== ''
+                    );
+                },
+
+                getPrimaryAttributes(row) {
+                    const available = this.getGridAttributes(row);
+                    const priorities = {
+                        items: ['quantity_on_hand', 'reserved_quantity', 'reorder_level'],
+                        valuation: ['total_value', 'quantity_on_hand', 'unit_cost'],
+                        reserved: ['reserved_quantity', 'quantity_on_hand', 'reorder_level'],
+                        stock: ['quantity_on_hand', 'reserved_quantity', 'reorder_level'],
+                        expiry: ['units', 'days_remaining', 'risk_value'],
+                        movement: ['quantity', 'value', 'moved_at'],
+                        spending: ['total_amount', 'accepted_value', 'outstanding_value'],
+                    };
+                    const preferred = priorities[this.focus] || [];
+                    const selected = preferred
+                        .map(column => available.find(([candidate]) => candidate === column))
+                        .filter(Boolean);
+
+                    for (const attribute of available) {
+                        if (selected.length >= 3) break;
+                        if (!selected.some(([column]) => column === attribute[0]) &&
+                            (this.isNumericColumn(attribute[0]) || this.isFinancialColumn(attribute[0]))) {
+                            selected.push(attribute);
+                        }
+                    }
+
+                    for (const attribute of available) {
+                        if (selected.length >= 3) break;
+                        if (!selected.some(([column]) => column === attribute[0])) selected.push(attribute);
+                    }
+
+                    return selected;
+                },
+
+                getSupportingAttributes(row) {
+                    const primaryColumns = new Set(this.getPrimaryAttributes(row).map(([column]) => column));
+                    return this.getGridAttributes(row).filter(([column]) => !primaryColumns.has(column));
+                },
+
+                getPrimaryMetricSurfaceClass(column) {
+                    if (column === 'accepted_value') return 'bg-success-50/80 dark:bg-success-950/30';
+                    if (column === 'outstanding_value') return 'bg-warning-50/80 dark:bg-warning-950/30';
+                    if (column === 'risk_value') return 'bg-danger-50/80 dark:bg-danger-950/30';
+                    if (this.isFinancialColumn(column)) return 'bg-primary-50/80 dark:bg-primary-950/30';
+                    return 'bg-white dark:bg-neutral-900';
+                },
+
+                getPrimaryMetricIcon(column) {
+                    if (column === 'unit_cost') return 'tag';
+                    if (this.isDateColumn(column) || column === 'days_remaining') return 'calendar';
+                    if (column === 'supplier' || column.includes('location')) return 'building';
+                    if (this.isFinancialColumn(column)) return 'currency';
+                    if (this.isQuantityColumn(column) || column === 'reorder_level') return 'cube';
+                    return 'document';
                 },
 
                 savedScrollY: null,
+
+                goToPage(page) {
+                    this.currentPage = Math.min(Math.max(1, page), this.totalPages);
+                    this.$nextTick(() => this.$refs.modalBody?.scrollTo({ top: 0, behavior: 'instant' }));
+                },
 
                 async openDrilldown(request) {
                     if (!request?.url) return;
@@ -1999,9 +2341,15 @@
                     this.lastRequest = request;
                     this.returnFocusTo = document.activeElement;
                     this.savedScrollY = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+                    if (this.rootOverflow === null) {
+                        this.rootOverflow = document.documentElement.style.overflow;
+                        document.documentElement.style.overflow = 'hidden';
+                    }
                     this.title = request.title || 'Chart details';
+                    this.focus = request.focus || null;
                     this.report = null;
                     this.errorMessage = '';
+                    this.currentPage = 1;
                     this.searchQuery = '';
                     this.loading = true;
                     this.isOpen = true;
@@ -2059,7 +2407,10 @@
                     this.abortController = null;
                     this.loading = false;
                     this.isOpen = false;
-                    this.searchQuery = '';
+                    if (this.rootOverflow !== null) {
+                        document.documentElement.style.overflow = this.rootOverflow;
+                        this.rootOverflow = null;
+                    }
 
                     const focusTarget = this.returnFocusTo;
                     const targetScroll = this.savedScrollY;

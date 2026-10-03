@@ -731,6 +731,7 @@ class InventoryReportService
         $supplierId = ! empty($filters['supplier_id']) ? (int) $filters['supplier_id'] : null;
         $movementType = ! empty($filters['movement_type']) ? (string) $filters['movement_type'] : null;
         $status = ! empty($filters['status']) && $filters['status'] !== 'all' ? (string) $filters['status'] : null;
+        $reservedOnly = (bool) ($filters['reserved_only'] ?? false);
         $sortBy = ! empty($filters['sort_by']) ? (string) $filters['sort_by'] : null;
         $sortDir = strtolower((string) ($filters['sort_direction'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
 
@@ -770,6 +771,9 @@ class InventoryReportService
         } else {
             $filterLabels['Stock Status'] = 'All Stock Statuses';
         }
+        if ($reservedOnly) {
+            $filterLabels['Reserved Units'] = 'Items with reserved units only';
+        }
 
         if ($sortBy) {
             $filterLabels['Sorted By'] = ucwords(str_replace('_', ' ', $sortBy)).' ('.strtoupper($sortDir).')';
@@ -796,7 +800,7 @@ class InventoryReportService
         ];
 
         return match ($reportType) {
-            'stock_status' => $this->generateStockStatusReport($meta, $categoryId, $locationId, $status, $sortBy, $sortDir, $canViewFinancial),
+            'stock_status' => $this->generateStockStatusReport($meta, $categoryId, $locationId, $status, $sortBy, $sortDir, $canViewFinancial, $reservedOnly),
             'valuation' => $this->generateValuationReport($meta, $categoryId, $locationId, $status, $sortBy, $sortDir, $canViewFinancial),
             'stock_by_location' => $this->generateStockByLocationReport($meta, $categoryId, $locationId, $status, $sortBy, $sortDir, $canViewFinancial),
             'expiry_exposure' => $this->generateExpiryExposureReport($meta, $locationId, $categoryId, $sortBy, $sortDir, $canViewFinancial),
@@ -812,7 +816,7 @@ class InventoryReportService
     /**
      * Stock Status Report generation.
      */
-    protected function generateStockStatusReport(array $meta, ?int $categoryId, ?int $locationId, ?string $statusFilter, ?string $sortBy, string $sortDir, bool $canViewFinancial): array
+    protected function generateStockStatusReport(array $meta, ?int $categoryId, ?int $locationId, ?string $statusFilter, ?string $sortBy, string $sortDir, bool $canViewFinancial, bool $reservedOnly = false): array
     {
         $items = $this->inventorySnapshot($categoryId, $locationId);
 
@@ -847,6 +851,9 @@ class InventoryReportService
 
         if ($statusFilter) {
             $classified = $classified->filter(fn ($r) => $r['status_key'] === $statusFilter)->values();
+        }
+        if ($reservedOnly) {
+            $classified = $classified->filter(fn ($row) => $row['reserved_quantity'] > 0)->values();
         }
 
         // Sorting
@@ -911,7 +918,9 @@ class InventoryReportService
             'data' => $classified->all(),
             'totals' => $totals,
             'is_empty' => $classified->isEmpty(),
-            'empty_message' => 'No items found matching the selected stock status criteria.',
+            'empty_message' => $reservedOnly
+                ? 'No items have reserved units under the active filters.'
+                : 'No items found matching the selected stock status criteria.',
         ];
     }
 
