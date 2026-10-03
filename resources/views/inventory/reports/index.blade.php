@@ -76,7 +76,7 @@
     $procurementTooltipDetails = [
         'Ordered: ₱'.number_format($spend['ordered']['value'], 2),
         'QC accepted: ₱'.number_format($spend['received']['value'], 2),
-        'Outstanding: ₱'.number_format($spend['outstanding']['value'], 2),
+        'Outstanding (all time): ₱'.number_format($spend['outstanding']['value'], 2),
     ];
 @endphp
 
@@ -89,11 +89,11 @@
             <div class="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white/90 px-4 py-3 text-xs font-medium text-neutral-600 shadow-xs dark:border-neutral-700 dark:bg-neutral-900/90 dark:text-neutral-300">
                 <span class="inline-flex items-center gap-2">
                     <x-ui.icon name="calendar" class="h-4 w-4 text-primary-600 dark:text-primary-300" />
-                    <span>Snapshot</span>
+                    <span>Current</span>
                 </span>
                 <span class="h-5 w-px bg-neutral-200 dark:bg-neutral-700" aria-hidden="true"></span>
                 <a href="{{ route('inventory.items') }}" class="font-semibold text-primary-700 hover:text-primary-800 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-primary-300 dark:hover:text-primary-200">
-                    Live Inventory View
+                    Open inventory
                 </a>
             </div>
 
@@ -510,7 +510,7 @@
                                     <div class="min-w-0">
                                         <div class="text-[11px] font-semibold text-neutral-800 truncate" x-text="computedWindowText"></div>
                                         <div class="text-[10px] text-neutral-500 truncate">
-                                            <span x-show="isPointInTimeReport()">Point-in-time catalogue snapshot (Dates apply to audit/history)</span>
+                                            <span x-show="isPointInTimeReport()">Current inventory state (dates apply only to audit/history)</span>
                                             <span x-show="!isPointInTimeReport()">Historical transaction boundaries</span>
                                         </div>
                                     </div>
@@ -730,9 +730,9 @@
             suffix="items"
             icon="cube"
             tone="primary"
-            context="Snapshot"
+            context="Current"
             href="#report-detail-tabs"
-            summary="Open the item-level records included in the current filtered snapshot."
+            summary="Open the item-level records included in the current filtered inventory."
             summary-title="Current stock status"
             :details="$stockStatusTooltipDetails"
             :data-drilldown-url="$drilldownUrl('stock_status')"
@@ -751,7 +751,7 @@
                 ['label' => 'Needs attention', 'value' => number_format($summary['needs_attention']).' items', 'tone' => 'warning', 'url' => $drilldownUrl('stock_status', 'needs_attention'), 'title' => 'Total Items — Needs Attention', 'summary' => number_format($summary['needs_attention']).' low-stock or out-of-stock items need attention.', 'focus' => 'items'],
             ]"
             hint-icon="clipboard-document-list"
-            :hint="number_format($summary['units_on_hand']).' units on hand in the filtered snapshot'" />
+            :hint="number_format($summary['units_on_hand']).' units currently on hand with these filters'" />
 
         @if ($canViewFinancialData)
         <x-ui.stat
@@ -764,7 +764,7 @@
             :value="number_format($summary['stock_value'], 2)"
             icon="chart-bar"
             tone="success"
-            context="Snapshot"
+            context="Current"
             href="#report-detail-tabs"
             summary="Open the item-level quantities, unit costs, and total values behind this valuation."
             summary-title="Valuation records"
@@ -798,7 +798,7 @@
             suffix="items"
             icon="exclamation-triangle"
             :tone="$summary['needs_attention'] > 0 ? 'warning' : 'success'"
-            context="Snapshot"
+            context="Current"
             href="#inventory-health"
             summary="Open the status breakdown, then select Low stock or Out of stock to inspect its matching items."
             summary-title="Items needing attention"
@@ -827,7 +827,7 @@
             suffix="units"
             icon="clipboard-document-list"
             tone="primary"
-            context="Snapshot"
+            context="Current"
             href="#report-detail-tabs"
             summary="Open only the filtered items that currently have reserved units."
             summary-title="Reserved-unit breakdown"
@@ -858,7 +858,7 @@
             suffix="units"
             icon="calendar"
             :tone="$expiryRiskUnits > 0 ? 'warning' : 'success'"
-            context="Snapshot"
+            context="Current"
             href="#report-detail-tabs"
             summary="Open the dated batches currently contributing to expiry exposure."
             summary-title="Expiry exposure"
@@ -923,32 +923,32 @@
             compact
             featured
             class="2xl:col-span-6"
-            label="Procurement spending"
+            label="Ordered value"
             prefix="₱"
             :value="number_format($spend['ordered']['value'], 2)"
             icon="truck"
             tone="primary"
             :context="$period['days'].'d'"
             href="#report-detail-tabs"
-            summary="Open the purchase orders included in procurement spending for the active reporting period."
+            summary="Open the purchase orders raised during the active reporting period."
             summary-title="Procurement values"
             :details="$procurementTooltipDetails"
             :data-drilldown-url="$drilldownUrl('supplier')"
-            data-drilldown-title="Procurement Spending — Purchase Orders"
+            data-drilldown-title="Ordered Value — Purchase Orders"
             data-drilldown-focus="spending"
             x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
-            aria-label="View purchase orders included in procurement spending"
+            aria-label="View purchase orders included in ordered value"
             chart-label="Procurement value comparison"
             chart-type="comparison"
             :chart="[
                 ['label' => 'Ordered', 'value' => $spend['ordered']['value'], 'tone' => 'primary', 'url' => $drilldownUrl('procurement_metric', 'ordered'), 'title' => 'Procurement Spending — Ordered', 'summary' => '₱'.number_format($spend['ordered']['value'], 2).' ordered across '.number_format($spend['ordered']['orders']).' purchase orders.', 'focus' => 'spending'],
                 ['label' => 'QC accepted', 'value' => $spend['received']['value'], 'tone' => 'success', 'url' => $drilldownUrl('procurement_metric', 'accepted'), 'title' => 'Procurement Spending — QC Accepted', 'summary' => '₱'.number_format($spend['received']['value'], 2).' has been accepted through quality control.', 'focus' => 'accepted'],
-                ['label' => 'Outstanding', 'value' => $spend['outstanding']['value'], 'tone' => 'warning', 'url' => $drilldownUrl('procurement_metric', 'outstanding'), 'title' => 'Procurement Spending — Outstanding', 'summary' => '₱'.number_format($spend['outstanding']['value'], 2).' remains outstanding across '.number_format($spend['outstanding']['orders']).' purchase orders.', 'focus' => 'outstanding'],
+                ['label' => 'Outstanding (all time)', 'value' => $spend['outstanding']['value'], 'tone' => 'warning', 'url' => $drilldownUrl('procurement_metric', 'outstanding'), 'title' => 'Procurement Spending — Outstanding', 'summary' => '₱'.number_format($spend['outstanding']['value'], 2).' remains outstanding across '.number_format($spend['outstanding']['orders']).' purchase orders.', 'focus' => 'outstanding'],
             ]"
             :breakdown="[
                 ['label' => 'Ordered', 'value' => '₱'.number_format($spend['ordered']['value'], 2), 'tone' => 'primary', 'url' => $drilldownUrl('procurement_metric', 'ordered'), 'title' => 'Procurement Spending — Ordered', 'summary' => '₱'.number_format($spend['ordered']['value'], 2).' ordered.', 'focus' => 'spending'],
                 ['label' => 'QC accepted', 'value' => '₱'.number_format($spend['received']['value'], 2), 'tone' => 'success', 'url' => $drilldownUrl('procurement_metric', 'accepted'), 'title' => 'Procurement Spending — QC Accepted', 'summary' => '₱'.number_format($spend['received']['value'], 2).' QC accepted.', 'focus' => 'accepted'],
-                ['label' => 'Outstanding', 'value' => '₱'.number_format($spend['outstanding']['value'], 2), 'tone' => 'warning', 'url' => $drilldownUrl('procurement_metric', 'outstanding'), 'title' => 'Procurement Spending — Outstanding', 'summary' => '₱'.number_format($spend['outstanding']['value'], 2).' outstanding.', 'focus' => 'outstanding'],
+                ['label' => 'Outstanding (all time)', 'value' => '₱'.number_format($spend['outstanding']['value'], 2), 'tone' => 'warning', 'url' => $drilldownUrl('procurement_metric', 'outstanding'), 'title' => 'Procurement Spending — Outstanding', 'summary' => '₱'.number_format($spend['outstanding']['value'], 2).' outstanding across open purchase orders.', 'focus' => 'outstanding'],
             ]"
             hint-icon="clipboard-document-list"
             :hint="number_format($spend['ordered']['orders']).' purchase orders in period'" />
@@ -2259,14 +2259,17 @@
                 },
 
                 getBadgeClass(row) {
-                    const val = String(this.getBadge(row)).toLowerCase();
-                    if (val.includes('stock_in') || val.includes('in_stock') || val.includes('received') || val.includes('approved') || val.includes('complete')) {
+                    const val = String(this.getBadge(row))
+                        .trim()
+                        .toLowerCase()
+                        .replace(/[\s-]+/g, '_');
+                    if (val.includes('stock_in') || val.includes('in_stock') || val.includes('received') || val.includes('approved') || val.includes('complete') || val.includes('fulfilled') || val.includes('quality_release') || val.includes('department_return')) {
                         return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800';
                     }
-                    if (val.includes('low_stock') || val.includes('expiring') || val.includes('pending') || val.includes('issued')) {
+                    if (val.includes('low_stock') || val.includes('expiring') || val.includes('pending') || val.includes('issued') || val.includes('stock_out') || val.includes('issuance') || val.includes('return_to_supplier') || val.includes('quarantine')) {
                         return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800';
                     }
-                    if (val.includes('out_of_stock') || val.includes('expired') || val.includes('damage') || val.includes('loss') || val.includes('reject')) {
+                    if (val.includes('out_of_stock') || val.includes('expired') || val.includes('damage') || val.includes('loss') || val.includes('reject') || val.includes('disposal') || val.includes('cancelled')) {
                         return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800';
                     }
                     if (val.includes('adjustment') || val.includes('transfer')) {
