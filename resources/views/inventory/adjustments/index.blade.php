@@ -43,32 +43,10 @@
 
         {{-- Summary Cards --}}
         <div class="grid gap-3.5 grid-cols-2 sm:grid-cols-4">
-            <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900">
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Total Adjustments</p>
-                <p class="mt-1.5 text-xl sm:text-2xl font-bold text-neutral-900 dark:text-neutral-100 tabular-nums">{{ $adjustments->total() }}</p>
-                <p class="mt-0.5 text-[11px] text-neutral-400">Documented adjustments</p>
-            </div>
-            <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900">
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Pending Review</p>
-                <p class="mt-1.5 text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400 tabular-nums">
-                    {{ $adjustments->where('status', 'pending_approval')->count() }}
-                </p>
-                <p class="mt-0.5 text-[11px] text-neutral-400">Tier 1 supervisor review</p>
-            </div>
-            <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900">
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Dual-Tier Required</p>
-                <p class="mt-1.5 text-xl sm:text-2xl font-bold text-rose-600 dark:text-rose-400 tabular-nums">
-                    {{ $adjustments->where('status', 'pending_second_approval')->count() }}
-                </p>
-                <p class="mt-0.5 text-[11px] text-neutral-400">Over ₱25,000 threshold</p>
-            </div>
-            <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900">
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Posted &amp; Reconciled</p>
-                <p class="mt-1.5 text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                    {{ $adjustments->where('status', 'posted')->count() }}
-                </p>
-                <p class="mt-0.5 text-[11px] text-neutral-400">Written to ledger</p>
-            </div>
+            <x-ui.stat compact label="Total Adjustments" :value="$metrics['total']" icon="adjustments-horizontal" tone="neutral" hint="Documented adjustments" :details="$metricDetails['total']" summary-title="Latest stock adjustments" :href="route('inventory.adjustments').'#adjustment-registry'" />
+            <x-ui.stat compact label="Pending Review" :value="$metrics['pending_review']" icon="clipboard-document-list" tone="warning" hint="Tier 1 supervisor review" :details="$metricDetails['pending_review']" summary-title="Adjustments awaiting Tier 1 review" :href="route('inventory.adjustments', ['status' => 'pending_approval']).'#adjustment-registry'" />
+            <x-ui.stat compact label="Dual-Tier Required" :value="$metrics['dual_tier']" icon="scale" tone="danger" hint="Over ₱25,000 threshold" :details="$metricDetails['dual_tier']" summary-title="Adjustments awaiting Tier 2 approval" :href="route('inventory.adjustments', ['status' => 'pending_second_approval']).'#adjustment-registry'" />
+            <x-ui.stat compact label="Posted &amp; Reconciled" :value="$metrics['posted']" icon="check-circle" tone="success" hint="Written to ledger" :details="$metricDetails['posted']" summary-title="Adjustments posted to the ledger" :href="route('inventory.adjustments', ['status' => 'posted']).'#adjustment-registry'" />
         </div>
 
         @can('adjust_stock')
@@ -190,13 +168,22 @@
         @endcan
 
         {{-- Adjustments Registry Table --}}
-        <x-ui.card :padding="false">
+        <x-ui.card id="adjustment-registry" :padding="false">
             <x-slot:header>
                 <div>
                     <h2 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Stock Adjustment Registry</h2>
-                    <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">History of requested, authorized, and posted inventory balance corrections.</p>
+                    <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                        {{ $activeStatusLabel ? 'Showing '.$activeStatusLabel.' adjustments.' : 'History of requested, authorized, and posted inventory balance corrections.' }}
+                    </p>
                 </div>
             </x-slot:header>
+            @if ($activeStatusLabel)
+                <x-slot:actions>
+                    <a href="{{ route('inventory.adjustments').'#adjustment-registry' }}" class="inline-flex min-h-9 items-center rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-2xs transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 dark:focus-visible:ring-offset-neutral-900">
+                        Show all adjustments
+                    </a>
+                </x-slot:actions>
+            @endif
 
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-xs text-neutral-600 dark:text-neutral-300 divide-y divide-neutral-200 dark:divide-neutral-800">
