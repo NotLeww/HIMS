@@ -47,7 +47,7 @@ class SupplierManagementDemoSeeder extends Seeder
                 'trade_name' => 'Bayanihan Hospital Supply',
                 'business_structure' => 'cooperative',
                 'provides_regulated_health_products' => false,
-                'email' => 'procurement@bayanihan-hospital-supply.test',
+                'email' => 'procurement@bayanihan-hospital-supply.example',
                 'phone' => '+63 2 8555 0146',
                 'address' => 'Commonwealth Avenue, Quezon City, Metro Manila',
                 'billing_address' => 'Commonwealth Avenue, Quezon City, Metro Manila',
@@ -55,7 +55,7 @@ class SupplierManagementDemoSeeder extends Seeder
                 'tax_number' => '245-731-680-000',
                 'standard_lead_time_days' => 5,
                 'payment_terms' => 'Net 30 days after accepted delivery and complete billing documents.',
-                'notes' => 'Demonstration supplier for non-regulated hospital and warehouse supplies; seeded only when no procurement-eligible supplier exists.',
+                'notes' => 'Institutional supplier for non-regulated hospital and warehouse supplies.',
             ], $creator);
 
             $service->submitForReview($supplier, $creator);
@@ -63,7 +63,7 @@ class SupplierManagementDemoSeeder extends Seeder
                 $supplier,
                 $approver,
                 today()->addYear()->toDateString(),
-                'Approved for demonstration procurement of non-regulated general hospital supplies.',
+                'Approved for institutional procurement of non-regulated general hospital supplies.',
             );
         });
 
