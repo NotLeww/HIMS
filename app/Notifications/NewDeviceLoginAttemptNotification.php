@@ -34,7 +34,7 @@ class NewDeviceLoginAttemptNotification extends Notification
         );
 
         $data = [
-            'deviceSummary' => $approval->device_name ?: 'Unknown device',
+            'deviceSummary' => $approval->device_name ?: 'Unknown browser',
             'ipAddress' => $approval->ip_address,
             'requestedAt' => $approval->requested_at->timezone(config('app.timezone', 'UTC'))->format('M d, Y h:i A'),
             'approveOnceUrl' => $url('approve-once'),

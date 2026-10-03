@@ -19,10 +19,10 @@
                 <tr>
                     <td style="padding:32px;">
                         <h1 style="margin:0;font-size:24px;line-height:32px;">Session transferred</h1>
-                        <p style="margin:16px 0 0;color:#525252;font-size:15px;line-height:24px;">Your HIMS session was transferred to a recognized trusted device.</p>
+                        <p style="margin:16px 0 0;color:#525252;font-size:15px;line-height:24px;">Your HIMS session was transferred to a trusted browser.</p>
 
                         <div style="margin:20px 0;padding:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;line-height:22px;">
-                            <div><strong>Device:</strong> {{ $deviceSummary }}</div>
+                            <div><strong>Browser:</strong> {{ $deviceSummary }}</div>
                             @if ($ipAddress)
                                 <div style="margin-top:4px;"><strong>IP Address:</strong> {{ $ipAddress }}</div>
                             @endif
@@ -32,7 +32,7 @@
                         <p style="margin:16px 0 0;color:#525252;font-size:14px;line-height:22px;">In accordance with the HIMS single-active-session policy, any previous session was signed out.</p>
 
                         <div style="margin-top:24px;padding-top:18px;border-top:1px solid #e5e5e5;color:#737373;font-size:13px;line-height:20px;">
-                            If you did not sign in on this device, someone may have access to your trusted device or credentials. Reset your password immediately.
+                            If you did not sign in on this browser, someone may have access to your trusted browser or credentials. Reset your password immediately.
                         </div>
                     </td>
                 </tr>

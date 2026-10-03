@@ -22,14 +22,14 @@
                         <p style="margin:16px 0 0;color:#525252;font-size:15px;line-height:24px;">A sign-in request to your HIMS account was rejected by the account owner.</p>
 
                         <div style="margin:20px 0;padding:16px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:14px;line-height:22px;">
-                            <div><strong>Device:</strong> {{ $deviceSummary }}</div>
+                            <div><strong>Browser:</strong> {{ $deviceSummary }}</div>
                             @if ($ipAddress)
                                 <div style="margin-top:4px;"><strong>IP Address:</strong> {{ $ipAddress }}</div>
                             @endif
-                            <div style="margin-top:4px;"><strong>Action taken:</strong> Access denied &amp; device temporarily blocked for {{ $cooldownMinutes }} minutes.</div>
+                            <div style="margin-top:4px;"><strong>Action taken:</strong> Access denied &amp; browser temporarily blocked for {{ $cooldownMinutes }} minutes.</div>
                         </div>
 
-                        <p style="margin:16px 0 0;color:#525252;font-size:14px;line-height:22px;">Your current active session remains secure. However, because valid credentials were submitted from an unrecognized device, someone may know your password.</p>
+                        <p style="margin:16px 0 0;color:#525252;font-size:14px;line-height:22px;">Your current active session remains secure. However, because valid credentials were submitted from an unrecognized browser, someone may know your password.</p>
 
                         <div style="margin-top:24px;padding-top:18px;border-top:1px solid #e5e5e5;color:#737373;font-size:13px;line-height:20px;">
                             <strong>Recommended Action:</strong> Change your HIMS password immediately to prevent unauthorized access.

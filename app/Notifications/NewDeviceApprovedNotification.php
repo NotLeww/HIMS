@@ -33,7 +33,7 @@ class NewDeviceApprovedNotification extends Notification
         ];
 
         return (new MailMessage)
-            ->subject('New device approved for your HIMS account')
+            ->subject('New browser approved for your HIMS account')
             ->view('emails.auth.new-device-approved', $data)
             ->text('emails.auth.new-device-approved-text', $data);
     }

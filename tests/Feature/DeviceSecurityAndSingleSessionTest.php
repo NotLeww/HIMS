@@ -129,7 +129,7 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
 
         $this->get($response->headers->get('Location'))
             ->assertOk()
-            ->assertSeeText('Check Your Active Device')
+            ->assertSeeText('Check Your Active Browser')
             ->assertDontSeeText('Resend Approval Email');
 
         $this->withSession([
@@ -1098,6 +1098,9 @@ class DeviceSecurityAndSingleSessionTest extends TestCase
         $response = $this->actingAs($user, 'web')->get(route('profile.edit'));
 
         $response->assertOk();
+        $response->assertSeeText('Trusted Browsers');
+        $response->assertSeeText('Manage Browsers');
+        $response->assertDontSeeText('Recognized Trusted Devices');
         $response->assertSeeText($trusted['trustedDevice']->display_name);
         $response->assertSeeText($trusted['trustedDevice']->user_agent_summary);
         $response->assertSee("processingAction === 'approve-once'", false);
