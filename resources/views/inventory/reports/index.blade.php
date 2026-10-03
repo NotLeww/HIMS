@@ -44,7 +44,8 @@
 
 <x-app-layout>
     <x-ui.page-header
-        title="Reports & Analytics"
+        title="Inventory Analytics"
+        subtitle="Insights on stock, movements, and procurement across all hospital locations."
         :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Reports' => null]">
         <x-slot name="actions">
             {{-- Dashboard Timeline Filter Dropdown --}}
@@ -184,32 +185,27 @@
 
     <form method="GET" action="{{ route('inventory.reports') }}"
           x-data="{ period: @js($currentPeriod) }"
-          class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm print:hidden">
-        <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <h2 class="text-sm font-semibold text-neutral-900">Analytics filters</h2>
-                <p class="mt-0.5 text-xs text-neutral-500">
-                    Date filters apply to movements and procurement. Category, location, and stock status apply to the current inventory snapshot.
-                </p>
-            </div>
+          class="rounded-xl border border-neutral-200 bg-white p-3 shadow-xs dark:border-neutral-800 dark:bg-neutral-900 print:hidden sm:p-4">
+        <div class="flex items-center justify-between gap-3">
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">Filters apply to all charts and tables.</p>
             @if ($activeFilters !== [] || $currentPeriod !== '30')
-                <a href="{{ route('inventory.reports') }}" class="text-xs font-semibold text-primary-700 hover:text-primary-800">Clear all</a>
+                <a href="{{ route('inventory.reports') }}" class="shrink-0 text-xs font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200">Clear all</a>
             @endif
         </div>
 
-        <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            <label class="text-xs font-medium text-neutral-700">
+        <div class="mt-3 grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
+            <label class="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 <span class="mb-1 block">Reporting period</span>
-                <select name="period" x-model="period" class="w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
+                <select name="period" x-model="period" class="w-full rounded-lg border-neutral-300 py-2 pl-3 pr-10 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800">
                     @foreach ($periodOptions as $value => $label)
                         <option value="{{ $value }}" @selected($currentPeriod === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
             </label>
 
-            <label class="text-xs font-medium text-neutral-700">
+            <label class="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 <span class="mb-1 block">Category</span>
-                <select name="category_id" class="w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
+                <select name="category_id" class="w-full rounded-lg border-neutral-300 py-2 pl-3 pr-10 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800">
                     <option value="">All categories</option>
                     @foreach ($categories as $category)
                         <option value="{{ $category->id }}" @selected((string) ($activeFilters['category_id'] ?? '') === (string) $category->id)>{{ $category->name }}</option>
@@ -217,9 +213,9 @@
                 </select>
             </label>
 
-            <label class="text-xs font-medium text-neutral-700">
+            <label class="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 <span class="mb-1 block">Storage location</span>
-                <select name="storage_location_id" class="w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
+                <select name="storage_location_id" class="w-full rounded-lg border-neutral-300 py-2 pl-3 pr-10 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800">
                     <option value="">All locations</option>
                     @foreach ($locations as $location)
                         <option value="{{ $location->id }}" @selected((string) ($activeFilters['storage_location_id'] ?? '') === (string) $location->id)>{{ $location->name }}{{ $location->status === 'inactive' ? ' (Inactive)' : '' }}</option>
@@ -227,9 +223,9 @@
                 </select>
             </label>
 
-            <label class="text-xs font-medium text-neutral-700">
+            <label class="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 <span class="mb-1 block">Stock status</span>
-                <select name="stock_status" class="w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
+                <select name="stock_status" class="w-full rounded-lg border-neutral-300 py-2 pl-3 pr-10 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800">
                     <option value="">All statuses</option>
                     <option value="in_stock" @selected(($activeFilters['stock_status'] ?? '') === 'in_stock')>In stock</option>
                     <option value="low_stock" @selected(($activeFilters['stock_status'] ?? '') === 'low_stock')>Low stock</option>
@@ -237,9 +233,9 @@
                 </select>
             </label>
 
-            <label class="text-xs font-medium text-neutral-700">
+            <label class="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 <span class="mb-1 block">Movement type</span>
-                <select name="movement_type" class="w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
+                <select name="movement_type" class="w-full rounded-lg border-neutral-300 py-2 pl-3 pr-10 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800">
                     <option value="">All movement types</option>
                     @foreach ($movementTypes as $movementType)
                         <option value="{{ $movementType->value }}" @selected(($activeFilters['movement_type'] ?? '') === $movementType->value)>{{ $movementType->label() }}</option>
@@ -248,9 +244,9 @@
             </label>
 
             @if ($canViewFinancialData)
-                <label class="text-xs font-medium text-neutral-700">
+                <label class="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                     <span class="mb-1 block">Supplier</span>
-                    <select name="supplier_id" class="w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
+                    <select name="supplier_id" class="w-full rounded-lg border-neutral-300 py-2 pl-3 pr-10 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800">
                         <option value="">All suppliers</option>
                         @foreach ($suppliers as $supplier)
                             <option value="{{ $supplier->id }}" @selected((string) ($activeFilters['supplier_id'] ?? '') === (string) $supplier->id)>{{ $supplier->name }}</option>
@@ -258,27 +254,25 @@
                     </select>
                 </label>
             @endif
+
+            <x-ui.button type="submit" icon="funnel" class="w-full xl:self-end">Apply filters</x-ui.button>
         </div>
 
         <div x-show="period === 'custom'" x-cloak class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:max-w-xl">
-            <label class="text-xs font-medium text-neutral-700">
+            <label class="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 <span class="mb-1 block">From</span>
                 <input type="date" name="from" value="{{ $currentFrom }}" max="{{ now()->format('Y-m-d') }}"
                        :required="period === 'custom'"
-                       class="w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
+                       class="w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800">
             </label>
-            <label class="text-xs font-medium text-neutral-700">
+            <label class="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                 <span class="mb-1 block">To</span>
                 <input type="date" name="to" value="{{ $currentTo }}" max="{{ now()->format('Y-m-d') }}"
                        :required="period === 'custom'"
-                       class="w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
+                       class="w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800">
             </label>
         </div>
 
-        <div class="mt-4 flex flex-wrap items-center gap-2">
-            <x-ui.button type="submit" icon="funnel">Apply filters</x-ui.button>
-            <span class="text-xs text-neutral-500">Chart bars are clickable and open the matching source records.</span>
-        </div>
     </form>
 
     {{-- ------------------------------------------------ Report Configuration & Generation Overlay Modal --}}
@@ -677,65 +671,107 @@
 
     {{-- ------------------------------------------------ 1. inventory summary --}}
 
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <x-ui.stat
+            compact
             label="Total items"
             :value="number_format($summary['items'])"
             icon="cube"
             tone="primary"
+            context="Snapshot"
+            :sparkline="$valuationByCategory->pluck('items')->all()"
+            sparkline-label="Inventory item distribution by category"
             :hint="number_format($summary['units_on_hand']).' units in the current filtered snapshot'" />
 
         @if ($canViewFinancialData)
         <x-ui.stat
+            compact
             label="Stock valuation"
             :value="'₱'.number_format($summary['stock_value'], 2)"
             icon="chart-bar"
-            tone="neutral"
+            tone="success"
+            context="Snapshot"
+            :sparkline="$valuationByCategory->pluck('value')->all()"
+            sparkline-label="Stock value distribution by category"
             hint="Filtered units on hand × unit cost." />
         @endif
 
         <x-ui.stat
+            compact
             label="Low / out of stock"
             :value="number_format($summary['needs_attention'])"
             icon="exclamation-triangle"
             :tone="$summary['needs_attention'] > 0 ? 'warning' : 'success'"
+            context="Snapshot"
+            :sparkline="[$stockStatus['low_stock']['items'], $stockStatus['out_of_stock']['items']]"
+            sparkline-label="Low-stock and out-of-stock item distribution"
             hint="At or below reorder level, or out of stock." />
 
         <x-ui.stat
+            compact
             label="Reserved units"
             :value="number_format($summary['reserved_units'])"
             icon="clipboard-document-list"
-            tone="neutral"
+            tone="primary"
+            context="Snapshot"
+            :sparkline="collect($stockStatus)->pluck('reserved')->all()"
+            sparkline-label="Reserved unit distribution by stock status"
             hint="Committed elsewhere and unavailable to issue." />
 
         <x-ui.stat
+            compact
             label="Expiry risk units"
             :value="number_format($expiryRiskUnits)"
             icon="calendar"
             :tone="$expiryRiskUnits > 0 ? 'warning' : 'success'"
+            context="Snapshot"
+            :sparkline="[$expiry['expired']['units'], $expiry['expiring_soon']['units']]"
+            sparkline-label="Expired and expiring-soon unit distribution"
             :hint="number_format($expiry['expired']['batches'] + $expiry['expiring_soon']['batches']).' affected batches'" />
 
         <x-ui.stat
+            compact
             label="Stock movements"
             :value="number_format($movementTotals['movements'])"
             icon="arrows-right-left"
-            tone="neutral"
+            tone="primary"
+            :context="$period['days'].'d'"
+            :sparkline="$movementsByType->pluck('movements')->all()"
+            sparkline-label="Movement count distribution by movement type"
             :hint="$period['description']" />
 
         @if ($canViewFinancialData)
         <x-ui.stat
+            compact
             label="Procurement spending"
             :value="'₱'.number_format($spend['ordered']['value'], 2)"
             icon="truck"
-            tone="neutral"
+            tone="primary"
+            :context="$period['days'].'d'"
+            :sparkline="$spendBySupplier->pluck('value')->all()"
+            sparkline-label="Procurement spending distribution by supplier"
             :hint="number_format($spend['ordered']['orders']).' purchase orders in period'" />
         @endif
     </div>
 
     {{-- --------------------------------------------------- 2. stock status & executive health overview --}}
 
-    <div class="grid gap-4 lg:grid-cols-3">
-        <x-ui.card title="Inventory Health" subtitle="Current item count by stock status. Select a bar to inspect its records.">
+    <div class="grid items-stretch gap-4 lg:grid-cols-3">
+        <x-ui.card class="h-full">
+            <x-slot name="header">
+                <div class="flex items-start gap-3">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700 ring-1 ring-primary-200 dark:bg-primary-950/80 dark:text-primary-300 dark:ring-primary-800/50">
+                        <x-ui.icon name="chart-bar" class="h-4 w-4" />
+                    </span>
+                    <div class="min-w-0">
+                        <h2 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Inventory Health</h2>
+                        <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Current item count by stock status.</p>
+                    </div>
+                </div>
+            </x-slot>
+            <x-slot name="actions">
+                <x-ui.button variant="ghost" size="sm" :href="route('inventory.items')">View items &rarr;</x-ui.button>
+            </x-slot>
             @php
                 $bars = [
                     'in_stock' => ['label' => 'In stock', 'variant' => 'success', 'bar' => 'bg-success-500'],
@@ -756,19 +792,19 @@
                        data-drilldown-url="{{ $drilldownUrl('stock_status', $key) }}"
                        data-drilldown-title="Inventory Health — {{ $bar['label'] }}"
                        x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle })"
-                       class="group block w-full rounded-lg p-2 text-left transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                       class="group block w-full rounded-lg p-2 text-left transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-neutral-800/60"
                        aria-label="View {{ $bar['label'] }} inventory records">
                         <div class="flex items-center justify-between gap-3">
                             <span>
                                 <x-ui.badge :variant="$bar['variant']" dot>{{ $bar['label'] }}</x-ui.badge>
                             </span>
-                            <span class="text-sm font-semibold tabular-nums text-neutral-900">
+                            <span class="text-sm font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">
                                 {{ number_format($bucket['items']) }}
                                 <span class="text-xs font-normal text-neutral-500">({{ $share }}%)</span>
                             </span>
                         </div>
 
-                        <div class="mt-1.5 h-2.5 w-full overflow-hidden rounded-full bg-neutral-100" aria-hidden="true">
+                        <div class="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" aria-hidden="true">
                             <div class="h-full rounded-full {{ $bar['bar'] }} transition-all group-hover:brightness-90" style="width: {{ $share }}%"></div>
                         </div>
 
@@ -783,9 +819,20 @@
             </div>
         </x-ui.card>
 
-        <x-ui.card title="Expiry Exposure" subtitle="Batches still holding stock, valued at risk.">
+        <x-ui.card class="h-full">
+            <x-slot name="header">
+                <div class="flex items-start gap-3">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:ring-emerald-800/50">
+                        <x-ui.icon name="shield-check" class="h-4 w-4" />
+                    </span>
+                    <div class="min-w-0">
+                        <h2 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Expiry Exposure</h2>
+                        <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Batches still holding stock, valued at risk.</p>
+                    </div>
+                </div>
+            </x-slot>
             <div class="grid gap-3 sm:grid-cols-2">
-                <div class="rounded-md border border-danger-200 bg-danger-50 px-3 py-2.5">
+                <div class="rounded-lg border border-danger-200 bg-danger-50 px-3 py-3 dark:border-danger-900 dark:bg-danger-950/40">
                     <p class="text-xs font-semibold uppercase tracking-wide text-danger-700">Expired</p>
                     <p class="mt-1 text-lg font-semibold tabular-nums text-danger-800">
                         {{ number_format($expiry['expired']['units']) }}
@@ -799,7 +846,7 @@
                     </p>
                 </div>
 
-                <div class="rounded-md border border-warning-200 bg-warning-50 px-3 py-2.5">
+                <div class="rounded-lg border border-warning-200 bg-warning-50 px-3 py-3 dark:border-warning-900 dark:bg-warning-950/40">
                     <p class="text-xs font-semibold uppercase tracking-wide text-warning-700">Expiring soon</p>
                     <p class="mt-1 text-lg font-semibold tabular-nums text-warning-800">
                         {{ number_format($expiry['expiring_soon']['units']) }}
@@ -842,13 +889,27 @@
                     </p>
                 @endif
             @else
-                <p class="mt-4 border-t border-neutral-200 pt-3 text-xs text-neutral-500">
+                <p class="mt-4 rounded-lg border border-primary-100 bg-primary-50/50 px-3 py-2.5 text-xs text-neutral-600 dark:border-primary-900 dark:bg-primary-950/30 dark:text-neutral-300">
                     No dated batch is expired or inside its warning window.
                 </p>
             @endif
         </x-ui.card>
 
-        <x-ui.card title="Movement Activity" :subtitle="$period['description'].' Select a bar to inspect its ledger rows.'">
+        <x-ui.card class="h-full">
+            <x-slot name="header">
+                <div class="flex items-start gap-3">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700 ring-1 ring-primary-200 dark:bg-primary-950/80 dark:text-primary-300 dark:ring-primary-800/50">
+                        <x-ui.icon name="arrows-right-left" class="h-4 w-4" />
+                    </span>
+                    <div class="min-w-0">
+                        <h2 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Movement Activity</h2>
+                        <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ $period['description'] }}</p>
+                    </div>
+                </div>
+            </x-slot>
+            <x-slot name="actions">
+                <x-ui.button variant="ghost" size="sm" :href="route('inventory.stock-movements')">View ledger &rarr;</x-ui.button>
+            </x-slot>
             @php $movementMax = max(1, (int) $movementsByType->max('movements')); @endphp
             <div class="max-h-72 space-y-2 overflow-y-auto pr-1">
                 @foreach ($movementsByType as $row)
@@ -857,23 +918,23 @@
                        data-drilldown-url="{{ $drilldownUrl('movement_type', $row['type']->value) }}"
                        data-drilldown-title="Movement Activity — {{ $row['type']->label() }}"
                        x-on:click.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle })"
-                       class="group block w-full rounded-lg p-2 text-left transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                       class="group block w-full rounded-lg p-2 text-left transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-neutral-800/60"
                        aria-label="View {{ $row['type']->label() }} movement records">
                         <div class="flex items-center justify-between gap-3 text-xs">
-                            <span class="truncate font-medium text-neutral-700">{{ $row['type']->label() }}</span>
-                            <span class="shrink-0 font-semibold tabular-nums text-neutral-900">
+                            <span class="truncate font-medium text-neutral-700 dark:text-neutral-300">{{ $row['type']->label() }}</span>
+                            <span class="shrink-0 font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">
                                 {{ number_format($row['movements']) }}
                                 <span class="font-normal text-neutral-500">· {{ number_format($row['units']) }} units</span>
                             </span>
                         </div>
-                        <div class="mt-1.5 h-2.5 overflow-hidden rounded-full bg-neutral-100" aria-hidden="true">
+                        <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" aria-hidden="true">
                             <div class="h-full rounded-full bg-primary-500 transition-all group-hover:bg-primary-600" style="width: {{ $movementShare }}%"></div>
                         </div>
                     </button>
                 @endforeach
             </div>
 
-            <p class="mt-4 border-t border-neutral-200 pt-3 text-xs text-neutral-500">
+            <p class="mt-4 rounded-lg border border-primary-100 bg-primary-50/50 px-3 py-2.5 text-xs text-neutral-600 dark:border-primary-900 dark:bg-primary-950/30 dark:text-neutral-300">
                 Counts and units come directly from the filtered stock movement ledger; zero means no matching event occurred.
             </p>
         </x-ui.card>
@@ -881,16 +942,16 @@
 
     {{-- --------------------------------------------------- 3. interactive detailed report center --}}
 
-    <div x-data="{ activeTab: '{{ $canViewFinancialData ? 'valuation' : 'movements' }}' }" class="space-y-6">
+    <div x-data="{ activeTab: '{{ $canViewFinancialData ? 'valuation' : 'movements' }}' }" class="space-y-4">
         {{-- Navigation tab bar (hidden on print) --}}
-        <div class="border-b border-neutral-200 bg-white rounded-lg px-3 py-2 border shadow-xs print:hidden">
+        <div class="rounded-xl border border-neutral-200 bg-white px-2 py-2 shadow-xs dark:border-neutral-800 dark:bg-neutral-900 print:hidden">
             <nav class="flex flex-wrap items-center gap-1.5" aria-label="Detailed Report Sections">
                 <button
                     type="button"
                     x-on:click="activeTab = 'valuation'"
                     :class="activeTab === 'valuation'
                         ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs'
-                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent'"
+                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
                     class="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition-colors">
                     <x-ui.icon name="chart-bar" class="w-4 h-4" />
                     <span>Valuation &amp; Locations</span>
@@ -902,7 +963,7 @@
                     x-on:click="activeTab = 'procurement'"
                     :class="activeTab === 'procurement'
                         ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs'
-                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent'"
+                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
                     class="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition-colors">
                     <x-ui.icon name="truck" class="w-4 h-4" />
                     <span>Procurement &amp; Spending</span>
@@ -914,7 +975,7 @@
                     x-on:click="activeTab = 'movements'"
                     :class="activeTab === 'movements'
                         ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs'
-                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent'"
+                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
                     class="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition-colors">
                     <x-ui.icon name="arrows-right-left" class="w-4 h-4" />
                     <span>Movements &amp; Consumption</span>
@@ -925,7 +986,7 @@
                     x-on:click="activeTab = 'expiry'"
                     :class="activeTab === 'expiry'
                         ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs'
-                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent'"
+                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
                     class="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition-colors">
                     <x-ui.icon name="exclamation-triangle" class="w-4 h-4" />
                     <span>Expiry Risk Batches</span>
@@ -939,11 +1000,26 @@
         </div>
 
         {{-- Tab 1: Valuation & Locations --}}
-        <div x-show="activeTab === 'valuation'" x-cloak class="space-y-6 print:!block">
+        <div x-show="activeTab === 'valuation'" x-cloak class="space-y-4 print:!block">
             <div class="grid gap-4 lg:grid-cols-2">
-                <x-ui.card title="Valuation by Category" subtitle="Where the money is tied up." :padding="false">
+                <x-ui.card :padding="false">
+                    <x-slot name="header">
+                        <div class="flex items-start gap-3">
+                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700 ring-1 ring-primary-200 dark:bg-primary-950/80 dark:text-primary-300 dark:ring-primary-800/50">
+                                <x-ui.icon name="chart-bar" class="h-4 w-4" />
+                            </span>
+                            <div class="min-w-0">
+                                <h2 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Valuation by Category</h2>
+                                <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Where the money is tied up.</p>
+                            </div>
+                        </div>
+                    </x-slot>
+                    <x-slot name="actions">
+                        <x-ui.button variant="secondary" size="sm" icon="arrow-down-tray" @click="$dispatch('open-report-modal')">Export</x-ui.button>
+                    </x-slot>
                     <x-ui.table :sticky-header="false">
                         <x-ui.table.head>
+                            <x-ui.table.th class="w-10 px-3 py-2.5">#</x-ui.table.th>
                             <x-ui.table.th class="px-3 py-2.5">Category</x-ui.table.th>
                             <x-ui.table.th numeric class="px-3 py-2.5">Items</x-ui.table.th>
                             <x-ui.table.th numeric class="px-3 py-2.5">Units</x-ui.table.th>
@@ -955,6 +1031,7 @@
                         <tbody>
                             @forelse ($valuationByCategory as $row)
                                 <x-ui.table.row>
+                                    <x-ui.table.td muted class="px-3 py-2.5 text-xs">{{ $loop->iteration }}</x-ui.table.td>
                                     <x-ui.table.td class="px-3 py-2.5 font-medium text-neutral-900">{{ $row->category }}</x-ui.table.td>
                                     <x-ui.table.td numeric muted class="px-3 py-2.5">{{ number_format($row->items) }}</x-ui.table.td>
                                     <x-ui.table.td numeric muted class="px-3 py-2.5">{{ number_format($row->units) }}</x-ui.table.td>
@@ -969,7 +1046,7 @@
                                 </x-ui.table.row>
                             @empty
                                 <x-ui.table.empty
-                                    :colspan="$canViewFinancialData ? 5 : 3"
+                                    :colspan="$canViewFinancialData ? 6 : 4"
                                     icon="cube"
                                     title="No items yet"
                                     message="Add inventory items and the valuation fills in." />
@@ -978,9 +1055,24 @@
                     </x-ui.table>
                 </x-ui.card>
 
-                <x-ui.card title="Stock by Location" subtitle="What each storage location is holding." :padding="false">
+                <x-ui.card :padding="false">
+                    <x-slot name="header">
+                        <div class="flex items-start gap-3">
+                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700 ring-1 ring-primary-200 dark:bg-primary-950/80 dark:text-primary-300 dark:ring-primary-800/50">
+                                <x-ui.icon name="map-pin" class="h-4 w-4" />
+                            </span>
+                            <div class="min-w-0">
+                                <h2 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Stock by Location</h2>
+                                <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">What each storage location is holding.</p>
+                            </div>
+                        </div>
+                    </x-slot>
+                    <x-slot name="actions">
+                        <x-ui.button variant="secondary" size="sm" icon="arrow-down-tray" @click="$dispatch('open-report-modal')">Export</x-ui.button>
+                    </x-slot>
                     <x-ui.table :sticky-header="false">
                         <x-ui.table.head>
+                            <x-ui.table.th class="w-10 px-3 py-2.5">#</x-ui.table.th>
                             <x-ui.table.th class="px-3 py-2.5">Location</x-ui.table.th>
                             <x-ui.table.th numeric class="px-3 py-2.5">Items</x-ui.table.th>
                             <x-ui.table.th numeric class="px-3 py-2.5">Units</x-ui.table.th>
@@ -992,6 +1084,7 @@
                         <tbody>
                             @forelse ($stockByLocation as $row)
                                 <x-ui.table.row>
+                                    <x-ui.table.td muted class="px-3 py-2.5 text-xs">{{ $loop->iteration }}</x-ui.table.td>
                                     <x-ui.table.td class="px-3 py-2.5">
                                         <span class="font-medium text-neutral-900">{{ $row['location'] }}</span>
                                         @if ($row['code'])
@@ -1021,7 +1114,7 @@
                                 </x-ui.table.row>
                             @empty
                                 <x-ui.table.empty
-                                    :colspan="$canViewFinancialData ? 5 : 4"
+                                    :colspan="$canViewFinancialData ? 6 : 5"
                                     icon="building-storefront"
                                     title="No stock in any location"
                                     message="Record a stock in and the location balances appear here." />

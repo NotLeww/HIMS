@@ -128,7 +128,7 @@ class InventoryReportTest extends TestCase
         $this->actingAs($this->reader())
             ->get('/inventory/reports')
             ->assertStatus(200)
-            ->assertSee('Reports &amp; Analytics', false)
+            ->assertSee('Inventory Analytics', false)
             // The placeholder promised these four; each is now a real section.
             ->assertSee('Stock valuation')
             ->assertSee('Stock Status')
