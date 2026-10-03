@@ -8,6 +8,7 @@ use App\Models\LogisticsDocument;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\FileContentValidator;
+use App\Support\DemoPdfBuilder;
 use DomainException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -295,6 +296,10 @@ class DocumentTrackingService
         try {
             $disk = Storage::disk($document->disk);
             $exists = $disk->exists($document->file_path);
+
+            if (! $exists) {
+                $exists = $this->restoreGeneratedPdf($document);
+            }
         } catch (\Throwable $exception) {
             report($exception);
             abort(404, 'The requested document file could not be accessed on storage.');
@@ -318,6 +323,38 @@ class DocumentTrackingService
             report($exception);
             abort(404, 'The requested document file could not be accessed on storage.');
         }
+    }
+
+    /**
+     * Rebuild system-generated receiving documents from their linked database record.
+     */
+    private function restoreGeneratedPdf(LogisticsDocument $document): bool
+    {
+        if ($document->disk !== 'local' || $document->mime_type !== 'application/pdf') {
+            return false;
+        }
+
+        $receipt = $document->goodsReceiptNote;
+        if (! $receipt) {
+            return false;
+        }
+
+        $contents = match ($document->document_type) {
+            DocumentType::DeliveryReceipt => DemoPdfBuilder::createDeliveryReceipt($receipt),
+            DocumentType::Invoice, DocumentType::SalesInvoice => DemoPdfBuilder::createSalesInvoice($receipt),
+            default => null,
+        };
+
+        if ($contents === null || ! Storage::disk('local')->put($document->file_path, $contents)) {
+            return false;
+        }
+
+        $document->update([
+            'file_size_bytes' => strlen($contents),
+            'sha256_checksum' => hash('sha256', $contents),
+        ]);
+
+        return true;
     }
 
     private function validateFile(UploadedFile $file): void

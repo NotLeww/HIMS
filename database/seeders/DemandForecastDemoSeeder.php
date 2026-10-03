@@ -121,7 +121,7 @@ class DemandForecastDemoSeeder extends Seeder
             ->first()
             ?? StorageLocation::firstOrCreate(
                 ['code' => 'FCAST-WH'],
-                ['name' => 'Forecast Demo Warehouse', 'type' => 'warehouse', 'status' => 'active', 'capacity' => 20000],
+                ['name' => 'Central Forecasting Warehouse', 'type' => 'warehouse', 'status' => 'active', 'capacity' => 20000],
             );
 
         $department = StorageLocation::query()
@@ -130,7 +130,7 @@ class DemandForecastDemoSeeder extends Seeder
             ->first()
             ?? StorageLocation::firstOrCreate(
                 ['code' => 'FCAST-WARD'],
-                ['name' => 'Forecast Demo Clinical Ward', 'type' => 'department', 'status' => 'active'],
+                ['name' => 'Medical Ward Supply Station', 'type' => 'department', 'status' => 'active'],
             );
 
         return [$warehouse, $department];
@@ -193,7 +193,7 @@ class DemandForecastDemoSeeder extends Seeder
                 'unit_cost' => $unitCost,
                 'from_location_id' => $warehouse->id,
                 'to_location_id' => $movementType === MovementType::Issuance ? $department->id : null,
-                'remarks' => sprintf('[Forecast demo] %s demand event %02d', $pattern, $index + 1),
+                'remarks' => sprintf('[Demand history] %s consumption event %02d', $pattern, $index + 1),
                 'moved_at' => now()->subDays($daysAgo)->setTime(8 + ($index % 10), ($index * 11) % 60),
                 'user_id' => $userId,
             ]);

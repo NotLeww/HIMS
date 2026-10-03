@@ -107,6 +107,15 @@ enum AuthenticationPanel: string
         };
     }
 
+    public function loginMfaEmailRoute(): string
+    {
+        return match ($this) {
+            self::Staff => 'login.mfa.email',
+            self::Admin => 'admin.login.mfa.email',
+            self::SuperAdmin => 'super-admin.login.mfa.email',
+        };
+    }
+
     public function loginMfaContinueRoute(): string
     {
         return match ($this) {

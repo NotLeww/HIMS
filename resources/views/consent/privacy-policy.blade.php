@@ -6,7 +6,7 @@
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <title>Privacy Policy Acknowledgment · HIMS</title>
     @include('layouts.partials.theme-script')
-    <link rel="preconnect" href="https://fonts.bunny.net">
+    @include('layouts.partials.font-loader')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-full bg-neutral-100 dark:bg-neutral-950 font-sans text-neutral-800 dark:text-neutral-200 antialiased selection:bg-primary-600 selection:text-white transition-colors duration-150 flex flex-col justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8">

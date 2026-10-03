@@ -36,7 +36,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'tax_number' => '102-458-791-000',
             'identity_key' => 'tax:102458791000',
             'contact_person' => 'Maria Teresa Santos',
-            'email' => 'orders@medsupply-ph.test',
+            'email' => 'orders@medsupply-ph.example',
             'phone' => '+63 2 8721 4501',
             'address' => 'Unit 402 Medical Arts Tower, 84 E. Rodriguez Sr. Ave, New Manila, Quezon City, Metro Manila',
             'billing_address' => 'Unit 402 Medical Arts Tower, 84 E. Rodriguez Sr. Ave, New Manila, Quezon City, Metro Manila',
@@ -47,7 +47,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'contact' => [
                 'name' => 'Maria Teresa Santos',
                 'position' => 'Institutional Sales Manager',
-                'email' => 'maria.santos@medsupply-ph.test',
+                'email' => 'maria.santos@medsupply-ph.example',
                 'phone' => '+63 2 8721 4501',
                 'mobile' => '+63 917 123 4567',
             ],
@@ -69,7 +69,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'tax_number' => '245-731-680-000',
             'identity_key' => 'tax:245731680000',
             'contact_person' => 'Eduardo Ramos',
-            'email' => 'procurement@bayanihan-hospital-supply.test',
+            'email' => 'procurement@bayanihan-hospital-supply.example',
             'phone' => '+63 2 8555 0146',
             'address' => 'Commonwealth Avenue, Quezon City, Metro Manila',
             'billing_address' => 'Commonwealth Avenue, Quezon City, Metro Manila',
@@ -80,7 +80,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'contact' => [
                 'name' => 'Eduardo Ramos',
                 'position' => 'General Manager',
-                'email' => 'e.ramos@bayanihan-hospital-supply.test',
+                'email' => 'e.ramos@bayanihan-hospital-supply.example',
                 'phone' => '+63 2 8555 0146',
                 'mobile' => '+63 918 555 0146',
             ],
@@ -102,7 +102,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'tax_number' => '004-892-315-000',
             'identity_key' => 'tax:004892315000',
             'contact_person' => 'Arthur M. Villanueva',
-            'email' => 'sales@apexmed.test',
+            'email' => 'sales@apexmed.example',
             'phone' => '+63 2 8521 4401',
             'address' => '120 San Marcelino St, Ermita, Manila, 1000 Metro Manila',
             'billing_address' => '120 San Marcelino St, Ermita, Manila, 1000 Metro Manila',
@@ -113,7 +113,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'contact' => [
                 'name' => 'Arthur M. Villanueva',
                 'position' => 'Government Accounts Supervisor',
-                'email' => 'a.villanueva@apexmed.test',
+                'email' => 'a.villanueva@apexmed.example',
                 'phone' => '+63 2 8521 4401',
                 'mobile' => '+63 920 852 4401',
             ],
@@ -135,7 +135,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'tax_number' => '007-654-129-000',
             'identity_key' => 'tax:007654129000',
             'contact_person' => 'Dr. Clarissa O. Banzon',
-            'email' => 'tenders@sterlinghealth.test',
+            'email' => 'tenders@sterlinghealth.example',
             'phone' => '+63 2 8812 9930',
             'address' => '45 Chino Roces Ave, Makati City, 1231 Metro Manila',
             'billing_address' => 'Finance Dept, 45 Chino Roces Ave, Makati City, 1231 Metro Manila',
@@ -146,7 +146,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'contact' => [
                 'name' => 'Dr. Clarissa O. Banzon',
                 'position' => 'Clinical Diagnostics Director',
-                'email' => 'c.banzon@sterlinghealth.test',
+                'email' => 'c.banzon@sterlinghealth.example',
                 'phone' => '+63 2 8812 9930',
                 'mobile' => '+63 919 812 9930',
             ],
@@ -168,7 +168,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'tax_number' => '009-341-872-000',
             'identity_key' => 'tax:009341872000',
             'contact_person' => 'Engr. Victor S. Laurel',
-            'email' => 'institutional@biocare-solutions.test',
+            'email' => 'institutional@biocare-solutions.example',
             'phone' => '+63 2 8633 1188',
             'address' => '88 E. Rodriguez Jr. Ave, Bagumbayan, Quezon City, 1110 Metro Manila',
             'billing_address' => '88 E. Rodriguez Jr. Ave, Bagumbayan, Quezon City, 1110 Metro Manila',
@@ -179,7 +179,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'contact' => [
                 'name' => 'Engr. Victor S. Laurel',
                 'position' => 'Biomedical Support & Sales Lead',
-                'email' => 'v.laurel@biocare-solutions.test',
+                'email' => 'v.laurel@biocare-solutions.example',
                 'phone' => '+63 2 8633 1188',
                 'mobile' => '+63 917 633 1188',
             ],
@@ -201,7 +201,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'tax_number' => '001-529-634-000',
             'identity_key' => 'tax:001529634000',
             'contact_person' => 'Roberto M. Dela Cruz',
-            'email' => 'institutional.orders@panisland-pharma.test',
+            'email' => 'institutional.orders@panisland-pharma.example',
             'phone' => '+63 2 8822 5500',
             'address' => 'KM 14 West Service Road, Sun Valley, Parañaque City, 1700 Metro Manila',
             'billing_address' => 'KM 14 West Service Road, Sun Valley, Parañaque City, 1700 Metro Manila',
@@ -212,7 +212,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'contact' => [
                 'name' => 'Roberto M. Dela Cruz',
                 'position' => 'Hospital Key Accounts Executive',
-                'email' => 'r.delacruz@panisland-pharma.test',
+                'email' => 'r.delacruz@panisland-pharma.example',
                 'phone' => '+63 2 8822 5500',
                 'mobile' => '+63 918 822 5500',
             ],
@@ -234,7 +234,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'tax_number' => '002-748-910-000',
             'identity_key' => 'tax:002748910000',
             'contact_person' => 'Corazon V. Ramos',
-            'email' => 'hospital.sales@archipelago-health.test',
+            'email' => 'hospital.sales@archipelago-health.example',
             'phone' => '+63 49 541 2300',
             'address' => 'Commercial Center Boulevard, Don Jose, Santa Rosa, 4026 Laguna',
             'billing_address' => 'Finance & Credit Division, Sta. Rosa Commercial Complex, Santa Rosa, Laguna',
@@ -245,7 +245,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'contact' => [
                 'name' => 'Corazon V. Ramos',
                 'position' => 'Regional Hospital Supply Specialist',
-                'email' => 'c.ramos@archipelago-health.test',
+                'email' => 'c.ramos@archipelago-health.example',
                 'phone' => '+63 49 541 2300',
                 'mobile' => '+63 922 541 2300',
             ],
@@ -267,7 +267,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'tax_number' => '005-612-409-000',
             'identity_key' => 'tax:005612409000',
             'contact_person' => 'Gerardo P. Alcantara',
-            'email' => 'surgical.orders@stjude-biomedical.test',
+            'email' => 'surgical.orders@stjude-biomedical.example',
             'phone' => '+63 2 8524 8810',
             'address' => '72 San Andres Street, Malate, Manila, 1004 Metro Manila',
             'billing_address' => '72 San Andres Street, Malate, Manila, 1004 Metro Manila',
@@ -278,7 +278,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'contact' => [
                 'name' => 'Gerardo P. Alcantara',
                 'position' => 'Operating Theater Consignment Specialist',
-                'email' => 'g.alcantara@stjude-biomedical.test',
+                'email' => 'g.alcantara@stjude-biomedical.example',
                 'phone' => '+63 2 8524 8810',
                 'mobile' => '+63 917 524 8810',
             ],
@@ -305,7 +305,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'tax_number' => '006-193-845-000',
             'identity_key' => 'tax:006193845000',
             'contact_person' => 'Dra. Patricia Nicole Gomez',
-            'email' => 'hospital-accounts@luzon-lifescience.test',
+            'email' => 'hospital-accounts@luzon-lifescience.example',
             'phone' => '+63 2 8631 7720',
             'address' => '15 Pioneer Street, Highway Hills, Mandaluyong City, 1550 Metro Manila',
             'billing_address' => '15 Pioneer Street, Mandaluyong City, 1550 Metro Manila',
@@ -316,7 +316,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'contact' => [
                 'name' => 'Dra. Patricia Nicole Gomez',
                 'position' => 'Diagnostic Account Director',
-                'email' => 'p.gomez@luzon-lifescience.test',
+                'email' => 'p.gomez@luzon-lifescience.example',
                 'phone' => '+63 2 8631 7720',
                 'mobile' => '+63 917 631 7720',
             ],
@@ -337,7 +337,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'tax_number' => '008-472-901-000',
             'identity_key' => 'tax:008472901000',
             'contact_person' => 'Ramon Carlo Mendoza',
-            'email' => 'procurement@archipelago-dialysis.test',
+            'email' => 'procurement@archipelago-dialysis.example',
             'phone' => '+63 46 430 8910',
             'address' => 'Southwoods Industrial Estate, Carmona, 4116 Cavite',
             'billing_address' => 'Southwoods Industrial Estate, Carmona, 4116 Cavite',
@@ -348,7 +348,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'contact' => [
                 'name' => 'Ramon Carlo Mendoza',
                 'position' => 'Institutional Logistics Head',
-                'email' => 'r.mendoza@archipelago-dialysis.test',
+                'email' => 'r.mendoza@archipelago-dialysis.example',
                 'phone' => '+63 46 430 8910',
                 'mobile' => '+63 918 430 8910',
             ],
@@ -369,7 +369,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'tax_number' => '003-820-114-000',
             'identity_key' => 'tax:003820114000',
             'contact_person' => 'Ma. Elena Concepcion',
-            'email' => 'hospital.bids@vitalis-respiratory.test',
+            'email' => 'hospital.bids@vitalis-respiratory.example',
             'phone' => '+63 2 8655 4230',
             'address' => '32 Ortigas Avenue Extension, Rosario, Pasig City, 1609 Metro Manila',
             'billing_address' => '32 Ortigas Avenue Extension, Pasig City, 1609 Metro Manila',
@@ -380,7 +380,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'contact' => [
                 'name' => 'Ma. Elena Concepcion',
                 'position' => 'Critical Care Product Manager',
-                'email' => 'e.concepcion@vitalis-respiratory.test',
+                'email' => 'e.concepcion@vitalis-respiratory.example',
                 'phone' => '+63 2 8655 4230',
                 'mobile' => '+63 920 655 4230',
             ],
@@ -401,7 +401,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'tax_number' => '005-391-768-000',
             'identity_key' => 'tax:005391768000',
             'contact_person' => 'Felipe S. Tan',
-            'email' => 'sales@safeshield-hygiene.test',
+            'email' => 'sales@safeshield-hygiene.example',
             'phone' => '+63 2 8681 9045',
             'address' => 'Industrial Valley Complex, Marcos Highway, Marikina City, 1800 Metro Manila',
             'billing_address' => 'Industrial Valley Complex, Marcos Highway, Marikina City, 1800 Metro Manila',
@@ -412,7 +412,7 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'contact' => [
                 'name' => 'Felipe S. Tan',
                 'position' => 'Institutional Sales Partner',
-                'email' => 'f.tan@safeshield-hygiene.test',
+                'email' => 'f.tan@safeshield-hygiene.example',
                 'phone' => '+63 2 8681 9045',
                 'mobile' => '+63 919 681 9045',
             ],
@@ -564,43 +564,43 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             'barcode' => '4800000000193',
             'gtin' => '04800000000193',
         ],
-        'SWS-DEMO-SYRINGE-5ML' => [
-            'category_code' => 'SWS-DEMO-MED',
-            'location_code' => 'SWS-DEMO-PICK',
+        'MED-SYR-005ML' => [
+            'category_code' => 'MED-WH',
+            'location_code' => 'CWH-PICK-A01',
             'supplier_key' => 'Apex Medical Supplies Corp',
             'barcode' => '4800000000209',
             'gtin' => '04800000000209',
         ],
         'DRG-MORS-002' => [
-            'category_code' => 'SWS-DEMO-PHARMA',
+            'category_code' => 'PHARMA-WH',
             'location_code' => 'W1-Z3-VAULT-S01-B01',
             'supplier_key' => 'Vitalis Respiratory & Anesthesia Systems Inc.',
             'barcode' => '4800000000216',
             'gtin' => '04800000000216',
         ],
         'DRG-RABV-003' => [
-            'category_code' => 'SWS-DEMO-PHARMA',
+            'category_code' => 'PHARMA-WH',
             'location_code' => 'W1-Z2-COLD-R01-B01',
             'supplier_key' => 'Pan-Island Pharmaceuticals Distribution Corp.',
             'barcode' => '4800000000223',
             'gtin' => '04800000000223',
         ],
         'DRG-DOBU-004' => [
-            'category_code' => 'SWS-DEMO-PHARMA',
+            'category_code' => 'PHARMA-WH',
             'location_code' => 'W1-Z1-A01-R01-B01',
             'supplier_key' => 'Archipelago Health Drug Distribution Inc.',
             'barcode' => '4800000000230',
             'gtin' => '04800000000230',
         ],
         'DRG-DOPA-005' => [
-            'category_code' => 'SWS-DEMO-PHARMA',
+            'category_code' => 'PHARMA-WH',
             'location_code' => 'W1-Z1-A01-R01-B01',
             'supplier_key' => 'Archipelago Health Drug Distribution Inc.',
             'barcode' => '4800000000247',
             'gtin' => '04800000000247',
         ],
         'MED-STNT-006' => [
-            'category_code' => 'SWS-DEMO-SURG',
+            'category_code' => 'SURG-CONS',
             'location_code' => 'W1-OR-CONS-R01-B01',
             'supplier_key' => 'St. Jude Biomedical & Surgical Systems Corp.',
             'barcode' => '4800000000254',
@@ -640,7 +640,10 @@ class HospitalMasterDataCompletionSeeder extends Seeder
             $supplierMap = [];
             foreach (self::SUPPLIERS as $knownId => $def) {
                 $supplier = Supplier::query()->find($knownId)
-                    ?? Supplier::query()->where('name', 'LIKE', '%'.$def['match_name'].'%')->first();
+                    ?? Supplier::query()
+                        ->where('name', $def['name'])
+                        ->orWhere('name', 'LIKE', '%'.$def['match_name'].'%')
+                        ->first();
 
                 if (! $supplier) {
                     $supplier = new Supplier();

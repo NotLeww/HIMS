@@ -73,6 +73,10 @@ Route::middleware(['guest:web', 'guest:admin', 'guest:super_admin'])->group(func
         ->defaults('auth_panel', AuthenticationPanel::Staff->value)
         ->middleware('throttle:3,1')
         ->name('login.mfa.resend');
+    Route::post('login/mfa/email', [LoginMfaController::class, 'sendViaEmail'])
+        ->defaults('auth_panel', AuthenticationPanel::Staff->value)
+        ->middleware('throttle:3,1')
+        ->name('login.mfa.email');
     Route::post('login/mfa/continue', [LoginMfaController::class, 'continueSession'])
         ->defaults('auth_panel', AuthenticationPanel::Staff->value)
         ->middleware('throttle:10,1')

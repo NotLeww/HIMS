@@ -55,8 +55,8 @@
         })();
     </script>
 
-    {{-- Inter is loaded once, from resources/css/app.css --}}
-    <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
+    {{-- Load Inter without blocking the first render; the system font stack is the immediate fallback. --}}
+    @include('layouts.partials.font-loader')
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 

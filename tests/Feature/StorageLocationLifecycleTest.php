@@ -903,11 +903,33 @@ class StorageLocationLifecycleTest extends TestCase
             ->get(route('inventory.storage-locations'));
 
         $response->assertOk();
+        $response->assertSee('Storage Areas');
+        $response->assertSee('id="storage-area-search"', false);
+        $response->assertSee('id="storage-area-type"', false);
+        $response->assertSee('id="storage-area-status"', false);
         $response->assertSee('aria-label="Deactivate '.$location->code.'"', false);
         $response->assertSee('aria-label="Activate '.$inactiveLocation->code.'"', false);
         $response->assertSee('Print QR', false);
         $response->assertSee('Are you sure you want to deactivate this storage location?', false);
         $response->assertSee('Yes, Deactivate Location', false);
         $response->assertDontSee('data-confirm-title="Update location status"', false);
+    }
+
+    public function test_27_storage_location_registry_filters_by_search_type_and_status(): void
+    {
+        $activeShelf = $this->createLocation('North Supply Shelf', 'FILTER-SHELF', 'active', 'shelf');
+        $inactivePharmacy = $this->createLocation('Closed Pharmacy Room', 'FILTER-PHARM', 'inactive', 'pharmacy');
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('inventory.storage-locations', ['search' => 'Closed Pharmacy']))
+            ->assertOk()
+            ->assertSee($inactivePharmacy->code)
+            ->assertDontSee($activeShelf->code);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('inventory.storage-locations', ['type' => 'pharmacy', 'status' => 'inactive']))
+            ->assertOk()
+            ->assertSee($inactivePharmacy->code)
+            ->assertDontSee($activeShelf->code);
     }
 }

@@ -14,7 +14,7 @@
     @include('layouts.partials.theme-script')
     @include('layouts.partials.navigation-loading-state')
 
-    <link rel="preconnect" href="https://fonts.bunny.net">
+    @include('layouts.partials.font-loader')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     {{-- Official Institutional Document Engine & Print Safeguards --}}

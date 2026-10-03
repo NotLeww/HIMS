@@ -21,6 +21,8 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Models\WarehouseTask;
 use App\Support\AuthenticationContext;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
 
 class GlobalSearchService
@@ -226,8 +228,7 @@ class GlobalSearchService
                     });
             });
 
-        $total = (clone $query)->count();
-        $records = $query->latest('id')->take($limit)->get();
+        [$records, $total] = $this->suggestions($query->latest('id'), $limit);
 
         $items = $records->map(function (InventoryItem $item): array {
             $qoh = (int) $item->quantity_on_hand;
@@ -292,8 +293,7 @@ class GlobalSearchService
                 }
             });
 
-        $total = (clone $query)->count();
-        $records = $query->orderBy('name')->take($limit)->get();
+        [$records, $total] = $this->suggestions($query->orderBy('name'), $limit);
 
         $items = $records->map(function (Supplier $supplier) use ($canSensitive): array {
             $subtitleParts = [];
@@ -356,8 +356,7 @@ class GlobalSearchService
                 }
             });
 
-        $total = (clone $query)->count();
-        $records = $query->latest('requested_at')->latest('id')->take($limit)->get();
+        [$records, $total] = $this->suggestions($query->latest('requested_at')->latest('id'), $limit);
 
         $items = $records->map(function (PurchaseOrder $po) use ($canSensitive): array {
             $subtitleParts = [];
@@ -427,8 +426,8 @@ class GlobalSearchService
                         ->orWhere('justification', 'like', "%{$term}%");
                 });
 
-            $total += (clone $reqQuery)->count();
-            $reqs = $reqQuery->latest('id')->take($limit)->get();
+            [$reqs, $reqTotal] = $this->suggestions($reqQuery->latest('id'), $limit);
+            $total += $reqTotal;
 
             foreach ($reqs as $req) {
                 $subtitleParts = [];
@@ -468,8 +467,8 @@ class GlobalSearchService
                         ->orWhere('title', 'like', "%{$term}%");
                 });
 
-            $total += (clone $prQuery)->count();
-            $prs = $prQuery->latest('id')->take($prLimit)->get();
+            [$prs, $prTotal] = $this->suggestions($prQuery->latest('id'), $prLimit);
+            $total += $prTotal;
 
             foreach ($prs as $pr) {
                 $subtitleParts = [];
@@ -530,8 +529,7 @@ class GlobalSearchService
                     });
             });
 
-        $total = (clone $query)->count();
-        $records = $query->latest('moved_at')->latest('id')->take($limit)->get();
+        [$records, $total] = $this->suggestions($query->latest('moved_at')->latest('id'), $limit);
 
         $items = $records->map(function (StockMovement $movement): array {
             $movementLabel = $movement->movement_type?->label() ?? 'Movement';
@@ -590,8 +588,7 @@ class GlobalSearchService
                     ->orWhere('destination_facility', 'like', "%{$term}%");
             });
 
-        $total = (clone $query)->count();
-        $records = $query->latest('id')->take($limit)->get();
+        [$records, $total] = $this->suggestions($query->latest('id'), $limit);
 
         $items = $records->map(function (Shipment $shipment): array {
             $subtitleParts = [];
@@ -651,8 +648,7 @@ class GlobalSearchService
                     ->orWhere('original_name', 'like', "%{$term}%");
             });
 
-        $total = (clone $query)->count();
-        $records = $query->latest('id')->take($limit)->get();
+        [$records, $total] = $this->suggestions($query->latest('id'), $limit);
 
         $items = $records->map(function (LogisticsDocument $doc): array {
             $subtitleParts = [];
@@ -707,8 +703,7 @@ class GlobalSearchService
                     ->orWhere('sales_invoice_number', 'like', "%{$term}%");
             });
 
-        $total = (clone $query)->count();
-        $records = $query->latest('received_at')->latest('id')->take($limit)->get();
+        [$records, $total] = $this->suggestions($query->latest('received_at')->latest('id'), $limit);
 
         $items = $records->map(function (GoodsReceiptNote $grn): array {
             $subtitleParts = [];
@@ -763,8 +758,7 @@ class GlobalSearchService
                     ->orWhere('invoice_number', 'like', "%{$term}%");
             });
 
-        $total = (clone $query)->count();
-        $records = $query->latest('id')->take($limit)->get();
+        [$records, $total] = $this->suggestions($query->latest('id'), $limit);
 
         $items = $records->map(function (InspectionAcceptanceReport $iar): array {
             $subtitleParts = [];
@@ -814,8 +808,7 @@ class GlobalSearchService
             ->with(['sourceLocation', 'destinationLocation'])
             ->where('transfer_number', 'like', "%{$term}%");
 
-        $total = (clone $query)->count();
-        $records = $query->latest('id')->take($limit)->get();
+        [$records, $total] = $this->suggestions($query->latest('id'), $limit);
 
         $items = $records->map(function (StockTransfer $transfer): array {
             $src = $transfer->sourceLocation?->name ?: 'Origin';
@@ -860,8 +853,7 @@ class GlobalSearchService
             ->with('location')
             ->where('document_number', 'like', "%{$term}%");
 
-        $total = (clone $query)->count();
-        $records = $query->latest('id')->take($limit)->get();
+        [$records, $total] = $this->suggestions($query->latest('id'), $limit);
 
         $items = $records->map(function (CycleCountDoc $count): array {
             $locationName = $count->location?->name ?: 'All Locations';
@@ -904,8 +896,7 @@ class GlobalSearchService
             ->with('item')
             ->where('task_number', 'like', "%{$term}%");
 
-        $total = (clone $query)->count();
-        $records = $query->latest('id')->take($limit)->get();
+        [$records, $total] = $this->suggestions($query->latest('id'), $limit);
 
         $items = $records->map(function (WarehouseTask $task): array {
             $taskType = $task->task_type?->label() ?? ucfirst($task->task_type?->value ?? 'Task');
@@ -956,8 +947,7 @@ class GlobalSearchService
                     ->orWhere('name', 'like', "%{$term}%");
             });
 
-        $total = (clone $query)->count();
-        $records = $query->orderBy('code')->take($limit)->get();
+        [$records, $total] = $this->suggestions($query->orderBy('code'), $limit);
 
         $items = $records->map(function (StorageLocation $loc): array {
             $subtitleParts = [];
@@ -1011,27 +1001,24 @@ class GlobalSearchService
                 }
             });
 
-        $total = (clone $query)->count();
-
-        // If no user matched by name or ID, allow fallback to email for specific email/username searches
-        if ($total === 0 && ! $isEmailQuery && strlen($term) >= 4 && ! str_contains($term, ' ')) {
-            $query = User::query()
-                ->where('status', '!=', UserStatus::Archived->value)
-                ->where('email', 'like', "%{$term}%");
-            $total = (clone $query)->count();
-        }
-
-        $records = $query
-            ->orderByRaw('CASE
+        $orderedQuery = $query->orderByRaw('CASE
                 WHEN name LIKE ? THEN 1
                 WHEN first_name LIKE ? THEN 2
                 WHEN surname LIKE ? THEN 3
                 WHEN employee_id LIKE ? THEN 4
                 ELSE 5 END',
-                ["{$term}%", "{$term}%", "{$term}%", "{$term}%"]
-            )
-            ->take($limit)
-            ->get();
+            ["{$term}%", "{$term}%", "{$term}%", "{$term}%"]
+        );
+        [$records, $total] = $this->suggestions($orderedQuery, $limit);
+
+        // If no user matched by name or ID, allow fallback to email for specific email/username searches
+        if ($records->isEmpty() && ! $isEmailQuery && strlen($term) >= 4 && ! str_contains($term, ' ')) {
+            $query = User::query()
+                ->where('status', '!=', UserStatus::Archived->value)
+                ->where('email', 'like', "%{$term}%")
+                ->orderBy('email');
+            [$records, $total] = $this->suggestions($query, $limit);
+        }
 
         $items = $records->map(function (User $userRecord): array {
             $subtitleParts = [];
@@ -1064,5 +1051,22 @@ class GlobalSearchService
             'view_all_url' => route(AuthenticationContext::administrationRoute('users.index'), ['search' => $term]),
             'items' => $items,
         ];
+    }
+
+    /**
+     * Fetch suggestion rows and their exact total in one database round trip.
+     *
+     * @return array{0: Collection, 1: int}
+     */
+    private function suggestions(Builder $query, int $limit): array
+    {
+        $model = $query->getModel();
+        $records = $query
+            ->select($model->qualifyColumn('*'))
+            ->selectRaw('COUNT(*) OVER() AS search_total')
+            ->limit($limit)
+            ->get();
+
+        return [$records, (int) ($records->first()?->getAttribute('search_total') ?? 0)];
     }
 }

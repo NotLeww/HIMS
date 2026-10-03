@@ -29,27 +29,27 @@ class SmartWarehousingDemoSeeder extends Seeder
             $user = User::query()->first() ?? User::factory()->inventoryManager()->create();
 
             $category = ItemCategory::firstOrCreate(
-                ['code' => 'SWS-DEMO-MED'],
-                ['name' => 'Smart Warehouse Demo Medical Supplies', 'description' => 'Non-clinical workflow demonstration catalogue.', 'is_active' => true],
+                ['code' => 'MED-WH'],
+                ['name' => 'Central Warehouse Medical Supplies', 'description' => 'General medical supplies managed through the central warehouse.', 'is_active' => true],
             );
 
             $pharmaCategory = ItemCategory::firstOrCreate(
-                ['code' => 'SWS-DEMO-PHARMA'],
-                ['name' => 'Clinical Pharmaceuticals', 'description' => 'Demo therapeutic drugs.', 'is_active' => true],
+                ['code' => 'PHARMA-WH'],
+                ['name' => 'Clinical Pharmaceuticals', 'description' => 'Formulary medicines and therapeutic preparations.', 'is_active' => true],
             );
 
             $surgicalCategory = ItemCategory::firstOrCreate(
-                ['code' => 'SWS-DEMO-SURG'],
-                ['name' => 'Surgical Consignment Implants', 'description' => 'Demo prostheses and stents.', 'is_active' => true],
+                ['code' => 'SURG-CONS'],
+                ['name' => 'Surgical Consignment Implants', 'description' => 'Consigned prostheses, implants, and cardiovascular stents.', 'is_active' => true],
             );
 
             // 1. Storage Topology
-            $warehouse = $this->location('SWS-DEMO-WH', 'Smart Warehouse Demonstration', 'warehouse', null, ['capacity' => 10000]);
-            $receiving = $this->location('SWS-DEMO-RCV', 'Receiving Staging', 'zone', $warehouse, ['is_receiving_staging' => true, 'capacity' => 500]);
-            $this->location('SWS-DEMO-QA', 'Inspection Quarantine', 'zone', $warehouse, ['is_quarantine' => true, 'capacity' => 250]);
-            $reserve = $this->location('SWS-DEMO-RSV', 'Medical Supply Reserve', 'zone', $warehouse, ['is_reserve' => true, 'capacity' => 1000]);
-            $pickFace = $this->location('SWS-DEMO-PICK', 'Medical Supply Pick Face', 'bin', $reserve, ['is_pick_face' => true, 'capacity' => 120, 'sort_sequence' => 10]);
-            $this->location('SWS-DEMO-DSP', 'Department Dispatch Staging', 'zone', $warehouse, ['is_dispatch_staging' => true, 'capacity' => 300]);
+            $warehouse = $this->location('CWH-MAIN', 'Central Medical Warehouse', 'warehouse', null, ['capacity' => 10000]);
+            $receiving = $this->location('CWH-RCV', 'Central Receiving Staging', 'zone', $warehouse, ['is_receiving_staging' => true, 'capacity' => 500]);
+            $this->location('CWH-QA', 'Quality Inspection Quarantine', 'zone', $warehouse, ['is_quarantine' => true, 'capacity' => 250]);
+            $reserve = $this->location('CWH-RSV', 'Medical Supply Reserve', 'zone', $warehouse, ['is_reserve' => true, 'capacity' => 1000]);
+            $pickFace = $this->location('CWH-PICK-A01', 'Medical Supply Pick Face A01', 'bin', $reserve, ['is_pick_face' => true, 'capacity' => 120, 'sort_sequence' => 10]);
+            $this->location('CWH-DSP', 'Department Dispatch Staging', 'zone', $warehouse, ['is_dispatch_staging' => true, 'capacity' => 300]);
 
             // Ambient Zone & Bins (with LASA coordinate testing)
             $ambientZone = $this->location('Z-AMB-01', 'Central Ambient Zone', 'zone', $warehouse, ['temperature_classification' => 'ambient', 'capacity' => 5000]);
@@ -91,9 +91,9 @@ class SmartWarehousingDemoSeeder extends Seeder
 
             // 2. Clinical Items Master Data
             $syringe = InventoryItem::firstOrCreate(
-                ['sku' => 'SWS-DEMO-SYRINGE-5ML'],
+                ['sku' => 'MED-SYR-005ML'],
                 [
-                    'name' => 'Sterile Syringe 5 mL — Warehouse Workflow Demo',
+                    'name' => 'Sterile Disposable Syringe 5 mL with Needle',
                     'barcode_value' => 'SWS-ITEM-SYRINGE-5ML',
                     'gtin' => '04801234567897',
                     'category_id' => $category->id,
@@ -231,9 +231,9 @@ class SmartWarehousingDemoSeeder extends Seeder
 
             // 3. Batches & Initial Stock
             $batchSyringe = ItemBatch::firstOrCreate(
-                ['item_id' => $syringe->id, 'batch_number' => 'SWS-DEMO-LOT-001'],
+                ['item_id' => $syringe->id, 'batch_number' => 'SYR5-260901-A'],
                 [
-                    'lot_number' => 'SWS-DEMO-LOT-001',
+                    'lot_number' => 'SYR5-260901-A',
                     'expiry_date' => now()->addMonths(18)->startOfMonth(),
                     'received_at' => today(),
                     'unit_cost' => 275.00,
@@ -309,7 +309,7 @@ class SmartWarehousingDemoSeeder extends Seeder
 
             // 5. Seed DDRB Register Entry
             PdeaDangerousDrugsRegister::firstOrCreate(
-                ['register_number' => 'DDRB-2026-DEMO-01'],
+                ['register_number' => 'DDRB-2026-0001'],
                 [
                     'item_id' => $morphine->id,
                     'item_batch_id' => $batchMorphine->id,
@@ -319,7 +319,7 @@ class SmartWarehousingDemoSeeder extends Seeder
                     'custodian_id' => $user->id,
                     'witness_pharmacist_id' => $user->id,
                     'witness_authenticated_at' => now(),
-                    'notes' => 'Opening vault balance for demonstration of PDEA electronic register.',
+                    'notes' => 'Opening controlled-drug vault balance verified by the pharmacy custodian.',
                     'recorded_at' => now(),
                 ],
             );
@@ -333,7 +333,7 @@ class SmartWarehousingDemoSeeder extends Seeder
                 'item_id' => $syringe->id,
                 'item_batch_id' => $batchSyringe->id,
                 'requested_quantity' => 24,
-                'idempotency_key' => 'smart-warehousing-demo-replenishment-v1',
+                'idempotency_key' => 'central-warehouse-replenishment-2026-01',
                 'recommendation_reason' => 'Restore the pick face toward its configured maximum.',
                 'notes' => 'Scan reserve location, GS1 item/lot, then pick-face destination.',
             ], $user);

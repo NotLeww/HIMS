@@ -1,11 +1,11 @@
-<header class="sticky top-0 z-30 flex min-w-0 max-w-full items-center gap-3 h-16 px-4 sm:px-6 lg:px-8
+<header class="sticky top-0 z-30 flex min-h-16 min-w-0 max-w-full flex-wrap items-center gap-2 px-4 py-2 sm:px-6 lg:h-16 lg:flex-nowrap lg:gap-3 lg:px-8 lg:py-0
                bg-white/95 backdrop-blur border-b border-neutral-200
                dark:bg-neutral-900/95 dark:border-neutral-800">
     {{-- Sidebar toggle --}}
     <button
         type="button"
         x-on:click="sidebarOpen = !sidebarOpen"
-        class="p-2 -ml-2 rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900
+        class="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 lg:h-9 lg:w-9
                dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         :aria-expanded="sidebarOpen ? 'true' : 'false'"
@@ -24,7 +24,7 @@
 
     {{-- Global HIMS Multi-Entity Live Search & Autocomplete --}}
     <div
-        class="relative flex-1 min-w-0 max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg"
+        class="relative order-last w-full min-w-0 basis-full lg:order-none lg:w-auto lg:max-w-lg lg:flex-1 lg:basis-auto"
         x-data="himsGlobalSearch({
             endpoint: @js(route('global-search')),
             initialQuery: @js(request()->routeIs('inventory.items') ? request('search', '') : '')
@@ -55,7 +55,7 @@
                 x-bind:aria-expanded="open"
                 x-bind:aria-activedescendant="activeIndex >= 0 ? `global-search-item-${activeIndex}` : null"
                 placeholder="Search items, SKU, barcode..."
-                class="w-full pl-9 pr-8 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-md
+                class="min-h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 py-2 pl-9 pr-10 text-base lg:min-h-0 lg:text-sm
                        placeholder:text-neutral-400 focus:bg-white focus:border-primary-500
                        focus:ring-2 focus:ring-primary-500/30
                        dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus:bg-neutral-900
@@ -83,7 +83,7 @@
             x-show="open"
             x-cloak
             x-transition.opacity.duration.150ms
-            class="absolute left-0 right-0 top-full mt-1.5 w-full z-50
+            class="absolute left-0 right-0 top-full z-50 mt-1.5 w-full
                    rounded-xl border border-neutral-200 dark:border-neutral-800
                    bg-white dark:bg-neutral-900 shadow-2xl overflow-hidden"
             role="listbox"
@@ -123,7 +123,7 @@
             {{-- Grouped Search Results --}}
             <div
                 x-show="categories.length > 0"
-                class="max-h-[min(70vh,520px)] overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800/70"
+                class="max-h-[calc(100dvh-9rem)] divide-y divide-neutral-100 overflow-y-auto overscroll-contain dark:divide-neutral-800/70 sm:max-h-[min(70vh,520px)]"
             >
                 <template x-for="category in categories" :key="category.key">
                     <div class="py-2">
@@ -145,7 +145,7 @@
                             <template x-for="item in category.items" :key="item.id">
                                 <button
                                     type="button"
-                                    class="w-full flex items-start gap-3 px-2.5 py-2 rounded-lg text-left transition-colors"
+                                    class="flex min-h-11 w-full items-start gap-3 rounded-lg px-2.5 py-2 text-left transition-colors"
                                     :id="`global-search-item-${flatItems.findIndex(f => f.id === item.id)}`"
                                     :class="activeIndex === flatItems.findIndex(f => f.id === item.id)
                                         ? 'bg-primary-50 dark:bg-primary-950/70 text-primary-950 dark:text-primary-100 ring-1 ring-primary-500/20'
@@ -229,7 +229,7 @@
             </div>
 
             {{-- Footer Keyboard Navigation Hints --}}
-            <div class="flex items-center justify-between gap-2 px-3.5 py-2 bg-neutral-50 dark:bg-neutral-950/50 border-t border-neutral-100 dark:border-neutral-800 text-[11px] text-neutral-400 dark:text-neutral-500">
+            <div class="hidden items-center justify-between gap-2 border-t border-neutral-100 bg-neutral-50 px-3.5 py-2 text-[11px] text-neutral-400 dark:border-neutral-800 dark:bg-neutral-950/50 dark:text-neutral-500 sm:flex">
                 <div class="flex items-center gap-2.5 truncate">
                     <span class="shrink-0"><kbd class="font-mono bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded px-1 py-0.5 text-[10px]">↑</kbd> <kbd class="font-mono bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded px-1 py-0.5 text-[10px]">↓</kbd> navigate</span>
                     <span class="hidden sm:inline shrink-0"><kbd class="font-mono bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded px-1 py-0.5 text-[10px]">↵</kbd> select</span>
@@ -253,7 +253,7 @@
         <button
             type="button"
             x-on:click="open = !open"
-            class="relative flex h-9 w-9 items-center justify-center rounded-md text-neutral-500 transition
+            class="relative flex h-11 w-11 items-center justify-center rounded-md text-neutral-500 transition sm:h-9 sm:w-9
                    hover:bg-neutral-100 hover:text-neutral-900
                    dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
@@ -387,7 +387,7 @@
         <button
             type="button"
             x-on:click="open = !open"
-            class="flex items-center gap-2.5 p-1.5 pr-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition
+            class="flex min-h-11 items-center gap-2.5 rounded-lg p-1.5 pr-2 transition hover:bg-neutral-100 dark:hover:bg-neutral-800 sm:min-h-9
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
             :aria-expanded="open ? 'true' : 'false'"
             aria-haspopup="menu"
