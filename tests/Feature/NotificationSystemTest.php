@@ -203,7 +203,7 @@ class NotificationSystemTest extends TestCase
         $this->assertSame(1, $manager->fresh()->notifications()->count());
     }
 
-    public function test_recovery_notifications_are_critical_and_limited_to_super_administrators(): void
+    public function test_recovery_incidents_do_not_create_notifications(): void
     {
         $superAdmin = User::factory()->superAdministrator()->create();
         $admin = User::factory()->administrator()->create();
@@ -214,11 +214,7 @@ class NotificationSystemTest extends TestCase
             'commit_purchase_order',
         );
 
-        $notification = $superAdmin->fresh()->notifications()->sole();
-        $this->assertSame(NotificationPriority::Critical->value, $notification->data['priority']);
-        $this->assertSame(NotificationDestination::Dashboard->value, $notification->data['destination']);
-        $this->assertSame([], $notification->data['route_parameters']);
-        $this->assertStringNotContainsString('Sensitive internal failure detail', $notification->data['message']);
+        $this->assertSame(0, $superAdmin->fresh()->notifications()->count());
         $this->assertSame(0, $admin->fresh()->notifications()->count());
     }
 
