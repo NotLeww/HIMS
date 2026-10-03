@@ -78,6 +78,7 @@ Route::get('/dashboard/ai-assistant/attachment/{message}', [DashboardAiAssistant
 Route::middleware(['auth:web,admin,super_admin', 'verified'])->group(function () {
     Route::get('/global-search', [GlobalSearchController::class, 'search'])->name('global-search');
 
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead'])
         ->whereUuid('notification')

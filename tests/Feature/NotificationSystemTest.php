@@ -36,6 +36,82 @@ class NotificationSystemTest extends TestCase
             ->assertDontSee('Mark all as read');
     }
 
+    public function test_notification_feed_hides_legacy_recovery_alerts_and_loads_older_batches(): void
+    {
+        $user = User::factory()->viewer()->create();
+        $other = User::factory()->viewer()->create();
+        $service = app(HimsNotificationService::class);
+
+        $this->getJson(route('notifications.index'))->assertUnauthorized();
+
+        $service->sendToUser(
+            $user,
+            'legacy-recovery-alert',
+            'Critical system event',
+            'A retired recovery alert that must not appear in the bell feed.',
+            NotificationPriority::Critical,
+            NotificationDestination::Dashboard,
+        );
+
+        foreach (range(1, 17) as $number) {
+            $service->sendToUser(
+                $user,
+                "feed-notification:{$number}",
+                "Feed notification {$number}",
+                "Visible notification {$number}.",
+                NotificationPriority::Info,
+                NotificationDestination::Dashboard,
+            );
+        }
+
+        $service->sendToUser(
+            $other,
+            'private-feed-notification',
+            'Other user notification',
+            'This must not appear in another account feed.',
+            NotificationPriority::Info,
+            NotificationDestination::Dashboard,
+        );
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('17 unread')
+            ->assertSee('See previous notifications')
+            ->assertDontSee('Critical system event')
+            ->assertDontSee('Other user notification');
+
+        $firstPage = $this->actingAs($user)->getJson(route('notifications.index'))
+            ->assertOk()
+            ->assertJsonPath('loaded_count', 8)
+            ->assertJsonPath('next_url', fn ($url) => is_string($url) && $url !== '')
+            ->assertDontSee('Critical system event')
+            ->assertDontSee('Other user notification');
+
+        $secondPage = $this->actingAs($user)->getJson($firstPage->json('next_url'))
+            ->assertOk()
+            ->assertJsonPath('loaded_count', 8)
+            ->assertJsonPath('next_url', fn ($url) => is_string($url) && $url !== '');
+
+        $this->actingAs($user)->getJson($secondPage->json('next_url'))
+            ->assertOk()
+            ->assertJsonPath('loaded_count', 1)
+            ->assertJsonPath('next_url', null);
+
+        $legacy = $user->notifications()->get()
+            ->first(fn ($notification) => $notification->data['title'] === 'Critical system event');
+
+        $this->actingAs($user)
+            ->get(route('notifications.open', $legacy->id))
+            ->assertNotFound();
+
+        $this->actingAs($user)
+            ->patch(route('notifications.read-all'))
+            ->assertRedirect();
+
+        $this->assertNull($legacy->fresh()->read_at);
+        $this->assertSame(0, $service->feedFor($user)->whereNull('read_at')->count());
+    }
+
     public function test_new_stock_alerts_notify_only_active_users_who_can_act_without_duplicates(): void
     {
         $manager = User::factory()->inventoryManager()->create();

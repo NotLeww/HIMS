@@ -10,12 +10,26 @@ use App\Enums\UserStatus;
 use App\Models\User;
 use App\Notifications\HimsNotification;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\Log;
 use Ramsey\Uuid\Uuid;
 use Throwable;
 
 class HimsNotificationService
 {
+    public const FEED_BATCH_SIZE = 8;
+
+    private const LEGACY_RECOVERY_TITLE = 'Critical system event';
+
+    public function feedFor(User $recipient): MorphMany
+    {
+        return $recipient->notifications()
+            ->where(function ($query): void {
+                $query->whereNull('data->title')
+                    ->orWhere('data->title', '!=', self::LEGACY_RECOVERY_TITLE);
+            });
+    }
+
     /**
      * @param  array<string, scalar|null>  $routeParameters
      */

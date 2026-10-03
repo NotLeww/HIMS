@@ -6,7 +6,9 @@ use App\Enums\AuditAction;
 use App\Enums\NotificationDestination;
 use App\Models\User;
 use App\Services\AuditLogger;
+use App\Services\HimsNotificationService;
 use App\Support\AuthenticationPanel;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
@@ -14,7 +16,28 @@ use Illuminate\Support\Facades\DB;
 
 class NotificationController extends Controller
 {
-    public function __construct(private readonly AuditLogger $auditLogger) {}
+    public function __construct(
+        private readonly AuditLogger $auditLogger,
+        private readonly HimsNotificationService $notifications,
+    ) {}
+
+    public function index(Request $request): JsonResponse
+    {
+        $notifications = $this->notifications
+            ->feedFor($this->user($request))
+            ->latest()
+            ->orderByDesc('id')
+            ->cursorPaginate(HimsNotificationService::FEED_BATCH_SIZE)
+            ->withPath(route('notifications.index'));
+
+        return response()->json([
+            'html' => view('layouts.partials.notification-items', [
+                'notifications' => $notifications->getCollection(),
+            ])->render(),
+            'loaded_count' => $notifications->count(),
+            'next_url' => $notifications->nextPageUrl(),
+        ]);
+    }
 
     public function markRead(Request $request, string $notification): RedirectResponse
     {
@@ -29,7 +52,9 @@ class NotificationController extends Controller
         $user = $this->user($request);
 
         DB::transaction(function () use ($user): void {
-            $count = $user->unreadNotifications()->update(['read_at' => now()]);
+            $count = $this->notifications->feedFor($user)
+                ->whereNull('read_at')
+                ->update(['read_at' => now()]);
 
             if ($count > 0) {
                 $this->auditLogger->record(
@@ -70,7 +95,7 @@ class NotificationController extends Controller
 
     private function notificationFor(Request $request, string $id): DatabaseNotification
     {
-        return $this->user($request)->notifications()->findOrFail($id);
+        return $this->notifications->feedFor($this->user($request))->findOrFail($id);
     }
 
     private function markAsRead(User $user, DatabaseNotification $notification): void
