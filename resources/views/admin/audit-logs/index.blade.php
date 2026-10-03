@@ -41,7 +41,7 @@
     <div x-data="{ open: @js($hasActiveFilters) }" class="relative z-20 print:hidden">
     @endif
     <x-ui.card
-        class="audit-logs-table audit-print-table relative z-20 !overflow-visible [&_.hims-table-scroll]:overflow-x-hidden [&_.hims-table-scroll]:[scrollbar-width:none] [&_.hims-table-scroll::-webkit-scrollbar]:hidden"
+        class="audit-logs-table audit-print-table relative z-20 !overflow-visible"
         title="Activity"
         :subtitle="$recordCount.' '.\Illuminate\Support\Str::plural('record', $recordCount).' - '.config('app.timezone').' (PHT)'"
         :padding="false">

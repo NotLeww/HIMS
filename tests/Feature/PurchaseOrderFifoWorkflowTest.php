@@ -1295,7 +1295,9 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
         $response->assertSee('400 base units');
         $response->assertSee('Order Lines &amp; Cost Breakdown', false);
         $response->assertSee('Subtotal:');
-        $response->assertSee('Grand Total:');
+        $response->assertSee('Order Total:');
+        $response->assertSee('selectedPo.lines.length !== 1', false);
+        $response->assertSee('(selectedPo.additional_charges && selectedPo.additional_charges > 0) || (selectedPo.discounts && selectedPo.discounts > 0)', false);
     }
 
     /**

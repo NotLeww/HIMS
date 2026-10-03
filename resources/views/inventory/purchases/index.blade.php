@@ -1966,8 +1966,8 @@
 
                                     @can(\App\Enums\Permission::ViewProcurementSensitiveData->value)
                                     {{-- Line Items Price & Total Breakdown --}}
-                                    <div class="mt-3 overflow-hidden rounded-md border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/60 text-xs">
-                                        <table class="w-full text-left">
+                                    <div class="hims-table-scroll mt-3 overflow-x-auto rounded-md border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/60 text-xs">
+                                        <table class="min-w-[42rem] w-full text-left">
                                             <thead class="bg-neutral-100/75 dark:bg-neutral-800/80 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 border-b border-neutral-200/70 dark:border-neutral-700/80">
                                                 <tr>
                                                     <th scope="col" class="px-3 py-1.5">Item Name</th>
@@ -2244,11 +2244,16 @@
                                                     <td :colspan="selectedPo.amount !== null ? 5 : 3" class="px-3 py-4 text-center text-neutral-500 dark:text-neutral-400" x-text="selectedPo.item"></td>
                                                 </tr>
                                             </tbody>
-                                            <tfoot x-show="selectedPo.amount !== null" class="border-t border-neutral-200 dark:border-neutral-700/80 bg-neutral-50/70 dark:bg-neutral-800/80 text-xs">
-                                                <tr>
-                                                    <td colspan="4" class="px-3 py-2 text-right font-medium text-neutral-600 dark:text-neutral-300">Subtotal:</td>
-                                                    <td class="px-3 py-2 text-right font-semibold font-mono tabular-nums text-neutral-900 dark:text-neutral-100" x-text="formatCurrency(selectedPo.subtotal ?? selectedPo.amount, selectedPo.currency)"></td>
-                                                </tr>
+                                            <tfoot
+                                                x-show="selectedPo.amount !== null && (selectedPo.lines.length !== 1 || (selectedPo.additional_charges && selectedPo.additional_charges > 0) || (selectedPo.discounts && selectedPo.discounts > 0))"
+                                                class="border-t border-neutral-200 dark:border-neutral-700/80 bg-neutral-50/70 dark:bg-neutral-800/80 text-xs"
+                                            >
+                                                <template x-if="(selectedPo.additional_charges && selectedPo.additional_charges > 0) || (selectedPo.discounts && selectedPo.discounts > 0)">
+                                                    <tr>
+                                                        <td colspan="4" class="px-3 py-2 text-right font-medium text-neutral-600 dark:text-neutral-300">Subtotal:</td>
+                                                        <td class="px-3 py-2 text-right font-semibold font-mono tabular-nums text-neutral-900 dark:text-neutral-100" x-text="formatCurrency(selectedPo.subtotal ?? selectedPo.amount, selectedPo.currency)"></td>
+                                                    </tr>
+                                                </template>
                                                 <template x-if="selectedPo.additional_charges && selectedPo.additional_charges > 0">
                                                     <tr>
                                                         <td colspan="4" class="px-3 py-1.5 text-right font-medium text-neutral-600 dark:text-neutral-300">Additional Charges:</td>
@@ -2262,7 +2267,7 @@
                                                     </tr>
                                                 </template>
                                                 <tr class="border-t border-neutral-200 dark:border-neutral-700 font-semibold">
-                                                    <td colspan="4" class="px-3 py-2.5 text-right text-sm text-neutral-900 dark:text-neutral-100">Grand Total:</td>
+                                                    <td colspan="4" class="px-3 py-2.5 text-right text-sm text-neutral-900 dark:text-neutral-100">Order Total:</td>
                                                     <td class="px-3 py-2.5 text-right text-sm font-bold font-mono tabular-nums text-primary-700 dark:text-primary-400" x-text="formatCurrency(selectedPo.grand_total ?? selectedPo.amount, selectedPo.currency)"></td>
                                                 </tr>
                                             </tfoot>

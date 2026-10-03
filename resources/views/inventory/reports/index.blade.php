@@ -1518,12 +1518,12 @@
                             </template>
                         </div>
 
-                        {{-- VIEW 2: Compact Table View (Strict Table-Fixed, Overflow-X-Hidden, Zero Horizontal Scroll) --}}
+                        {{-- VIEW 2: Compact Table View (locally scrollable on narrow screens) --}}
                         <div
                             x-show="viewMode === 'table' && filteredRows.length > 0"
-                            class="w-full overflow-x-hidden overflow-y-auto max-h-[calc(100dvh-16rem)] rounded-xl border border-neutral-200"
+                            class="hims-table-scroll w-full overflow-x-auto overflow-y-auto max-h-[calc(100dvh-16rem)] rounded-xl border border-neutral-200"
                         >
-                            <table class="w-full divide-y divide-neutral-200 text-xs table-fixed">
+                            <table class="min-w-[64rem] w-full divide-y divide-neutral-200 text-xs table-fixed">
                                 <thead class="sticky top-0 z-10 bg-neutral-50 shadow-2xs">
                                     <tr>
                                         <template x-for="([column, label]) in columnEntries" :key="column">

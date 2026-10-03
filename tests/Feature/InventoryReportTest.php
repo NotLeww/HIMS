@@ -1545,7 +1545,7 @@ class InventoryReportTest extends TestCase
             ->assertSee('overflow-y-auto overscroll-contain', false);
     }
 
-    public function test_chart_drilldown_modal_provides_responsive_card_and_table_views_without_horizontal_scrollbars(): void
+    public function test_chart_drilldown_modal_provides_responsive_cards_and_a_scrollable_table_view(): void
     {
         $this->actingAs($this->reader())
             ->get('/inventory/reports')
@@ -1554,7 +1554,8 @@ class InventoryReportTest extends TestCase
             ->assertSee('Search drill-down records...', false)
             ->assertSee("viewMode === 'cards'", false)
             ->assertSee("viewMode === 'table'", false)
-            ->assertSee('overflow-x-hidden', false)
+            ->assertSee('hims-table-scroll w-full overflow-x-auto', false)
+            ->assertSee('min-w-[64rem]', false)
             ->assertSee('table-fixed', false);
     }
 
