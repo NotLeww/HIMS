@@ -158,7 +158,11 @@ class LoginMfaService
                     (string) $this->authenticatorSecrets->fingerprint($user),
                 )
                 && $this->authenticatorSetup->secret($request, $user) !== null,
-            self::METHOD_EMAIL => (bool) $user->mfa_enabled,
+            self::METHOD_EMAIL => (bool) $user->mfa_enabled
+                || ($state['sms_fallback']
+                    && (bool) $user->sms_mfa_enabled
+                    && preg_match('/^09[0-9]{9}$/D', (string) $user->phone) === 1
+                    && hash_equals((string) $user->sms_mfa_phone, (string) $user->phone)),
             self::METHOD_SMS => (bool) $user->sms_mfa_enabled
                 && preg_match('/^09[0-9]{9}$/D', (string) $user->phone) === 1
                 && hash_equals((string) $user->sms_mfa_phone, (string) $user->phone),
@@ -173,7 +177,7 @@ class LoginMfaService
         return $user;
     }
 
-    /** @return array{status: string, user?: User, remember?: bool, login_throttle_key?: ?string, attempts_remaining?: int, method?: string} */
+    /** @return array{status: string, user?: User, remember?: bool, login_throttle_key?: ?string, attempts_remaining?: int, method?: string, sms_fallback?: bool} */
     public function verify(Request $request, string $guard, #[\SensitiveParameter] string $otp): array
     {
         $state = $this->state($request, $guard);
@@ -186,7 +190,7 @@ class LoginMfaService
         if ($state['expires_at'] <= now()->getTimestamp()) {
             $this->clear($request);
 
-            return ['status' => self::EXPIRED, 'method' => $state['method']];
+            return ['status' => self::EXPIRED, 'method' => $state['method'], 'sms_fallback' => $state['sms_fallback']];
         }
 
         $recoverySecret = null;
@@ -219,6 +223,7 @@ class LoginMfaService
                 'status' => self::INVALID,
                 'attempts_remaining' => $state['attempts_remaining'],
                 'method' => $state['method'],
+                'sms_fallback' => $state['sms_fallback'],
             ];
         }
 
@@ -245,7 +250,48 @@ class LoginMfaService
             'remember' => $state['remember'],
             'login_throttle_key' => $state['login_throttle_key'],
             'method' => $state['method'],
+            'sms_fallback' => $state['sms_fallback'],
         ];
+    }
+
+    /** @return array{status: string, otp?: string, user?: User} */
+    public function switchSmsToEmail(Request $request, string $guard): array
+    {
+        $state = $this->state($request, $guard);
+        $user = $this->pendingUser($request, $guard);
+
+        if ($state === null || $user === null) {
+            return ['status' => self::MISSING];
+        }
+
+        if ($state['method'] !== self::METHOD_SMS) {
+            return ['status' => 'unsupported'];
+        }
+
+        if ($state['expires_at'] <= now()->getTimestamp()) {
+            $this->clear($request);
+
+            return ['status' => self::EXPIRED];
+        }
+
+        if ($state['attempts_remaining'] < 1) {
+            $this->clear($request);
+
+            return ['status' => 'exhausted'];
+        }
+
+        do {
+            $otp = $this->generateOtp();
+        } while (is_string($state['otp_hash']) && Hash::check($otp, $state['otp_hash']));
+
+        $state['method'] = self::METHOD_EMAIL;
+        $state['otp_hash'] = Hash::make($otp);
+        $state['sms_fallback'] = true;
+        $state['expires_at'] = now()->getTimestamp() + ($this->expiresInMinutes() * 60);
+        $state['resend_available_at'] = now()->getTimestamp() + $this->resendCooldownSeconds();
+        $request->session()->put(self::SESSION_KEY, $state);
+
+        return ['status' => self::SUCCESS, 'otp' => $otp, 'user' => $user];
     }
 
     /** @return array{status: string, otp?: string, user?: User, retry_after?: int} */
@@ -262,7 +308,7 @@ class LoginMfaService
             return ['status' => 'unsupported'];
         }
 
-        if ($state['method'] === self::METHOD_SMS && $state['attempts_remaining'] < 1) {
+        if (($state['method'] === self::METHOD_SMS || $state['sms_fallback']) && $state['attempts_remaining'] < 1) {
             $this->clear($request);
 
             return ['status' => 'exhausted'];
@@ -274,9 +320,20 @@ class LoginMfaService
             return ['status' => 'cooldown', 'retry_after' => $retryAfter];
         }
 
-        $otp = $state['method'] === self::METHOD_SMS
-            ? $this->issueSms($request, $user, $guard, $state['remember'], $state['login_throttle_key'])
-            : $this->issue($request, $user, $guard, $state['remember'], $state['login_throttle_key']);
+        if ($state['sms_fallback']) {
+            do {
+                $otp = $this->generateOtp();
+            } while (is_string($state['otp_hash']) && Hash::check($otp, $state['otp_hash']));
+
+            $state['otp_hash'] = Hash::make($otp);
+            $state['expires_at'] = now()->getTimestamp() + ($this->expiresInMinutes() * 60);
+            $state['resend_available_at'] = now()->getTimestamp() + $this->resendCooldownSeconds();
+            $request->session()->put(self::SESSION_KEY, $state);
+        } else {
+            $otp = $state['method'] === self::METHOD_SMS
+                ? $this->issueSms($request, $user, $guard, $state['remember'], $state['login_throttle_key'])
+                : $this->issue($request, $user, $guard, $state['remember'], $state['login_throttle_key']);
+        }
 
         if ($state['method'] === self::METHOD_SMS) {
             $nextState = $this->state($request, $guard);
@@ -316,7 +373,7 @@ class LoginMfaService
     {
         $state = $this->state($request, $guard);
 
-        return $state !== null && $state['method'] === self::METHOD_SMS
+        return $state !== null && ($state['method'] === self::METHOD_SMS || $state['sms_fallback'])
             && $state['attempts_remaining'] < 1;
     }
 
@@ -507,6 +564,7 @@ class LoginMfaService
             'method' => $method,
             'otp_hash' => $otpHash,
             'authenticator_fingerprint' => $authenticatorFingerprint,
+            'sms_fallback' => false,
             'expires_at' => $expiresAt,
             'started_at' => $now,
             'extensions_count' => 0,
@@ -518,7 +576,7 @@ class LoginMfaService
         ]);
     }
 
-    /** @return array{user_id: int, guard: string, method: string, otp_hash: ?string, authenticator_fingerprint: ?string, expires_at: int, attempts_remaining: int, resend_available_at: int, remember: bool, login_throttle_key: ?string}|null */
+    /** @return array{user_id: int, guard: string, method: string, otp_hash: ?string, authenticator_fingerprint: ?string, sms_fallback: bool, expires_at: int, attempts_remaining: int, resend_available_at: int, remember: bool, login_throttle_key: ?string}|null */
     private function state(Request $request, string $guard): ?array
     {
         $state = $request->session()->get(self::SESSION_KEY);
@@ -535,6 +593,7 @@ class LoginMfaService
             || (! is_null($state['otp_hash'] ?? null) && ! is_string($state['otp_hash']))
             || (! is_null($state['authenticator_fingerprint'] ?? null)
                 && ! is_string($state['authenticator_fingerprint']))
+            || ! is_bool($state['sms_fallback'] ?? false)
             || ! is_numeric($state['expires_at'] ?? null)
             || ! is_numeric($state['attempts_remaining'] ?? null)
             || ! is_numeric($state['resend_available_at'] ?? null)
@@ -552,6 +611,7 @@ class LoginMfaService
             'authenticator_fingerprint' => is_string($state['authenticator_fingerprint'] ?? null)
                 ? $state['authenticator_fingerprint']
                 : null,
+            'sms_fallback' => (bool) ($state['sms_fallback'] ?? false),
             'expires_at' => (int) $state['expires_at'],
             'started_at' => is_numeric($state['started_at'] ?? null)
                 ? (int) $state['started_at']

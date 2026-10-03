@@ -389,6 +389,18 @@
             </form>
         @endif
 
+        @if (! $expired && ! $exhausted && $method === \App\Services\LoginMfaService::METHOD_SMS)
+            <form method="POST" action="{{ route($panel->loginMfaEmailRoute()) }}" class="border-t border-neutral-200 pt-5 text-center dark:border-neutral-800">
+                @csrf
+                <p class="text-sm text-neutral-600 dark:text-neutral-400">Not receiving the text message?</p>
+                <button type="submit" data-loading-text="Sending via email..."
+                        class="mt-2 inline-flex min-h-11 items-center justify-center text-sm font-medium text-primary-600 underline-offset-4 hover:text-primary-700 hover:underline focus-visible:rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 dark:text-primary-400 dark:hover:text-primary-300">
+                    Send via email instead
+                </button>
+                <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">We’ll send the code to {{ $maskedEmail }}.</p>
+            </form>
+        @endif
+
         {{-- Single clear return action when active; hidden when verification session is expired --}}
         <div
             x-show="!isAuthenticator || !isExpired"

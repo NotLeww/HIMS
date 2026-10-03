@@ -179,7 +179,9 @@ class LoginMfaController extends Controller
                 ? ($authenticator
                     ? 'Invalid authenticator code. Please try again.'
                     : 'This verification code is invalid.')
-                : ($authenticator || ($result['method'] ?? null) === LoginMfaService::METHOD_SMS
+                : ($authenticator
+                    || ($result['method'] ?? null) === LoginMfaService::METHOD_SMS
+                    || ($result['sms_fallback'] ?? false)
                     ? 'Too many incorrect attempts. Please sign in again.'
                     : 'Too many incorrect attempts. Request a new code.');
 
@@ -202,7 +204,9 @@ class LoginMfaController extends Controller
             );
         }
 
-        if (($result['method'] ?? null) !== LoginMfaService::METHOD_SMS && $result['user']->sms_mfa_enabled) {
+        if (($result['method'] ?? null) !== LoginMfaService::METHOD_SMS
+            && ! ($result['sms_fallback'] ?? false)
+            && $result['user']->sms_mfa_enabled) {
             $status = $sms->begin($request, $result['user'], $panel->guard(), $result['remember'], $throttleKey);
 
             if ($status === SmsOtpDelivery::SENT) {
@@ -328,6 +332,45 @@ class LoginMfaController extends Controller
         }
 
         return back()->with('status', 'A new verification code has been sent.');
+    }
+
+    public function sendViaEmail(Request $request, LoginMfaService $mfa): RedirectResponse
+    {
+        $panel = $this->panel($request);
+        $result = $mfa->switchSmsToEmail($request, $panel->guard());
+
+        if ($result['status'] === LoginMfaService::MISSING) {
+            return redirect()->route($panel->loginRoute())
+                ->withErrors(['email' => 'Your verification session is no longer valid. Please sign in again.']);
+        }
+
+        if ($result['status'] !== LoginMfaService::SUCCESS) {
+            $message = match ($result['status']) {
+                LoginMfaService::EXPIRED => 'This verification code has expired. Please sign in again.',
+                'exhausted' => 'Too many incorrect attempts. Please sign in again.',
+                default => 'Email delivery is only available during SMS verification.',
+            };
+
+            return $result['status'] === 'unsupported'
+                ? back()->withErrors(['otp' => $message])
+                : redirect()->route($panel->loginRoute())->withErrors(['email' => $message]);
+        }
+
+        try {
+            $result['user']->notify(new LoginMfaOtp($result['otp'], $mfa->expiresInMinutes()));
+        } catch (Throwable $exception) {
+            $mfa->clear($request);
+            Log::error('Login MFA email fallback could not be sent.', [
+                'user_id' => $result['user']->getKey(),
+                'guard' => $panel->guard(),
+                'exception' => $exception::class,
+            ]);
+
+            return redirect()->route($panel->loginRoute())
+                ->withErrors(['email' => 'We could not send a verification code. Please try signing in again.']);
+        }
+
+        return back()->with('status', 'A verification code has been sent to your email address.');
     }
 
     public function continueSession(Request $request, LoginMfaService $mfa): JsonResponse|RedirectResponse
