@@ -92,34 +92,57 @@
         {{-- Main Alerts Section (Viewport-Fitting with Internal Scroll) --}}
         <x-ui.card :padding="false">
             <x-slot:header>
-                <div>
-                    <h2 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Live Inventory Attention Queue</h2>
-                    <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Automated reorder triggers and clinical stock surveillance.</p>
+                <div class="flex items-center gap-3">
+                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700 ring-1 ring-primary-100 dark:bg-primary-950/70 dark:text-primary-300 dark:ring-primary-900/70">
+                        <x-ui.icon name="archive-box" class="h-5 w-5" />
+                    </span>
+                    <div class="min-w-0">
+                        <h2 class="text-base font-bold tracking-tight text-neutral-950 sm:text-lg dark:text-white">Live Inventory Attention Queue</h2>
+                        <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Automated monitor triggers and critical stock surveillance.</p>
+                    </div>
                 </div>
             </x-slot:header>
 
             <x-slot:actions>
-                <div class="flex items-center gap-2">
+                <div class="grid w-full gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(16rem,1fr)_minmax(10rem,auto)_minmax(11rem,auto)_auto]">
+                    <label class="relative block sm:col-span-2 xl:col-span-1">
+                        <span class="sr-only">Search inventory alerts</span>
+                        <x-ui.icon name="magnifying-glass" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+                        <input id="alerts-search" type="search" autocomplete="off" placeholder="Search item, category, or code..." class="h-10 w-full rounded-lg border-neutral-300 bg-white pl-9 pr-3 text-xs text-neutral-900 shadow-2xs placeholder:text-neutral-400 focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500" />
+                    </label>
+                    <label class="relative block">
+                        <span class="sr-only">Filter alerts by category</span>
+                        <x-ui.icon name="funnel" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+                        <select id="alerts-category" class="h-10 w-full rounded-lg border-neutral-300 bg-white pl-9 pr-8 text-xs font-medium text-neutral-700 shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                            <option value="all">All Categories</option>
+                        </select>
+                    </label>
+                    <label class="relative block">
+                        <span class="sr-only">Sort inventory alerts</span>
+                        <x-ui.icon name="arrows-right-left" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 rotate-90 text-neutral-400" />
+                        <select id="alerts-priority" class="h-10 w-full rounded-lg border-neutral-300 bg-white pl-9 pr-8 text-xs font-medium text-neutral-700 shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                            <option value="critical">Prioritize: Critical</option>
+                            <option value="shortage">Largest Shortage</option>
+                            <option value="name">Item Name</option>
+                        </select>
+                    </label>
                     <button id="alerts-clear-filter" type="button" hidden class="inline-flex min-h-9 items-center rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-2xs transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 dark:focus-visible:ring-offset-neutral-900">
-                        Show all alerts
+                        Clear card filter
                     </button>
-                    <x-ui.loader id="alerts-api-status" size="sm" label="Scanning stock levels..." class="text-xs text-neutral-500 dark:text-neutral-400" />
+                    <x-ui.loader id="alerts-api-status" size="sm" label="Scanning stock levels..." class="col-span-full text-xs text-neutral-500 dark:text-neutral-400" />
                 </div>
             </x-slot:actions>
 
             {{-- Viewport-Constrained Scrollable Body --}}
-            <div class="p-4 sm:p-5 overflow-y-auto max-h-[calc(100vh-21rem)] min-h-[280px]">
-                <div id="alerts-list" class="grid gap-4 grid-cols-1">
+            <div class="max-h-[calc(100dvh-17rem)] min-h-[360px] overflow-y-auto bg-neutral-50/60 p-4 sm:p-5 dark:bg-neutral-950/30">
+                <div id="alerts-list" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                     {{-- Skeleton Loading Placeholder --}}
-                    <div class="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-800/30 p-4 space-y-3 animate-pulse">
-                        <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-1/4"></div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                            <div class="h-28 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700"></div>
-                            <div class="h-28 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700"></div>
-                            <div class="h-28 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700"></div>
-                            <div class="h-28 bg-white dark:bg-neutral-800 rounded-xl border border-neutral-200 dark:border-neutral-700"></div>
+                    @foreach (range(1, 5) as $placeholder)
+                        <div class="h-52 animate-pulse rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                            <div class="flex gap-3"><div class="h-10 w-10 rounded-xl bg-neutral-200 dark:bg-neutral-800"></div><div class="flex-1 space-y-2"><div class="h-3.5 w-3/4 rounded bg-neutral-200 dark:bg-neutral-800"></div><div class="h-2.5 w-1/2 rounded bg-neutral-100 dark:bg-neutral-800/70"></div></div></div>
+                            <div class="mt-5 grid grid-cols-2 gap-2"><div class="h-16 rounded-lg bg-neutral-100 dark:bg-neutral-800/70"></div><div class="h-16 rounded-lg bg-neutral-100 dark:bg-neutral-800/70"></div></div>
                         </div>
-                    </div>
+                    @endforeach
                 </div>
             </div>
         </x-ui.card>
@@ -451,6 +474,30 @@
                 .replace(/'/g, '&#039;');
         }
 
+        function inventoryItemIcon(item) {
+            const searchable = [item.name, item.generic_name, item.category?.name, item.sku]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+            const icons = [
+                [/(glucose|test strip|diagnostic strip)/, '<path stroke-linecap="round" stroke-linejoin="round" d="M9 3.75h6m-5.25 0v4.1l-3.4 8.48A2.85 2.85 0 0 0 9 20.25h6a2.85 2.85 0 0 0 2.65-3.92l-3.4-8.48v-4.1M8.2 13.5h7.6" />'],
+                [/(syringe|needle)/, '<path stroke-linecap="round" stroke-linejoin="round" d="m14.25 5.25 4.5 4.5m-10.5 6 7.5-7.5m-9 5.25 3.75 3.75m-5.25.75 2.25 2.25m-3.75 0 6-6m5.25-9 1.5-1.5 3.75 3.75-1.5 1.5" />'],
+                [/(iv cannula|cannula|infusion|saline|iv fluid)/, '<path stroke-linecap="round" stroke-linejoin="round" d="M9 3.75h6m-5.25 0v2.5L7.5 9v9.75a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5V9l-2.25-2.75v-2.5M7.5 11.25h9m-4.5 3v3" />'],
+                [/(ampoule|vial|injectable|dopamine|ceftriaxone)/, '<path stroke-linecap="round" stroke-linejoin="round" d="M9 3.75h6m-5.25 0v3l-1.5 2.5v9.5a1.5 1.5 0 0 0 1.5 1.5h4.5a1.5 1.5 0 0 0 1.5-1.5v-9.5l-1.5-2.5v-3M8.25 12h7.5" />'],
+                [/(alcohol|antiseptic|disinfectant|bottle)/, '<path stroke-linecap="round" stroke-linejoin="round" d="M9 3.75h6v3H9v-3Zm.75 3h4.5l1.5 2.25v9.75a1.5 1.5 0 0 1-1.5 1.5h-4.5a1.5 1.5 0 0 1-1.5-1.5V9l1.5-2.25ZM9 12h6" />'],
+                [/(suture|stitch)/, '<path stroke-linecap="round" stroke-linejoin="round" d="M5.25 18.75c4.5 0 3.75-6 7.5-6 2.25 0 3.75 1.5 3.75 3.75m-7.5-9c3-3 7.5-3.75 9.75-2.25-1.5 3.75-5.25 6-9 5.25L6 14.25" />'],
+                [/(mask|respirator)/, '<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 9.25c3.5-2 7-2 10.5 0v6.5c-3.5 2-7 2-10.5 0v-6.5ZM6.75 10.5 3.75 9v6l3-1.5m10.5-3 3-1.5v6l-3-1.5M9 11.25h6M9 14.25h6" />'],
+                [/(glove|hand)/, '<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 11.25V5.5a1.25 1.25 0 0 1 2.5 0v4-6a1.25 1.25 0 0 1 2.5 0v6-5a1.25 1.25 0 0 1 2.5 0v6-3.25a1.25 1.25 0 0 1 2.5 0v6c0 4-2.25 7-6 7-2.75 0-4.25-1.5-5.5-3.5l-2-3.25a1.4 1.4 0 0 1 2.25-1.65l1.25 1.4Z" />'],
+                [/(electrode|ecg|monitor)/, '<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 5.25h15a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 15.75v-9a1.5 1.5 0 0 1 1.5-1.5Zm1.5 6h3l1.5-3 3 6 1.5-3h3" />'],
+                [/(catheter|tube)/, '<path stroke-linecap="round" stroke-linejoin="round" d="M7.5 18.75c-2.25-1.5-3-4.5-1.5-7.5l2.25-4.5c1.5-3 5.25-3.75 7.5-1.5s1.5 6-1.5 7.5l-2.25 1.1a3 3 0 0 0-1.5 3.65v2.75m0 0h3" />'],
+                [/(gauze|dressing|bandage|pad)/, '<path stroke-linecap="round" stroke-linejoin="round" d="M6 4.5h12A1.5 1.5 0 0 1 19.5 6v12a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V6A1.5 1.5 0 0 1 6 4.5Zm3 4.5h6v6H9V9Z" />'],
+            ];
+            const paths = icons.find(([pattern]) => pattern.test(searchable))?.[1]
+                ?? '<path stroke-linecap="round" stroke-linejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />';
+
+            return `<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" aria-hidden="true">${paths}</svg>`;
+        }
+
         let activeAlertFilter = 'all';
 
         const alertFilterLabels = {
@@ -491,38 +538,46 @@
             const container = document.getElementById('alerts-list');
             if (!container) return;
 
+            const searchTerm = document.getElementById('alerts-search')?.value.trim().toLowerCase() || '';
+            const category = document.getElementById('alerts-category')?.value || 'all';
+            const priority = document.getElementById('alerts-priority')?.value || 'critical';
             const itemCards = Array.from(container.querySelectorAll('[data-alert-kind]'));
+
             itemCards.forEach(card => {
-                setAlertVisibility(card, activeAlertFilter === 'all' || card.dataset.alertKind === activeAlertFilter);
+                const matchesCard = activeAlertFilter === 'all' || card.dataset.alertKind === activeAlertFilter;
+                const matchesSearch = !searchTerm || card.dataset.alertSearch?.includes(searchTerm);
+                const matchesCategory = category === 'all' || card.dataset.alertCategory === category;
+                setAlertVisibility(card, matchesCard && matchesSearch && matchesCategory);
             });
 
-            let visibleCount = 0;
-            container.querySelectorAll('[data-alert-section]').forEach(section => {
-                const sectionCards = Array.from(section.querySelectorAll('[data-alert-kind]'));
-                const sectionVisibleCount = sectionCards.filter(card => !card.hidden).length;
-                setAlertVisibility(section, activeAlertFilter === 'all' || sectionVisibleCount > 0);
-                visibleCount += sectionVisibleCount;
-                section.querySelectorAll('[data-alert-visible-count]').forEach(count => {
-                    count.textContent = sectionVisibleCount.toLocaleString();
-                });
+            itemCards.sort((a, b) => {
+                if (priority === 'name') return a.dataset.alertName.localeCompare(b.dataset.alertName);
+                if (priority === 'shortage') return Number(b.dataset.alertDeficit) - Number(a.dataset.alertDeficit);
+
+                return Number(a.dataset.alertPriority) - Number(b.dataset.alertPriority)
+                    || a.dataset.alertName.localeCompare(b.dataset.alertName);
             });
+            itemCards.forEach(card => container.append(card));
 
             container.querySelector('[data-alert-filter-empty]')?.remove();
             const allEmptyState = container.querySelector('[data-alert-empty-all]');
-            if (allEmptyState) setAlertVisibility(allEmptyState, activeAlertFilter === 'all');
+            const hasActiveControls = activeAlertFilter !== 'all' || searchTerm !== '' || category !== 'all';
+            if (allEmptyState) setAlertVisibility(allEmptyState, !hasActiveControls);
 
-            if (activeAlertFilter !== 'all' && visibleCount === 0) {
+            if (hasActiveControls && !itemCards.some(card => !card.hidden)) {
                 const emptyState = document.createElement('div');
                 emptyState.dataset.alertFilterEmpty = '';
-                emptyState.className = 'rounded-xl border border-dashed border-neutral-300 bg-neutral-50/60 p-8 text-center dark:border-neutral-700 dark:bg-neutral-800/30';
+                emptyState.className = 'col-span-full rounded-xl border border-dashed border-neutral-300 bg-white p-8 text-center dark:border-neutral-700 dark:bg-neutral-900';
 
                 const title = document.createElement('p');
                 title.className = 'text-sm font-semibold text-neutral-800 dark:text-neutral-200';
-                title.textContent = `No ${alertFilterLabels[activeAlertFilter]} found`;
+                title.textContent = activeAlertFilter === 'all'
+                    ? 'No matching inventory alerts found'
+                    : `No matching ${alertFilterLabels[activeAlertFilter]} found`;
 
                 const message = document.createElement('p');
                 message.className = 'mt-1 text-xs text-neutral-500 dark:text-neutral-400';
-                message.textContent = 'Select Show all alerts to return to the complete attention queue.';
+                message.textContent = 'Adjust the search or filters to return to the attention queue.';
                 emptyState.append(title, message);
                 container.append(emptyState);
             }
@@ -548,6 +603,10 @@
                 activeAlertFilter = 'all';
                 applyAlertFilter();
             });
+
+            document.getElementById('alerts-search')?.addEventListener('input', applyAlertFilter);
+            document.getElementById('alerts-category')?.addEventListener('change', applyAlertFilter);
+            document.getElementById('alerts-priority')?.addEventListener('change', applyAlertFilter);
         }
 
         async function fetchAllInventoryItems() {
@@ -663,10 +722,22 @@
                 if (statExpiring) statExpiring.textContent = expiringSoon.length.toLocaleString();
                 if (statExpired) statExpired.textContent = expired.length.toLocaleString();
 
+                const categoryFilter = document.getElementById('alerts-category');
+                if (categoryFilter) {
+                    const categories = [...new Set(
+                        [...allLowOrOut, ...expiringSoon, ...expired]
+                            .map(item => item.category?.name)
+                            .filter(Boolean)
+                    )].sort((a, b) => a.localeCompare(b));
+
+                    categoryFilter.replaceChildren(new Option('All Categories', 'all'));
+                    categories.forEach(category => categoryFilter.add(new Option(category, category)));
+                }
+
                 if (allLowOrOut.length === 0 && expiringSoon.length === 0 && expired.length === 0) {
-                    container.className = 'w-full';
+                    container.className = 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5';
                     container.innerHTML = `
-                        <div data-alert-empty-all class="rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50/60 dark:bg-neutral-800/30 p-8 text-center">
+                        <div data-alert-empty-all class="col-span-full rounded-xl border border-dashed border-neutral-300 bg-white p-8 text-center dark:border-neutral-700 dark:bg-neutral-900">
                             <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 mb-3">
                                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -681,34 +752,10 @@
                     const hasLowStock = allLowOrOut.length > 0;
                     const hasExpiring = expiringSoon.length > 0;
                     const hasExpired = expired.length > 0;
-                    const isSingleCategory = [hasLowStock, hasExpiring, hasExpired].filter(Boolean).length === 1;
-                    const itemsGridClass = isSingleCategory
-                        ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3'
-                        : 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3';
-
                     // 1. Low Stock & Depleted Inventory Card
                     if (hasLowStock) {
                         cards.push(`
-                            <div data-alert-section="stock" class="${isSingleCategory ? 'col-span-1' : ''} rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/20 p-4 sm:p-5 shadow-2xs">
-                                <div class="flex items-center justify-between pb-3 border-b border-rose-200/70 dark:border-rose-900/40">
-                                    <div class="flex items-center gap-2.5">
-                                        <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-300 ring-1 ring-rose-200 dark:ring-rose-800/50">
-                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                            </svg>
-                                        </span>
-                                        <div>
-                                            <h3 class="text-xs sm:text-sm font-bold text-rose-900 dark:text-rose-200">Reorder &amp; Low Stock Triggers</h3>
-                                            <p class="text-[11px] text-rose-700 dark:text-rose-300"><span data-alert-visible-count>${allLowOrOut.length}</span> item(s) require replenishment</p>
-                                        </div>
-                                    </div>
-                                    <span class="inline-flex items-center gap-1.5 rounded-full bg-rose-100 dark:bg-rose-900/70 px-2.5 py-1 text-xs font-bold text-rose-800 dark:text-rose-200 tabular-nums">
-                                        <span class="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                                        <span data-alert-visible-count>${allLowOrOut.length}</span> alerts
-                                    </span>
-                                </div>
-                                <div class="mt-3.5 ${itemsGridClass}">
-                                    ${allLowOrOut.map(item => {
+                            ${allLowOrOut.map(item => {
                                         const qty = parseInt(item.quantity_on_hand, 10) || 0;
                                         const reorder = parseInt(item.reorder_level || item.reorder_point || 0, 10);
                                         const isOut = qty <= 0;
@@ -716,45 +763,46 @@
                                         const unitText = item.unit ? escapeHtml(item.unit) : 'units';
                                         const skuText = item.sku ? escapeHtml(item.sku) : 'No SKU';
                                         const categoryText = item.category?.name ? escapeHtml(item.category.name) : '';
-                                        const itemTarget = item.sku || item.name || '';
-                                        const itemUrl = itemTarget ? `/inventory/items?search=${encodeURIComponent(itemTarget)}` : '/inventory/items';
-
+                                        const searchText = [item.name, item.generic_name, item.sku, item.category?.name].filter(Boolean).join(' ').toLowerCase();
                                         const badgeClass = isOut 
                                             ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 ring-rose-200 dark:ring-rose-800/60' 
                                             : 'bg-amber-100 text-amber-700 dark:bg-amber-950/80 dark:text-amber-300 ring-amber-200 dark:ring-amber-800/60';
                                         const dotClass = isOut ? 'bg-rose-500' : 'bg-amber-500';
                                         const badgeLabel = isOut ? 'OUT OF STOCK' : 'LOW STOCK';
-                                        const borderAccent = isOut ? 'border-l-rose-500' : 'border-l-amber-500';
-
                                         return `
-                                            <div data-alert-kind="${isOut ? 'out_of_stock' : 'low_stock'}" class="rounded-xl bg-white dark:bg-neutral-900 p-3.5 shadow-2xs border border-neutral-200/90 dark:border-neutral-800 border-l-4 ${borderAccent} hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-xs transition-all flex flex-col justify-between">
+                                            <article data-alert-kind="${isOut ? 'out_of_stock' : 'low_stock'}" data-alert-category="${categoryText || 'Uncategorized'}" data-alert-search="${escapeHtml(searchText)}" data-alert-name="${escapeHtml((item.name || '').toLowerCase())}" data-alert-priority="${isOut ? 0 : 3}" data-alert-deficit="${deficit}" class="group flex min-w-0 flex-col justify-between rounded-xl border ${isOut ? 'border-rose-200 bg-rose-50/35 dark:border-rose-900/60 dark:bg-rose-950/15' : 'border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900'} p-4 shadow-xs transition-[border-color,box-shadow,transform] motion-safe:duration-150 hover:-translate-y-0.5 ${isOut ? 'hover:border-rose-300 dark:hover:border-rose-800' : 'hover:border-amber-300 dark:hover:border-amber-800'} hover:shadow-md">
                                                 <div>
                                                     <div class="flex items-start justify-between gap-2">
+                                                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isOut ? 'bg-rose-50 text-rose-600 ring-rose-100 dark:bg-rose-950/70 dark:text-rose-300 dark:ring-rose-900/70' : 'bg-amber-50 text-amber-600 ring-amber-100 dark:bg-amber-950/70 dark:text-amber-300 dark:ring-amber-900/70'} ring-1">
+                                                            ${inventoryItemIcon(item)}
+                                                        </span>
                                                         <div class="min-w-0 flex-1">
-                                                            <h4 class="font-bold text-xs text-neutral-900 dark:text-neutral-100 line-clamp-2 leading-snug" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</h4>
-                                                            <p class="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 mt-0.5 truncate">${skuText}${categoryText ? ' · ' + categoryText : ''}</p>
+                                                            <h4 class="line-clamp-2 min-h-8 break-words text-xs font-bold leading-snug text-neutral-900 dark:text-neutral-100" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</h4>
                                                         </div>
                                                         <span class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset ${badgeClass}">
                                                             <span class="h-1.5 w-1.5 rounded-full ${dotClass} ${isOut ? 'animate-pulse' : ''}"></span>
                                                             ${badgeLabel}
                                                         </span>
                                                     </div>
+                                                    <p class="mt-2 line-clamp-2 min-h-8 break-words text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400" title="${skuText}${categoryText ? ' · ' + categoryText : ''}">
+                                                        <span class="font-mono">${skuText}</span>${categoryText ? ' · ' + categoryText : ''}
+                                                    </p>
 
-                                                    <div class="mt-2.5 grid grid-cols-2 gap-1.5 rounded-lg bg-neutral-50/90 dark:bg-neutral-800/50 p-1.5 text-center text-xs">
-                                                        <div class="rounded-md bg-white dark:bg-neutral-900 py-1.5 px-2 border border-neutral-100 dark:border-neutral-700/60">
+                                                    <div class="mt-4 grid grid-cols-2 gap-2 text-center text-xs">
+                                                        <div class="rounded-lg border border-neutral-200/80 bg-white px-2.5 py-2 shadow-2xs dark:border-neutral-700/70 dark:bg-neutral-900">
                                                             <span class="block text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">On Hand</span>
-                                                            <span class="text-sm font-black tabular-nums ${isOut ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'}">${escapeHtml(item.quantity_on_hand)} <span class="text-[10px] font-normal text-neutral-400">${unitText}</span></span>
+                                                            <span class="text-lg font-black tabular-nums ${isOut ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'}">${escapeHtml(item.quantity_on_hand)} <span class="text-[10px] font-normal text-neutral-400">${unitText}</span></span>
                                                         </div>
-                                                        <div class="rounded-md bg-white dark:bg-neutral-900 py-1.5 px-2 border border-neutral-100 dark:border-neutral-700/60">
+                                                        <div class="rounded-lg border border-neutral-200/80 bg-white px-2.5 py-2 shadow-2xs dark:border-neutral-700/70 dark:bg-neutral-900">
                                                             <span class="block text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Reorder At</span>
-                                                            <span class="text-sm font-bold tabular-nums text-neutral-800 dark:text-neutral-200">${reorder} <span class="text-[10px] font-normal text-neutral-400">${unitText}</span></span>
+                                                            <span class="text-lg font-black tabular-nums text-neutral-950 dark:text-white">${reorder} <span class="text-[10px] font-normal text-neutral-400">${unitText}</span></span>
                                                         </div>
                                                     </div>
                                                 </div>
 
                                                 <div class="mt-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-[11px]">
                                                     <span class="font-medium ${isOut ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'}">
-                                                        ${isOut ? 'Depleted stock' : (deficit > 0 ? `Deficit: -${deficit} ${unitText}` : 'At threshold')}
+                                                        ${isOut ? 'Depleted stock' : (deficit > 0 ? `Deficit: ${deficit} ${unitText}` : 'At threshold')}
                                                     </span>
                                                     <button type="button" onclick="window.__openItemManageModal('${escapeHtml(item.id)}', '${isOut ? 'out_of_stock' : 'low_stock'}')" class="font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:underline inline-flex items-center gap-0.5 text-[11px] cursor-pointer" title="Manage alert details">
                                                         Manage
@@ -763,67 +811,49 @@
                                                         </svg>
                                                     </button>
                                                 </div>
-                                            </div>
+                                            </article>
                                         `;
-                                    }).join('')}
-                                </div>
-                            </div>
+                            }).join('')}
                         `);
                     }
 
                     // 2. Active Expiring Inventory Card
                     if (hasExpiring) {
                         cards.push(`
-                            <div data-alert-section="expiring_soon" class="${isSingleCategory ? 'col-span-1' : ''} rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/40 dark:bg-indigo-950/20 p-4 sm:p-5 shadow-2xs">
-                                <div class="flex items-center justify-between pb-3 border-b border-indigo-200/70 dark:border-indigo-900/40">
-                                    <div class="flex items-center gap-2.5">
-                                        <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-800/50">
-                                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                            </svg>
-                                        </span>
-                                        <div>
-                                            <h3 class="text-xs sm:text-sm font-bold text-indigo-900 dark:text-indigo-200">Expiring Soon Inventory</h3>
-                                            <p class="text-[11px] text-indigo-700 dark:text-indigo-300"><span data-alert-visible-count>${expiringSoon.length}</span> batch(es) with 1&ndash;90 days remaining</p>
-                                        </div>
-                                    </div>
-                                    <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 dark:bg-indigo-900/70 px-2.5 py-1 text-xs font-bold text-indigo-800 dark:text-indigo-200 tabular-nums">
-                                        <span class="h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
-                                        <span data-alert-visible-count>${expiringSoon.length}</span> batches
-                                    </span>
-                                </div>
-                                <div class="mt-3.5 ${itemsGridClass}">
-                                    ${expiringSoon.map(item => {
-                                        const qty = parseInt(item.quantity_on_hand, 10) || 0;
+                            ${expiringSoon.map(item => {
                                         const unitText = item.unit ? escapeHtml(item.unit) : 'units';
                                         const skuText = item.sku ? escapeHtml(item.sku) : 'No SKU';
                                         const categoryText = item.category?.name ? escapeHtml(item.category.name) : '';
-                                        const itemTarget = item.sku || item.name || '';
-                                        const itemUrl = itemTarget ? `/inventory/items?search=${encodeURIComponent(itemTarget)}` : '/inventory/items';
+                                        const searchText = [item.name, item.generic_name, item.sku, item.category?.name, item.batch_number].filter(Boolean).join(' ').toLowerCase();
                                         const daysLeft = item.days_remaining;
                                         const daysLabel = item.expiry_status_label || 'Expiring Soon';
                                         const isCritical = item.expiry_status === 'critical';
 
                                         return `
-                                            <div data-alert-kind="expiring_soon" class="rounded-xl bg-white dark:bg-neutral-900 p-3.5 shadow-2xs border border-neutral-200/90 dark:border-neutral-800 border-l-4 border-l-indigo-500 hover:border-neutral-300 dark:hover:border-neutral-700 hover:shadow-xs transition-all flex flex-col justify-between">
+                                            <article data-alert-kind="expiring_soon" data-alert-category="${categoryText || 'Uncategorized'}" data-alert-search="${escapeHtml(searchText)}" data-alert-name="${escapeHtml((item.name || '').toLowerCase())}" data-alert-priority="${isCritical ? 2 : 4}" data-alert-deficit="0" class="group flex min-w-0 flex-col justify-between rounded-xl border border-neutral-200 bg-white p-4 shadow-xs transition-[border-color,box-shadow,transform] motion-safe:duration-150 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-indigo-800">
                                                 <div>
                                                     <div class="flex items-start justify-between gap-2">
+                                                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isCritical ? 'bg-rose-50 text-rose-600 ring-rose-100 dark:bg-rose-950/40 dark:text-rose-400 dark:ring-rose-900/60' : 'bg-indigo-50 text-indigo-600 ring-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400 dark:ring-indigo-900/60'} ring-1">
+                                                            ${inventoryItemIcon(item)}
+                                                        </span>
                                                         <div class="min-w-0 flex-1">
-                                                            <h4 class="font-bold text-xs text-neutral-900 dark:text-neutral-100 line-clamp-2 leading-snug" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</h4>
-                                                            <p class="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 mt-0.5 truncate">${skuText}${categoryText ? ' · ' + categoryText : ''}</p>
+                                                            <h4 class="line-clamp-2 min-h-8 break-words text-xs font-bold leading-snug text-neutral-900 dark:text-neutral-100" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</h4>
                                                         </div>
                                                         <span class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset ${isCritical ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 ring-rose-200 dark:ring-rose-800/60' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300 ring-indigo-200 dark:ring-indigo-800/60'}">
                                                             <span class="h-1.5 w-1.5 rounded-full ${isCritical ? 'bg-rose-500 animate-pulse' : 'bg-indigo-500'}"></span>
                                                             ${escapeHtml(daysLabel)} · ${daysLeft}d
                                                         </span>
                                                     </div>
+                                                    <p class="mt-2 line-clamp-2 min-h-8 break-words text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400" title="${skuText}${categoryText ? ' · ' + categoryText : ''}">
+                                                        <span class="font-mono">${skuText}</span>${categoryText ? ' · ' + categoryText : ''}
+                                                    </p>
 
-                                                    <div class="mt-2.5 grid grid-cols-2 gap-1.5 rounded-lg bg-neutral-50/90 dark:bg-neutral-800/50 p-1.5 text-center text-xs">
-                                                        <div class="rounded-md bg-white dark:bg-neutral-900 py-1.5 px-2 border border-neutral-100 dark:border-neutral-700/60">
+                                                    <div class="mt-4 grid grid-cols-2 gap-2 text-center text-xs">
+                                                        <div class="rounded-lg border border-neutral-100 bg-neutral-50/70 px-2 py-2.5 shadow-xs dark:border-neutral-800 dark:bg-neutral-950/40">
                                                             <span class="block text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">On Hand</span>
-                                                            <span class="text-sm font-black tabular-nums text-neutral-800 dark:text-neutral-200">${escapeHtml(item.quantity_on_hand)} <span class="text-[10px] font-normal text-neutral-400">${unitText}</span></span>
+                                                            <span class="text-lg font-black tabular-nums text-neutral-900 dark:text-neutral-100">${escapeHtml(item.quantity_on_hand)} <span class="text-[10px] font-normal text-neutral-400">${unitText}</span></span>
                                                         </div>
-                                                        <div class="rounded-md bg-white dark:bg-neutral-900 py-1.5 px-2 border border-neutral-100 dark:border-neutral-700/60">
+                                                        <div class="rounded-lg border border-neutral-100 bg-neutral-50/70 px-2 py-2.5 shadow-xs dark:border-neutral-800 dark:bg-neutral-950/40">
                                                             <span class="block text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Expiry Date</span>
                                                             <span class="text-sm font-bold tabular-nums text-indigo-600 dark:text-indigo-400">${escapeHtml(item.expiry_date || 'N/A')}</span>
                                                         </div>
@@ -841,55 +871,46 @@
                                                         </svg>
                                                     </button>
                                                 </div>
-                                            </div>
+                                            </article>
                                         `;
-                                    }).join('')}
-                                </div>
-                            </div>
+                            }).join('')}
                         `);
                     }
 
                     // 3. Expired Inventory Card
                     if (hasExpired) {
                         cards.push(`
-                            <div data-alert-section="expired" class="${isSingleCategory ? 'col-span-1' : ''} rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/20 p-4 sm:p-5 shadow-2xs">
-                                <div class="flex items-center justify-between pb-3 border-b border-rose-200/70 dark:border-rose-900/40">
-                                    <div>
-                                        <h3 class="text-xs sm:text-sm font-bold text-rose-900 dark:text-rose-200">Expired Inventory</h3>
-                                        <p class="text-[11px] text-rose-700 dark:text-rose-300">0 days remaining or past due</p>
-                                    </div>
-                                    <span class="inline-flex items-center gap-1.5 rounded-full bg-rose-100 dark:bg-rose-900/70 px-2.5 py-1 text-xs font-bold text-rose-800 dark:text-rose-200 tabular-nums">
-                                        <span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
-                                        <span data-alert-visible-count>${expired.length}</span> batches
-                                    </span>
-                                </div>
-                                <div class="mt-3.5 ${itemsGridClass}">
-                                    ${expired.map(item => {
+                            ${expired.map(item => {
                                         const unitText = item.unit ? escapeHtml(item.unit) : 'units';
                                         const skuText = item.sku ? escapeHtml(item.sku) : 'No SKU';
-                                        const itemTarget = item.sku || item.name || '';
-                                        const itemUrl = itemTarget ? `/inventory/items?search=${encodeURIComponent(itemTarget)}` : '/inventory/items';
+                                        const categoryText = item.category?.name ? escapeHtml(item.category.name) : '';
+                                        const searchText = [item.name, item.generic_name, item.sku, item.category?.name, item.batch_number].filter(Boolean).join(' ').toLowerCase();
                                         const elapsedLabel = item.days_remaining === 0 ? 'Expired today' : `${Math.abs(item.days_remaining)}d overdue`;
 
                                         return `
-                                            <div data-alert-kind="expired" class="rounded-xl bg-white dark:bg-neutral-900 p-3.5 shadow-2xs border border-neutral-200/90 dark:border-neutral-800 border-l-4 border-l-rose-500 flex flex-col justify-between">
+                                            <article data-alert-kind="expired" data-alert-category="${categoryText || 'Uncategorized'}" data-alert-search="${escapeHtml(searchText)}" data-alert-name="${escapeHtml((item.name || '').toLowerCase())}" data-alert-priority="1" data-alert-deficit="0" class="group flex min-w-0 flex-col justify-between rounded-xl border border-rose-200 bg-rose-50/35 p-4 shadow-xs transition-[border-color,box-shadow,transform] motion-safe:duration-150 hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-md dark:border-rose-900/60 dark:bg-rose-950/15 dark:hover:border-rose-800">
                                                 <div>
                                                     <div class="flex items-start justify-between gap-2">
+                                                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 ring-1 ring-rose-100 dark:bg-rose-950/40 dark:text-rose-400 dark:ring-rose-900/60">
+                                                            ${inventoryItemIcon(item)}
+                                                        </span>
                                                         <div class="min-w-0 flex-1">
-                                                            <h4 class="font-bold text-xs text-neutral-900 dark:text-neutral-100 line-clamp-2 leading-snug">${escapeHtml(item.name)}</h4>
-                                                            <p class="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 mt-0.5 truncate">${skuText} &middot; Batch ${escapeHtml(item.batch_number || 'Default')}</p>
+                                                            <h4 class="line-clamp-2 min-h-8 break-words text-xs font-bold leading-snug text-neutral-900 dark:text-neutral-100" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</h4>
                                                         </div>
                                                         <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset ring-rose-200 dark:ring-rose-800/60">
                                                             <span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
                                                             EXPIRED
                                                         </span>
                                                     </div>
-                                                    <div class="mt-2.5 grid grid-cols-2 gap-1.5 rounded-lg bg-neutral-50/90 dark:bg-neutral-800/50 p-1.5 text-center text-xs">
-                                                        <div class="rounded-md bg-white dark:bg-neutral-900 py-1.5 px-2 border border-neutral-100 dark:border-neutral-700/60">
+                                                    <p class="mt-2 line-clamp-2 min-h-8 break-words text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400" title="${skuText} · Batch ${escapeHtml(item.batch_number || 'Default')}">
+                                                        <span class="font-mono">${skuText}</span> · Batch ${escapeHtml(item.batch_number || 'Default')}
+                                                    </p>
+                                                    <div class="mt-4 grid grid-cols-2 gap-2 text-center text-xs">
+                                                        <div class="rounded-lg border border-rose-100 bg-white/80 px-2 py-2.5 shadow-xs dark:border-rose-900/40 dark:bg-neutral-950/40">
                                                             <span class="block text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">On Hand</span>
-                                                            <span class="text-sm font-black tabular-nums text-neutral-800 dark:text-neutral-200">${escapeHtml(item.quantity_on_hand)} <span class="text-[10px] font-normal text-neutral-400">${unitText}</span></span>
+                                                            <span class="text-lg font-black tabular-nums text-rose-600 dark:text-rose-400">${escapeHtml(item.quantity_on_hand)} <span class="text-[10px] font-normal text-neutral-400">${unitText}</span></span>
                                                         </div>
-                                                        <div class="rounded-md bg-white dark:bg-neutral-900 py-1.5 px-2 border border-neutral-100 dark:border-neutral-700/60">
+                                                        <div class="rounded-lg border border-rose-100 bg-white/80 px-2 py-2.5 shadow-xs dark:border-rose-900/40 dark:bg-neutral-950/40">
                                                             <span class="block text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Expiry Date</span>
                                                             <span class="text-sm font-bold tabular-nums text-rose-600 dark:text-rose-400">${escapeHtml(item.expiry_date || 'N/A')}</span>
                                                         </div>
@@ -897,17 +918,20 @@
                                                 </div>
                                                 <div class="mt-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between text-[11px]">
                                                     <span class="font-semibold text-rose-600 dark:text-rose-400">${elapsedLabel}</span>
-                                                    <a href="${itemUrl}" class="font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:underline">View Item</a>
+                                                    <button type="button" onclick="window.__openItemManageModal('${escapeHtml(item._alert_key)}', 'near_expiry')" class="inline-flex cursor-pointer items-center gap-0.5 font-semibold text-primary-600 hover:text-primary-700 hover:underline dark:text-primary-400 dark:hover:text-primary-300" title="Manage alert details">
+                                                        Manage
+                                                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                                        </svg>
+                                                    </button>
                                                 </div>
-                                            </div>
+                                            </article>
                                         `;
-                                    }).join('')}
-                                </div>
-                            </div>
+                            }).join('')}
                         `);
                     }
 
-                    container.className = isSingleCategory ? 'grid gap-4 grid-cols-1' : 'grid gap-4 lg:grid-cols-2';
+                    container.className = 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5';
                     container.innerHTML = cards.join('');
                 }
 
