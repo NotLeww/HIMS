@@ -1030,17 +1030,29 @@
                         </x-ui.table.head>
                         <tbody>
                             @forelse ($valuationByCategory as $row)
+                                @php
+                                    $categoryShare = $summary['stock_value'] > 0
+                                        ? round(($row->value / $summary['stock_value']) * 100)
+                                        : null;
+                                @endphp
                                 <x-ui.table.row>
                                     <x-ui.table.td muted class="px-3 py-2.5 text-xs">{{ $loop->iteration }}</x-ui.table.td>
-                                    <x-ui.table.td class="px-3 py-2.5 font-medium text-neutral-900">{{ $row->category }}</x-ui.table.td>
-                                    <x-ui.table.td numeric muted class="px-3 py-2.5">{{ number_format($row->items) }}</x-ui.table.td>
-                                    <x-ui.table.td numeric muted class="px-3 py-2.5">{{ number_format($row->units) }}</x-ui.table.td>
+                                    <x-ui.table.td class="px-3 py-2.5 text-xs font-medium text-neutral-900 dark:text-neutral-100">{{ $row->category }}</x-ui.table.td>
+                                    <x-ui.table.td numeric muted class="px-3 py-2.5 text-xs">{{ number_format($row->items) }}</x-ui.table.td>
+                                    <x-ui.table.td numeric muted class="px-3 py-2.5 text-xs">{{ number_format($row->units) }}</x-ui.table.td>
                                     @if ($canViewFinancialData)
-                                        <x-ui.table.td numeric class="px-3 py-2.5 font-medium">₱{{ number_format($row->value, 2) }}</x-ui.table.td>
-                                        <x-ui.table.td numeric muted class="px-3 py-2.5">
-                                            {{ $summary['stock_value'] > 0
-                                                ? round(($row->value / $summary['stock_value']) * 100).'%'
-                                                : '—' }}
+                                        <x-ui.table.td numeric class="px-3 py-2.5 text-xs font-semibold">₱{{ number_format($row->value, 2) }}</x-ui.table.td>
+                                        <x-ui.table.td numeric muted class="px-3 py-2.5 text-xs">
+                                            @if ($categoryShare === null)
+                                                —
+                                            @else
+                                                <span class="inline-flex min-w-[7.5rem] items-center justify-end gap-2.5">
+                                                    <span>{{ $categoryShare }}%</span>
+                                                    <span class="h-1.5 w-20 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" aria-hidden="true">
+                                                        <span class="block h-full rounded-full bg-primary-500" style="width: {{ $categoryShare }}%"></span>
+                                                    </span>
+                                                </span>
+                                            @endif
                                         </x-ui.table.td>
                                     @endif
                                 </x-ui.table.row>
@@ -1052,6 +1064,19 @@
                                     message="Add inventory items and the valuation fills in." />
                             @endforelse
                         </tbody>
+                        @if ($valuationByCategory->isNotEmpty())
+                            <tfoot>
+                                <tr class="border-t border-neutral-200 bg-neutral-50 font-semibold text-neutral-900 dark:border-neutral-800 dark:bg-neutral-800/60 dark:text-neutral-100">
+                                    <td colspan="2" class="px-3 py-3 text-xs">Total</td>
+                                    <td class="px-3 py-3 text-right text-xs tabular-nums">{{ number_format($summary['items']) }}</td>
+                                    <td class="px-3 py-3 text-right text-xs tabular-nums">{{ number_format($summary['units_on_hand']) }}</td>
+                                    @if ($canViewFinancialData)
+                                        <td class="px-3 py-3 text-right text-xs tabular-nums">₱{{ number_format($summary['stock_value'], 2) }}</td>
+                                        <td class="px-3 py-3 text-right text-xs tabular-nums">100%</td>
+                                    @endif
+                                </tr>
+                            </tfoot>
+                        @endif
                     </x-ui.table>
                 </x-ui.card>
 
@@ -1085,29 +1110,39 @@
                             @forelse ($stockByLocation as $row)
                                 <x-ui.table.row>
                                     <x-ui.table.td muted class="px-3 py-2.5 text-xs">{{ $loop->iteration }}</x-ui.table.td>
-                                    <x-ui.table.td class="px-3 py-2.5">
-                                        <span class="font-medium text-neutral-900">{{ $row['location'] }}</span>
+                                    <x-ui.table.td class="px-3 py-2.5 text-xs">
+                                        <span class="font-medium text-neutral-900 dark:text-neutral-100">{{ $row['location'] }}</span>
                                         @if ($row['code'])
-                                            <span class="block text-xs text-neutral-500 font-mono">{{ $row['code'] }}</span>
+                                            <span class="mt-0.5 block font-mono text-[10px] leading-tight text-neutral-500 dark:text-neutral-400">{{ $row['code'] }}</span>
                                         @endif
                                     </x-ui.table.td>
-                                    <x-ui.table.td numeric muted class="px-3 py-2.5">{{ number_format($row['items']) }}</x-ui.table.td>
-                                    <x-ui.table.td numeric class="px-3 py-2.5 font-medium">{{ number_format($row['units']) }}</x-ui.table.td>
+                                    <x-ui.table.td numeric muted class="px-3 py-2.5 text-xs">{{ number_format($row['items']) }}</x-ui.table.td>
+                                    <x-ui.table.td numeric class="px-3 py-2.5 text-xs font-semibold">{{ number_format($row['units']) }}</x-ui.table.td>
                                     @if ($canViewFinancialData)
-                                        <x-ui.table.td numeric muted class="px-3 py-2.5">₱{{ number_format($row['value'], 2) }}</x-ui.table.td>
+                                        <x-ui.table.td numeric muted class="px-3 py-2.5 text-xs">₱{{ number_format($row['value'], 2) }}</x-ui.table.td>
                                     @endif
-                                    <x-ui.table.td numeric class="px-3 py-2.5">
+                                    <x-ui.table.td numeric class="px-3 py-2.5 text-xs">
                                         @if ($row['utilisation'] === null)
                                             <span class="text-neutral-400">—</span>
                                         @else
-                                            <span @class([
-                                                'font-semibold',
-                                                'text-danger-700' => $row['utilisation'] >= 90,
-                                                'text-warning-700' => $row['utilisation'] >= 75 && $row['utilisation'] < 90,
-                                                'text-neutral-800' => $row['utilisation'] < 75,
-                                            ])>{{ $row['utilisation'] }}%</span>
-                                            <span class="block text-xs text-neutral-400">
-                                                of {{ number_format($row['capacity']) }}
+                                            <span class="inline-flex min-w-[8rem] items-center justify-end gap-2.5">
+                                                <span>
+                                                    <span @class([
+                                                        'block font-semibold leading-tight',
+                                                        'text-danger-700' => $row['utilisation'] >= 90,
+                                                        'text-warning-700' => $row['utilisation'] >= 75 && $row['utilisation'] < 90,
+                                                        'text-neutral-800 dark:text-neutral-200' => $row['utilisation'] < 75,
+                                                    ])>{{ $row['utilisation'] }}%</span>
+                                                    <span class="block text-[10px] leading-tight text-neutral-500 dark:text-neutral-400">of {{ number_format($row['capacity']) }}</span>
+                                                </span>
+                                                <span class="h-1.5 w-20 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" aria-hidden="true">
+                                                    <span @class([
+                                                        'block h-full rounded-full',
+                                                        'bg-danger-500' => $row['utilisation'] >= 90,
+                                                        'bg-warning-500' => $row['utilisation'] >= 75 && $row['utilisation'] < 90,
+                                                        'bg-primary-500' => $row['utilisation'] < 75,
+                                                    ]) style="width: {{ min(100, $row['utilisation']) }}%"></span>
+                                                </span>
                                             </span>
                                         @endif
                                     </x-ui.table.td>
