@@ -9,6 +9,13 @@ if ($mysqlSslCa && ! preg_match('/^(?:[A-Za-z]:[\\\\\/]|[\\\\\/]{1,2})/', $mysql
     $mysqlSslCa = base_path($mysqlSslCa);
 }
 
+if ($mysqlSslCa && ! file_exists($mysqlSslCa)) {
+    $bundledCa = base_path('storage/certs/isrgrootx1.pem');
+    if (file_exists($bundledCa)) {
+        $mysqlSslCa = $bundledCa;
+    }
+}
+
 return [
 
     /*
