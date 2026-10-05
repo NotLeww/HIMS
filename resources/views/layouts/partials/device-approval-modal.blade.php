@@ -226,7 +226,7 @@
                 HIMS allows one active browser session at a time. Approving will transfer your session and sign out this browser immediately.
             </div>
 
-            <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <div class="mt-6 flex flex-col-reverse gap-3">
                 <button
                     type="button"
                     :disabled="processingAction !== null"

@@ -96,6 +96,7 @@ class PurchaseOrderWorkspaceTest extends TestCase
         $this->actingAs($manager)->get('/inventory/purchases')
             ->assertOk()
             ->assertSee('Procurement &amp; Purchase Orders', false)
+            ->assertSee('x-show="activeTab === \'orders_revisions\'" x-cloak class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4 xl:gap-4"', false)
             ->assertSee('Prepare Purchase Order')
             ->assertSee('Purchase Order Pipeline')
             ->assertSee(route('inventory.purchases', ['po_status' => 'open']).'#purchase-orders', false)

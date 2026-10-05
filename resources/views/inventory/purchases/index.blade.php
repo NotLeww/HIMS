@@ -98,7 +98,7 @@
             @endif
 
             {{-- Operational KPI Metric Cards (Standardized 3-Zone Architecture per hims-ui-ux) --}}
-            <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4 xl:gap-4">
+            <div x-show="activeTab === 'orders_revisions'" x-cloak class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4 xl:gap-4">
                 {{-- 1. Open Purchase Orders --}}
                 <a href="{{ route('inventory.purchases', ['po_status' => 'open']).'#purchase-orders' }}" data-metric-title="Open purchase orders" data-metric-details="{{ json_encode($poMetricDetails['open']) }}" class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-primary-400 dark:hover:border-primary-600 transition-all duration-150 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950">
                     {{-- Zone 1: Header --}}
