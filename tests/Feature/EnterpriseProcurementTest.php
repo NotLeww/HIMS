@@ -1638,6 +1638,79 @@ class EnterpriseProcurementTest extends TestCase
         }
     }
 
+    public function test_bid_details_show_participants_and_only_reveal_outcomes_after_award(): void
+    {
+        $manager = $this->createManager();
+        $winner = $this->createEligibleSupplier('Winning Medical Supply');
+        $unsuccessful = $this->createEligibleSupplier('Alternate Medical Supply');
+        $rfq = SourcingRfq::create([
+            'rfq_number' => 'RFQ-BID-RESULTS-01',
+            'title' => 'Awarded Medical Supply Bid',
+            'procurement_method' => ProcurementMethod::RequestForQuotation,
+            'bidding_type' => RfqBiddingType::Open,
+            'submission_deadline' => now()->subDay(),
+            'status' => RfqStatus::Awarded,
+            'published_at' => now()->subWeek(),
+            'created_by_user_id' => $manager->id,
+        ]);
+
+        SupplierQuote::create([
+            'sourcing_rfq_id' => $rfq->id,
+            'supplier_id' => $winner->id,
+            'quote_number' => 'QUOTE-WINNER-01',
+            'quoted_price' => 10000,
+            'total_bid_amount' => 10000,
+            'status' => QuoteStatus::Accepted->value,
+            'is_awarded' => true,
+        ]);
+        SupplierQuote::create([
+            'sourcing_rfq_id' => $rfq->id,
+            'supplier_id' => $unsuccessful->id,
+            'quote_number' => 'QUOTE-ALT-01',
+            'quoted_price' => 11000,
+            'total_bid_amount' => 11000,
+            'status' => QuoteStatus::Declined->value,
+            'is_awarded' => false,
+        ]);
+
+        $pendingSupplier = $this->createEligibleSupplier('Protected Pending Bidder');
+        $pendingRfq = SourcingRfq::create([
+            'rfq_number' => 'RFQ-PENDING-RESULTS-01',
+            'title' => 'Pending Sealed Bid',
+            'procurement_method' => ProcurementMethod::RequestForQuotation,
+            'bidding_type' => RfqBiddingType::Sealed,
+            'submission_deadline' => now()->addDay(),
+            'status' => RfqStatus::Published,
+            'published_at' => now(),
+            'created_by_user_id' => $manager->id,
+        ]);
+        SupplierQuote::create([
+            'sourcing_rfq_id' => $pendingRfq->id,
+            'supplier_id' => $pendingSupplier->id,
+            'quote_number' => 'QUOTE-PROTECTED-01',
+            'quoted_price' => 9000,
+            'total_bid_amount' => 9000,
+            'status' => QuoteStatus::Submitted->value,
+            'is_sealed' => true,
+            'is_awarded' => false,
+        ]);
+        $pendingSupplier->update(['status' => SupplierStatus::Inactive->value]);
+
+        $response = $this->actingAs($manager)
+            ->get(route('inventory.purchases', ['tab' => 'sourcing_rfqs']));
+
+        $response->assertOk()
+            ->assertSee('aria-label="View bid results for RFQ-BID-RESULTS-01"', false)
+            ->assertSee('Winning Medical Supply')
+            ->assertSee('Winning bidder')
+            ->assertSee('Alternate Medical Supply')
+            ->assertSee('Unsuccessful bidder')
+            ->assertSee('Participating suppliers are visible. Bid pricing, proposals, scores, and outcomes remain sealed until the award is finalized.')
+            ->assertSee('Protected Pending Bidder')
+            ->assertSee('Bid submitted')
+            ->assertDontSee('QUOTE-PROTECTED-01');
+    }
+
     public function test_close_expired_rfqs_artisan_command_transitions_status(): void
     {
         [$costCenter, $budget, $manager] = $this->createCostCenterWithBudget(100000.00);

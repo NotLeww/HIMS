@@ -878,6 +878,7 @@
                                     <th class="px-3.5 py-3">Bids Received</th>
                                     <th class="px-3.5 py-3">Status</th>
                                     <th class="px-3.5 py-3">Evaluation Action</th>
+                                    <th class="w-12 px-2 py-3"><span class="sr-only">Bid results</span></th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-neutral-200 dark:divide-neutral-800">
@@ -985,15 +986,81 @@
                                                 @endcan
                                             @endif
                                         </td>
+                                        <td class="px-2 py-3 text-right">
+                                            <button
+                                                type="button"
+                                                x-on:click="$dispatch('open-modal', 'rfq-bid-results-{{ $rfq->id }}')"
+                                                aria-label="View bid results for {{ $rfq->rfq_number }}"
+                                                title="View bid results"
+                                                class="inline-flex size-9 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+                                            >
+                                                <x-ui.icon name="ellipsis-vertical" class="size-5" />
+                                            </button>
+                                        </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="7" class="px-3.5 py-6 text-center text-sm text-neutral-500">No sourcing events published. Create one above.</td>
+                                        <td colspan="8" class="px-3.5 py-6 text-center text-sm text-neutral-500">No sourcing events published. Create one above.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
                         </table>
                     </div>
+                    @foreach($rfqs as $rfq)
+                        <x-ui.modal name="rfq-bid-results-{{ $rfq->id }}" title="Bid Results — {{ $rfq->rfq_number }}" maxWidth="2xl">
+                            <div class="space-y-4">
+                                <div>
+                                    <p class="font-semibold text-neutral-900 dark:text-neutral-100">{{ $rfq->title }}</p>
+                                    <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+                                        {{ $rfq->quotes->count() }} submitted {{ Str::plural('bid', $rfq->quotes->count()) }} from {{ $rfq->invitations->count() }} invited {{ Str::plural('supplier', $rfq->invitations->count()) }}.
+                                    </p>
+                                </div>
+
+                                @if($rfq->status !== \App\Enums\RfqStatus::Awarded)
+                                    <div class="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                                        Participating suppliers are visible. Bid pricing, proposals, scores, and outcomes remain sealed until the award is finalized.
+                                    </div>
+                                @endif
+
+                                @if($rfq->quotes->isEmpty())
+                                    <div class="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800/60 dark:text-neutral-300">
+                                        No submitted bids were recorded for this sourcing event.
+                                    </div>
+                                @else
+                                    <div class="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-700">
+                                        <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-4 bg-neutral-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:bg-neutral-800/80 dark:text-neutral-400">
+                                            <span>Bidder</span>
+                                            <span>Result</span>
+                                        </div>
+                                        <div class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                                            @foreach($rfq->quotes->sortByDesc('is_awarded') as $quote)
+                                                <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3">
+                                                    <div class="min-w-0">
+                                                        <p class="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100" title="{{ $quote->supplier?->name ?? 'Supplier not recorded' }}">
+                                                            {{ $quote->supplier?->name ?? 'Supplier not recorded' }}
+                                                        </p>
+                                                        <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                                                            {{ $rfq->status === \App\Enums\RfqStatus::Awarded ? $quote->quote_number : 'Bid received' }}
+                                                        </p>
+                                                    </div>
+                                                    @if($rfq->status !== \App\Enums\RfqStatus::Awarded)
+                                                        <span class="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">Bid submitted</span>
+                                                    @elseif($quote->is_awarded)
+                                                        <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                                                            <span class="size-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
+                                                            Winning bidder
+                                                        </span>
+                                                    @else
+                                                        <span class="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">Unsuccessful bidder</span>
+                                                    @endif
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
+                            </div>
+                        </x-ui.modal>
+                    @endforeach
                     @if ($rfqs->hasPages())
                         <div class="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
                             {{ $rfqs->appends(['tab' => 'sourcing_rfqs'])->onEachSide(1)->links() }}
