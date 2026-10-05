@@ -19,6 +19,7 @@ use App\Models\SupplierContact;
 use App\Models\SupplierContract;
 use App\Models\SupplierDocument;
 use App\Models\User;
+use App\Services\Analytics\BottleneckAnalysisService;
 use App\Support\DemoPdfBuilder;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Storage;
@@ -243,13 +244,21 @@ class OperationalMetricsDemoSeeder extends Seeder
             ]
         );
 
-        // 2. Seed the operational records used to calculate lifecycle metrics.
-        $this->call(SupplyChainTurnaroundDemoSeeder::class);
-
-        // 3. Seed Supplier Scorecards
+        // 2. Seed Supplier Scorecards
         $this->call(SupplierScorecardDemoSeeder::class);
 
-        // 4. Seed Procurement Savings Logs
+        foreach ([$reviewQ3, $reviewQ4] as $review) {
+            $review->refresh();
+            $analysis = app(BottleneckAnalysisService::class)
+                ->evaluate($review->period_start, $review->period_end);
+            $metrics = $review->metrics_summary ?? [];
+            $metrics['bottleneck_stages'] = $analysis['stages'];
+            $metrics['critical_bottleneck'] = $analysis['critical_bottleneck'];
+
+            $review->update(['metrics_summary' => $metrics]);
+        }
+
+        // 3. Seed Procurement Savings Logs
         $pos = PurchaseOrder::where('status', '!=', 'cancelled')->take(3)->get();
         $items = InventoryItem::take(3)->get();
 

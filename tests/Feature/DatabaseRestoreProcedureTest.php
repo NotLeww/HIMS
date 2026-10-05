@@ -83,12 +83,16 @@ class DatabaseRestoreProcedureTest extends TestCase
 
         $reports = InspectionAcceptanceReport::query()
             ->with('goodsReceiptNote.lines')
-            ->where('iar_number', 'like', 'IAR-REV-2026-%')
             ->get();
-        $this->assertCount(12, $reports);
+        $this->assertNotEmpty($reports);
         $this->assertTrue($reports->every(
             fn (InspectionAcceptanceReport $report): bool => $report->goodsReceiptNote?->lines->isNotEmpty()
         ));
+        $this->assertFalse(
+            InspectionAcceptanceReport::query()
+                ->where('iar_number', 'like', 'IAR-REV-2026-%')
+                ->exists()
+        );
 
         $inventoryManager = User::query()->where('role', UserRole::InventoryManager)->firstOrFail();
         $this->assertTrue($inventoryManager->consents()->consented()->currentVersion()->exists());

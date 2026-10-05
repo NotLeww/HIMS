@@ -4016,6 +4016,39 @@ CREATE TABLE `warehouse_tasks` (
 /*!40000 ALTER TABLE `warehouse_tasks` DISABLE KEYS */;
 INSERT INTO `warehouse_tasks` VALUES (1,'REP-20260914-01M2E618158VVG8Z6NZS75KC8Q','replenishment','completed','normal',30004,30005,30005,30001,24,24,30001,1,NULL,NULL,'smart-warehousing-demo-replenishment-v1',NULL,'2026-09-14 22:59:25','2026-09-17 09:17:27','Restore the pick face toward its configured maximum.',NULL,'Scan reserve location, GS1 item/lot, then pick-face destination.','2026-09-13 20:06:13','2026-09-17 01:17:27'),(30001,'PUT-20260920-01M2YEEQZ8VHWD7MARMKJQFFGF','put_away','cancelled','normal',1,4,2,NULL,20,0,30001,30001,NULL,NULL,NULL,'2026-09-24 11:40:00','2026-09-20 11:41:41',NULL,NULL,'out of stock',NULL,'2026-09-20 03:41:15','2026-09-20 04:00:20'),(60001,'MOV-20260922-01M34SD7EQ6JZY1PKRDSBW4QS6','move','cancelled','low',2,4,4,NULL,4,0,30001,30001,NULL,NULL,NULL,'2026-09-30 22:47:00','2026-09-22 22:48:36',NULL,NULL,'Wrong Inventory Quantity',NULL,'2026-09-22 14:48:06','2026-09-22 14:53:29'),(90001,'PICK-20260924-01M39ABNN2F3NT9SHTMJG3JE54','pick','in_progress','normal',1,30014,5,NULL,30,0,1,150002,'App\\Models\\MaterialRequisitionLine',1,'pick-for-requisition-line-1-location-1-batch-none','2026-09-21 23:59:59','2026-09-26 04:34:25',NULL,'Available stock selected by warehouse pick sequence (FIFO-compatible).',NULL,NULL,'2026-09-24 09:01:19','2026-09-25 20:34:25');
 /*!40000 ALTER TABLE `warehouse_tasks` ENABLE KEYS */;
++
+-- Remove lifecycle rows retired with SupplyChainTurnaroundDemoSeeder.
+DELETE FROM `inspection_acceptance_reports`
+WHERE `iar_number` LIKE 'IAR-REV-2026-Q3-%' OR `iar_number` LIKE 'IAR-REV-2026-Q4-%';
+DELETE FROM `grn_line_items`
+WHERE `goods_receipt_note_id` IN (
+  SELECT `id` FROM `goods_receipt_notes`
+  WHERE `grn_number` LIKE 'GRN-REV-2026-Q3-%' OR `grn_number` LIKE 'GRN-REV-2026-Q4-%'
+);
+DELETE FROM `goods_receipt_notes`
+WHERE `grn_number` LIKE 'GRN-REV-2026-Q3-%' OR `grn_number` LIKE 'GRN-REV-2026-Q4-%';
+DELETE FROM `po_line_items`
+WHERE `purchase_order_id` IN (
+  SELECT `id` FROM `purchase_orders`
+  WHERE `po_number` LIKE 'PO-REV-2026-Q3-%' OR `po_number` LIKE 'PO-REV-2026-Q4-%'
+);
+DELETE FROM `purchase_orders`
+WHERE `po_number` LIKE 'PO-REV-2026-Q3-%' OR `po_number` LIKE 'PO-REV-2026-Q4-%';
+DELETE FROM `rfq_line_items`
+WHERE `sourcing_rfq_id` IN (
+  SELECT `id` FROM `sourcing_rfqs`
+  WHERE `rfq_number` LIKE 'RFQ-REV-2026-Q3-%' OR `rfq_number` LIKE 'RFQ-REV-2026-Q4-%'
+);
+DELETE FROM `sourcing_rfqs`
+WHERE `rfq_number` LIKE 'RFQ-REV-2026-Q3-%' OR `rfq_number` LIKE 'RFQ-REV-2026-Q4-%';
+DELETE FROM `pr_line_items`
+WHERE `purchase_request_id` IN (
+  SELECT `id` FROM `purchase_requests`
+  WHERE `pr_number` LIKE 'PR-REV-2026-Q3-%' OR `pr_number` LIKE 'PR-REV-2026-Q4-%'
+);
+DELETE FROM `purchase_requests`
+WHERE `pr_number` LIKE 'PR-REV-2026-Q3-%' OR `pr_number` LIKE 'PR-REV-2026-Q4-%';
+
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;

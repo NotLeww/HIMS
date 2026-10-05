@@ -3238,6 +3238,39 @@ CREATE TABLE `warehouse_tasks` (
 -- Restore global state
 -- =====================================================================
 
++
+-- Remove lifecycle rows retired with SupplyChainTurnaroundDemoSeeder.
+DELETE FROM `inspection_acceptance_reports`
+WHERE `iar_number` LIKE 'IAR-REV-2026-Q3-%' OR `iar_number` LIKE 'IAR-REV-2026-Q4-%';
+DELETE FROM `grn_line_items`
+WHERE `goods_receipt_note_id` IN (
+  SELECT `id` FROM `goods_receipt_notes`
+  WHERE `grn_number` LIKE 'GRN-REV-2026-Q3-%' OR `grn_number` LIKE 'GRN-REV-2026-Q4-%'
+);
+DELETE FROM `goods_receipt_notes`
+WHERE `grn_number` LIKE 'GRN-REV-2026-Q3-%' OR `grn_number` LIKE 'GRN-REV-2026-Q4-%';
+DELETE FROM `po_line_items`
+WHERE `purchase_order_id` IN (
+  SELECT `id` FROM `purchase_orders`
+  WHERE `po_number` LIKE 'PO-REV-2026-Q3-%' OR `po_number` LIKE 'PO-REV-2026-Q4-%'
+);
+DELETE FROM `purchase_orders`
+WHERE `po_number` LIKE 'PO-REV-2026-Q3-%' OR `po_number` LIKE 'PO-REV-2026-Q4-%';
+DELETE FROM `rfq_line_items`
+WHERE `sourcing_rfq_id` IN (
+  SELECT `id` FROM `sourcing_rfqs`
+  WHERE `rfq_number` LIKE 'RFQ-REV-2026-Q3-%' OR `rfq_number` LIKE 'RFQ-REV-2026-Q4-%'
+);
+DELETE FROM `sourcing_rfqs`
+WHERE `rfq_number` LIKE 'RFQ-REV-2026-Q3-%' OR `rfq_number` LIKE 'RFQ-REV-2026-Q4-%';
+DELETE FROM `pr_line_items`
+WHERE `purchase_request_id` IN (
+  SELECT `id` FROM `purchase_requests`
+  WHERE `pr_number` LIKE 'PR-REV-2026-Q3-%' OR `pr_number` LIKE 'PR-REV-2026-Q4-%'
+);
+DELETE FROM `purchase_requests`
+WHERE `pr_number` LIKE 'PR-REV-2026-Q3-%' OR `pr_number` LIKE 'PR-REV-2026-Q4-%';
+
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
 /*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
