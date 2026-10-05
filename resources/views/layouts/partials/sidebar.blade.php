@@ -1,17 +1,17 @@
 <aside
     id="primary-navigation"
-    class="fixed inset-y-0 left-0 z-40 flex w-64 max-w-[calc(100vw-2rem)] flex-col bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 transition-transform duration-200 shadow-xl lg:shadow-none -translate-x-full lg:translate-x-0"
+    class="hims-sidebar fixed inset-y-0 left-0 z-40 flex w-64 max-w-[calc(100vw-2rem)] flex-col transition-transform duration-200 -translate-x-full lg:translate-x-0"
     :class="{ 'translate-x-0 lg:translate-x-0': sidebarOpen, '-translate-x-full lg:-translate-x-full': !sidebarOpen }"
     :aria-hidden="sidebarOpen ? 'false' : 'true'"
     :inert="!sidebarOpen"
 >
     {{-- Brand --}}
-    <div class="flex items-center justify-between gap-2.5 h-16 px-5 border-b border-neutral-200 dark:border-neutral-800 shrink-0">
+    <div class="hims-sidebar__brand flex h-16 shrink-0 items-center justify-between gap-2.5 px-5 py-3">
         <div class="flex items-center gap-2.5 min-w-0">
-            <img src="{{ asset('img/hims-logo.png') }}" alt="" class="hims-keep-light h-9 w-9 shrink-0 rounded-md bg-white object-cover ring-1 ring-inset ring-neutral-200 dark:ring-neutral-700" />
+            <img src="{{ asset('img/hims-logo.png') }}" alt="" class="hims-keep-light h-10 w-10 shrink-0 rounded-lg bg-white object-cover ring-1 ring-inset ring-white/40 shadow-lg" />
             <div class="min-w-0">
-                <p class="text-sm font-semibold text-neutral-900 dark:text-neutral-100 leading-tight truncate">DJNRMHS</p>
-                <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-tight truncate">
+                <p class="truncate text-sm font-bold leading-tight tracking-wide text-white">DJNRMHS</p>
+                <p class="mt-0.5 truncate text-[11px] leading-tight text-emerald-100/75">
                     {{ match (\App\Support\AuthenticationContext::authenticatedGuard()) {
                         \App\Support\AuthenticationContext::SUPER_ADMIN_GUARD => 'Super Admin Panel',
                         \App\Support\AuthenticationContext::ADMIN_GUARD => 'Admin Panel',
@@ -25,7 +25,7 @@
         <button
             type="button"
             x-on:click="sidebarOpen = false"
-            class="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 lg:hidden shrink-0"
+            class="flex h-9 w-9 items-center justify-center rounded-lg text-emerald-100/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 lg:hidden shrink-0"
             aria-label="Close navigation"
             title="Close navigation"
         >
@@ -49,7 +49,7 @@
         }
     @endphp
     <nav
-        class="flex-1 px-3 py-4 space-y-3 overflow-y-auto"
+        class="hims-sidebar__nav flex-1 space-y-3 overflow-y-auto px-3 py-5"
         aria-label="Main navigation"
         x-data="{ activeDropdown: '{{ $initialOpenDropdown }}' }"
         x-on:click="if (isMobile && $event.target.closest('a')) sidebarOpen = false"
@@ -201,8 +201,8 @@
     </nav>
 
     {{-- Footer --}}
-    <div class="px-3 py-3 border-t border-neutral-200 dark:border-neutral-800 shrink-0">
-        <p class="px-3 text-[11px] text-neutral-400 dark:text-neutral-500">
+    <div class="hims-sidebar__footer shrink-0 border-t px-3 py-3">
+        <p class="px-3 text-[11px] text-emerald-100/60">
             {{ config('app.name', 'HIMS') }} &middot; v1.0
         </p>
     </div>

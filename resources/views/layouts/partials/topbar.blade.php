@@ -1,6 +1,4 @@
-<header class="sticky top-0 z-30 flex min-h-16 min-w-0 max-w-full flex-wrap items-center gap-2 px-4 py-2 sm:px-6 lg:h-16 lg:flex-nowrap lg:gap-3 lg:px-8 lg:py-0
-               bg-white/95 backdrop-blur border-b border-neutral-200
-               dark:bg-neutral-900/95 dark:border-neutral-800">
+<header class="hims-topbar sticky top-0 z-30 flex min-h-16 min-w-0 max-w-full flex-wrap items-center gap-2 border-b px-4 py-2 backdrop-blur-xl sm:px-6 lg:h-16 lg:flex-nowrap lg:gap-3 lg:px-8 lg:py-0">
     {{-- Sidebar toggle --}}
     <button
         type="button"

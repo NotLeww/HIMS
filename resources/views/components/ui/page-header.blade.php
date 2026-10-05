@@ -10,7 +10,7 @@
     every class below is guarded by @isset, so a caller that passes no media block
     renders exactly the markup it did before.
 --}}
-<div class="flex flex-col gap-4 sm:flex-row @isset($media) sm:items-center @else sm:items-end sm:justify-between @endisset">
+<div class="hims-page-header flex flex-col gap-4 sm:flex-row @isset($media) sm:items-center @else sm:items-end sm:justify-between @endisset">
     @isset($media)
         <div class="shrink-0">{{ $media }}</div>
     @endisset
