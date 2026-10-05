@@ -133,6 +133,7 @@ Do not invent props. Extend a shared component only when multiple real consumers
 
 - Forms with submit buttons use the existing in-button loader through `data-loading-text`; do not also show the central loading overlay for the same action.
 - The central overlay is for link navigation, downloads/exports, or programmatic submissions without a contextual submit button.
+- For server-backed tabs or views, follow the tab-transition sequencing contract in `references/design-consistency.md`; never expose the target tab with stale content before its loading state begins.
 - Async HIMS content must distinguish loading, success, empty, and error. Use a lightweight skeleton shaped like the final component, preserve layout size, support dark mode and reduced motion, and prevent stale responses from replacing newer results.
 - Never display fake HIMS data during loading or expose testing shortcuts in production UI.
 

@@ -139,6 +139,16 @@ class LoadingIndicatorTest extends TestCase
         );
     }
 
+    public function test_procurement_tabs_reload_fresh_server_data_with_the_shared_loader(): void
+    {
+        $script = file_get_contents(resource_path('js/app.js'));
+
+        $this->assertStringContainsString("message: 'Loading latest procurement data...'", $script);
+        $this->assertStringContainsString('navigateToTab(tab)', $script);
+        $this->assertStringContainsString('window.himsNavigate(url.toString()', $script);
+        $this->assertStringNotContainsString("this.\$watch('activeTab'", $script);
+    }
+
     public function test_account_settings_forms_have_accessible_specific_loading_states(): void
     {
         $admin = User::factory()->administrator()->create();
@@ -215,6 +225,7 @@ class LoadingIndicatorTest extends TestCase
             ->assertSee('id="purchase-orders"', false)
             ->assertDontSee('purchase-orders-api-status')
             ->assertSee("'X-Session-Activity': 'passive'", false)
+            ->assertSee("navigateToTab('sourcing_rfqs')", false)
             ->assertSee("x-effect=\"if (activeTab === 'legacy_canvass') \$dispatch('hims-load-legacy-procurement')\"", false)
             ->assertSee("document.addEventListener('hims-load-legacy-procurement'", false)
             ->assertDontSee("document.addEventListener('DOMContentLoaded', () => {", false);

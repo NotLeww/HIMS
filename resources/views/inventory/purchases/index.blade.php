@@ -193,7 +193,7 @@
                     </label>
                     <select
                         id="procurement-mobile-tab-select"
-                        x-on:change="if ($event.target.value.startsWith('http') || $event.target.value.startsWith('/')) { window.himsNavigate($event.target.value); } else { activeTab = $event.target.value; }"
+                        x-on:change="if ($event.target.value.startsWith('http') || $event.target.value.startsWith('/')) { window.himsNavigate($event.target.value); } else { navigateToTab($event.target.value); }"
                         class="block w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 py-2.5 pl-3 pr-10 text-xs font-semibold text-neutral-800 dark:text-neutral-200 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 shadow-2xs"
                     >
                         <optgroup label="Purchasing &amp; Orders">
@@ -265,7 +265,7 @@
                             @canany(['view_procurement_sensitive_data', 'create_requisition', 'manage_sourcing', 'issue_purchase_order', 'manage_procurement'])
                                 <button
                                     type="button"
-                                    @click="activeTab = 'enterprise_s2p'; openDropdown = null"
+                                    @click="openDropdown = null; navigateToTab('enterprise_s2p')"
                                     class="w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between"
                                     :class="activeTab === 'enterprise_s2p' ? 'bg-primary-50 text-primary-800 dark:bg-primary-950/60 dark:text-primary-300 font-semibold' : 'text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'"
                                 >
@@ -279,7 +279,7 @@
 
                             <button
                                 type="button"
-                                @click="activeTab = 'orders_revisions'; openDropdown = null"
+                                @click="openDropdown = null; navigateToTab('orders_revisions')"
                                 class="w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between"
                                 :class="activeTab === 'orders_revisions' ? 'bg-primary-50 text-primary-800 dark:bg-primary-950/60 dark:text-primary-300 font-semibold' : 'text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'"
                             >
@@ -293,7 +293,7 @@
                             @canany(['create_requisition', 'manage_sourcing', 'issue_purchase_order'])
                                 <button
                                     type="button"
-                                    @click="activeTab = 'legacy_canvass'; openDropdown = null"
+                                    @click="openDropdown = null; navigateToTab('legacy_canvass')"
                                     class="w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between"
                                     :class="activeTab === 'legacy_canvass' ? 'bg-primary-50 text-primary-800 dark:bg-primary-950/60 dark:text-primary-300 font-semibold' : 'text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'"
                                 >
@@ -341,7 +341,7 @@
                                 @canany(['view_procurement_sensitive_data', 'manage_sourcing', 'evaluate_bids'])
                                     <button
                                         type="button"
-                                        @click="activeTab = 'sourcing_rfqs'; openDropdown = null"
+                                        @click="openDropdown = null; navigateToTab('sourcing_rfqs')"
                                         class="w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between"
                                         :class="activeTab === 'sourcing_rfqs' ? 'bg-primary-50 text-primary-800 dark:bg-primary-950/60 dark:text-primary-300 font-semibold' : 'text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'"
                                     >
@@ -356,7 +356,7 @@
                                 @canany(['view_procurement_sensitive_data', 'evaluate_bids', 'award_procurement'])
                                     <button
                                         type="button"
-                                        @click="activeTab = 'evaluations'; openDropdown = null"
+                                        @click="openDropdown = null; navigateToTab('evaluations')"
                                         class="w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between"
                                         :class="activeTab === 'evaluations' ? 'bg-primary-50 text-primary-800 dark:bg-primary-950/60 dark:text-primary-300 font-semibold' : 'text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'"
                                     >
@@ -415,7 +415,7 @@
                                 @can('approve_purchase_order')
                                     <button
                                         type="button"
-                                        @click="activeTab = 'doa_approvals'; openDropdown = null"
+                                        @click="openDropdown = null; navigateToTab('doa_approvals')"
                                         class="w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between"
                                         :class="activeTab === 'doa_approvals' ? 'bg-primary-50 text-primary-800 dark:bg-primary-950/60 dark:text-primary-300 font-semibold' : 'text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'"
                                     >
@@ -430,7 +430,7 @@
                                 @can('view_audit_trail')
                                     <button
                                         type="button"
-                                        @click="activeTab = 'audit_trail'; openDropdown = null"
+                                        @click="openDropdown = null; navigateToTab('audit_trail')"
                                         class="w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between"
                                         :class="activeTab === 'audit_trail' ? 'bg-primary-50 text-primary-800 dark:bg-primary-950/60 dark:text-primary-300 font-semibold' : 'text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'"
                                     >
@@ -950,7 +950,7 @@
                                                 </div>
                                             @elseif($rfq->evaluations->isNotEmpty())
                                                 <div class="flex items-center gap-1.5">
-                                                    <button @click="activeTab = 'evaluations'" type="button" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 shadow-sm">
+                                                    <button @click="navigateToTab('evaluations')" type="button" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 shadow-sm">
                                                         View Matrix
                                                     </button>
                                                     @can('evaluate_bids')
@@ -2532,8 +2532,7 @@
                             }
                             form.submit();
                         } else {
-                            this.activeTab = 'orders_revisions';
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                            this.navigateToTab('orders_revisions');
                         }
                     }
                 }"
@@ -2856,7 +2855,7 @@
                             <x-ui.button type="button" variant="secondary" size="sm" icon="arrow-left" @click="canvassStep = 2; window.scrollTo({ top: 0, behavior: 'smooth' })">
                                 Back: Procurement request
                             </x-ui.button>
-                            <x-ui.button type="button" variant="secondary" size="sm" x-on:click="activeTab = 'orders_revisions'; window.scrollTo({ top: 0, behavior: 'smooth' })">
+                            <x-ui.button type="button" variant="secondary" size="sm" x-on:click="navigateToTab('orders_revisions')">
                                 <span>PO Workspace</span>
                                 <x-ui.icon name="chevron-right" class="w-3.5 h-3.5 ml-1" />
                             </x-ui.button>
@@ -2971,7 +2970,7 @@
                                 <h3 class="text-xs sm:text-sm font-semibold text-primary-950">Continue to purchase orders</h3>
                                 <p class="text-[11px] text-primary-800">Order creation, status tracking, details, and receiving actions are consolidated in the primary workspace.</p>
                             </div>
-                            <x-ui.button type="button" size="sm" x-on:click="activeTab = 'orders_revisions'; window.scrollTo({ top: 0, behavior: 'smooth' })">
+                            <x-ui.button type="button" size="sm" x-on:click="navigateToTab('orders_revisions')">
                                 Open PO workspace
                             </x-ui.button>
                         </div>

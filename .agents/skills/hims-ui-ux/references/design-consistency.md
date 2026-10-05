@@ -142,6 +142,8 @@ Show one loading indicator per action.
 
 - Button-triggered form submissions use the established in-button loader and contextual `data-loading-text`; do not also show the central overlay.
 - Reserve the central overlay for navigation, downloads/exports, or programmatic submission without a contextual submit button.
+- Distinguish local presentation tabs from server-backed tabs. A local tab whose current content is already in memory may switch immediately without a loader. A server-backed tab that promises fresh data must use this order: keep the currently rendered tab visible, mark the trigger busy and start the shared loading state, request or navigate for fresh data, then activate and render the target tab only after the successful response. On failure, retain the current tab and expose a recoverable error or retry path.
+- Do not implement server-backed navigation by mutating `activeTab`, selected state, or the target panel first and reacting afterward with a watcher. Invoke navigation or loading directly from the user action so stale target content never flashes underneath the loader.
 - Async content distinguishes loading, success, empty, and error. Never show an empty-state message while a request is still pending.
 - Use lightweight CSS skeletons shaped like the final component, not generic repeated rectangles. Match its sections, count, approximate dimensions, responsive layout, and reserved space.
 - Skeletons support light/dark themes, stop when loading ends, respect `prefers-reduced-motion`, and expose appropriate `aria-busy` or status semantics without repeatedly announcing animation.
