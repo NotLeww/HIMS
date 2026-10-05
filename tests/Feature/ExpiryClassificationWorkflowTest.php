@@ -97,7 +97,8 @@ class ExpiryClassificationWorkflowTest extends TestCase
         $soon = $this->stockBatch($item, $location, 'SOON-90', today()->addDays(90));
         $critical = $this->stockBatch($item, $location, 'CRITICAL-30', today()->addDays(30));
         $expired = $this->stockBatch($item, $location, 'EXPIRED-0', today());
-        $this->stockBatch($item, $location, 'NO-EXPIRY', null);
+        $noExpiry = $this->stockBatch($item, $location, 'NO-EXPIRY', null);
+        $noExpiry->update(['received_at' => today()->subMonths(2)]);
 
         $alerts = app(StockAlertService::class);
 
@@ -139,7 +140,9 @@ class ExpiryClassificationWorkflowTest extends TestCase
         $response->assertOk();
         $batches = collect($response->json('data.0.expiry_batches'))->keyBy('batch_number');
 
+        $response->assertJsonPath('data.0.fifo_date', today()->subMonths(2)->toDateString());
         $this->assertSame(ItemBatch::EXPIRY_NORMAL, $batches['NORMAL-91']['expiry_status']);
+        $this->assertSame(today()->subMonth()->toDateString(), $batches['NORMAL-91']['fifo_date']);
         $this->assertSame(ItemBatch::EXPIRY_CRITICAL, $batches['SOON-90']['expiry_status']);
         $this->assertSame(ItemBatch::EXPIRY_CRITICAL, $batches['CRITICAL-30']['expiry_status']);
         $this->assertSame(ItemBatch::EXPIRY_EXPIRED, $batches['EXPIRED-0']['expiry_status']);
@@ -156,6 +159,11 @@ class ExpiryClassificationWorkflowTest extends TestCase
             ->assertSee('id="alerts-search"', false)
             ->assertSee('id="alerts-category"', false)
             ->assertSee('id="alerts-priority"', false)
+            ->assertSee('<option value="fefo">FEFO · Earliest Expiry</option>', false)
+            ->assertSee('<option value="fifo">FIFO · Oldest Stock</option>', false)
+            ->assertSee('data-alert-rank', false)
+            ->assertSee("compareOptionalDates(a, b, 'alertExpiry')", false)
+            ->assertSee("compareOptionalDates(a, b, 'alertFifo')", false)
             ->assertSee('2xl:grid-cols-5', false)
             ->assertSee('function inventoryItemIcon(item)', false)
             ->assertSee('/(syringe|needle)/', false)

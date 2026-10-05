@@ -33,7 +33,10 @@ class InventoryItemController extends Controller implements HasMiddleware
         $perPage = (int) $request->query('per_page', 15);
         $items = InventoryItem::with([
             'supplier',
-            'batches' => fn ($query) => $query->active()->whereNotNull('expiry_date')->with('stockLevels'),
+            'batches' => fn ($query) => $query
+                ->active()
+                ->whereHas('stockLevels', fn ($stock) => $stock->where('quantity', '>', 0))
+                ->with('stockLevels'),
         ])->paginate(min(max($perPage, 1), 100));
 
         return InventoryItemResource::collection($items);
@@ -43,7 +46,10 @@ class InventoryItemController extends Controller implements HasMiddleware
     {
         $inventory_item->load([
             'supplier',
-            'batches' => fn ($query) => $query->active()->whereNotNull('expiry_date')->with('stockLevels'),
+            'batches' => fn ($query) => $query
+                ->active()
+                ->whereHas('stockLevels', fn ($stock) => $stock->where('quantity', '>', 0))
+                ->with('stockLevels'),
         ]);
 
         return new InventoryItemResource($inventory_item);

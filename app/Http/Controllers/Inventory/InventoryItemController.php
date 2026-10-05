@@ -64,6 +64,13 @@ class InventoryItemController extends Controller implements HasMiddleware
             'low_stock' => 'Low Stock',
             'out_of_stock' => 'Out Of Stock',
         ];
+        $rotationModes = [
+            'fefo' => 'FEFO — Earliest expiry first',
+            'fifo' => 'FIFO — Oldest receipt first',
+        ];
+        $rotationMode = array_key_exists((string) $request->query('rotation'), $rotationModes)
+            ? (string) $request->query('rotation')
+            : null;
 
         $items = InventoryItem::query()
             ->where('status', '!=', 'archived')
@@ -72,6 +79,19 @@ class InventoryItemController extends Controller implements HasMiddleware
                 'category',
                 'defaultLocation',
             ]))
+            ->withMin([
+                'batches as next_expiry_date' => fn ($batch) => $batch
+                    ->active()
+                    ->whereNotNull('expiry_date')
+                    ->whereHas('stockLevels', fn ($stock) => $stock->where('quantity', '>', 0)),
+            ], 'expiry_date')
+            ->addSelect([
+                'oldest_stock_received_at' => ItemBatch::query()
+                    ->selectRaw('MIN(COALESCE(received_at, created_at))')
+                    ->whereColumn('item_batches.item_id', 'inventory_items.id')
+                    ->active()
+                    ->whereHas('stockLevels', fn ($stock) => $stock->where('quantity', '>', 0)),
+            ])
             ->when($request->filled('search'), function ($query) use ($request): void {
                 $term = '%'.$request->string('search')->trim().'%';
 
@@ -94,6 +114,18 @@ class InventoryItemController extends Controller implements HasMiddleware
                         ->orWhereHas('stockLevels', fn ($sl) => $sl->where('storage_location_id', $locationId)->where('quantity', '>', 0));
                 });
             })
+            ->when(
+                $rotationMode === 'fefo',
+                fn ($query) => $query
+                    ->orderByRaw('next_expiry_date IS NULL')
+                    ->orderBy('next_expiry_date'),
+            )
+            ->when(
+                $rotationMode === 'fifo',
+                fn ($query) => $query
+                    ->orderByRaw('oldest_stock_received_at IS NULL')
+                    ->orderBy('oldest_stock_received_at'),
+            )
             ->latest('id')
             ->paginate(20)
             ->withQueryString();
@@ -154,10 +186,14 @@ class InventoryItemController extends Controller implements HasMiddleware
             'categories' => $categories,
             'eligibleSuppliers' => $eligibleSuppliers,
             'filterLocations' => $filterLocations,
-            'filters' => $request->only(['search', 'status', 'category_id', 'location_id']),
+            'filters' => [
+                ...$request->only(['search', 'status', 'category_id', 'location_id']),
+                'rotation' => $rotationMode,
+            ],
             'items' => $items,
             'locationOptions' => $locationOptions,
             'locations' => $locations,
+            'rotationModes' => $rotationModes,
             'stockStatuses' => $stockStatuses,
             'unavailableSuppliers' => $unavailableSuppliers,
             'unitOptions' => $unitOptions,
