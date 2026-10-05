@@ -4914,6 +4914,7 @@ Alpine.data('procurementWorkspace', ({
     supplierTerms = {},
     initial = {},
     approvalCorrection = null,
+    openPurchaseOrderId = null,
 } = {}) => ({
     activeTab,
     items,
@@ -4928,6 +4929,7 @@ Alpine.data('procurementWorkspace', ({
     selectedPoNumber: '',
     showCxmlModal: false,
     approvalCorrection,
+    openPurchaseOrderId,
     revisedDeliveryDate: String(approvalCorrection?.revised_delivery_date || ''),
     deliveryDateChangeReason: String(approvalCorrection?.reason || ''),
 
@@ -4938,6 +4940,10 @@ Alpine.data('procurementWorkspace', ({
 
         if (this.approvalCorrection) {
             this.$nextTick(() => this.$dispatch('open-modal', 'reschedule-po-delivery'));
+        } else if (this.openPurchaseOrderId) {
+            this.$nextTick(() => {
+                document.querySelector(`[data-purchase-order-details="${Number(this.openPurchaseOrderId)}"]`)?.click();
+            });
         }
     },
 

@@ -1020,6 +1020,15 @@
 
                 applyAlertFilter();
 
+                const requestedItem = new URLSearchParams(window.location.search).get('manage_item');
+                if (requestedItem && !window.__requestedAlertModalOpened) {
+                    const requestedBatch = new URLSearchParams(window.location.search).get('manage_batch');
+                    const requestedType = new URLSearchParams(window.location.search).get('alert_type');
+                    const itemKey = requestedBatch ? `${requestedItem}:${requestedBatch}` : requestedItem;
+                    window.__requestedAlertModalOpened = true;
+                    window.__openItemManageModal(itemKey, requestedType);
+                }
+
                 // Hide loader cleanly without showing 'Alerts loaded from API.' text
                 if (status) {
                     status.classList.add('hidden');

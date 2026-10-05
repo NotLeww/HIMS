@@ -134,6 +134,14 @@ class ExpiryClassificationWorkflowTest extends TestCase
         ]);
         $this->assertSame(4, $manager->fresh()->notifications()->count());
 
+        $expiredNotification = $manager->fresh()->notifications()
+            ->get()
+            ->firstWhere('data.title', 'Expired');
+        $this->assertNotNull($expiredNotification);
+        $this->assertSame($item->id, $expiredNotification->data['route_parameters']['item']);
+        $this->assertSame($expired->id, $expiredNotification->data['route_parameters']['batch']);
+        $this->assertSame('near_expiry', $expiredNotification->data['route_parameters']['alert_type']);
+
         $response = $this->actingAs($manager)
             ->getJson('/api/v1/inventory-items');
 

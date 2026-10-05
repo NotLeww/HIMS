@@ -27,6 +27,7 @@
             : null;
         $procurementWorkspaceConfig = [
             'activeTab' => $defaultTab,
+            'openPurchaseOrderId' => request()->integer('open_po') ?: null,
             'items' => $canIssuePurchaseOrder ? $items->map(function ($item) use ($itemProcurementContext) {
                 $context = $itemProcurementContext->get((string) $item->id, []);
 
@@ -1977,7 +1978,7 @@
                                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                         <div class="min-w-0 space-y-1">
                                             <div class="flex flex-wrap items-center gap-2">
-                                                <button type="button" x-on:click="openPurchaseOrderDetails({{ Js::from($poDetail) }})" class="font-mono text-xs font-bold text-primary-700 hover:text-primary-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 flex items-center gap-1 dark:text-primary-400 dark:hover:text-primary-300">
+                                                <button type="button" data-purchase-order-details="{{ $po->id }}" x-on:click="openPurchaseOrderDetails({{ Js::from($poDetail) }})" class="font-mono text-xs font-bold text-primary-700 hover:text-primary-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 flex items-center gap-1 dark:text-primary-400 dark:hover:text-primary-300">
                                                     <svg class="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                                                     <span>{{ $po->po_number }}</span>
                                                 </button>

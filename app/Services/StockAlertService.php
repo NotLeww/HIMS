@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Enums\AlertStatus;
 use App\Enums\AlertSeverity;
+use App\Enums\AlertStatus;
 use App\Enums\AlertType;
 use App\Enums\NotificationDestination;
 use App\Enums\NotificationPriority;
@@ -215,6 +215,16 @@ class StockAlertService
                 ? NotificationPriority::Critical
                 : NotificationPriority::Warning,
             NotificationDestination::InventoryAlerts,
+            array_filter([
+                'item' => $alert->item_id,
+                'batch' => $alert->item_batch_id,
+                'alert_type' => match ($alert->type) {
+                    AlertType::OutOfStock => 'out_of_stock',
+                    AlertType::LowStock => 'low_stock',
+                    AlertType::Expired, AlertType::ExpiringSoon => 'near_expiry',
+                    default => null,
+                },
+            ], fn ($value): bool => $value !== null),
         );
     }
 

@@ -113,6 +113,7 @@ class ProcurementController extends Controller implements HasMiddleware
         $poSearch = trim((string) $request->string('po_search'));
         $poStatus = trim((string) $request->string('po_status'));
         $poDate = trim((string) $request->string('po_date'));
+        $poId = $request->integer('po_id') ?: null;
 
         // Legacy requests for backward compatibility
         $requests = ProcurementRequest::with(['item', 'supplier'])
@@ -224,6 +225,7 @@ class ProcurementController extends Controller implements HasMiddleware
             'approvalChain.steps.approver',
             'shipments',
         ])->visibleInPipeline()
+            ->when($poId !== null, fn ($query) => $query->whereKey($poId))
             ->when($supplierFilter, fn ($query) => $query->where('supplier_id', $supplierFilter->id))
             ->when($poCreatorFilter, fn ($query) => $query->where('created_by_user_id', $poCreatorFilter->id))
             ->when($poSearch !== '', fn ($query) => $query->where(function ($searchQuery) use ($poSearch): void {

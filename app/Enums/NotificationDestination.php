@@ -2,7 +2,9 @@
 
 namespace App\Enums;
 
+use App\Models\InventoryItem;
 use App\Models\MaterialRequisition;
+use App\Models\PurchaseOrder;
 use App\Models\User;
 use App\Models\WarehouseTask;
 use App\Support\AuthenticationPanel;
@@ -47,11 +49,24 @@ enum NotificationDestination: string
     public function isAvailable(array $parameters = []): bool
     {
         return match ($this) {
+            self::InventoryAlerts => empty($parameters['item'])
+                || InventoryItem::query()
+                    ->whereKey((int) $parameters['item'])
+                    ->when(! empty($parameters['batch']), fn ($query) => $query->whereHas(
+                        'batches',
+                        fn ($batches) => $batches->whereKey((int) $parameters['batch'])
+                    ))
+                    ->exists(),
             self::MaterialRequisition => MaterialRequisition::query()
                 ->whereKey((int) ($parameters['requisition'] ?? 0))
                 ->exists(),
             self::WarehouseTask => WarehouseTask::query()
                 ->whereKey((int) ($parameters['task'] ?? 0))->exists(),
+            self::Procurement => empty($parameters['purchase_order'])
+                || PurchaseOrder::query()
+                    ->visibleInPipeline()
+                    ->whereKey((int) $parameters['purchase_order'])
+                    ->exists(),
             default => true,
         };
     }
@@ -61,14 +76,16 @@ enum NotificationDestination: string
     {
         return match ($this) {
             self::Dashboard => route(AuthenticationPanel::forRole($user->role)->dashboardRoute()),
-            self::InventoryAlerts => route('inventory.alerts'),
+            self::InventoryAlerts => route('inventory.alerts', array_filter([
+                'manage_item' => $parameters['item'] ?? null,
+                'manage_batch' => $parameters['batch'] ?? null,
+                'alert_type' => $parameters['alert_type'] ?? null,
+            ], fn ($value): bool => $value !== null)),
             self::MaterialRequisition => route('inventory.requisitions.show', [
                 'requisition' => (int) ($parameters['requisition'] ?? 0),
             ]),
             self::InventoryAdjustments => route('inventory.adjustments'),
-            self::Procurement => route('inventory.purchases', array_filter([
-                'po_search' => $parameters['po_search'] ?? null,
-            ])).'#purchase-orders',
+            self::Procurement => $this->procurementUrl($parameters),
             self::Import => route('inventory.import.index'),
             self::Profile => route('profile.edit'),
             self::QualityControl => route('inventory.qc.index'),
@@ -79,5 +96,21 @@ enum NotificationDestination: string
                 'warehouseTask' => (int) ($parameters['task'] ?? 0),
             ]),
         };
+    }
+
+    /** @param array<string, scalar|null> $parameters */
+    private function procurementUrl(array $parameters): string
+    {
+        $purchaseOrderId = (int) ($parameters['purchase_order'] ?? 0);
+        $tab = $purchaseOrderId > 0 ? 'orders_revisions' : ($parameters['tab'] ?? null);
+        $url = route('inventory.purchases', array_filter([
+            'tab' => $tab,
+            'po_id' => $purchaseOrderId > 0 ? $purchaseOrderId : null,
+            'open_po' => $purchaseOrderId > 0 ? $purchaseOrderId : null,
+            'po_search' => $purchaseOrderId > 0 ? null : ($parameters['po_search'] ?? null),
+            'approval_search' => $parameters['approval_search'] ?? null,
+        ]));
+
+        return $purchaseOrderId > 0 ? $url.'#purchase-orders' : $url;
     }
 }

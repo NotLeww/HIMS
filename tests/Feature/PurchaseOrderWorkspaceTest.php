@@ -734,6 +734,7 @@ class PurchaseOrderWorkspaceTest extends TestCase
             $this->assertNotNull($reminder);
             $this->assertSame('warning', $reminder->data['priority']);
             $this->assertSame($po->po_number, $reminder->data['route_parameters']['po_search']);
+            $this->assertSame($po->id, $reminder->data['route_parameters']['purchase_order']);
         }
 
         foreach ([$issuer, $administrator, $viewer] as $nonRecipient) {
