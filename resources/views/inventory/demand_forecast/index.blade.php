@@ -14,7 +14,7 @@
     @endphp
 
     <div x-data="demandForecastDashboard({{ Js::from($dashboardForecastConfig) }})"
-         x-init="@if(request()->has('plan_page')) activeTab = 'plans' @endif"
+         x-init="@if(request()->hasAny(['dataset_view', 'dataset_page', 'dataset_search', 'dataset_category_id', 'dataset_movement_type', 'dataset_location_id', 'dataset_from', 'dataset_to'])) activeTab = 'dataset' @elseif(request()->has('plan_page')) activeTab = 'plans' @endif"
          class="space-y-3 sm:space-y-3.5">
 
         {{-- PAGE HEADER WITH ACTIONS --}}
@@ -711,6 +711,14 @@
                         <span class="rounded-full bg-neutral-200/80 px-2 py-0.5 text-xs font-bold text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300" x-text="filteredStatisticalItems().length"></span>
                     </button>
                     <button type="button"
+                            x-on:click="activeTab = 'dataset'"
+                            class="inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition"
+                            :class="activeTab === 'dataset' ? 'bg-white text-primary-700 shadow-2xs dark:bg-neutral-800 dark:text-primary-300' : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'">
+                        <x-ui.icon name="table-cells" class="h-4 w-4" />
+                        <span>Source Dataset</span>
+                        <span class="rounded-full bg-neutral-200/80 px-2 py-0.5 text-xs font-bold tabular-nums text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300">{{ number_format($datasetMovements->total()) }}</span>
+                    </button>
+                    <button type="button"
                             x-on:click="activeTab = 'plans'"
                             class="inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition"
                             :class="activeTab === 'plans' ? 'bg-white text-primary-700 shadow-2xs dark:bg-neutral-800 dark:text-primary-300' : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'">
@@ -874,7 +882,141 @@
                 />
             </div>
 
-            {{-- TAB 3: SAVED PROCUREMENT PLANS TABLE --}}
+            {{-- TAB 3: RAW FORECAST SOURCE DATASET --}}
+            <div x-show="activeTab === 'dataset'" x-cloak>
+                <div class="border-b border-neutral-200 px-4 py-3 dark:border-neutral-800">
+                    <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Forecast source dataset</h3>
+                    <p class="mt-0.5 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+                        Consumption records from the last {{ $analysisDays }} days. Only Stock Out and Issuance movements feed the forecast; transfers, adjustments, returns, and disposals are excluded.
+                    </p>
+                </div>
+                <form method="GET" action="{{ route('inventory.demand-forecast') }}" class="border-b border-neutral-200 bg-neutral-50/60 px-4 py-3 dark:border-neutral-800 dark:bg-neutral-800/30">
+                    <input type="hidden" name="analysis_days" value="{{ $analysisDays }}">
+                    <input type="hidden" name="forecast_days" value="{{ $forecastDays }}">
+                    <input type="hidden" name="dataset_view" value="1">
+
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                        <div class="xl:col-span-2">
+                            <label for="dataset-search" class="mb-1 block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Item or SKU</label>
+                            <div class="relative">
+                                <x-ui.icon name="magnifying-glass" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+                                <input id="dataset-search" name="dataset_search" type="search" value="{{ $datasetFilters['search'] }}" placeholder="Search item or SKU" class="block h-10 w-full rounded-lg border-neutral-300 bg-white pl-9 pr-3 text-sm shadow-2xs placeholder:text-neutral-400 focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
+                            </div>
+                        </div>
+                        <div>
+                            <label for="dataset-category" class="mb-1 block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Category</label>
+                            <select id="dataset-category" name="dataset_category_id" class="block h-10 w-full rounded-lg border-neutral-300 bg-white pl-3 pr-10 text-sm shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
+                                <option value="">All categories</option>
+                                @foreach ($categories as $category)
+                                    <option value="{{ $category->id }}" @selected($datasetFilters['category_id'] === $category->id)>{{ $category->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="dataset-movement-type" class="mb-1 block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Movement type</label>
+                            <select id="dataset-movement-type" name="dataset_movement_type" class="block h-10 w-full rounded-lg border-neutral-300 bg-white pl-3 pr-10 text-sm shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
+                                <option value="">All consumption</option>
+                                @foreach ($datasetMovementTypes as $movementType)
+                                    <option value="{{ $movementType->value }}" @selected($datasetFilters['movement_type'] === $movementType->value)>{{ $movementType->label() }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label for="dataset-location" class="mb-1 block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Source location</label>
+                            <select id="dataset-location" name="dataset_location_id" class="block h-10 w-full rounded-lg border-neutral-300 bg-white pl-3 pr-10 text-sm shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
+                                <option value="">All locations</option>
+                                @foreach ($datasetLocations as $location)
+                                    <option value="{{ $location->id }}" @selected($datasetFilters['location_id'] === $location->id)>{{ $location->name }} ({{ $location->code }})</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 sm:col-span-2 lg:col-span-1 xl:col-span-1">
+                            <div>
+                                <label for="dataset-from" class="mb-1 block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">From</label>
+                                <input id="dataset-from" name="dataset_from" type="date" value="{{ $datasetFilters['from'] }}" min="{{ $analysisStartsAt->toDateString() }}" max="{{ $datasetFilters['to'] ?: today()->toDateString() }}" class="block h-10 w-full rounded-lg border-neutral-300 bg-white px-2.5 text-xs shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
+                            </div>
+                            <div>
+                                <label for="dataset-to" class="mb-1 block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">To</label>
+                                <input id="dataset-to" name="dataset_to" type="date" value="{{ $datasetFilters['to'] }}" min="{{ $datasetFilters['from'] ?: $analysisStartsAt->toDateString() }}" max="{{ today()->toDateString() }}" class="block h-10 w-full rounded-lg border-neutral-300 bg-white px-2.5 text-xs shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 flex flex-col gap-2 border-t border-neutral-200 pt-3 sm:flex-row sm:items-center sm:justify-between dark:border-neutral-700">
+                        <p class="text-xs text-neutral-600 dark:text-neutral-400">
+                            <span class="font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">{{ number_format($datasetMovements->total()) }}</span>
+                            matching {{ \Illuminate\Support\Str::plural('record', $datasetMovements->total()) }}
+                        </p>
+                        <div class="flex items-center gap-2">
+                            <x-ui.button type="submit" size="sm" icon="funnel">Apply Filters</x-ui.button>
+                            <x-ui.button variant="secondary" size="sm" :href="route('inventory.demand-forecast', ['analysis_days' => $analysisDays, 'forecast_days' => $forecastDays, 'dataset_view' => 1])">Clear</x-ui.button>
+                        </div>
+                    </div>
+                </form>
+                <x-ui.table aria-label="Forecast source dataset">
+                    <x-ui.table.head>
+                        <x-ui.table.th>Recorded</x-ui.table.th>
+                        <x-ui.table.th>Item</x-ui.table.th>
+                        <x-ui.table.th class="hidden sm:table-cell">Movement</x-ui.table.th>
+                        <x-ui.table.th numeric>Quantity</x-ui.table.th>
+                        <x-ui.table.th class="hidden lg:table-cell">From</x-ui.table.th>
+                        <x-ui.table.th class="hidden lg:table-cell">To</x-ui.table.th>
+                        <x-ui.table.th>Source record</x-ui.table.th>
+                    </x-ui.table.head>
+                    <tbody>
+                        @forelse ($datasetMovements as $movement)
+                            <x-ui.table.row>
+                                <x-ui.table.td>
+                                    <time datetime="{{ $movement->moved_at?->toIso8601String() }}" class="whitespace-nowrap text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                                        {{ $movement->moved_at?->format('M d, Y') ?? '—' }}
+                                    </time>
+                                    <span class="block whitespace-nowrap text-xs text-neutral-500 dark:text-neutral-400">{{ $movement->moved_at?->format('g:i A') ?? 'Time unavailable' }}</span>
+                                </x-ui.table.td>
+                                <x-ui.table.td>
+                                    <span class="font-medium text-neutral-900 dark:text-neutral-100">{{ $movement->item?->name ?? 'Deleted item' }}</span>
+                                    <span class="block text-xs text-neutral-500 dark:text-neutral-400">
+                                        {{ $movement->item?->sku ?? 'SKU unavailable' }}@if($movement->item?->category) · {{ $movement->item->category->name }}@endif
+                                    </span>
+                                </x-ui.table.td>
+                                <x-ui.table.td class="hidden sm:table-cell">
+                                    {{ $movement->movement_type->label() }}
+                                </x-ui.table.td>
+                                <x-ui.table.td numeric>
+                                    <span class="font-semibold text-neutral-900 dark:text-neutral-100">{{ number_format($movement->quantity) }}</span>
+                                    <span class="block text-xs font-normal text-neutral-500 dark:text-neutral-400">{{ $movement->item?->unit ?? 'units' }}</span>
+                                </x-ui.table.td>
+                                <x-ui.table.td class="hidden lg:table-cell" muted>
+                                    {{ $movement->fromLocation?->name ?? 'Not recorded' }}
+                                    @if ($movement->fromLocation?->code)
+                                        <span class="block text-xs">{{ $movement->fromLocation->code }}</span>
+                                    @endif
+                                </x-ui.table.td>
+                                <x-ui.table.td class="hidden lg:table-cell" muted>
+                                    {{ $movement->toLocation?->name ?? 'External consumption' }}
+                                    @if ($movement->toLocation?->code)
+                                        <span class="block text-xs">{{ $movement->toLocation->code }}</span>
+                                    @endif
+                                </x-ui.table.td>
+                                <x-ui.table.td>
+                                    <span class="whitespace-nowrap text-xs font-semibold text-neutral-700 dark:text-neutral-300">Movement #{{ $movement->id }}</span>
+                                    <span class="block max-w-xs truncate text-xs text-neutral-500 dark:text-neutral-400" title="{{ $movement->remarks }}">
+                                        {{ $movement->remarks ?: 'Inventory movement ledger' }}
+                                    </span>
+                                </x-ui.table.td>
+                            </x-ui.table.row>
+                        @empty
+                            <x-ui.table.empty :colspan="7" icon="table-cells" title="No source records in this window" message="Record Stock Out or Issuance movements to create forecast history." />
+                        @endforelse
+                    </tbody>
+                </x-ui.table>
+                @if ($datasetMovements->hasPages())
+                    <div class="border-t border-neutral-200 px-4 py-3 dark:border-neutral-800">
+                        {{ $datasetMovements->onEachSide(1)->links() }}
+                    </div>
+                @endif
+            </div>
+
+            {{-- TAB 4: SAVED PROCUREMENT PLANS TABLE --}}
             <div x-show="activeTab === 'plans'" class="overflow-x-auto">
                 <x-ui.table>
                     <x-ui.table.head>

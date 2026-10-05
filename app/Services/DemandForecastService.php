@@ -94,9 +94,10 @@ class DemandForecastService
     public function forecastAll(
         int $analysisDays = self::DEFAULT_ANALYSIS_DAYS,
         int $forecastDays = self::DEFAULT_FORECAST_DAYS,
+        ?Carbon $since = null,
     ): Collection {
         $analysisDays = max(1, $analysisDays);
-        $since = now()->subDays($analysisDays);
+        $since ??= now()->subDays($analysisDays);
 
         return InventoryItem::query()
             ->active()

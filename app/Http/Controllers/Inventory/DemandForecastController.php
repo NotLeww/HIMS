@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Enums\MovementType;
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreDemandForecastPlanRequest;
 use App\Models\DemandPlan;
 use App\Models\InventoryItem;
 use App\Models\ItemCategory;
+use App\Models\StockMovement;
+use App\Models\StorageLocation;
 use App\Services\AiDemandForecastService;
 use App\Services\DemandForecastService;
 use Illuminate\Http\JsonResponse;
@@ -56,7 +59,47 @@ class DemandForecastController extends Controller implements HasMiddleware
         $analysisDays = max(7, min(365, $analysisDays));
         $forecastDays = max(7, min(180, $forecastDays));
 
-        $forecasts = $this->forecasts->forecastAll($analysisDays, $forecastDays);
+        $analysisStartsAt = now()->subDays($analysisDays);
+        $forecasts = $this->forecasts->forecastAll($analysisDays, $forecastDays, $analysisStartsAt);
+
+        $datasetSearch = Str::limit(trim((string) $request->query('dataset_search')), 100, '');
+        $datasetCategoryId = filter_var($request->query('dataset_category_id'), FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE);
+        $datasetLocationId = filter_var($request->query('dataset_location_id'), FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE);
+        $datasetMovementType = in_array($request->query('dataset_movement_type'), MovementType::consumptionValues(), true)
+            ? (string) $request->query('dataset_movement_type')
+            : null;
+        $datasetFrom = $this->validDatasetDate($request->query('dataset_from'));
+        $datasetTo = $this->validDatasetDate($request->query('dataset_to'));
+
+        if ($datasetFrom !== null && $datasetTo !== null && $datasetFrom > $datasetTo) {
+            [$datasetFrom, $datasetTo] = [$datasetTo, $datasetFrom];
+        }
+
+        $datasetMovements = StockMovement::query()
+            ->with([
+                'item:id,name,sku,unit,category_id',
+                'item.category:id,name',
+                'fromLocation:id,name,code',
+                'toLocation:id,name,code',
+            ])
+            ->whereHas('item', fn ($query) => $query->active())
+            ->whereIn('movement_type', MovementType::consumptionValues())
+            ->where('moved_at', '>=', $analysisStartsAt)
+            ->when($datasetSearch !== '', fn ($query) => $query->whereHas('item', fn ($item) => $item
+                ->where('name', 'like', "%{$datasetSearch}%")
+                ->orWhere('sku', 'like', "%{$datasetSearch}%")))
+            ->when($datasetCategoryId !== null, fn ($query) => $query->whereHas(
+                'item',
+                fn ($item) => $item->where('category_id', $datasetCategoryId),
+            ))
+            ->when($datasetMovementType !== null, fn ($query) => $query->where('movement_type', $datasetMovementType))
+            ->when($datasetLocationId !== null, fn ($query) => $query->where('from_location_id', $datasetLocationId))
+            ->when($datasetFrom !== null, fn ($query) => $query->whereDate('moved_at', '>=', $datasetFrom))
+            ->when($datasetTo !== null, fn ($query) => $query->whereDate('moved_at', '<=', $datasetTo))
+            ->latest('moved_at')
+            ->latest('id')
+            ->paginate(15, ['*'], 'dataset_page')
+            ->withQueryString();
 
         // Opening the screen fills an empty cache by itself. Anyone who may read
         // this page already sees the same recorded consumption in the table
@@ -92,16 +135,28 @@ class DemandForecastController extends Controller implements HasMiddleware
         return view('inventory.demand_forecast.index', [
             'forecasts' => $forecasts,
             'analysisDays' => $analysisDays,
+            'analysisStartsAt' => $analysisStartsAt,
             'forecastDays' => $forecastDays,
             'aiForecast' => $aiForecast,
             'aiItems' => $aiItems->values(),
             'categories' => ItemCategory::query()->active()->orderBy('name')->get(['id', 'name']),
             'aiFilters' => compact('risk', 'categoryId', 'search', 'attentionOnly'),
+            'datasetFilters' => [
+                'search' => $datasetSearch,
+                'category_id' => $datasetCategoryId,
+                'movement_type' => $datasetMovementType,
+                'location_id' => $datasetLocationId,
+                'from' => $datasetFrom,
+                'to' => $datasetTo,
+            ],
+            'datasetLocations' => StorageLocation::query()->active()->orderBy('name')->get(['id', 'name', 'code']),
+            'datasetMovementTypes' => MovementType::consumptionCases(),
             'plans' => DemandPlan::with(['item', 'generatedBy'])
                 ->latest('generated_at')
                 ->latest('id')
                 ->paginate(10, ['*'], 'plan_page')
                 ->withQueryString(),
+            'datasetMovements' => $datasetMovements,
             'summary' => [
                 'items' => $forecasts->count(),
                 'needs_reorder' => $forecasts->where('needs_reorder', true)->count(),
@@ -109,6 +164,16 @@ class DemandForecastController extends Controller implements HasMiddleware
                 'suggested_units' => (int) $forecasts->sum('suggested_order_quantity'),
             ],
         ]);
+    }
+
+    private function validDatasetDate(mixed $value): ?string
+    {
+        $value = is_string($value) ? trim($value) : '';
+
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1
+            && checkdate((int) substr($value, 5, 2), (int) substr($value, 8, 2), (int) substr($value, 0, 4))
+                ? $value
+                : null;
     }
 
     public function refresh(Request $request): RedirectResponse|JsonResponse

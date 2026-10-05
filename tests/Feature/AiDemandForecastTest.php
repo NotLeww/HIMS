@@ -1031,7 +1031,7 @@ class AiDemandForecastTest extends TestCase
             ->assertDontSee('Historical consumption and forecast points are calculating or unavailable');
     }
 
-    public function test_demand_forecast_tables_render_pagination_for_all_three_tabs(): void
+    public function test_demand_forecast_tables_render_pagination_for_all_four_tabs(): void
     {
         $manager = User::factory()->inventoryManager()->create();
         $this->item();
@@ -1047,6 +1047,8 @@ class AiDemandForecastTest extends TestCase
             ->assertSee("x-on:click=\"risk = ''\"", false)
             ->assertSee('x-show="activeTab === \'ai\'"', false)
             ->assertSee('x-show="activeTab === \'statistical\'"', false)
+            ->assertSee('x-show="activeTab === \'dataset\'"', false)
+            ->assertSee('x-show="activeTab === \'plans\'"', false)
             ->assertSee('x-show="(aiTableItems().length) > pageSize"', false)
             ->assertSee('x-show="(filteredStatisticalItems().length) > pageSize"', false);
 
@@ -1063,6 +1065,7 @@ class AiDemandForecastTest extends TestCase
         $this->assertIsString($view);
         $this->assertSame(2, substr_count($view, '<x-ui.client-pagination'));
         $this->assertStringContainsString("x-on:click=\"showForecastTab('statistical')\"", $view);
+        $this->assertStringContainsString('$datasetMovements->onEachSide(1)->links()', $view);
         $this->assertStringContainsString('$plans->onEachSide(1)->links()', $view);
     }
 
