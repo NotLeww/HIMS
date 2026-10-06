@@ -503,9 +503,7 @@
             <x-slot:header>
                 <div class="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex min-w-0 items-center gap-3">
-                        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">
-                            <x-ui.icon name="user-circle" class="h-6 w-6" />
-                        </span>
+                        <x-ui.avatar :user="$editUser" size="lg" class="!h-12 !w-12" />
                         <div class="min-w-0">
                             <h2 id="edit-user-modal-title" class="text-lg font-semibold text-neutral-950 dark:text-white">Edit User</h2>
                         <p class="mt-0.5 truncate text-sm text-neutral-500 dark:text-neutral-400">
