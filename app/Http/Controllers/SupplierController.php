@@ -7,6 +7,8 @@ use App\Enums\Permission;
 use App\Enums\SupplierAccreditationStatus;
 use App\Enums\SupplierStatus;
 use App\Enums\UnitOfMeasure;
+use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Http\Requests\StoreSupplierRequest;
 use App\Http\Requests\UpdateSupplierRequest;
 use App\Models\AuditLog;
@@ -15,16 +17,17 @@ use App\Models\ItemCategory;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\SupplierContract;
+use App\Models\SupplierDiscrepancy;
 use App\Models\SupplierDocument;
 use App\Models\SupplierPrice;
 use App\Models\SupplierProduct;
-use App\Models\SupplierDiscrepancy;
+use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\FileContentValidator;
 use App\Services\SupplierManagementService;
 use App\Services\UserAccountService;
-use App\Enums\UserRole;
 use App\Support\MetricDetails;
+use App\Support\SuperAdminPasswordConfirmation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
@@ -74,7 +77,7 @@ class SupplierController extends Controller implements HasMiddleware
             ]),
             new Middleware('can:'.Permission::ReviewSupplierCompliance->value, only: ['submitForReview', 'verifyDocument']),
             new Middleware('can:'.Permission::ApproveSuppliers->value, only: ['approve', 'reject', 'suspend', 'inactivate', 'reactivate']),
-            new Middleware('can:'.Permission::ApproveSuppliers->value, only: ['inviteUser']),
+            new Middleware('can:'.Permission::ApproveSuppliers->value, only: ['inviteUser', 'updatePortalUser']),
         ];
     }
 
@@ -368,6 +371,60 @@ class SupplierController extends Controller implements HasMiddleware
             ->route('inventory.suppliers.show', $supplier)
             ->withFragment('supplier-portal-access')
             ->with('success', "Invitation created for {$user->email}. The activation email was submitted for delivery; ask the recipient to check their inbox and spam folder.");
+    }
+
+    public function updatePortalUser(Request $request, Supplier $supplier, User $portalUser): RedirectResponse
+    {
+        abort_unless(
+            $portalUser->supplier_id === $supplier->id && $portalUser->role?->isSupplier(),
+            404,
+        );
+
+        $allowedStatuses = in_array($portalUser->status, [UserStatus::Active, UserStatus::Inactive], true)
+            ? [UserStatus::Active->value, UserStatus::Inactive->value]
+            : [$portalUser->status->value];
+
+        $data = $request->validate([
+            'portal_user_id' => ['required', 'integer', Rule::in([$portalUser->id])],
+            'form_context' => ['required', Rule::in(['supplier_account'])],
+            'account_first_name' => ['required', 'string', 'max:80', 'regex:/^\p{L}+(?: \p{L}+)*$/u'],
+            'account_surname' => ['required', 'string', 'max:80', 'regex:/^\p{L}+(?: \p{L}+)*$/u'],
+            'account_email' => ['required', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users', 'email')->ignore($portalUser->id)],
+            'account_role' => ['required', Rule::enum(UserRole::class), Rule::in([
+                UserRole::VendorAdministrator->value,
+                UserRole::VendorOperations->value,
+                UserRole::VendorFinance->value,
+            ])],
+            'account_status' => ['required', Rule::enum(UserStatus::class), Rule::in($allowedStatuses)],
+            'current_password' => ['nullable', 'string'],
+            'super_admin_confirmation_token' => ['nullable', 'string'],
+        ], [], [
+            'account_first_name' => 'first name',
+            'account_surname' => 'surname',
+            'account_email' => 'email',
+            'account_role' => 'supplier role',
+            'account_status' => 'account status',
+        ]);
+
+        if ($request->user()?->isSuperAdministrator()) {
+            SuperAdminPasswordConfirmation::validate($request, $request->user());
+        }
+
+        $updatedUser = $this->accounts->update($portalUser, [
+            'first_name' => $data['account_first_name'],
+            'surname' => $data['account_surname'],
+            'email' => $data['account_email'],
+            'role' => $data['account_role'],
+            'status' => $data['account_status'],
+            'middle_name' => $portalUser->middle_name,
+            'department' => $portalUser->department,
+            'phone' => $portalUser->phone,
+        ], $request->user());
+
+        return redirect()
+            ->route('inventory.suppliers.show', $supplier)
+            ->withFragment('supplier-portal-access')
+            ->with('success', "{$updatedUser->name}'s supplier portal account was updated.");
     }
 
     public function update(UpdateSupplierRequest $request, Supplier $supplier): RedirectResponse

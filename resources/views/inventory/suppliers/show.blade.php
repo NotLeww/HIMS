@@ -64,27 +64,18 @@
 
     @if ($canApprove && $supplier->isProcurementEligible())
         <x-ui.card id="supplier-portal-access" title="Supplier Portal Access" subtitle="Hospital invitation-only accounts for this approved supplier." class="mt-5 scroll-mt-24">
-            <form
-                method="POST"
-                action="{{ route('inventory.suppliers.portal-users.store', $supplier) }}"
-                class="grid gap-4 md:grid-cols-2 xl:grid-cols-5"
-                data-confirm-title="Send supplier invitation?"
-                data-confirm-message="Confirm the representative's name, email address, and supplier role. An account activation link will be sent to the entered email address."
-                data-confirm-label="Send Invitation"
-            >
-                @csrf
-                <x-ui.field name="first_name" label="First name" required />
-                <x-ui.field name="surname" label="Surname" required />
-                <x-ui.field name="email" label="Email" type="email" hint="The activation link will be sent here." required />
-                <x-ui.field name="role" label="Supplier role" type="select" :options="[
-                    'vendor_administrator' => 'Vendor Administrator',
-                    'vendor_operations' => 'Vendor Operations',
-                    'vendor_finance' => 'Vendor Finance',
-                ]" required />
-                <div class="flex items-end"><x-ui.button type="submit" class="w-full" data-loading-text="Sending invitation...">Send invitation</x-ui.button></div>
-            </form>
+            <x-slot:actions>
+                <x-ui.button
+                    type="button"
+                    size="sm"
+                    icon="plus"
+                    x-data
+                    x-on:click="$dispatch('open-modal', 'invite-supplier-user')"
+                >Invite supplier user</x-ui.button>
+            </x-slot:actions>
+
             @if($portalUsers->isNotEmpty())
-                <ul class="mt-5 divide-y divide-neutral-200 text-sm dark:divide-neutral-800">
+                <ul class="divide-y divide-neutral-200 text-sm dark:divide-neutral-800">
                     @foreach($portalUsers as $portalUser)
                         <li class="grid gap-3 py-4 md:grid-cols-2 md:items-center xl:grid-cols-5">
                             <div class="min-w-0 xl:col-span-2">
@@ -108,17 +99,206 @@
                                         </form>
                                     @endif
                                     <x-ui.button
-                                        :href="route(\App\Support\AuthenticationContext::administrationRoute('users.edit'), $portalUser)"
+                                        type="button"
                                         variant="secondary"
                                         size="sm"
+                                        x-data
+                                        x-on:click="$dispatch('manage-supplier-account', {{ \Illuminate\Support\Js::from([
+                                            'actionUrl' => route('inventory.suppliers.portal-users.update', [$supplier, $portalUser]),
+                                            'advancedUrl' => route(\App\Support\AuthenticationContext::administrationRoute('users.edit'), $portalUser),
+                                            'userId' => $portalUser->id,
+                                            'accountName' => $portalUser->name,
+                                            'firstName' => $portalUser->first_name,
+                                            'surname' => $portalUser->surname,
+                                            'email' => $portalUser->email,
+                                            'role' => $portalUser->role->value,
+                                            'status' => $portalUser->status->value,
+                                            'original' => [
+                                                'firstName' => $portalUser->first_name,
+                                                'surname' => $portalUser->surname,
+                                                'email' => $portalUser->email,
+                                                'role' => $portalUser->role->value,
+                                                'status' => $portalUser->status->value,
+                                            ],
+                                            'statusLabel' => $portalUser->status->label(),
+                                            'statusEditable' => in_array($portalUser->status, [\App\Enums\UserStatus::Active, \App\Enums\UserStatus::Inactive], true),
+                                        ]) }})"
                                     >{{ $portalUser->isPendingActivation() ? 'Edit Invitation' : 'Manage Account' }}</x-ui.button>
                                 </div>
                             </div>
                         </li>
                     @endforeach
                 </ul>
+            @else
+                <p class="text-sm text-neutral-500 dark:text-neutral-400">No supplier portal users yet.</p>
             @endif
         </x-ui.card>
+
+        <div
+            x-data="{
+                actionUrl: '',
+                advancedUrl: '#',
+                userId: '',
+                accountName: '',
+                firstName: '',
+                surname: '',
+                email: '',
+                role: '',
+                status: '',
+                original: {},
+                statusLabel: '',
+                statusEditable: false,
+                hasAccountChanges() {
+                    return ['firstName', 'surname', 'email', 'role', 'status']
+                        .some((field) => String(this[field] ?? '') !== String(this.original[field] ?? ''));
+                },
+                openAccount(account) {
+                    Object.assign(this, account);
+                    this.$dispatch('open-modal', 'manage-supplier-account');
+                },
+            }"
+            x-on:manage-supplier-account.window="openAccount($event.detail)"
+        >
+            <x-ui.modal name="manage-supplier-account" title="Manage supplier account" maxWidth="2xl">
+                <p class="mb-5 text-sm text-neutral-600 dark:text-neutral-300">
+                    Update the representative's identity and supplier portal access for <span class="font-medium text-neutral-900 dark:text-neutral-100" x-text="accountName"></span>.
+                </p>
+
+                <form
+                    id="manage-supplier-account-form"
+                    method="POST"
+                    x-bind:action="actionUrl"
+                    class="grid gap-4 sm:grid-cols-2"
+                    autocomplete="off"
+                    @if(auth()->user()?->isSuperAdministrator())
+                        data-super-admin-password="edit"
+                    @else
+                        data-confirm-title="Confirm supplier account changes"
+                        data-confirm-message="Save these identity, role, and account status changes?"
+                        data-confirm-label="Save Changes"
+                    @endif
+                >
+                    @csrf
+                    @method('PATCH')
+                    <input type="hidden" name="form_context" value="supplier_account">
+                    <input type="hidden" name="portal_user_id" x-model="userId">
+
+                    <x-ui.field name="account_first_name" label="First name" x-model="firstName" required />
+                    <x-ui.field name="account_surname" label="Surname" x-model="surname" required />
+                    <div class="sm:col-span-2">
+                        <x-ui.field name="account_email" label="Email" type="email" x-model="email" required />
+                    </div>
+                    <x-ui.field name="account_role" label="Supplier role" type="select" x-model="role" :options="[
+                        'vendor_administrator' => 'Vendor Administrator',
+                        'vendor_operations' => 'Vendor Operations',
+                        'vendor_finance' => 'Vendor Finance',
+                    ]" required />
+                    <div>
+                        <div x-show="statusEditable">
+                            <x-ui.field
+                                name="account_status"
+                                label="Account status"
+                                type="select"
+                                x-model="status"
+                                x-bind:disabled="!statusEditable"
+                                :options="[
+                                    'active' => 'Active',
+                                    'inactive' => 'Inactive',
+                                ]"
+                                required
+                            />
+                        </div>
+                        <div x-show="!statusEditable">
+                            <x-ui.field name="account_status_display" label="Account status" x-model="statusLabel" disabled />
+                            <input type="hidden" name="account_status" x-model="status" x-bind:disabled="statusEditable">
+                        </div>
+                    </div>
+                </form>
+
+                <x-slot:footer>
+                    <x-ui.button href="#" x-bind:href="advancedUrl" variant="ghost">Advanced settings</x-ui.button>
+                    <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'manage-supplier-account')">Cancel</x-ui.button>
+                    <x-ui.button
+                        type="submit"
+                        form="manage-supplier-account-form"
+                        data-loading-text="Saving changes..."
+                        disabled
+                        x-bind:disabled="!hasAccountChanges()"
+                    >Save changes</x-ui.button>
+                </x-slot:footer>
+            </x-ui.modal>
+        </div>
+
+        @php
+            $editingPortalUser = old('form_context') === 'supplier_account'
+                ? $portalUsers->firstWhere('id', (int) old('portal_user_id'))
+                : null;
+        @endphp
+        @if($editingPortalUser && $errors->any())
+            <div
+                x-data
+                x-init="$nextTick(() => $dispatch('manage-supplier-account', {{ \Illuminate\Support\Js::from([
+                    'actionUrl' => route('inventory.suppliers.portal-users.update', [$supplier, $editingPortalUser]),
+                    'advancedUrl' => route(\App\Support\AuthenticationContext::administrationRoute('users.edit'), $editingPortalUser),
+                    'userId' => $editingPortalUser->id,
+                    'accountName' => $editingPortalUser->name,
+                    'firstName' => old('account_first_name', $editingPortalUser->first_name),
+                    'surname' => old('account_surname', $editingPortalUser->surname),
+                    'email' => old('account_email', $editingPortalUser->email),
+                    'role' => old('account_role', $editingPortalUser->role->value),
+                    'status' => old('account_status', $editingPortalUser->status->value),
+                    'original' => [
+                        'firstName' => $editingPortalUser->first_name,
+                        'surname' => $editingPortalUser->surname,
+                        'email' => $editingPortalUser->email,
+                        'role' => $editingPortalUser->role->value,
+                        'status' => $editingPortalUser->status->value,
+                    ],
+                    'statusLabel' => $editingPortalUser->status->label(),
+                    'statusEditable' => in_array($editingPortalUser->status, [\App\Enums\UserStatus::Active, \App\Enums\UserStatus::Inactive], true),
+                ]) }}))"
+            ></div>
+        @endif
+
+        <x-ui.modal name="invite-supplier-user" title="Invite supplier user" maxWidth="2xl">
+            <p class="mb-5 text-sm text-neutral-600 dark:text-neutral-300">
+                Create an invitation-only account for this supplier. The activation link will be sent to the representative's email address.
+            </p>
+
+            <form
+                id="supplier-invitation-form"
+                method="POST"
+                action="{{ route('inventory.suppliers.portal-users.store', $supplier) }}"
+                class="grid gap-4 sm:grid-cols-2"
+                data-confirm-title="Send supplier invitation?"
+                data-confirm-message="Confirm the representative's name, email address, and supplier role. An account activation link will be sent to the entered email address."
+                data-confirm-label="Send Invitation"
+            >
+                @csrf
+                <input type="hidden" name="form_context" value="supplier_invitation">
+                <x-ui.field name="first_name" label="First name" required />
+                <x-ui.field name="surname" label="Surname" required />
+                <div class="sm:col-span-2">
+                    <x-ui.field name="email" label="Email" type="email" hint="The activation link will be sent here." required />
+                </div>
+                <div class="sm:col-span-2">
+                    <x-ui.field name="role" label="Supplier role" type="select" :options="[
+                        'vendor_administrator' => 'Vendor Administrator',
+                        'vendor_operations' => 'Vendor Operations',
+                        'vendor_finance' => 'Vendor Finance',
+                    ]" required />
+                </div>
+            </form>
+
+            <x-slot:footer>
+                <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'invite-supplier-user')">Cancel</x-ui.button>
+                <x-ui.button type="submit" form="supplier-invitation-form" data-loading-text="Sending invitation...">Send invitation</x-ui.button>
+            </x-slot:footer>
+        </x-ui.modal>
+
+        @if(old('form_context') === 'supplier_invitation' && $errors->any())
+            <div x-data x-init="$nextTick(() => $dispatch('open-modal', 'invite-supplier-user'))"></div>
+        @endif
     @endif
 
     @if(auth()->user()?->can(\App\Enums\Permission::ViewSupplierSensitiveData->value) && ($supplier->discrepancies->isNotEmpty() || $supplier->invoices->isNotEmpty()))

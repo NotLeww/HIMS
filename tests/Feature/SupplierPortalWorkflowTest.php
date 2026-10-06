@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AuditAction;
 use App\Enums\PurchaseOrderStatus;
 use App\Enums\SupplierAccreditationStatus;
 use App\Enums\SupplierStatus;
 use App\Enums\UserRole;
+use App\Enums\UserStatus;
 use App\Models\GoodsReceiptNote;
 use App\Models\GoodsReceiptNoteLine;
 use App\Models\InventoryItem;
@@ -35,6 +37,10 @@ class SupplierPortalWorkflowTest extends TestCase
         $this->actingAs($admin, 'admin')->get(route('inventory.suppliers.show', $supplier))
             ->assertOk()
             ->assertSee('id="supplier-portal-access"', false)
+            ->assertSee('Invite supplier user')
+            ->assertSee("open-modal', 'invite-supplier-user", false)
+            ->assertSee('id="supplier-invitation-form"', false)
+            ->assertSee('No supplier portal users yet.')
             ->assertSee('data-confirm-title="Send supplier invitation?"', false)
             ->assertSee('data-confirm-label="Send Invitation"', false);
 
@@ -56,8 +62,12 @@ class SupplierPortalWorkflowTest extends TestCase
         $this->get(route('inventory.suppliers.show', $supplier))
             ->assertOk()
             ->assertSee('Resend Activation')
+            ->assertSee('Edit Invitation')
+            ->assertSee('Manage supplier account')
+            ->assertSee('Advanced settings')
             ->assertSee('data-confirm-title="Resend activation email?"', false)
-            ->assertSee(route('admin.users.edit', $invitedUser), false);
+            ->assertSee('data-confirm-title="Confirm supplier account changes"', false)
+            ->assertSee('x-bind:disabled="!hasAccountChanges()"', false);
 
         $this->post(route('admin.users.verification.send', $invitedUser), [
             'return_to_supplier' => '1',
@@ -65,6 +75,51 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertSessionHas('success', 'A new activation email was sent to ana@supplier.test.');
 
         Notification::assertSentToTimes($invitedUser, AccountCreated::class, 2);
+    }
+
+    public function test_supplier_account_management_stays_supplier_scoped_and_preserves_security_controls(): void
+    {
+        [$supplierA, $portalUser] = $this->supplierWithUser('Managed Supplier', UserRole::VendorAdministrator);
+        [$supplierB] = $this->supplierWithUser('Other Supplier', UserRole::VendorOperations);
+        $admin = User::factory()->administrator()->create();
+        $superAdmin = User::factory()->superAdministrator()->create();
+        $inventoryManager = User::factory()->inventoryManager()->create();
+        $route = route('inventory.suppliers.portal-users.update', [$supplierA, $portalUser]);
+        $payload = [
+            'portal_user_id' => $portalUser->id,
+            'form_context' => 'supplier_account',
+            'account_first_name' => 'Maria',
+            'account_surname' => 'Vendor',
+            'account_email' => 'maria.vendor@supplier.test',
+            'account_role' => UserRole::VendorFinance->value,
+            'account_status' => UserStatus::Inactive->value,
+        ];
+
+        $this->actingAs($inventoryManager)->patch($route, $payload)->assertForbidden();
+        $this->actingAs($superAdmin)->patch($route, $payload)->assertSessionHasErrors('current_password');
+        $this->assertSame(UserRole::VendorAdministrator, $portalUser->fresh()->role);
+
+        $this->actingAs($admin, 'admin')->patch($route, $payload)
+            ->assertRedirect(route('inventory.suppliers.show', $supplierA).'#supplier-portal-access')
+            ->assertSessionHas('success', 'Maria Vendor\'s supplier portal account was updated.');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $portalUser->id,
+            'supplier_id' => $supplierA->id,
+            'email' => 'maria.vendor@supplier.test',
+            'role' => UserRole::VendorFinance->value,
+            'status' => UserStatus::Inactive->value,
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::UpdatedUser->value,
+            'user_id' => $admin->id,
+            'target_id' => (string) $portalUser->id,
+        ]);
+
+        $this->actingAs($admin, 'admin')
+            ->patch(route('inventory.suppliers.portal-users.update', [$supplierB, $portalUser]), $payload)
+            ->assertNotFound();
+        $this->assertSame($supplierA->id, $portalUser->fresh()->supplier_id);
     }
 
     public function test_supplier_workflow_is_persisted_and_tenant_isolated(): void

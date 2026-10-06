@@ -108,6 +108,7 @@ Route::middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])->
     Route::post('/inventory/suppliers/{supplier}/submit', [SupplierController::class, 'submitForReview'])->name('inventory.suppliers.submit');
     Route::post('/inventory/suppliers/{supplier}/approve', [SupplierController::class, 'approve'])->name('inventory.suppliers.approve');
     Route::post('/inventory/suppliers/{supplier}/portal-users', [SupplierController::class, 'inviteUser'])->name('inventory.suppliers.portal-users.store');
+    Route::patch('/inventory/suppliers/{supplier}/portal-users/{portalUser}', [SupplierController::class, 'updatePortalUser'])->name('inventory.suppliers.portal-users.update');
     Route::post('/inventory/suppliers/{supplier}/reject', [SupplierController::class, 'reject'])->name('inventory.suppliers.reject');
     Route::post('/inventory/suppliers/{supplier}/suspend', [SupplierController::class, 'suspend'])->name('inventory.suppliers.suspend');
     Route::post('/inventory/suppliers/{supplier}/archive', [ArchiveController::class, 'archiveSupplier'])->name('inventory.suppliers.archive');
