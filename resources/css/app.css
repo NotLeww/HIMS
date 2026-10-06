@@ -385,6 +385,12 @@
 }
 
 @layer components {
+    .supplier-summary-change-indicator {
+        border: 2px solid theme('colors.success.500');
+        box-shadow: 0 0 0 3px rgb(34 197 94 / 0.16), 0 8px 22px -12px rgb(22 163 74 / 0.55);
+        animation: hims-supplier-summary-change 1.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
     .hims-app-shell,
     .hims-app-content {
         max-width: 100%;
@@ -625,6 +631,22 @@
     .menu-link.active {
         @apply bg-primary-600 text-white rounded-md;
         margin: 0 2px;
+    }
+}
+
+@keyframes hims-supplier-summary-change {
+    0%, 22% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .supplier-summary-change-indicator {
+        animation: hims-supplier-summary-change 600ms ease-out forwards !important;
     }
 }
 

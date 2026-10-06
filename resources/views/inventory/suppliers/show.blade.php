@@ -159,8 +159,19 @@
             }"
             x-on:manage-supplier-account.window="openAccount($event.detail)"
         >
-            <x-ui.modal name="manage-supplier-account" title="Manage supplier account" maxWidth="2xl">
-                <p class="mb-5 text-sm text-neutral-600 dark:text-neutral-300">
+            <x-ui.modal name="manage-supplier-account" title="Manage supplier account" maxWidth="4xl">
+                <x-slot:header>
+                    <div class="flex min-w-0 items-center gap-3">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">
+                            <x-ui.icon name="user-circle" class="h-6 w-6" />
+                        </span>
+                        <h2 id="manage-supplier-account-title" class="text-xl font-semibold tracking-tight text-neutral-950 dark:text-white">
+                            Manage supplier account
+                        </h2>
+                    </div>
+                </x-slot:header>
+
+                <p class="mb-6 text-sm leading-6 text-neutral-600 sm:text-base dark:text-neutral-300">
                     Update the representative's identity and supplier portal access for <span class="font-medium text-neutral-900 dark:text-neutral-100" x-text="accountName"></span>.
                 </p>
 
@@ -168,7 +179,7 @@
                     id="manage-supplier-account-form"
                     method="POST"
                     x-bind:action="actionUrl"
-                    class="grid gap-4 sm:grid-cols-2"
+                    class="grid gap-x-6 gap-y-5 sm:grid-cols-2 [&_input]:min-h-12 [&_input]:text-base [&_select]:min-h-12 [&_select]:text-base"
                     autocomplete="off"
                     @if(auth()->user()?->isSuperAdministrator())
                         data-super-admin-password="edit"
@@ -216,15 +227,17 @@
                 </form>
 
                 <x-slot:footer>
-                    <x-ui.button href="#" x-bind:href="advancedUrl" variant="ghost">Advanced settings</x-ui.button>
-                    <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'manage-supplier-account')">Cancel</x-ui.button>
-                    <x-ui.button
-                        type="submit"
-                        form="manage-supplier-account-form"
-                        data-loading-text="Saving changes..."
-                        disabled
-                        x-bind:disabled="!hasAccountChanges()"
-                    >Save changes</x-ui.button>
+                    <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+                        <x-ui.button href="#" x-bind:href="advancedUrl" variant="ghost" icon="adjustments-horizontal">Advanced settings</x-ui.button>
+                        <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'manage-supplier-account')">Cancel</x-ui.button>
+                        <x-ui.button
+                            type="submit"
+                            form="manage-supplier-account-form"
+                            data-loading-text="Saving changes..."
+                            disabled
+                            x-bind:disabled="!hasAccountChanges()"
+                        >Save changes</x-ui.button>
+                    </div>
                 </x-slot:footer>
             </x-ui.modal>
         </div>

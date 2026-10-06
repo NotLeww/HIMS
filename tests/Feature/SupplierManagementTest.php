@@ -161,6 +161,8 @@ class SupplierManagementTest extends TestCase
             ->assertViewHas('counts', fn (array $counts) => $counts['open_purchase_orders'] === 1 && $counts['purchase_orders'] === 1)
             ->assertSee('Supplier Vendor Analytics')
             ->assertSee('Selected supplier')
+            ->assertSee('data-selected-supplier-indicator', false)
+            ->assertSee('data-supplier-summary-change', false)
             ->assertSee('Selected Clinical Vendor')
             ->assertSee('selected.vendor@example.test')
             ->assertSee('PO-SELECTED-001')
