@@ -163,6 +163,7 @@ class SupplierPortalWorkflowTest extends TestCase
         $line = PurchaseOrderLine::create(['purchase_order_id' => $po->id, 'item_id' => $item->id, 'line_number' => 1, 'ordered_quantity' => 10, 'unit_price' => 100, 'total_line_amount' => 1000]);
 
         $this->actingAs($operationsA)->get(route('supplier.dashboard'))->assertOk()->assertSee('PO-PORTAL-001');
+        $this->actingAs($operationsA)->get(route('supplier.orders.show', $po))->assertOk()->assertSee('PO-PORTAL-001');
         $this->actingAs($operationsA)->get('/dashboard')->assertForbidden();
         $this->actingAs($operationsB)->get(route('supplier.orders.show', $po))->assertForbidden();
 

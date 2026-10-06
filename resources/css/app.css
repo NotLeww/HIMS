@@ -385,6 +385,203 @@
 }
 
 @layer components {
+    .supplier-portal {
+        background-color: #f5f8fc;
+        background-image: radial-gradient(circle at 78% 0%, rgb(37 99 235 / 0.06), transparent 32rem);
+    }
+
+    .dark .supplier-portal {
+        background-color: #050b12;
+        background-image:
+            radial-gradient(circle at 72% 0%, rgb(30 64 175 / 0.15), transparent 38rem),
+            linear-gradient(180deg, #07111c 0%, #050b12 28rem);
+    }
+
+    .supplier-portal-header {
+        box-shadow: 0 10px 30px -26px rgb(15 23 42 / 0.45);
+        backdrop-filter: blur(14px);
+    }
+
+    .dark .supplier-portal-header {
+        box-shadow: 0 12px 36px -28px rgb(59 130 246 / 0.5);
+    }
+
+    .supplier-portal-main {
+        width: 100%;
+        max-width: none;
+    }
+
+    .supplier-portal .hims-card {
+        border-radius: 1rem;
+        border-color: theme('colors.slate.200');
+        box-shadow: none;
+    }
+
+    .dark .supplier-portal .hims-card {
+        border-color: rgb(51 65 85 / 0.8);
+        background-color: rgb(15 23 42 / 0.74);
+    }
+
+    .supplier-portal .hims-table-scroll {
+        border: 1px solid theme('colors.slate.200');
+        border-radius: 0.75rem;
+    }
+
+    .supplier-portal .hims-table-scroll th {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+
+    .supplier-portal .hims-table-scroll td {
+        padding-top: 1.125rem;
+        padding-bottom: 1.125rem;
+    }
+
+    .dark .supplier-portal .hims-table-scroll {
+        border-color: theme('colors.slate.800');
+    }
+
+    .supplier-portal .hims-page-header {
+        min-height: 8.75rem;
+        border: 1px solid theme('colors.slate.200');
+        background-color: #eef5ff;
+        background-image:
+            linear-gradient(90deg, rgb(248 250 252 / 0.99) 0%, rgb(241 245 249 / 0.95) 48%, rgb(219 234 254 / 0.54) 72%, rgb(15 23 42 / 0.1) 100%),
+            url('/img/hims-supplier-dashboard-hero-light.png');
+        background-position: center, center right;
+        background-size: cover, cover;
+    }
+
+    .dark .supplier-portal .hims-page-header {
+        border-color: rgb(51 65 85 / 0.9);
+        background-color: #0b1624;
+        background-image:
+            linear-gradient(90deg, rgb(8 17 28 / 0.99) 0%, rgb(9 21 35 / 0.96) 48%, rgb(15 36 61 / 0.78) 70%, rgb(4 10 18 / 0.26) 100%),
+            url('/img/hims-supplier-dashboard-hero.png');
+    }
+
+    .supplier-portal .hims-page-header h1 {
+        font-size: 1.875rem;
+        line-height: 2.25rem;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+    }
+
+    .supplier-dashboard-hero {
+        background-color: #f8fafc;
+    }
+
+    .supplier-dashboard-hero__scrim {
+        background: linear-gradient(90deg, rgb(248 250 252 / 0.99) 0%, rgb(248 250 252 / 0.94) 38%, rgb(241 245 249 / 0.58) 58%, rgb(241 245 249 / 0.08) 100%);
+    }
+
+    .dark .supplier-dashboard-hero {
+        background-color: #08111c;
+    }
+
+    .dark .supplier-dashboard-hero__scrim {
+        background: linear-gradient(90deg, rgb(8 17 28 / 0.98) 0%, rgb(9 21 35 / 0.92) 38%, rgb(9 21 35 / 0.58) 58%, rgb(4 10 18 / 0.08) 100%);
+    }
+
+    .supplier-portal .supplier-orders-header {
+        min-height: 11.25rem;
+        border-color: rgb(191 219 254 / 0.9);
+        background-color: #f8fbff;
+        background-image:
+            radial-gradient(76% 210% at 80% -66%, rgb(219 234 254 / 0.95) 0 38%, transparent 39%),
+            radial-gradient(68% 180% at 104% -36%, rgb(191 219 254 / 0.44) 0 43%, transparent 44%),
+            linear-gradient(115deg, #ffffff 0%, #f8fbff 52%, #eef5ff 100%);
+    }
+
+    .dark .supplier-portal .supplier-orders-header {
+        border-color: rgb(51 65 85 / 0.9);
+        background-color: #0b1624;
+        background-image:
+            radial-gradient(76% 210% at 80% -66%, rgb(30 64 175 / 0.28) 0 38%, transparent 39%),
+            radial-gradient(68% 180% at 104% -36%, rgb(14 116 144 / 0.16) 0 43%, transparent 44%),
+            linear-gradient(115deg, #08111c 0%, #0b1624 52%, #101f34 100%);
+    }
+
+    .supplier-portal .supplier-orders-header h1 {
+        font-size: 2.25rem;
+        line-height: 2.5rem;
+        font-weight: 800;
+    }
+
+    .supplier-portal .supplier-orders-header nav,
+    .supplier-portal .supplier-orders-header p {
+        font-size: 1rem;
+        line-height: 1.5rem;
+    }
+
+    .supplier-portal .hims-table-scroll:has(.supplier-orders-table) {
+        border-color: rgb(219 234 254 / 0.95);
+        border-radius: 1.25rem;
+        background-color: white;
+    }
+
+    .dark .supplier-portal .hims-table-scroll:has(.supplier-orders-table) {
+        border-color: rgb(51 65 85 / 0.9);
+        background-color: rgb(15 23 42 / 0.82);
+    }
+
+    .supplier-orders-table {
+        font-size: 1rem;
+    }
+
+    .supplier-portal .supplier-orders-table th {
+        padding: 1.5rem 3rem;
+        background: transparent !important;
+        color: theme('colors.slate.500');
+        font-size: 0.875rem;
+    }
+
+    .supplier-portal .supplier-orders-table td {
+        padding: 1rem 3rem;
+        font-size: 1rem;
+    }
+
+    .dark .supplier-portal .supplier-orders-table th {
+        color: theme('colors.slate.400');
+    }
+
+    @media (max-width: 767px) {
+        .supplier-portal .supplier-orders-header {
+            min-height: 9rem;
+        }
+
+        .supplier-portal .supplier-orders-header h1 {
+            font-size: 1.75rem;
+            line-height: 2.25rem;
+        }
+
+        .supplier-portal .supplier-orders-table th,
+        .supplier-portal .supplier-orders-table td {
+            padding-right: 1rem;
+            padding-left: 1rem;
+        }
+    }
+
+    .supplier-portal ::selection {
+        background: rgb(59 130 246 / 0.32);
+        color: inherit;
+    }
+
+    @media (max-width: 639px) {
+        .supplier-portal .hims-page-header {
+            min-height: 7.5rem;
+        }
+
+        .supplier-portal .hims-page-header h1 {
+            font-size: 1.5rem;
+            line-height: 2rem;
+        }
+
+        .dark .supplier-dashboard-hero__scrim {
+            background: linear-gradient(90deg, rgb(8 17 28 / 0.98) 0%, rgb(9 21 35 / 0.9) 58%, rgb(4 10 18 / 0.24) 100%);
+        }
+    }
+
     .supplier-summary-change-indicator {
         border: 2px solid theme('colors.success.500');
         box-shadow: 0 0 0 3px rgb(34 197 94 / 0.16), 0 8px 22px -12px rgb(22 163 74 / 0.55);

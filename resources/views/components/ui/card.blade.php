@@ -5,7 +5,7 @@
 ])
 
 <section {{ $attributes->merge([
-    'class' => 'min-w-0 max-w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-sm overflow-hidden',
+    'class' => 'hims-card min-w-0 max-w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-sm overflow-hidden',
 ]) }}>
     @if ($title || isset($header) || isset($actions))
         <header class="flex flex-col items-start justify-between gap-3 border-b border-neutral-200 dark:border-neutral-800 px-4 py-4 sm:flex-row sm:gap-4 sm:px-5">

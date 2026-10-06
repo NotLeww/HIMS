@@ -1,8 +1,5 @@
 <x-layouts.supplier title="Compliance">
-    <div class="flex flex-col gap-1">
-        <h1 class="text-2xl font-semibold text-neutral-950 dark:text-white">Compliance</h1>
-        <p class="text-sm text-neutral-600 dark:text-neutral-400">Submit current evidence for hospital verification. Previous records remain in the hospital audit history.</p>
-    </div>
+    <x-ui.page-header title="Compliance" subtitle="Submit current evidence for hospital verification. Previous records remain in the hospital audit history." />
 
     @can(\App\Enums\Permission::SupplierManageProfile->value)
         <x-ui.card title="Upload compliance evidence" class="mt-6">
