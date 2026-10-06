@@ -18,9 +18,12 @@ use App\Models\SupplierContract;
 use App\Models\SupplierDocument;
 use App\Models\SupplierPrice;
 use App\Models\SupplierProduct;
+use App\Models\SupplierDiscrepancy;
 use App\Services\AuditLogger;
 use App\Services\FileContentValidator;
 use App\Services\SupplierManagementService;
+use App\Services\UserAccountService;
+use App\Enums\UserRole;
 use App\Support\MetricDetails;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -42,6 +45,7 @@ class SupplierController extends Controller implements HasMiddleware
         private readonly SupplierManagementService $suppliers,
         private readonly AuditLogger $audit,
         private readonly FileContentValidator $fileContentValidator,
+        private readonly UserAccountService $accounts,
     ) {}
 
     public static function middleware(): array
@@ -62,12 +66,15 @@ class SupplierController extends Controller implements HasMiddleware
                 'addProduct',
                 'deactivateProduct',
                 'reactivateProduct',
+                'approveProduct',
+                'resolveDiscrepancy',
                 'addPrice',
                 'addContract',
                 'updateContract',
             ]),
             new Middleware('can:'.Permission::ReviewSupplierCompliance->value, only: ['submitForReview', 'verifyDocument']),
             new Middleware('can:'.Permission::ApproveSuppliers->value, only: ['approve', 'reject', 'suspend', 'inactivate', 'reactivate']),
+            new Middleware('can:'.Permission::ApproveSuppliers->value, only: ['inviteUser']),
         ];
     }
 
@@ -307,6 +314,8 @@ class SupplierController extends Controller implements HasMiddleware
             'supplierProducts' => fn ($query) => $query->with(['item.category', 'prices.contract'])->orderByDesc('is_active')->latest(),
             'contracts' => fn ($query) => $query->with('responsibleUser')->latest('starts_at'),
             'complianceAlerts' => fn ($query) => $query->active()->orderBy('due_date'),
+            'discrepancies' => fn ($query) => $query->with(['receiptLine.item', 'receiptLine.goodsReceiptNote.purchaseOrder'])->latest(),
+            'invoices' => fn ($query) => $query->with('purchaseOrder')->latest('submitted_at'),
         ]);
 
         return view('inventory.suppliers.show', [
@@ -329,7 +338,36 @@ class SupplierController extends Controller implements HasMiddleware
             'recentAudit' => request()->user()->can(Permission::ViewAuditTrail->value)
                 ? AuditLog::query()->where('target_type', $supplier->getMorphClass())->where('target_id', (string) $supplier->id)->latest()->limit(20)->get()
                 : collect(),
+            'portalUsers' => $supplier->users()->orderBy('name')->get(),
         ]);
+    }
+
+    public function inviteUser(Request $request, Supplier $supplier): RedirectResponse
+    {
+        abort_unless($supplier->isProcurementEligible(), 422, 'Only approved, active, compliant suppliers may receive portal invitations.');
+
+        $data = $request->validate([
+            'first_name' => ['required', 'string', 'max:100'],
+            'surname' => ['required', 'string', 'max:100'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'role' => ['required', Rule::enum(UserRole::class), Rule::in([
+                UserRole::VendorAdministrator->value,
+                UserRole::VendorOperations->value,
+                UserRole::VendorFinance->value,
+            ])],
+        ]);
+
+        $user = $this->accounts->create([
+            ...$data,
+            'supplier_id' => $supplier->id,
+            'department' => 'External Supplier',
+        ], $request->user());
+
+        return redirect()
+            ->route('inventory.suppliers.show', $supplier)
+            ->withFragment('supplier-portal-access')
+            ->with('success', "Invitation created for {$user->email}. The activation email was submitted for delivery; ask the recipient to check their inbox and spam folder.");
     }
 
     public function update(UpdateSupplierRequest $request, Supplier $supplier): RedirectResponse
@@ -337,6 +375,27 @@ class SupplierController extends Controller implements HasMiddleware
         $this->suppliers->update($supplier, $request->validated(), $request->user());
 
         return back()->with('success', 'Supplier information updated.');
+    }
+
+    public function approveProduct(Supplier $supplier, SupplierProduct $supplierProduct): RedirectResponse
+    {
+        abort_unless($supplierProduct->supplier_id === $supplier->id, 404);
+        $oldStatus = $supplierProduct->approval_status;
+        $supplierProduct->update(['approval_status' => 'approved', 'is_active' => true]);
+        $this->audit->log(AuditAction::UpdatedSupplierProduct, request()->user(), 'Approved a supplier-submitted catalog product.', $supplierProduct, $supplierProduct->supplier_product_name, oldValues: ['approval_status' => $oldStatus], newValues: ['approval_status' => 'approved']);
+
+        return back()->with('success', 'Catalog product approved for operational use.');
+    }
+
+    public function resolveDiscrepancy(Request $request, Supplier $supplier, SupplierDiscrepancy $discrepancy): RedirectResponse
+    {
+        abort_unless($discrepancy->supplier_id === $supplier->id, 404);
+        $data = $request->validate(['resolution' => ['required', 'string', 'max:2000']]);
+        $oldStatus = $discrepancy->status;
+        $discrepancy->update([...$data, 'status' => 'closed', 'resolved_by' => $request->user()->id, 'resolved_at' => now()]);
+        $this->audit->log(AuditAction::ResolvedSupplierDiscrepancy, $request->user(), 'Hospital review closed a supplier receiving discrepancy.', $discrepancy, "Discrepancy {$discrepancy->id}", oldValues: ['status' => $oldStatus], newValues: ['status' => 'closed']);
+
+        return back()->with('success', 'Supplier discrepancy resolved and closed.');
     }
 
     /**

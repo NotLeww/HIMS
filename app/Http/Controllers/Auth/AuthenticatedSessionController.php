@@ -35,6 +35,7 @@ class AuthenticatedSessionController extends Controller
 
         return view('auth.login', [
             'loginRestriction' => $lockouts->sessionRestriction($request, AuthenticationContext::WEB_GUARD),
+            'supplierPortal' => $request->routeIs('supplier.login'),
         ]);
     }
 
@@ -49,6 +50,7 @@ class AuthenticatedSessionController extends Controller
         DeviceSecurityService $deviceSecurity,
     ): RedirectResponse {
         $user = $request->validateCredentials();
+        $panel = AuthenticationPanel::forRole($user->role);
 
         $deviceResult = $deviceSecurity->handleLoginAttempt(
             $request,
@@ -79,7 +81,7 @@ class AuthenticatedSessionController extends Controller
             if ($pendingUser?->is($user)
                 && $mfa->challengeUsesAuthenticator($request, AuthenticationContext::WEB_GUARD)
                 && ! $mfa->isExpired($request, AuthenticationContext::WEB_GUARD)) {
-                return redirect()->route('login.mfa');
+                return redirect()->route($panel->loginMfaRoute());
             }
 
             $request->session()->regenerate();
@@ -91,14 +93,14 @@ class AuthenticatedSessionController extends Controller
                 $request->progressiveThrottleKey(),
             );
 
-            return redirect()->route('login.mfa');
+            return redirect()->route($panel->loginMfaRoute());
         }
 
         if ($user->mfa_enabled) {
             $pendingUser = $mfa->pendingUser($request, AuthenticationContext::WEB_GUARD);
 
             if ($pendingUser?->is($user) && $mfa->resendAvailableIn($request, AuthenticationContext::WEB_GUARD) > 0) {
-                return redirect()->route('login.mfa')
+                return redirect()->route($panel->loginMfaRoute())
                     ->with('status', 'A verification code was recently sent.');
             }
 
@@ -126,20 +128,20 @@ class AuthenticatedSessionController extends Controller
                 ])->onlyInput('email');
             }
 
-            return redirect()->route('login.mfa');
+            return redirect()->route($panel->loginMfaRoute());
         }
 
         if ($user->sms_mfa_enabled) {
             $pendingUser = $mfa->pendingUser($request, AuthenticationContext::WEB_GUARD);
             if ($pendingUser?->is($user) && $mfa->challengeMethod($request, AuthenticationContext::WEB_GUARD) === LoginMfaService::METHOD_SMS) {
-                return redirect()->route('login.mfa');
+                return redirect()->route($panel->loginMfaRoute());
             }
 
             $request->session()->regenerate();
             $status = $sms->begin($request, $user, AuthenticationContext::WEB_GUARD, $request->boolean('remember'), $request->progressiveThrottleKey());
 
             return $status === SmsOtpDelivery::SENT
-                ? redirect()->route('login.mfa')
+                ? redirect()->route($panel->loginMfaRoute())
                 : back()->withErrors(['email' => $status === SmsOtpDelivery::RATE_LIMITED
                     ? 'Too many SMS code requests. Please wait before trying again.'
                     : 'We could not send a verification code. Please try again.'])->onlyInput('email');
@@ -155,7 +157,7 @@ class AuthenticatedSessionController extends Controller
                 $request->progressiveThrottleKey(),
             );
 
-            return redirect()->route(AuthenticationPanel::Staff->expiredPasswordRoute());
+            return redirect()->route($panel->expiredPasswordRoute());
         }
 
         $request->login($user);
@@ -172,7 +174,9 @@ class AuthenticatedSessionController extends Controller
             now()->getTimestamp(),
         );
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $destination = AuthenticationPanel::forRole($user->role)->dashboardRoute();
+
+        return redirect()->intended(route($destination, absolute: false));
     }
 
     /**
@@ -193,8 +197,10 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerateToken();
         Cookie::queue(Cookie::forget(EnforceSessionInactivity::CONTEXT_COOKIE));
 
+        $loginRoute = $user?->role?->isSupplier() ? 'supplier.login' : 'login';
+
         return redirect()
-            ->route('login')
+            ->route($loginRoute)
             ->withHeaders([
                 'Cache-Control' => 'no-cache, no-store, must-revalidate, max-age=0',
                 'Pragma' => 'no-cache',

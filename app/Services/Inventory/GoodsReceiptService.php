@@ -10,6 +10,7 @@ use App\Enums\Permission;
 use App\Enums\PurchaseOrderStatus;
 use App\Models\GoodsReceiptNote;
 use App\Models\GoodsReceiptNoteLine;
+use App\Models\SupplierDiscrepancy;
 use App\Models\InventoryItem;
 use App\Models\InventorySerial;
 use App\Models\ItemBatch;
@@ -306,6 +307,13 @@ class GoodsReceiptService
                     'discrepancy_notes' => $discrepancyNotes,
                     'notes' => $lineInput['notes'] ?? null,
                 ]);
+
+                if ($discrepancyType !== null) {
+                    SupplierDiscrepancy::firstOrCreate(
+                        ['grn_line_item_id' => $grnLine->id],
+                        ['supplier_id' => $po->supplier_id, 'status' => 'open'],
+                    );
+                }
 
                 if ($item->is_serial_tracked) {
                     InventorySerial::create([

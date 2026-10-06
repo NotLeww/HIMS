@@ -90,6 +90,21 @@ class Supplier extends Model
         return $this->hasMany(PurchaseOrder::class);
     }
 
+    public function discrepancies(): HasMany
+    {
+        return $this->hasMany(SupplierDiscrepancy::class);
+    }
+
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(SupplierInvoice::class);
+    }
+
+    public function users(): HasMany
+    {
+        return $this->hasMany(User::class);
+    }
+
     public function latestApprovedScorecard(): HasOne
     {
         return $this->hasOne(SupplierScorecard::class)

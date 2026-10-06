@@ -8,11 +8,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SupplierProduct extends Model
 {
-    protected $fillable = ['supplier_id', 'item_id', 'supplier_sku', 'supplier_product_name', 'manufacturer', 'brand', 'pack_size', 'unit', 'minimum_order_quantity', 'lead_time_days', 'is_preferred', 'is_active'];
+    protected $fillable = ['supplier_id', 'item_id', 'supplier_sku', 'gtin', 'supplier_product_name', 'manufacturer', 'brand', 'pack_size', 'unit', 'minimum_order_quantity', 'lead_time_days', 'is_preferred', 'is_active', 'approval_status', 'vmi_enabled', 'vmi_min', 'vmi_max'];
 
     protected function casts(): array
     {
-        return ['minimum_order_quantity' => 'integer', 'lead_time_days' => 'integer', 'is_preferred' => 'boolean', 'is_active' => 'boolean'];
+        return ['minimum_order_quantity' => 'integer', 'lead_time_days' => 'integer', 'is_preferred' => 'boolean', 'is_active' => 'boolean', 'vmi_enabled' => 'boolean', 'vmi_min' => 'integer', 'vmi_max' => 'integer'];
     }
 
     public function supplier(): BelongsTo

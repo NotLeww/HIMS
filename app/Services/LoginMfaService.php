@@ -168,7 +168,10 @@ class LoginMfaService
                 && hash_equals((string) $user->sms_mfa_phone, (string) $user->phone),
         };
 
-        if ($user === null || ! $user->isActive() || ! $methodStillEnabled || ! $panel->accepts($user->role)) {
+        $roleMatchesGuard = $user !== null && ($panel->accepts($user->role)
+            || ($guard === \App\Support\AuthenticationContext::WEB_GUARD && $user->role->isSupplier()));
+
+        if ($user === null || ! $user->isActive() || ! $methodStillEnabled || ! $roleMatchesGuard) {
             $this->clear($request);
 
             return null;

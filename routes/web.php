@@ -31,6 +31,8 @@ use App\Http\Controllers\Privacy\DsarDownloadController;
 use App\Http\Controllers\PrivacyRequestController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierPortalController;
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -45,27 +47,27 @@ Route::view('/terms-of-use', 'legal.terms-of-use')->name('terms');
 Route::redirect('/terms-and-conditions', '/terms-of-use');
 Route::redirect('/terms', '/terms-of-use');
 
-Route::get('/dashboard', [InventoryController::class, 'index'])->middleware(['auth:web,admin,super_admin', 'verified'])->name('dashboard');
+Route::get('/dashboard', [InventoryController::class, 'index'])->middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])->name('dashboard');
 
 // Polled by the dashboard's alert panel every 30s. Sits on the web routes so
 // it authenticates with the session cookie the page already has.
-Route::get('/dashboard/live', [InventoryController::class, 'live'])->middleware(['auth:web,admin,super_admin', 'verified'])->name('dashboard.live');
+Route::get('/dashboard/live', [InventoryController::class, 'live'])->middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])->name('dashboard.live');
 
 // Conversational HIMS AI Assistant.
 Route::post('/dashboard/ai-assistant', [DashboardAiAssistantController::class, 'chat'])
-    ->middleware(['auth:web,admin,super_admin', 'verified', 'throttle:30,1'])
+    ->middleware(['auth:web,admin,super_admin', 'verified', 'internal-user', 'throttle:30,1'])
     ->name('dashboard.ai-assistant');
 Route::get('/dashboard/ai-assistant/conversations', [DashboardAiAssistantController::class, 'conversations'])
-    ->middleware(['auth:web,admin,super_admin', 'verified'])
+    ->middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])
     ->name('dashboard.ai-assistant.conversations');
 Route::get('/dashboard/ai-assistant/conversations/active', [DashboardAiAssistantController::class, 'activeConversation'])
-    ->middleware(['auth:web,admin,super_admin', 'verified'])
+    ->middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])
     ->name('dashboard.ai-assistant.active');
 Route::get('/dashboard/ai-assistant/conversations/{id}', [DashboardAiAssistantController::class, 'showConversation'])
-    ->middleware(['auth:web,admin,super_admin', 'verified'])
+    ->middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])
     ->name('dashboard.ai-assistant.conversation');
 Route::get('/dashboard/ai-assistant/attachment/{message}', [DashboardAiAssistantController::class, 'attachment'])
-    ->middleware(['auth:web,admin,super_admin', 'verified'])
+    ->middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])
     ->name('dashboard.ai-assistant.attachment');
 
 /*
@@ -75,7 +77,7 @@ Route::get('/dashboard/ai-assistant/attachment/{message}', [DashboardAiAssistant
  * by being forgotten in this file. See App\Enums\UserRole::permissions() for
  * who holds what, and /admin/permissions for the matrix that renders it.
  */
-Route::middleware(['auth:web,admin,super_admin', 'verified'])->group(function () {
+Route::middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])->group(function () {
     Route::get('/global-search', [GlobalSearchController::class, 'search'])->name('global-search');
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
@@ -105,6 +107,7 @@ Route::middleware(['auth:web,admin,super_admin', 'verified'])->group(function ()
     Route::patch('/inventory/suppliers/{supplier}/documents/{document}/verification', [SupplierController::class, 'verifyDocument'])->name('inventory.suppliers.documents.verify');
     Route::post('/inventory/suppliers/{supplier}/submit', [SupplierController::class, 'submitForReview'])->name('inventory.suppliers.submit');
     Route::post('/inventory/suppliers/{supplier}/approve', [SupplierController::class, 'approve'])->name('inventory.suppliers.approve');
+    Route::post('/inventory/suppliers/{supplier}/portal-users', [SupplierController::class, 'inviteUser'])->name('inventory.suppliers.portal-users.store');
     Route::post('/inventory/suppliers/{supplier}/reject', [SupplierController::class, 'reject'])->name('inventory.suppliers.reject');
     Route::post('/inventory/suppliers/{supplier}/suspend', [SupplierController::class, 'suspend'])->name('inventory.suppliers.suspend');
     Route::post('/inventory/suppliers/{supplier}/archive', [ArchiveController::class, 'archiveSupplier'])->name('inventory.suppliers.archive');
@@ -114,6 +117,8 @@ Route::middleware(['auth:web,admin,super_admin', 'verified'])->group(function ()
     Route::post('/inventory/suppliers/{supplier}/products', [SupplierController::class, 'addProduct'])->name('inventory.suppliers.products.store');
     Route::patch('/inventory/suppliers/{supplier}/products/{supplierProduct}/deactivate', [SupplierController::class, 'deactivateProduct'])->name('inventory.suppliers.products.deactivate');
     Route::patch('/inventory/suppliers/{supplier}/products/{supplierProduct}/reactivate', [SupplierController::class, 'reactivateProduct'])->name('inventory.suppliers.products.reactivate');
+    Route::patch('/inventory/suppliers/{supplier}/products/{supplierProduct}/approve', [SupplierController::class, 'approveProduct'])->name('inventory.suppliers.products.approve');
+    Route::patch('/inventory/suppliers/{supplier}/discrepancies/{discrepancy}/resolve', [SupplierController::class, 'resolveDiscrepancy'])->name('inventory.suppliers.discrepancies.resolve');
     Route::post('/inventory/suppliers/{supplier}/prices', [SupplierController::class, 'addPrice'])->name('inventory.suppliers.prices.store');
     Route::post('/inventory/suppliers/{supplier}/contracts', [SupplierController::class, 'addContract'])->name('inventory.suppliers.contracts.store');
     Route::patch('/inventory/suppliers/{supplier}/contracts/{contract}', [SupplierController::class, 'updateContract'])->name('inventory.suppliers.contracts.update');
@@ -268,6 +273,39 @@ Route::middleware(['auth:web,admin,super_admin', 'verified'])->group(function ()
     Route::post('/reviews/{review}/approve', [ProcessReviewController::class, 'approve'])->name('reviews.approve');
     Route::post('/reviews/{review}/reject', [ProcessReviewController::class, 'reject'])->name('reviews.reject');
     Route::post('/reviews/recommendations/{recommendation}/implement', [ProcessReviewController::class, 'implementRecommendation'])->name('reviews.recommendations.implement');
+});
+
+Route::prefix('supplier')->name('supplier.')->group(function () {
+    Route::middleware(['guest:web', 'guest:admin', 'guest:super_admin'])->group(function () {
+        Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
+        Route::post('/login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:6,1')->name('login.store');
+        Route::get('/login/mfa', [\App\Http\Controllers\Auth\LoginMfaController::class, 'show'])->defaults('auth_panel', \App\Support\AuthenticationPanel::Supplier->value)->name('login.mfa');
+        Route::post('/login/mfa', [\App\Http\Controllers\Auth\LoginMfaController::class, 'verify'])->defaults('auth_panel', \App\Support\AuthenticationPanel::Supplier->value)->middleware('throttle:6,1')->name('login.mfa.verify');
+        Route::post('/login/mfa/resend', [\App\Http\Controllers\Auth\LoginMfaController::class, 'resend'])->defaults('auth_panel', \App\Support\AuthenticationPanel::Supplier->value)->middleware('throttle:3,1')->name('login.mfa.resend');
+        Route::post('/login/mfa/email', [\App\Http\Controllers\Auth\LoginMfaController::class, 'sendViaEmail'])->defaults('auth_panel', \App\Support\AuthenticationPanel::Supplier->value)->middleware('throttle:3,1')->name('login.mfa.email');
+        Route::post('/login/mfa/continue', [\App\Http\Controllers\Auth\LoginMfaController::class, 'continueSession'])->defaults('auth_panel', \App\Support\AuthenticationPanel::Supplier->value)->middleware('throttle:10,1')->name('login.mfa.continue');
+        Route::post('/login/mfa/cancel', [\App\Http\Controllers\Auth\LoginMfaController::class, 'cancel'])->defaults('auth_panel', \App\Support\AuthenticationPanel::Supplier->value)->name('login.mfa.cancel');
+    });
+
+    Route::middleware(['auth:web', 'verified', 'supplier-user'])->group(function () {
+        Route::get('/dashboard', [SupplierPortalController::class, 'dashboard'])->name('dashboard');
+        Route::get('/purchase-orders', [SupplierPortalController::class, 'orders'])->name('orders.index');
+        Route::get('/purchase-orders/{purchaseOrder}', [SupplierPortalController::class, 'order'])->name('orders.show');
+        Route::post('/purchase-orders/{purchaseOrder}/acknowledgements', [SupplierPortalController::class, 'acknowledge'])->name('orders.acknowledge');
+        Route::post('/purchase-orders/{purchaseOrder}/asns', [SupplierPortalController::class, 'storeAsn'])->name('orders.asns.store');
+        Route::get('/discrepancies', [SupplierPortalController::class, 'discrepancies'])->name('discrepancies.index');
+        Route::post('/discrepancies/{discrepancy}/response', [SupplierPortalController::class, 'respondToDiscrepancy'])->name('discrepancies.respond');
+        Route::get('/rfqs', [SupplierPortalController::class, 'rfqs'])->name('rfqs.index');
+        Route::post('/rfqs/{invitation}/bid', [SupplierPortalController::class, 'submitBid'])->name('rfqs.bid');
+        Route::get('/catalog', [SupplierPortalController::class, 'catalog'])->name('catalog.index');
+        Route::post('/catalog', [SupplierPortalController::class, 'submitCatalogProduct'])->name('catalog.store');
+        Route::get('/compliance', [SupplierPortalController::class, 'compliance'])->name('compliance.index');
+        Route::post('/compliance', [SupplierPortalController::class, 'uploadComplianceDocument'])->name('compliance.store');
+        Route::get('/compliance/{document}', [SupplierPortalController::class, 'downloadComplianceDocument'])->name('compliance.download');
+        Route::get('/invoices', [SupplierPortalController::class, 'invoices'])->name('invoices.index');
+        Route::post('/invoices', [SupplierPortalController::class, 'submitInvoice'])->name('invoices.store');
+        Route::get('/performance', [SupplierPortalController::class, 'performance'])->name('performance');
+    });
 });
 
 Route::middleware('auth:web,admin,super_admin')->group(function () {

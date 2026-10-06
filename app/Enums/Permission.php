@@ -85,6 +85,13 @@ enum Permission: string
     case ViewArchive = 'view_archive';
     case ManageArchive = 'manage_archive';
 
+    // External supplier portal abilities. These never grant internal HIMS access.
+    case SupplierManageProfile = 'supplier_manage_profile';
+    case SupplierFulfillOrders = 'supplier_fulfill_orders';
+    case SupplierSubmitBids = 'supplier_submit_bids';
+    case SupplierManageInvoices = 'supplier_manage_invoices';
+    case SupplierViewPerformance = 'supplier_view_performance';
+
     public function label(): string
     {
         return match ($this) {
@@ -141,6 +148,11 @@ enum Permission: string
             self::ManagePrivacyCompliance => 'Manage privacy and security governance',
             self::ViewArchive => 'View archive',
             self::ManageArchive => 'Archive and unarchive master records',
+            self::SupplierManageProfile => 'Manage own supplier profile and catalogue',
+            self::SupplierFulfillOrders => 'Acknowledge orders, submit ASNs, and respond to discrepancies',
+            self::SupplierSubmitBids => 'View invited RFQs and submit bids',
+            self::SupplierManageInvoices => 'Submit and view supplier invoices',
+            self::SupplierViewPerformance => 'View own supplier performance',
             self::ViewProcessReviews => 'View evidence-based process reviews',
             self::CreateProcessReview => 'Draft evidence-based process reviews',
             self::ApproveProcessReview => 'Approve or reject process reviews (Maker-Checker)',
@@ -204,6 +216,11 @@ enum Permission: string
             self::ManagePrivacyCompliance => 'Manage privacy and security governance, data subject requests, and incident response.',
             self::ViewArchive => 'Read the centralized archive of historical items, suppliers, and users.',
             self::ManageArchive => 'Archive active master records and restore preserved records from archive.',
+            self::SupplierManageProfile => 'Maintain permitted profile, compliance, and catalogue information for the linked supplier only.',
+            self::SupplierFulfillOrders => 'Respond to linked purchase orders, create ASNs, and answer receiving discrepancies.',
+            self::SupplierSubmitBids => 'Submit confidential bids only for RFQs addressed to the linked supplier.',
+            self::SupplierManageInvoices => 'Submit invoices and view matching outcomes for the linked supplier.',
+            self::SupplierViewPerformance => 'View the linked supplier organization’s approved scorecard.',
             self::ViewProcessReviews => 'Read evidence-based process review records, findings, and metrics.',
             self::CreateProcessReview => 'Create and submit operational process reviews for supervisory audit.',
             self::ApproveProcessReview => 'Review, approve, or reject operational process review recommendations.',
@@ -236,6 +253,8 @@ enum Permission: string
             self::ViewReports, self::ManageScheduledReports, self::GenerateForecasts, self::ViewProcessReviews,
             self::CreateProcessReview, self::ApproveProcessReview, self::ImplementProcessReview => 'Records & Analysis',
             self::ManageUsers, self::ViewAuditTrail, self::ManageSystemRecovery, self::ManagePrivacyCompliance, self::ViewArchive, self::ManageArchive => 'Administration',
+            self::SupplierManageProfile, self::SupplierFulfillOrders, self::SupplierSubmitBids,
+            self::SupplierManageInvoices, self::SupplierViewPerformance => 'Supplier Portal',
         };
     }
 

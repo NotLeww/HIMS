@@ -17,8 +17,12 @@ class LoginRequest extends RoleRestrictedLoginRequest
      */
     protected function allowedRoles(): array
     {
+        if ($this->is('supplier/login')) {
+            return collect(UserRole::cases())->filter->isSupplier()->map->value->all();
+        }
+
         return collect(UserRole::cases())
-            ->reject(fn (UserRole $role) => $role->isAdministrator())
+            ->reject(fn (UserRole $role) => $role->isAdministrator() || $role->isSupplier())
             ->map->value
             ->all();
     }

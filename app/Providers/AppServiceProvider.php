@@ -9,6 +9,8 @@ use App\Enums\NotificationPriority;
 use App\Enums\Permission;
 use App\Models\User;
 use App\Observers\UserObserver;
+use App\Observers\PurchaseOrderObserver;
+use App\Models\PurchaseOrder;
 use App\Services\AuditLogger;
 use App\Services\HimsNotificationService;
 use App\Services\Recovery\QueueJobRecoveryService;
@@ -142,6 +144,7 @@ class AppServiceProvider extends ServiceProvider
     private function registerAuditLogging(): void
     {
         User::observe(UserObserver::class);
+        PurchaseOrder::observe(PurchaseOrderObserver::class);
 
         Event::listen(function (Login $event): void {
             if ($event->user instanceof User) {

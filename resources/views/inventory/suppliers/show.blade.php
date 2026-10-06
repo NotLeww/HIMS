@@ -62,6 +62,102 @@
         </x-ui.alert>
     @endif
 
+    @if ($canApprove && $supplier->isProcurementEligible())
+        <x-ui.card id="supplier-portal-access" title="Supplier Portal Access" subtitle="Hospital invitation-only accounts for this approved supplier." class="mt-5 scroll-mt-24">
+            <form
+                method="POST"
+                action="{{ route('inventory.suppliers.portal-users.store', $supplier) }}"
+                class="grid gap-4 md:grid-cols-2 xl:grid-cols-5"
+                data-confirm-title="Send supplier invitation?"
+                data-confirm-message="Confirm the representative's name, email address, and supplier role. An account activation link will be sent to the entered email address."
+                data-confirm-label="Send Invitation"
+            >
+                @csrf
+                <x-ui.field name="first_name" label="First name" required />
+                <x-ui.field name="surname" label="Surname" required />
+                <x-ui.field name="email" label="Email" type="email" hint="The activation link will be sent here." required />
+                <x-ui.field name="role" label="Supplier role" type="select" :options="[
+                    'vendor_administrator' => 'Vendor Administrator',
+                    'vendor_operations' => 'Vendor Operations',
+                    'vendor_finance' => 'Vendor Finance',
+                ]" required />
+                <div class="flex items-end"><x-ui.button type="submit" class="w-full" data-loading-text="Sending invitation...">Send invitation</x-ui.button></div>
+            </form>
+            @if($portalUsers->isNotEmpty())
+                <ul class="mt-5 divide-y divide-neutral-200 text-sm dark:divide-neutral-800">
+                    @foreach($portalUsers as $portalUser)
+                        <li class="grid gap-3 py-4 md:grid-cols-2 md:items-center xl:grid-cols-5">
+                            <div class="min-w-0 xl:col-span-2">
+                                <p class="font-medium text-neutral-900 dark:text-neutral-100">{{ $portalUser->name }}</p>
+                                <p class="break-all text-xs text-neutral-500 dark:text-neutral-400">{{ $portalUser->email }}</p>
+                            </div>
+                            <div class="flex min-w-0 flex-col gap-2 md:items-end xl:col-span-3 xl:grid xl:grid-cols-3 xl:items-center xl:gap-4">
+                                <p class="whitespace-nowrap text-xs font-medium text-neutral-600 dark:text-neutral-300">{{ $portalUser->role->label() }} · {{ $portalUser->status->label() }}</p>
+                                <div class="flex flex-wrap items-center gap-2 md:justify-end xl:col-span-2">
+                                    @if($portalUser->isPendingActivation())
+                                        <form
+                                            method="POST"
+                                            action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.verification.send'), $portalUser) }}"
+                                            data-confirm-title="Resend activation email?"
+                                            data-confirm-message="Send a new activation link to {{ $portalUser->email }}?"
+                                            data-confirm-label="Resend Activation"
+                                        >
+                                            @csrf
+                                            <input type="hidden" name="return_to_supplier" value="1">
+                                            <x-ui.button type="submit" variant="secondary" size="sm" data-loading-text="Sending...">Resend Activation</x-ui.button>
+                                        </form>
+                                    @endif
+                                    <x-ui.button
+                                        :href="route(\App\Support\AuthenticationContext::administrationRoute('users.edit'), $portalUser)"
+                                        variant="secondary"
+                                        size="sm"
+                                    >{{ $portalUser->isPendingActivation() ? 'Edit Invitation' : 'Manage Account' }}</x-ui.button>
+                                </div>
+                            </div>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </x-ui.card>
+    @endif
+
+    @if(auth()->user()?->can(\App\Enums\Permission::ViewSupplierSensitiveData->value) && ($supplier->discrepancies->isNotEmpty() || $supplier->invoices->isNotEmpty()))
+        <div class="mt-5 grid gap-5 xl:grid-cols-2">
+            <x-ui.card title="Portal Discrepancies" subtitle="Supplier responses require a hospital resolution before closure.">
+                <div class="space-y-4">
+                    @forelse($supplier->discrepancies->take(10) as $discrepancy)
+                        <div class="border-b border-neutral-200 pb-4 last:border-0 dark:border-neutral-800">
+                            <p class="text-sm font-semibold">{{ $discrepancy->receiptLine->goodsReceiptNote->purchaseOrder->po_number }} · {{ $discrepancy->receiptLine->item->name }}</p>
+                            <p class="text-xs text-neutral-500">{{ str($discrepancy->status)->headline() }} · {{ str($discrepancy->receiptLine->discrepancy_type)->headline() }}</p>
+                            @if($discrepancy->supplier_response)<p class="mt-2 text-sm">Supplier: {{ $discrepancy->supplier_response }}</p>@endif
+                            @if($discrepancy->status !== 'closed' && auth()->user()?->can(\App\Enums\Permission::ManageSuppliers->value))
+                                <form method="POST" action="{{ route('inventory.suppliers.discrepancies.resolve', [$supplier, $discrepancy]) }}" class="mt-3 flex gap-2">@csrf @method('PATCH')<input name="resolution" required maxlength="2000" class="w-full rounded-md border-neutral-300 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="Hospital resolution"><x-ui.button type="submit" size="sm">Close</x-ui.button></form>
+                            @endif
+                        </div>
+                    @empty<p class="text-sm text-neutral-500">No discrepancies.</p>@endforelse
+                </div>
+            </x-ui.card>
+            <x-ui.card title="Supplier Invoices" subtitle="Three-way match results; payment is not processed by HIMS.">
+                <x-ui.table>
+                    <x-slot:head>
+                        <x-ui.table.th>Invoice</x-ui.table.th>
+                        <x-ui.table.th>PO</x-ui.table.th>
+                        <x-ui.table.th>Status</x-ui.table.th>
+                    </x-slot:head>
+                    @forelse($supplier->invoices->take(10) as $invoice)
+                        <x-ui.table.row>
+                            <x-ui.table.td>{{ $invoice->invoice_number }}</x-ui.table.td>
+                            <x-ui.table.td>{{ $invoice->purchaseOrder->po_number }}</x-ui.table.td>
+                            <x-ui.table.td><x-ui.badge :status="$invoice->status" /></x-ui.table.td>
+                        </x-ui.table.row>
+                    @empty
+                        <x-ui.table.empty colspan="3">No invoices.</x-ui.table.empty>
+                    @endforelse
+                </x-ui.table>
+            </x-ui.card>
+        </div>
+    @endif
+
     {{-- Page-level, so it stays visible whichever tab is open. --}}
     @if ($supplier->isArchived())
         <x-ui.alert variant="neutral" title="Archived Supplier Record" class="mt-5">

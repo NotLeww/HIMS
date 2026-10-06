@@ -44,6 +44,10 @@ class UserAccountService
      */
     public function assignableRoles(User $actor, ?User $target = null): array
     {
+        if ($target?->role?->isSupplier() && $actor->can(Permission::ApproveSuppliers->value)) {
+            return [UserRole::VendorAdministrator, UserRole::VendorOperations, UserRole::VendorFinance];
+        }
+
         // Keep every existing Super Administrator on that role during ordinary
         // account edits. Additional Super Administrators created by the CLI are
         // intentionally not protected records, so checking only is_protected
@@ -53,6 +57,7 @@ class UserAccountService
         }
 
         return collect(UserRole::cases())
+            ->reject(fn (UserRole $role) => $role->isSupplier())
             ->filter(fn (UserRole $role) => $actor->isSuperAdministrator()
                 ? ! $role->isSuperAdministrator()
                 : ! $role->isAdministrator() && ! $role->grants(Permission::ViewAuditTrail))
@@ -105,10 +110,17 @@ class UserAccountService
     {
         $user = DB::transaction(function () use ($attributes, $actor): User {
             $role = UserRole::from($attributes['role']);
-            $this->assertCanAssignRole($actor, $role);
+            if (($attributes['supplier_id'] ?? null) !== null && $role->isSupplier()) {
+                if (! $actor->can(Permission::ApproveSuppliers->value)) {
+                    throw new AuthorizationException('Only supplier approvers may invite supplier users.');
+                }
+            } else {
+                $this->assertCanAssignRole($actor, $role);
+            }
 
             $user = new User([
                 ...$this->nameAttributes($attributes),
+                'supplier_id' => $attributes['supplier_id'] ?? null,
                 'email' => $attributes['email'],
                 'password' => null,
                 'role' => $role,

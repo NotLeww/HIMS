@@ -9,12 +9,14 @@ enum AuthenticationPanel: string
     case Staff = 'staff';
     case Admin = 'admin';
     case SuperAdmin = 'super_admin';
+    case Supplier = 'supplier';
 
     public static function forRole(UserRole $role): self
     {
         return match ($role) {
             UserRole::SuperAdministrator => self::SuperAdmin,
             UserRole::Administrator => self::Admin,
+            UserRole::VendorAdministrator, UserRole::VendorOperations, UserRole::VendorFinance => self::Supplier,
             default => self::Staff,
         };
     }
@@ -34,6 +36,7 @@ enum AuthenticationPanel: string
             self::Staff => 'Staff',
             self::Admin => 'Admin',
             self::SuperAdmin => 'Super Admin',
+            self::Supplier => 'Supplier',
         };
     }
 
@@ -44,11 +47,12 @@ enum AuthenticationPanel: string
     {
         return match ($this) {
             self::Staff => collect(UserRole::cases())
-                ->reject(fn (UserRole $role) => $role->isAdministrator())
+                ->reject(fn (UserRole $role) => $role->isAdministrator() || $role->isSupplier())
                 ->map->value
                 ->all(),
             self::Admin => [UserRole::Administrator->value],
             self::SuperAdmin => [UserRole::SuperAdministrator->value],
+            self::Supplier => [UserRole::VendorAdministrator->value, UserRole::VendorOperations->value, UserRole::VendorFinance->value],
         };
     }
 
@@ -63,6 +67,7 @@ enum AuthenticationPanel: string
             self::Staff => 'login',
             self::Admin => 'admin.login',
             self::SuperAdmin => 'super-admin.login',
+            self::Supplier => 'supplier.login',
         };
     }
 
@@ -72,12 +77,17 @@ enum AuthenticationPanel: string
             self::Staff => AuthenticationContext::WEB_GUARD,
             self::Admin => AuthenticationContext::ADMIN_GUARD,
             self::SuperAdmin => AuthenticationContext::SUPER_ADMIN_GUARD,
+            self::Supplier => AuthenticationContext::WEB_GUARD,
         };
     }
 
     public function dashboardRoute(): string
     {
-        return $this === self::SuperAdmin ? 'super-admin.dashboard' : 'dashboard';
+        return match ($this) {
+            self::SuperAdmin => 'super-admin.dashboard',
+            self::Supplier => 'supplier.dashboard',
+            default => 'dashboard',
+        };
     }
 
     public function loginMfaRoute(): string
@@ -86,6 +96,7 @@ enum AuthenticationPanel: string
             self::Staff => 'login.mfa',
             self::Admin => 'admin.login.mfa',
             self::SuperAdmin => 'super-admin.login.mfa',
+            self::Supplier => 'supplier.login.mfa',
         };
     }
 
@@ -95,6 +106,7 @@ enum AuthenticationPanel: string
             self::Staff => 'login.mfa.verify',
             self::Admin => 'admin.login.mfa.verify',
             self::SuperAdmin => 'super-admin.login.mfa.verify',
+            self::Supplier => 'supplier.login.mfa.verify',
         };
     }
 
@@ -104,6 +116,7 @@ enum AuthenticationPanel: string
             self::Staff => 'login.mfa.resend',
             self::Admin => 'admin.login.mfa.resend',
             self::SuperAdmin => 'super-admin.login.mfa.resend',
+            self::Supplier => 'supplier.login.mfa.resend',
         };
     }
 
@@ -113,6 +126,7 @@ enum AuthenticationPanel: string
             self::Staff => 'login.mfa.email',
             self::Admin => 'admin.login.mfa.email',
             self::SuperAdmin => 'super-admin.login.mfa.email',
+            self::Supplier => 'supplier.login.mfa.email',
         };
     }
 
@@ -122,6 +136,7 @@ enum AuthenticationPanel: string
             self::Staff => 'login.mfa.continue',
             self::Admin => 'admin.login.mfa.continue',
             self::SuperAdmin => 'super-admin.login.mfa.continue',
+            self::Supplier => 'supplier.login.mfa.continue',
         };
     }
 
@@ -131,6 +146,7 @@ enum AuthenticationPanel: string
             self::Staff => 'login.mfa.cancel',
             self::Admin => 'admin.login.mfa.cancel',
             self::SuperAdmin => 'super-admin.login.mfa.cancel',
+            self::Supplier => 'supplier.login.mfa.cancel',
         };
     }
 
@@ -140,6 +156,7 @@ enum AuthenticationPanel: string
             self::Staff => 'password.request',
             self::Admin => 'admin.password.request',
             self::SuperAdmin => 'super-admin.password.request',
+            self::Supplier => 'password.request',
         };
     }
 
@@ -149,6 +166,7 @@ enum AuthenticationPanel: string
             self::Staff => 'password.email',
             self::Admin => 'admin.password.email',
             self::SuperAdmin => 'super-admin.password.email',
+            self::Supplier => 'password.email',
         };
     }
 
@@ -158,6 +176,7 @@ enum AuthenticationPanel: string
             self::Staff => 'password.reset',
             self::Admin => 'admin.password.reset',
             self::SuperAdmin => 'super-admin.password.reset',
+            self::Supplier => 'password.reset',
         };
     }
 
@@ -167,6 +186,7 @@ enum AuthenticationPanel: string
             self::Staff => 'password.otp',
             self::Admin => 'admin.password.otp',
             self::SuperAdmin => 'super-admin.password.otp',
+            self::Supplier => 'password.otp',
         };
     }
 
@@ -176,6 +196,7 @@ enum AuthenticationPanel: string
             self::Staff => 'password.otp.verify',
             self::Admin => 'admin.password.otp.verify',
             self::SuperAdmin => 'super-admin.password.otp.verify',
+            self::Supplier => 'password.otp.verify',
         };
     }
 
@@ -185,6 +206,7 @@ enum AuthenticationPanel: string
             self::Staff => 'password.store',
             self::Admin => 'admin.password.store',
             self::SuperAdmin => 'super-admin.password.store',
+            self::Supplier => 'password.store',
         };
     }
 
@@ -194,6 +216,7 @@ enum AuthenticationPanel: string
             self::Staff => 'password.expired',
             self::Admin => 'admin.password.expired',
             self::SuperAdmin => 'super-admin.password.expired',
+            self::Supplier => 'password.expired',
         };
     }
 
@@ -203,6 +226,7 @@ enum AuthenticationPanel: string
             self::Staff => 'password.expired.update',
             self::Admin => 'admin.password.expired.update',
             self::SuperAdmin => 'super-admin.password.expired.update',
+            self::Supplier => 'password.expired.update',
         };
     }
 
@@ -212,6 +236,7 @@ enum AuthenticationPanel: string
             self::Staff => 'password.expired.cancel',
             self::Admin => 'admin.password.expired.cancel',
             self::SuperAdmin => 'super-admin.password.expired.cancel',
+            self::Supplier => 'password.expired.cancel',
         };
     }
 

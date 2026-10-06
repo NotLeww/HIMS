@@ -1333,7 +1333,8 @@ INSERT INTO `migrations` VALUES
 (86,'2026_09_30_000001_protect_process_review_history_from_user_deletion',1),
 (87,'2026_10_01_000001_create_account_activation_challenges',1),
 (88,'2026_10_02_000001_create_user_avatars_table',1),
-(89,'2026_10_02_000002_add_activation_cancellation_to_users_table',1);
+(89,'2026_10_02_000002_add_activation_cancellation_to_users_table',1),
+(90,'2026_10_06_000001_add_supplier_portal_workflow',1);
 /*!40000 ALTER TABLE `migrations` ENABLE KEYS */;
 
 --
@@ -3233,6 +3234,158 @@ CREATE TABLE `warehouse_tasks` (
   CONSTRAINT `warehouse_tasks_assigned_to_id_foreign` FOREIGN KEY (`assigned_to_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `warehouse_tasks_created_by_id_foreign` FOREIGN KEY (`created_by_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Supplier portal workflow schema
+--
+
+ALTER TABLE `users`
+    ADD COLUMN `supplier_id` BIGINT UNSIGNED NULL AFTER `id`,
+    ADD CONSTRAINT `users_supplier_id_foreign`
+        FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`)
+        ON DELETE RESTRICT,
+    ADD INDEX `users_supplier_id_role_status_index`
+        (`supplier_id`, `role`, `status`);
+
+CREATE TABLE `purchase_order_acknowledgements` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `purchase_order_id` BIGINT UNSIGNED NOT NULL,
+    `supplier_id` BIGINT UNSIGNED NOT NULL,
+    `responded_by` BIGINT UNSIGNED NOT NULL,
+    `response` VARCHAR(30) NOT NULL,
+    `exception_type` VARCHAR(50) NULL,
+    `message` TEXT NULL,
+    `responded_at` TIMESTAMP NOT NULL,
+    `created_at` TIMESTAMP NULL,
+    `updated_at` TIMESTAMP NULL,
+    PRIMARY KEY (`id`),
+    INDEX `purchase_order_acknowledgements_supplier_id_responded_at_index`
+        (`supplier_id`, `responded_at`),
+    CONSTRAINT `purchase_order_acknowledgements_purchase_order_id_foreign`
+        FOREIGN KEY (`purchase_order_id`) REFERENCES `purchase_orders` (`id`)
+        ON DELETE CASCADE,
+    CONSTRAINT `purchase_order_acknowledgements_supplier_id_foreign`
+        FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`)
+        ON DELETE RESTRICT,
+    CONSTRAINT `purchase_order_acknowledgements_responded_by_foreign`
+        FOREIGN KEY (`responded_by`) REFERENCES `users` (`id`)
+        ON DELETE RESTRICT
+);
+
+CREATE TABLE `shipment_line_items` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `shipment_id` BIGINT UNSIGNED NOT NULL,
+    `po_line_id` BIGINT UNSIGNED NOT NULL,
+    `quantity` INT UNSIGNED NOT NULL,
+    `lot_number` VARCHAR(100) NULL,
+    `serial_number` VARCHAR(100) NULL,
+    `expiry_date` DATE NULL,
+    `created_at` TIMESTAMP NULL,
+    `updated_at` TIMESTAMP NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `shipment_line_items_shipment_id_po_line_id_unique`
+        (`shipment_id`, `po_line_id`),
+    CONSTRAINT `shipment_line_items_shipment_id_foreign`
+        FOREIGN KEY (`shipment_id`) REFERENCES `shipments` (`id`)
+        ON DELETE CASCADE,
+    CONSTRAINT `shipment_line_items_po_line_id_foreign`
+        FOREIGN KEY (`po_line_id`) REFERENCES `po_line_items` (`id`)
+        ON DELETE RESTRICT
+);
+
+CREATE TABLE `supplier_discrepancies` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `supplier_id` BIGINT UNSIGNED NOT NULL,
+    `grn_line_item_id` BIGINT UNSIGNED NOT NULL,
+    `status` VARCHAR(30) NOT NULL DEFAULT 'open',
+    `supplier_response_type` VARCHAR(50) NULL,
+    `supplier_response` TEXT NULL,
+    `responded_by` BIGINT UNSIGNED NULL,
+    `responded_at` TIMESTAMP NULL,
+    `resolution` TEXT NULL,
+    `resolved_by` BIGINT UNSIGNED NULL,
+    `resolved_at` TIMESTAMP NULL,
+    `created_at` TIMESTAMP NULL,
+    `updated_at` TIMESTAMP NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `supplier_discrepancies_grn_line_item_id_unique`
+        (`grn_line_item_id`),
+    INDEX `supplier_discrepancies_supplier_id_status_index`
+        (`supplier_id`, `status`),
+    CONSTRAINT `supplier_discrepancies_supplier_id_foreign`
+        FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`)
+        ON DELETE RESTRICT,
+    CONSTRAINT `supplier_discrepancies_grn_line_item_id_foreign`
+        FOREIGN KEY (`grn_line_item_id`) REFERENCES `grn_line_items` (`id`)
+        ON DELETE CASCADE,
+    CONSTRAINT `supplier_discrepancies_responded_by_foreign`
+        FOREIGN KEY (`responded_by`) REFERENCES `users` (`id`)
+        ON DELETE SET NULL,
+    CONSTRAINT `supplier_discrepancies_resolved_by_foreign`
+        FOREIGN KEY (`resolved_by`) REFERENCES `users` (`id`)
+        ON DELETE SET NULL
+);
+
+CREATE TABLE `supplier_invoices` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `supplier_id` BIGINT UNSIGNED NOT NULL,
+    `purchase_order_id` BIGINT UNSIGNED NOT NULL,
+    `invoice_number` VARCHAR(80) NOT NULL,
+    `invoice_date` DATE NOT NULL,
+    `total_amount` DECIMAL(14,2) NOT NULL,
+    `status` VARCHAR(30) NOT NULL DEFAULT 'submitted',
+    `match_notes` TEXT NULL,
+    `submitted_by` BIGINT UNSIGNED NOT NULL,
+    `submitted_at` TIMESTAMP NOT NULL,
+    `created_at` TIMESTAMP NULL,
+    `updated_at` TIMESTAMP NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `supplier_invoices_supplier_id_invoice_number_unique`
+        (`supplier_id`, `invoice_number`),
+    INDEX `supplier_invoices_supplier_id_status_index`
+        (`supplier_id`, `status`),
+    CONSTRAINT `supplier_invoices_supplier_id_foreign`
+        FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`)
+        ON DELETE RESTRICT,
+    CONSTRAINT `supplier_invoices_purchase_order_id_foreign`
+        FOREIGN KEY (`purchase_order_id`) REFERENCES `purchase_orders` (`id`)
+        ON DELETE RESTRICT,
+    CONSTRAINT `supplier_invoices_submitted_by_foreign`
+        FOREIGN KEY (`submitted_by`) REFERENCES `users` (`id`)
+        ON DELETE RESTRICT
+);
+
+CREATE TABLE `supplier_invoice_lines` (
+    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `supplier_invoice_id` BIGINT UNSIGNED NOT NULL,
+    `po_line_id` BIGINT UNSIGNED NOT NULL,
+    `quantity` INT UNSIGNED NOT NULL,
+    `unit_price` DECIMAL(12,2) NOT NULL,
+    `line_total` DECIMAL(14,2) NOT NULL,
+    `match_status` VARCHAR(30) NOT NULL DEFAULT 'pending',
+    `created_at` TIMESTAMP NULL,
+    `updated_at` TIMESTAMP NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `supplier_invoice_lines_supplier_invoice_id_po_line_id_unique`
+        (`supplier_invoice_id`, `po_line_id`),
+    CONSTRAINT `supplier_invoice_lines_supplier_invoice_id_foreign`
+        FOREIGN KEY (`supplier_invoice_id`) REFERENCES `supplier_invoices` (`id`)
+        ON DELETE CASCADE,
+    CONSTRAINT `supplier_invoice_lines_po_line_id_foreign`
+        FOREIGN KEY (`po_line_id`) REFERENCES `po_line_items` (`id`)
+        ON DELETE RESTRICT
+);
+
+ALTER TABLE `supplier_products`
+    ADD COLUMN `gtin` VARCHAR(14) NULL AFTER `supplier_sku`,
+    ADD COLUMN `approval_status` VARCHAR(30) NOT NULL DEFAULT 'approved'
+        AFTER `is_active`,
+    ADD COLUMN `vmi_enabled` TINYINT(1) NOT NULL DEFAULT 0
+        AFTER `approval_status`,
+    ADD COLUMN `vmi_min` INT UNSIGNED NULL AFTER `vmi_enabled`,
+    ADD COLUMN `vmi_max` INT UNSIGNED NULL AFTER `vmi_min`,
+    ADD INDEX `supplier_products_supplier_id_approval_status_index`
+        (`supplier_id`, `approval_status`);
 
 -- =====================================================================
 -- Restore global state

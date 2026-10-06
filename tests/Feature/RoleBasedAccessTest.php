@@ -590,8 +590,25 @@ class RoleBasedAccessTest extends TestCase
     public function test_every_role_can_reach_the_dashboard_it_lands_on(): void
     {
         foreach (UserRole::cases() as $role) {
-            $this->actingAs($this->user($role))->get('/dashboard')
-                ->assertStatus(200, "{$role->label()} should reach the dashboard");
+            $user = $this->user($role);
+
+            if ($role->isSupplier()) {
+                $supplier = \App\Models\Supplier::create([
+                    'name' => $role->label().' Supplier',
+                    'business_structure' => 'corporation',
+                    'address' => 'Manila',
+                    'email' => $role->value.'@supplier.test',
+                    'status' => \App\Enums\SupplierStatus::Active,
+                    'accreditation_status' => \App\Enums\SupplierAccreditationStatus::Approved,
+                ]);
+                $user->update(['supplier_id' => $supplier->id]);
+                $this->actingAs($user)->get('/dashboard')->assertForbidden();
+                $this->actingAs($user)->get(route('supplier.dashboard'))
+                    ->assertStatus(200, "{$role->label()} should reach the supplier dashboard");
+                continue;
+            }
+
+            $this->actingAs($user)->get('/dashboard')->assertStatus(200, "{$role->label()} should reach the dashboard");
         }
     }
 

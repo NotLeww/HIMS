@@ -170,6 +170,11 @@ class InventoryReportTest extends TestCase
     public function test_every_signed_in_role_may_read_the_report(): void
     {
         foreach (UserRole::cases() as $role) {
+            if ($role->isSupplier()) {
+                $this->assertFalse($role->grants(Permission::ViewReports));
+                continue;
+            }
+
             $this->assertTrue($role->grants(Permission::ViewReports));
 
             $this->actingAs(User::factory()->create(['role' => $role]))

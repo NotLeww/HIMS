@@ -23,6 +23,9 @@ enum UserRole: string
     case PharmacyStaff = 'pharmacy_staff';
     case Auditor = 'auditor';
     case Viewer = 'viewer';
+    case VendorAdministrator = 'vendor_administrator';
+    case VendorOperations = 'vendor_operations';
+    case VendorFinance = 'vendor_finance';
 
     public function label(): string
     {
@@ -34,6 +37,9 @@ enum UserRole: string
             self::PharmacyStaff => 'Pharmacy Staff',
             self::Auditor => 'Auditor',
             self::Viewer => 'Viewer',
+            self::VendorAdministrator => 'Vendor Administrator',
+            self::VendorOperations => 'Vendor Operations',
+            self::VendorFinance => 'Vendor Finance',
         };
     }
 
@@ -47,6 +53,9 @@ enum UserRole: string
             self::PharmacyStaff => 'Issues and dispenses stock to wards.',
             self::Auditor => 'Reviews organization-wide operational reports and the append-only Audit Trail.',
             self::Viewer => 'Read-only operational access for observers.',
+            self::VendorAdministrator => 'Manages the supplier profile, catalogue, compliance, bids, and performance.',
+            self::VendorOperations => 'Acknowledges purchase orders, ships orders, and responds to delivery issues.',
+            self::VendorFinance => 'Submits invoices and follows invoice exceptions.',
         };
     }
 
@@ -222,6 +231,14 @@ enum UserRole: string
                 Permission::ViewLogisticsRecords,
                 Permission::ViewProcessReviews,
             ],
+            self::VendorAdministrator => [
+                Permission::SupplierManageProfile,
+                Permission::SupplierFulfillOrders,
+                Permission::SupplierSubmitBids,
+                Permission::SupplierViewPerformance,
+            ],
+            self::VendorOperations => [Permission::SupplierFulfillOrders],
+            self::VendorFinance => [Permission::SupplierManageInvoices],
         };
     }
 
@@ -242,6 +259,11 @@ enum UserRole: string
     public function isSuperAdministrator(): bool
     {
         return $this === self::SuperAdministrator;
+    }
+
+    public function isSupplier(): bool
+    {
+        return in_array($this, [self::VendorAdministrator, self::VendorOperations, self::VendorFinance], true);
     }
 
     /**
