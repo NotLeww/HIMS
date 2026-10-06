@@ -61,6 +61,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->belongsTo(Supplier::class);
     }
 
+    public function accountIdentifierLabel(): string
+    {
+        return $this->role?->isSupplier() ? 'Supplier User ID' : 'Employee ID';
+    }
+
     /**
      * The attributes that should be hidden for serialization.
      *

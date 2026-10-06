@@ -53,7 +53,7 @@
                             @can(\App\Enums\Permission::ManageArchive->value)
                                 <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.unarchive'), $user) }}"
                                       data-confirm-title="Restore User Account"
-                                      data-confirm-message="Restore account for {{ $user->name }} ({{ $user->email }}) to active status? Duplicate email or employee ID checks will be enforced."
+                                      data-confirm-message="Restore account for {{ $user->name }} ({{ $user->email }}) to active status? Duplicate email or account ID checks will be enforced."
                                       data-confirm-label="Restore Account">
                                     @csrf
                                     <x-ui.button
@@ -90,7 +90,7 @@
                                         @click="$dispatch('open-archive-modal', {
                                             actionUrl: '{{ route(\App\Support\AuthenticationContext::administrationRoute('users.archive'), $user) }}',
                                             title: '{{ addslashes($user->name) }}',
-                                            identifier: 'Employee ID: {{ addslashes($user->employee_id ?? 'N/A') }} · {{ addslashes($user->email) }}',
+                                            identifier: '{{ $user->accountIdentifierLabel() }}: {{ addslashes($user->employee_id ?? 'N/A') }} · {{ addslashes($user->email) }}',
                                             context: 'Role: {{ addslashes($user->role?->label() ?? 'Staff') }}',
                                             type: 'User Account',
                                             presets: [
@@ -178,7 +178,7 @@
                         </dd>
                     </div>
                     <div class="flex items-start justify-between gap-3">
-                        <dt class="text-neutral-500">Employee ID</dt>
+                        <dt class="text-neutral-500">{{ $user->accountIdentifierLabel() }}</dt>
                         <dd class="font-mono text-xs text-neutral-800">{{ $user->employee_id ?? '—' }}</dd>
                     </div>
                     <div class="flex items-start justify-between gap-3">

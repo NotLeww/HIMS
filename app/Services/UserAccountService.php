@@ -125,7 +125,7 @@ class UserAccountService
                 'password' => null,
                 'role' => $role,
                 'status' => UserStatus::PendingActivation,
-                'employee_id' => $this->nextEmployeeId(),
+                'employee_id' => $this->nextAccountIdentifier($role),
                 'department' => $attributes['department'],
                 'phone' => $attributes['phone'] ?? null,
             ]);
@@ -507,11 +507,11 @@ class UserAccountService
     }
 
     /**
-     * Reserve the next ID while holding a database row lock. All creators
-     * serialize through this single row, and users.employee_id has a unique
-     * index as the final database-level duplicate guard.
+     * Reserve the next account identifier while holding a database row lock.
+     * Hospital accounts use EMP and supplier accounts use SUP; the legacy
+     * users.employee_id column remains the unique storage field.
      */
-    private function nextEmployeeId(): string
+    private function nextAccountIdentifier(UserRole $role): string
     {
         $sequence = DB::table('employee_id_sequences')
             ->where('id', 1)
@@ -519,21 +519,22 @@ class UserAccountService
             ->first();
 
         if ($sequence === null) {
-            throw new \RuntimeException('The employee ID sequence has not been initialized.');
+            throw new \RuntimeException('The account ID sequence has not been initialized.');
         }
 
         $number = (int) $sequence->next_value;
+        $prefix = $role->isSupplier() ? 'SUP' : 'EMP';
 
         do {
-            $employeeId = 'EMP-'.str_pad((string) $number, 4, '0', STR_PAD_LEFT);
+            $accountIdentifier = $prefix.'-'.str_pad((string) $number, 4, '0', STR_PAD_LEFT);
             $number++;
-        } while (User::query()->where('employee_id', $employeeId)->exists());
+        } while (User::query()->where('employee_id', $accountIdentifier)->exists());
 
         DB::table('employee_id_sequences')->where('id', 1)->update([
             'next_value' => $number,
         ]);
 
-        return $employeeId;
+        return $accountIdentifier;
     }
 
     /**

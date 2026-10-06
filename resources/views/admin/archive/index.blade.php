@@ -398,7 +398,7 @@
                     </tbody>
                 @elseif ($currentType === 'users')
                     <x-ui.table.head>
-                        <x-ui.table.th class="px-3 py-3 w-28">Employee ID</x-ui.table.th>
+                        <x-ui.table.th class="px-3 py-3 w-28">Account ID</x-ui.table.th>
                         <x-ui.table.th class="px-3 py-3">User Name &amp; Email</x-ui.table.th>
                         <x-ui.table.th class="px-3 py-3 w-32">Role</x-ui.table.th>
                         <x-ui.table.th class="px-3 py-3 w-36">Department</x-ui.table.th>
@@ -445,7 +445,7 @@
                                     @can(\App\Enums\Permission::ManageArchive->value)
                                         <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('archive.users.unarchive'), $userAccount) }}"
                                               data-confirm-title="Restore User Account"
-                                              data-confirm-message="Restore account for '{{ $userAccount->name }}' ({{ $userAccount->email }})? Duplicate email or employee ID checks will be enforced."
+                                              data-confirm-message="Restore account for '{{ $userAccount->name }}' ({{ $userAccount->email }})? Duplicate email or account ID checks will be enforced."
                                               data-confirm-label="Restore Account">
                                             @csrf
                                             <x-ui.button type="submit" size="sm" variant="secondary" icon="arrow-path" class="px-2.5 py-1 text-xs">

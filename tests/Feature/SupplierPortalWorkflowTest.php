@@ -58,6 +58,14 @@ class SupplierPortalWorkflowTest extends TestCase
         ]);
 
         $invitedUser = User::where('email', 'ana@supplier.test')->firstOrFail();
+        $this->assertStringStartsWith('SUP-', $invitedUser->employee_id);
+        $this->assertSame('Supplier User ID', $invitedUser->accountIdentifierLabel());
+
+        $this->get(route('admin.users.edit', $invitedUser))
+            ->assertOk()
+            ->assertSee('Edit Supplier User')
+            ->assertSee('Supplier User ID')
+            ->assertSee('Enter the supplier user&#039;s basic details.', false);
 
         $this->get(route('inventory.suppliers.show', $supplier))
             ->assertOk()
@@ -75,6 +83,30 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertSessionHas('success', 'A new activation email was sent to ana@supplier.test.');
 
         Notification::assertSentToTimes($invitedUser, AccountCreated::class, 2);
+    }
+
+    public function test_existing_supplier_employee_identifiers_are_backfilled_without_changing_staff_ids(): void
+    {
+        $supplier = Supplier::create([
+            'name' => 'Legacy Supplier',
+            'business_structure' => 'corporation',
+            'address' => 'Manila',
+            'email' => 'legacy@supplier.test',
+            'status' => SupplierStatus::Active,
+            'accreditation_status' => SupplierAccreditationStatus::Approved,
+        ]);
+        $supplierUser = User::factory()->role(UserRole::VendorAdministrator)->create([
+            'supplier_id' => $supplier->id,
+            'employee_id' => 'EMP-0042',
+            'department' => 'External Supplier',
+        ]);
+        $staff = User::factory()->warehouseStaff()->create(['employee_id' => 'EMP-0043']);
+
+        $migration = require database_path('migrations/2026_10_07_000001_assign_supplier_user_identifiers.php');
+        $migration->up();
+
+        $this->assertSame('SUP-0042', $supplierUser->fresh()->employee_id);
+        $this->assertSame('EMP-0043', $staff->fresh()->employee_id);
     }
 
     public function test_supplier_account_management_stays_supplier_scoped_and_preserves_security_controls(): void
@@ -193,8 +225,9 @@ class SupplierPortalWorkflowTest extends TestCase
 
     private function supplierWithUser(string $name, UserRole $role): array
     {
-        $supplier = Supplier::create(['name' => $name, 'business_structure' => 'corporation', 'address' => 'Manila', 'email' => str($name)->slug()."@example.test", 'status' => SupplierStatus::Active, 'accreditation_status' => SupplierAccreditationStatus::Approved]);
+        $supplier = Supplier::create(['name' => $name, 'business_structure' => 'corporation', 'address' => 'Manila', 'email' => str($name)->slug().'@example.test', 'status' => SupplierStatus::Active, 'accreditation_status' => SupplierAccreditationStatus::Approved]);
         $user = User::factory()->role($role)->create(['supplier_id' => $supplier->id, 'department' => 'External Supplier']);
+
         return [$supplier, $user];
     }
 }

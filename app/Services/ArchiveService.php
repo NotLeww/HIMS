@@ -308,7 +308,7 @@ class ArchiveService
             $this->audit->log(
                 AuditAction::ArchivedUser,
                 $actor,
-                "Archived user {$locked->name} (Employee ID: {$locked->employee_id}). Active access revoked, historical logs preserved.",
+                "Archived user {$locked->name} ({$locked->accountIdentifierLabel()}: {$locked->employee_id}). Active access revoked, historical logs preserved.",
                 $locked,
                 $locked->name,
                 oldValues: ['status' => $oldStatus],
@@ -339,7 +339,7 @@ class ArchiveService
                 ]);
             }
 
-            // Conflict safety check: ensure no active user has the same email or employee_id
+            // Conflict safety check: ensure no active user has the same email or account identifier.
             $emailConflict = User::query()
                 ->whereKeyNot($locked->id)
                 ->where('status', '!=', UserStatus::Archived->value)
@@ -353,15 +353,15 @@ class ArchiveService
             }
 
             if (filled($locked->employee_id)) {
-                $employeeIdConflict = User::query()
+                $accountIdentifierConflict = User::query()
                     ->whereKeyNot($locked->id)
                     ->where('status', '!=', UserStatus::Archived->value)
                     ->where('employee_id', $locked->employee_id)
                     ->exists();
 
-                if ($employeeIdConflict) {
+                if ($accountIdentifierConflict) {
                     throw ValidationException::withMessages([
-                        'unarchive' => ["Cannot restore account: Employee ID '{$locked->employee_id}' is currently assigned to another active account."],
+                        'unarchive' => ["Cannot restore account: {$locked->accountIdentifierLabel()} '{$locked->employee_id}' is currently assigned to another active account."],
                     ]);
                 }
             }

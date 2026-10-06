@@ -10,6 +10,8 @@
 @php
     $user = $user ?? null;
     $isEdit = $user !== null;
+    $isSupplierUser = $user?->role?->isSupplier() ?? false;
+    $accountIdentifierLabel = $user?->accountIdentifierLabel() ?? 'Employee ID';
     $nameComponents = $user?->nameComponents() ?? [
         'surname' => null,
         'first_name' => null,
@@ -80,7 +82,7 @@
                 </span>
                 <div class="min-w-0">
                     <h3 id="{{ $isEdit ? 'edit' : 'create' }}-user-personal-heading" class="text-sm font-semibold text-neutral-950 dark:text-white">Personal Information</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400">Enter the employee's basic details.</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400">Enter the {{ $isSupplierUser ? "supplier user's" : "employee's" }} basic details.</p>
                 </div>
             </div>
 
@@ -165,7 +167,7 @@
                 <div class="min-w-0 xl:col-span-3">
                     <x-ui.field
                         name="employee_id"
-                        label="Employee ID"
+                        :label="$accountIdentifierLabel"
                         :value="$user?->employee_id ?? 'Generated automatically after creation'"
                         disabled />
                 </div>

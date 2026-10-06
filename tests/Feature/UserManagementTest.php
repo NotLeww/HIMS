@@ -258,7 +258,7 @@ class UserManagementTest extends TestCase
             ->assertSee('Juan Santos Dela Cruz')
             ->assertSee('09171234567')
             ->assertSeeInOrder([
-                'Employee ID', 'Surname', 'First Name', 'Middle Name', 'Department', 'Contact Number', 'Role',
+                'Account ID', 'Surname', 'First Name', 'Middle Name', 'Department', 'Contact Number', 'Role',
             ]);
 
         $this->actingAs($admin)->get('/admin/users')

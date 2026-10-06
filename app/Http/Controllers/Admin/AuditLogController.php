@@ -239,7 +239,7 @@ class AuditLogController extends Controller implements HasMiddleware
             ],
             [
                 'column' => 'actor_employee_id',
-                'category' => 'Employee ID',
+                'category' => 'Account ID',
                 'identity_columns' => ['user_id'],
                 'identity' => fn (AuditLog $log) => $log->user_id === null ? null : 'employee:'.$log->user_id,
             ],
