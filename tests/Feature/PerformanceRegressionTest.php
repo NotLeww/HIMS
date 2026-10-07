@@ -60,4 +60,17 @@ class PerformanceRegressionTest extends TestCase
         $this->assertStringContainsString('window.location.assign(url.href);', $appScript);
         $this->assertStringNotContainsString('requestAnimationFrame', $earlyNavigationScript);
     }
+
+    public function test_required_mutation_forms_use_the_shared_submit_guard(): void
+    {
+        $appScript = file_get_contents(resource_path('js/app.js'));
+        $appStyles = file_get_contents(resource_path('css/app.css'));
+
+        $this->assertStringContainsString('const startRequiredSubmitGuards = () =>', $appScript);
+        $this->assertStringContainsString("form.method.toLowerCase() === 'get'", $appScript);
+        $this->assertStringContainsString("form.matches(':valid')", $appScript);
+        $this->assertStringContainsString('startRequiredSubmitGuards();', $appScript);
+        $this->assertStringContainsString('form[data-required-submit-guard]', $appStyles);
+        $this->assertStringContainsString("form[method='POST' i]:has(:required:invalid)", $appStyles);
+    }
 }

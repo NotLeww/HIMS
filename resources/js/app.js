@@ -489,6 +489,93 @@ const focusFirstInvalidField = () => {
     window.requestAnimationFrame(() => invalid.focus());
 };
 
+const requiredSubmitGuardOwnedButtons = new WeakSet();
+
+const requiredSubmitButtons = (form) => Array.from(form.querySelectorAll(
+    'button:not([type]), button[type="submit"], input[type="submit"], input[type="image"]',
+)).filter((button) => !button.formNoValidate
+    && !button.hasAttribute('x-bind:disabled')
+    && !button.hasAttribute(':disabled'));
+
+const syncRequiredSubmitGuard = (form) => {
+    if (!(form instanceof HTMLFormElement)
+        || form.method.toLowerCase() === 'get'
+        || form.method.toLowerCase() === 'dialog'
+        || form.dataset.requiredSubmitGuard === 'off') {
+        return;
+    }
+
+    const hasRequiredControl = Array.from(form.elements).some(
+        (control) => 'required' in control && control.required && control.willValidate,
+    );
+    const buttons = requiredSubmitButtons(form);
+
+    if (!hasRequiredControl) {
+        buttons.forEach((button) => {
+            if (!requiredSubmitGuardOwnedButtons.has(button)) return;
+            button.disabled = false;
+            requiredSubmitGuardOwnedButtons.delete(button);
+        });
+        form.removeAttribute('data-required-submit-guard');
+        return;
+    }
+
+    form.setAttribute('data-required-submit-guard', '');
+    const valid = form.matches(':valid');
+
+    buttons.forEach((button) => {
+        if (!valid && !button.disabled) {
+            button.disabled = true;
+            requiredSubmitGuardOwnedButtons.add(button);
+            return;
+        }
+
+        if (valid
+            && requiredSubmitGuardOwnedButtons.has(button)
+            && !button.hasAttribute('data-hims-loading-active')) {
+            button.disabled = false;
+            requiredSubmitGuardOwnedButtons.delete(button);
+        }
+    });
+};
+
+const startRequiredSubmitGuards = () => {
+    const register = (root = document) => {
+        if (root instanceof HTMLFormElement) syncRequiredSubmitGuard(root);
+        root.querySelectorAll?.('form').forEach(syncRequiredSubmitGuard);
+    };
+
+    document.addEventListener('input', (event) => syncRequiredSubmitGuard(event.target?.form), true);
+    document.addEventListener('change', (event) => syncRequiredSubmitGuard(event.target?.form), true);
+    document.addEventListener('reset', (event) => {
+        if (event.target instanceof HTMLFormElement) queueMicrotask(() => syncRequiredSubmitGuard(event.target));
+    }, true);
+
+    new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.type === 'childList') {
+                mutation.addedNodes.forEach((node) => {
+                    if (node instanceof Element) register(node);
+                });
+                if (mutation.target instanceof Element) syncRequiredSubmitGuard(mutation.target.closest('form'));
+                return;
+            }
+
+            if (mutation.target instanceof Element
+                && !mutation.target.matches('button[type="submit"], input[type="submit"], input[type="image"]')) {
+                syncRequiredSubmitGuard(mutation.target.closest('form'));
+            }
+        });
+    }).observe(document.body, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ['required', 'disabled', 'type', 'name'],
+    });
+
+    register();
+};
+
 /**
  * Browser-side companion to the server-enforced inactivity middleware.
  *
@@ -5305,6 +5392,7 @@ if (document.querySelector('[data-hims-camera-scanner]')) {
 }
 
 Alpine.start();
+startRequiredSubmitGuards();
 startMetricSummaryTooltips();
 startAccessibleDialogs();
 focusFirstInvalidField();

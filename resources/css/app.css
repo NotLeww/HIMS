@@ -385,6 +385,18 @@
 }
 
 @layer components {
+    form[data-required-submit-guard] :is(button:not([type]), button[type='submit'], input[type='submit'], input[type='image']):disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+        pointer-events: none;
+    }
+
+    form[method='POST' i]:has(:required:invalid) :is(button:not([type]), button[type='submit'], input[type='submit'], input[type='image']):not([formnovalidate]) {
+        cursor: not-allowed;
+        opacity: 0.5;
+        pointer-events: none;
+    }
+
     .supplier-portal ::selection {
         background: rgb(59 130 246 / 0.32);
         color: inherit;
