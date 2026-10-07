@@ -11,7 +11,7 @@
     </style>
 
     <div data-warehousing-header>
-        <div class="hims-page-header flex h-28 min-h-28 w-full items-end" style="height: 112px; min-height: 112px; width: 100%;">
+        <div class="hims-page-header flex h-36 min-h-36 w-full items-center" style="height: 144px; min-height: 144px; width: 100%;">
             <div class="min-w-0">
                 <p class="text-xs font-semibold uppercase tracking-wider text-primary-700 dark:text-primary-300">Hospital Supply Chain Execution</p>
                 <h1 class="mt-1 text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">Smart Warehousing System (SWS)</h1>

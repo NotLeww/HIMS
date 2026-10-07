@@ -27,6 +27,18 @@
         .dark {
             --hims-header-image: url('{{ asset('img/hims-supplier-dashboard-hero.png') }}');
         }
+
+        .supplier-portal .hims-page-header {
+            min-height: 144px !important;
+        }
+
+        @media (min-width: 640px) {
+            .supplier-portal .hims-page-header {
+                height: 144px !important;
+                min-height: 144px !important;
+                max-height: 144px !important;
+            }
+        }
     </style>
 </head>
 <body class="supplier-portal h-full bg-neutral-50 font-sans text-neutral-800 antialiased dark:bg-neutral-950 dark:text-neutral-100" data-supplier-portal>

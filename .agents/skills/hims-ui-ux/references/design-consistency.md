@@ -30,6 +30,13 @@ Authenticated operational workspaces, catalogs, dashboards, tables, inventory, a
 
 When a user must scroll past vertically stacked content while wide desktop space is empty, recompose the layout horizontally.
 
+### Page Header Sizing and Artwork
+
+- Treat 144px as the shared desktop height for HIMS page and hero headers, independent of title, subtitle, breadcrumb, media, or action count. A sparse header must not collapse below the same height used by a content-rich header.
+- Below sm, retain a 144px minimum but allow the header to grow when wrapped content or controls require more room; never clip navigation, headings, descriptions, or actions to preserve a fixed mobile height.
+- Use <x-ui.page-header> when its contract fits. Any custom supplier, inventory, procurement, or administration hero must match the same 144px desktop height instead of carrying a page-local 104px or 112px exception.
+- Contextual header artwork belongs on the right with the text-safe region on the left. Use imagePosition and imageSize to preserve meaningful subjects such as faces; do not rely on cover when it crops the subject. Verify the actual crop at the rendered header ratio in both themes.
+
 ## Responsive Acceptance Standard
 
 Page-level horizontal scrolling is a layout failure. Reflow the same workflow across mobile, tablet, desktop, and wide desktop; do not create divergent workflows or shrink text below readable sizes.

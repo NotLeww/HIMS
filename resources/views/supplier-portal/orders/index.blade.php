@@ -4,9 +4,6 @@
             --hims-header-image: url('{{ asset('img/hims-supplier-orders-hero-day.png') }}');
             box-sizing: border-box;
             width: 100% !important;
-            height: 112px !important;
-            min-height: 112px !important;
-            max-height: 112px !important;
         }
 
         .dark [data-orders-header] .hims-page-header {

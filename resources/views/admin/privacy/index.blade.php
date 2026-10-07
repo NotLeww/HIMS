@@ -2,7 +2,6 @@
     <x-ui.page-header
         title="Privacy & Security Governance"
         :image="asset('img/hims-privacy-security-hero.png')"
-        roomy
         subtitle="Technical controls, data subject rights processing, and security incident management aligned with RA 10173 and ISO/IEC 27001:2022."
         :breadcrumbs="[
             'Home' => route(\App\Support\AuthenticationContext::dashboardRoute()),

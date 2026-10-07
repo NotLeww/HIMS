@@ -11,7 +11,7 @@
     </style>
 
     <div data-procurement-header>
-        <div class="hims-page-header flex h-28 min-h-28 w-full items-end" style="height: 112px; min-height: 112px; width: 100%;">
+        <div class="hims-page-header flex h-36 min-h-36 w-full items-center" style="height: 144px; min-height: 144px; width: 100%;">
             <div class="min-w-0">
                 <span class="rounded-md bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary-700 ring-1 ring-inset ring-primary-200 dark:bg-primary-950/80 dark:text-primary-300 dark:ring-primary-800/70">Operational workspace</span>
                 <h1 class="mt-1 text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">Procurement &amp; Purchase Orders</h1>

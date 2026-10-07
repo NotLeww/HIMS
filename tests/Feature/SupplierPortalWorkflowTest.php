@@ -173,6 +173,8 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('PO-PORTAL-001')
             ->assertSee('class="hims-app-shell', false)
+            ->assertSee('.supplier-portal .hims-page-header', false)
+            ->assertSee('height: 144px !important', false)
             ->assertSee('aria-label="Supplier portal navigation"', false)
             ->assertSee('Supplier workspace')
             ->assertSee('hims-supplier-dashboard-hero-light.png', false)
@@ -337,6 +339,11 @@ class SupplierPortalWorkflowTest extends TestCase
         Storage::fake('local');
         [$supplierA, $administratorA] = $this->supplierWithUser('Compliance Supplier A', UserRole::VendorAdministrator);
         [, $administratorB] = $this->supplierWithUser('Compliance Supplier B', UserRole::VendorAdministrator);
+
+        $this->actingAs($administratorA)->get(route('supplier.compliance.index'))
+            ->assertOk()
+            ->assertSee('min-h-36', false)
+            ->assertSee('sm:h-36', false);
 
         $this->actingAs($administratorA)->post(route('supplier.compliance.store'), [
             'document_type' => 'Business Permit',

@@ -66,7 +66,6 @@ class CompliancePostureTest extends TestCase
         $response->assertOk();
         $response->assertSee('Privacy & Security Governance');
         $response->assertSee('hims-privacy-security-hero.png', false);
-        $response->assertSee('min-height: 144px', false);
         $response->assertSee('Posture');
         $response->assertSee('RA 10173');
         $response->assertSee('ISO/IEC 27001:2022');

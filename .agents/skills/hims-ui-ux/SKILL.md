@@ -58,7 +58,7 @@ Prefer an existing `<x-ui.*>` component when its contract fits:
 - `loader`: `label`, `size`
 - `modal`: `name`, `title`, `maxWidth`
 - `nav-item`: `href`, `icon`, `active`, `badge`, `disabled`, `sub`
-- `page-header`: `title`, `subtitle`, `breadcrumbs`, with optional `actions`
+- `page-header`: `title`, `subtitle`, `breadcrumbs`, optional `actions`, and optional contextual `image`, `imagePosition`, and `imageSize`
 - `stat`: `label`, `value`, `icon`, `tone`, `hint`, `summary`, `href`, `compact`
 - `table`: `stickyHeader`, `zebra`, plus `table.head`, `table.row`, `table.th`, `table.td`, and `table.empty`
 
@@ -73,6 +73,7 @@ Do not invent props. Extend a shared component only when multiple real consumers
 - Put substantial companion panels side by side at `lg` or `xl` only when both remain independently usable. Use `minmax(0, ...)`, `min-w-0`, `items-start`, and stack them below the chosen breakpoint.
 - Boxed widths are appropriate for login dialogs, narrow security/profile forms, and focused prose such as legal pages—not operational dashboards, catalogs, or tables.
 - Do not add oversized empty hero sections, decorative spacer blocks, or fixed heights that waste working space.
+- Standard HIMS page and hero headers are 144px tall from sm upward, regardless of how little content they contain. On narrower screens use 144px as the minimum and allow growth only to prevent wrapping or action clipping. Custom page headers outside <x-ui.page-header> must follow the same sizing contract; do not reintroduce legacy 104px or 112px overrides.
 
 ### Responsive Behavior and Overflow
 
