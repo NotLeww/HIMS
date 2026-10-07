@@ -116,10 +116,10 @@
                         <x-ui.icon :name="$icon" class="{{ $analytics ? 'h-5 w-5' : ($compact ? 'h-4 w-4' : 'h-5 w-5') }}" />
                     </span>
                 @endif
-                <p class="min-w-0 font-bold uppercase tracking-wider {{ $analytics ? 'text-[11px] leading-snug sm:text-xs' : 'text-xs '.(!$compact ? 'sm:text-sm' : '') }} {{ $tones[$tone]['label'] }}">{{ $label }}</p>
+                <p class="min-w-0 whitespace-normal [overflow-wrap:normal] [word-break:normal] font-bold uppercase tracking-wider {{ $analytics ? 'text-[11px] leading-snug sm:text-xs' : 'text-xs '.(!$compact ? 'sm:text-sm' : '') }} {{ $tones[$tone]['label'] }}">{{ $label }}</p>
             </div>
             @if ($analytics && $context)
-                <span class="shrink-0 rounded-lg bg-neutral-100/80 px-2.5 py-1.5 text-[11px] font-medium text-neutral-600 ring-1 ring-neutral-200/70 dark:bg-neutral-800/80 dark:text-neutral-300 dark:ring-neutral-700">{{ $context }}</span>
+                <span class="shrink-0 whitespace-nowrap rounded-lg bg-neutral-100/80 px-2.5 py-1.5 text-[11px] font-medium text-neutral-600 ring-1 ring-neutral-200/70 dark:bg-neutral-800/80 dark:text-neutral-300 dark:ring-neutral-700">{{ $context }}</span>
             @endif
         </div>
 

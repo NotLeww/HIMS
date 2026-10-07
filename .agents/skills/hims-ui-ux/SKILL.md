@@ -81,6 +81,7 @@ Do not invent props. Extend a shared component only when multiple real consumers
 - Tables may use the shared `overflow-x-auto` shell as a safeguard, but first progressively hide secondary columns or use a mobile composition. Always preserve the row identifier, primary state, and required action.
 - Inputs and controls should be `w-full` on narrow screens and size naturally at larger breakpoints. Avoid rigid widths for dynamic labels or values.
 - Long unstructured strings may use `truncate` only with `min-w-0` and an accessible `title`; do not truncate short controls, status labels, or operational values.
+- Keep short labels, badge text, status text, and control text intact at natural word boundaries. Never split a word to make adjacent content fit; use normal word breaking and let the row wrap, stack, or widen instead.
 - Verify no horizontal overflow at 375px, 768px, 1280px, and 1920px, including nested cards, modals, and table shells.
 
 ## HIMS Interface Conventions

@@ -148,6 +148,8 @@ class InventoryReportTest extends TestCase
         $response->assertStatus(200)
             ->assertSee('Report sections')
             ->assertSee('Overview')
+            ->assertSee('Date range:')
+            ->assertSee('As of today:')
             ->assertSee('report-panel-overview', false)
             ->assertSee('Valuation &amp; Locations', false)
             ->assertSee('View batches', false)

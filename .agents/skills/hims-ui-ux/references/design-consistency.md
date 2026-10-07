@@ -40,6 +40,7 @@ Page-level horizontal scrolling is a layout failure. Reflow the same workflow ac
 - Toolbars and action rows wrap or stack without hiding critical controls.
 - Use `min-w-0` with `break-words`, or with `truncate` plus an accessible full-value mechanism such as `title`, for long unstructured values.
 - Never truncate short controls, option labels, statuses, identifiers required to distinguish a row, or primary actions.
+- Short labels, badges, statuses, and controls must wrap only at natural word boundaries. Do not use `break-all`, `overflow-wrap: anywhere`, or an undersized text track for them; reflow adjacent metadata to another line or widen the track before allowing a word to split.
 - Tables progressively hide secondary columns or use a mobile composition. Always preserve row identity, primary state, and required action.
 - The shared table's `overflow-x-auto` is a safeguard for genuinely dense data, not the default responsive strategy.
 - Modals must fit the viewport, preserve controls, and use a vertically scrollable content region when needed.

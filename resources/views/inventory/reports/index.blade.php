@@ -235,8 +235,11 @@
     <form method="GET" action="{{ route('inventory.reports') }}"
           x-data="{ period: @js($currentPeriod) }"
           class="rounded-xl border border-neutral-200 bg-white p-3 shadow-xs dark:border-neutral-800 dark:bg-neutral-900 print:hidden sm:p-4">
-        <div class="flex items-center justify-between gap-3">
-            <p class="text-xs text-neutral-500 dark:text-neutral-400">Filters apply to all charts and tables.</p>
+        <div class="flex items-start justify-between gap-3">
+            <p class="min-w-0 max-w-5xl text-xs leading-5 text-neutral-600 dark:text-neutral-300">
+                <span class="font-semibold text-neutral-800 dark:text-neutral-100">Date range:</span> movements and procurement activity.
+                <span class="font-semibold text-neutral-800 dark:text-neutral-100">As of today:</span> inventory balances, valuation, reservations, and expiry risk.
+            </p>
             @if ($activeFilters !== [] || $currentPeriod !== '30')
                 <a href="{{ route('inventory.reports') }}" class="shrink-0 text-xs font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200">Clear all</a>
             @endif
@@ -820,7 +823,7 @@
             suffix="items"
             icon="cube"
             tone="primary"
-            context="Current"
+            context="As of today"
             href="#report-detail-tabs"
             summary="Open the item-level records included in the current filtered inventory."
             summary-title="Current stock status"
@@ -854,7 +857,7 @@
             :value="number_format($summary['stock_value'], 2)"
             icon="chart-bar"
             tone="success"
-            context="Current"
+            context="As of today"
             href="#report-detail-tabs"
             summary="Open the item-level quantities, unit costs, and total values behind this valuation."
             summary-title="Valuation records"
@@ -888,7 +891,7 @@
             suffix="items"
             icon="exclamation-triangle"
             :tone="$summary['needs_attention'] > 0 ? 'warning' : 'success'"
-            context="Current"
+            context="As of today"
             href="#inventory-health"
             summary="Open the status breakdown, then select Low stock or Out of stock to inspect its matching items."
             summary-title="Items needing attention"
@@ -917,7 +920,7 @@
             suffix="units"
             icon="clipboard-document-list"
             tone="primary"
-            context="Current"
+            context="As of today"
             href="#report-detail-tabs"
             summary="Open only the filtered items that currently have reserved units."
             summary-title="Reserved-unit breakdown"
@@ -948,7 +951,7 @@
             suffix="units"
             icon="calendar"
             :tone="$expiryRiskUnits > 0 ? 'warning' : 'success'"
-            context="Current"
+            context="As of today"
             href="#report-detail-tabs"
             summary="Open the dated batches currently contributing to expiry exposure."
             summary-title="Expiry exposure"
