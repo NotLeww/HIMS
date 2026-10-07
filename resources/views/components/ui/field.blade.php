@@ -10,6 +10,7 @@
     'options' => null,
     'rows' => 3,
     'toggleable' => true,
+    'icon' => null,
 ])
 
 @php
@@ -26,6 +27,7 @@
         .'focus:ring-2 focus:ring-offset-0 '
         .'disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed '
         .'dark:disabled:bg-neutral-800 dark:disabled:text-neutral-500 '
+        .($icon ? 'min-h-11 pl-10 ' : '')
         .($hasError
             ? 'border-danger-500 text-danger-900 dark:text-danger-200 focus:border-danger-500 focus:ring-danger-500/30'
             : 'border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-neutral-100 focus:border-primary-500 focus:ring-primary-500/30');
@@ -51,20 +53,27 @@
     @endif
 
     @if ($type === 'select')
-        <select {{ $shared }} @required($required) @disabled($disabled)>
-            @if ($placeholder)
-                <option value="">{{ $placeholder }}</option>
+        <div class="relative min-w-0 max-w-full">
+            @if ($icon)
+                <span class="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-10 items-center justify-center text-neutral-400 dark:text-neutral-500">
+                    <x-ui.icon :name="$icon" class="h-5 w-5" />
+                </span>
             @endif
-            @if ($options)
-                @foreach ($options as $optValue => $optLabel)
-                    <option value="{{ $optValue }}" @selected((string) old($name, $value) === (string) $optValue)>
-                        {{ $optLabel }}
-                    </option>
-                @endforeach
-            @else
-                {{ $slot }}
-            @endif
-        </select>
+            <select {{ $shared->merge(['class' => 'pr-10']) }} @required($required) @disabled($disabled)>
+                @if ($placeholder)
+                    <option value="">{{ $placeholder }}</option>
+                @endif
+                @if ($options)
+                    @foreach ($options as $optValue => $optLabel)
+                        <option value="{{ $optValue }}" @selected((string) old($name, $value) === (string) $optValue)>
+                            {{ $optLabel }}
+                        </option>
+                    @endforeach
+                @else
+                    {{ $slot }}
+                @endif
+            </select>
+        </div>
     @elseif ($type === 'textarea')
         <textarea {{ $shared }} rows="{{ $rows }}" placeholder="{{ $placeholder }}"
                   @required($required) @disabled($disabled)>{{ old($name, $value) }}</textarea>
@@ -86,8 +95,15 @@
             </button>
         </div>
     @else
-        <input type="{{ $type }}" value="{{ old($name, $value) }}" placeholder="{{ $placeholder }}"
-               {{ $shared }} @required($required) @disabled($disabled) />
+        <div class="relative min-w-0 max-w-full">
+            @if ($icon)
+                <span class="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-10 items-center justify-center text-neutral-400 dark:text-neutral-500">
+                    <x-ui.icon :name="$icon" class="h-5 w-5" />
+                </span>
+            @endif
+            <input type="{{ $type }}" value="{{ old($name, $value) }}" placeholder="{{ $placeholder }}"
+                   {{ $shared }} @required($required) @disabled($disabled) />
+        </div>
     @endif
 
     @if ($hint && ! $hasError)
