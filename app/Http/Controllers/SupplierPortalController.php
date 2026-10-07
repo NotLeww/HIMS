@@ -56,7 +56,7 @@ class SupplierPortalController extends Controller
     public function order(Request $request, PurchaseOrder $purchaseOrder): View
     {
         $this->own($request, $purchaseOrder->supplier_id);
-        return view('supplier-portal.orders.show', ['order' => $purchaseOrder->load(['lines.item', 'acknowledgements.responder', 'shipments.lines'])]);
+        return view('supplier-portal.orders.show', ['order' => $purchaseOrder->load(['lines.item.category', 'acknowledgements.responder', 'shipments.lines'])]);
     }
 
     public function acknowledge(Request $request, PurchaseOrder $purchaseOrder, AuditLogger $audit): RedirectResponse

@@ -158,7 +158,7 @@ class SupplierPortalWorkflowTest extends TestCase
     {
         [$supplierA, $operationsA] = $this->supplierWithUser('Supplier A', UserRole::VendorOperations);
         [$supplierB, $operationsB] = $this->supplierWithUser('Supplier B', UserRole::VendorOperations);
-        $item = InventoryItem::create(['name' => 'Sterile Gauze', 'sku' => 'GAUZE-PORTAL', 'unit' => 'box', 'status' => 'active']);
+        $item = InventoryItem::create(['name' => 'Gloves M', 'sku' => 'GLOVE-PORTAL', 'unit' => 'box', 'status' => 'active']);
         $po = PurchaseOrder::create(['po_number' => 'PO-PORTAL-001', 'supplier_id' => $supplierA->id, 'quantity' => 10, 'unit_cost' => 100, 'total_amount' => 1000, 'status' => PurchaseOrderStatus::Approved, 'requested_at' => now()]);
         $line = PurchaseOrderLine::create(['purchase_order_id' => $po->id, 'item_id' => $item->id, 'line_number' => 1, 'ordered_quantity' => 10, 'unit_price' => 100, 'total_line_amount' => 1000]);
 
@@ -179,8 +179,22 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertSee('Open full order')
             ->assertSee('hims-supplier-po-items-day.png', false)
             ->assertSee('hims-supplier-po-items-night.png', false)
-            ->assertSee('Sterile Gauze');
-        $this->actingAs($operationsA)->get(route('supplier.orders.show', $po))->assertOk()->assertSee('PO-PORTAL-001');
+            ->assertSee('Gloves M');
+        $this->actingAs($operationsA)->get(route('supplier.orders.show', $po))
+            ->assertOk()
+            ->assertSee('PO-PORTAL-001')
+            ->assertSee('Back to Purchase Orders')
+            ->assertSee('Order date')
+            ->assertSee('Scheduled delivery')
+            ->assertSee('hims-supplier-po-items-day.png', false)
+            ->assertSee('hims-supplier-po-items-night.png', false)
+            ->assertSee('Gloves M')
+            ->assertSee('data-item-icon="hand-raised"', false);
+        $item->update(['name' => 'Paracetamol 500 mg Tablet', 'sku' => 'MED-PARA-500']);
+        $this->actingAs($operationsA)->get(route('supplier.orders.show', $po))
+            ->assertOk()
+            ->assertSee('Paracetamol 500 mg Tablet')
+            ->assertSee('data-item-icon="capsule"', false);
         $this->actingAs($operationsA)->get('/dashboard')->assertForbidden();
         $this->actingAs($operationsB)->get(route('supplier.orders.show', $po))->assertForbidden();
 
