@@ -142,6 +142,14 @@ Do not invent props. Extend a shared component only when multiple real consumers
 - Async HIMS content must distinguish loading, success, empty, and error. Use a lightweight skeleton shaped like the final component, preserve layout size, support dark mode and reduced motion, and prevent stale responses from replacing newer results.
 - Never display fake HIMS data during loading or expose testing shortcuts in production UI.
 
+### Empty States
+
+- Every data-bearing table, list, queue, dashboard region, or async result must render an intentional empty state when it has no records. Do not leave a blank surface, an unexplained empty table body, or a zero-height region.
+- Distinguish first-use emptiness from filtered no-results. First-use copy should explain what will appear and the legitimate next step; filtered no-results should name the mismatch and suggest adjusting or clearing filters without implying that records do not exist.
+- Reuse `<x-ui.table.empty>` inside shared tables. For non-table surfaces, follow the same compact anatomy: one purposeful outline icon, a precise title, and one short explanatory sentence using HIMS theme tokens.
+- Include an empty-state action only when it is authorized, immediately useful, and not already available as the page or section's primary action. Never duplicate a header CTA inside the empty state.
+- Empty states must preserve table structure, responsive layout, light/dark themes, semantic reading order, and permission boundaries. Never show fake sample records to make a surface look populated.
+
 ## Restraint Rules
 
 - No emojis in headings, labels, buttons, options, badges, table cells, validation, or notification copy. Use `<x-ui.icon>` when an icon has a real purpose.

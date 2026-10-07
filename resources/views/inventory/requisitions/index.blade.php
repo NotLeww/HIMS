@@ -511,20 +511,12 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="8" class="px-6 py-10 text-center text-sm text-neutral-500">
-                                        <div class="max-w-md mx-auto space-y-3">
-                                            <p class="text-neutral-700 font-medium">No material store requisitions found.</p>
-                                            <p class="text-xs text-neutral-400">Initiate an internal stock request for your department from central inventory storage.</p>
-                                            @can(\App\Enums\Permission::CreateRequisition->value)
-                                                <button type="button" @click="newRequisitionModal = true" class="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-700 transition">
-                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-                                                    Create First Store Requisition
-                                                </button>
-                                            @endcan
-                                        </div>
-                                    </td>
-                                </tr>
+                                <x-ui.table.empty
+                                    colspan="8"
+                                    icon="clipboard-document-list"
+                                    title="No store requisitions yet"
+                                    message="Use New Store Requisition above to request stock for your department."
+                                />
                             @endforelse
                         </tbody>
                     </table>
