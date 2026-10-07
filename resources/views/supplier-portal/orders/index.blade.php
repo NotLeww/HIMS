@@ -1,9 +1,26 @@
 <x-layouts.supplier title="Purchase Orders">
-    <x-ui.page-header
-        title="Purchase Orders"
-        subtitle="Hospital-issued orders for your supplier account."
-        :breadcrumbs="['Dashboard' => route('supplier.dashboard'), 'Purchase Orders' => null]"
-    />
+    <style>
+        [data-orders-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-supplier-orders-hero-day.png') }}');
+            box-sizing: border-box;
+            width: 100% !important;
+            height: 112px !important;
+            min-height: 112px !important;
+            max-height: 112px !important;
+        }
+
+        .dark [data-orders-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-supplier-orders-hero-night.png') }}');
+        }
+    </style>
+
+    <div data-orders-header>
+        <x-ui.page-header
+            title="Purchase Orders"
+            subtitle="Hospital-issued orders for your supplier account."
+            :breadcrumbs="['Dashboard' => route('supplier.dashboard'), 'Purchase Orders' => null]"
+        />
+    </div>
 
     <div class="mt-8">
         <x-ui.table :sticky-header="false">

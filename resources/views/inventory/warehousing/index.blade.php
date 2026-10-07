@@ -1,10 +1,22 @@
 <x-app-layout>
-    <x-slot name="header">
-        <div>
-            <p class="text-xs font-semibold uppercase tracking-wider text-primary-700">Hospital Supply Chain Execution</p>
-            <h1 class="text-2xl font-bold text-neutral-900">Smart Warehousing System (SWS)</h1>
+    <style>
+        [data-warehousing-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-warehousing-hero-day.png') }}');
+        }
+
+        .dark [data-warehousing-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-warehousing-hero-night.png') }}');
+        }
+    </style>
+
+    <div data-warehousing-header>
+        <div class="hims-page-header flex h-28 min-h-28 w-full items-end" style="height: 112px; min-height: 112px; width: 100%;">
+            <div class="min-w-0">
+                <p class="text-xs font-semibold uppercase tracking-wider text-primary-700 dark:text-primary-300">Hospital Supply Chain Execution</p>
+                <h1 class="mt-1 text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">Smart Warehousing System (SWS)</h1>
+            </div>
         </div>
-    </x-slot>
+    </div>
 
             {{-- SWS Consolidated Workflow Navigation --}}
             @include('inventory.warehousing.partials.workflow_nav')

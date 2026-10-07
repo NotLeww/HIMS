@@ -508,7 +508,10 @@
         position: relative;
         isolation: isolate;
         overflow: hidden;
-        min-height: 6.5rem;
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+        min-height: 104px;
         border: 0;
         border-radius: 1rem;
         padding: 1.25rem;
@@ -531,6 +534,8 @@
 
     @media (min-width: 640px) {
         .hims-page-header {
+            height: 7rem;
+            min-height: 7rem;
             padding: 1.5rem;
         }
     }

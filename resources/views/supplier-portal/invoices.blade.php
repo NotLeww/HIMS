@@ -1,8 +1,20 @@
 <x-layouts.supplier title="Invoices">
-    <x-ui.page-header
-        title="Invoices"
-        subtitle="Submit invoices against accepted receipts; matching does not represent payment."
-    />
+    <style>
+        [data-invoices-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-supplier-invoices-hero-day.png') }}');
+        }
+
+        .dark [data-invoices-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-supplier-invoices-hero-night.png') }}');
+        }
+    </style>
+
+    <div data-invoices-header>
+        <x-ui.page-header
+            title="Invoices"
+            subtitle="Submit invoices against accepted receipts; matching does not represent payment."
+        />
+    </div>
 
     @can('supplier_manage_invoices')
         <x-ui.card title="Submit invoice" class="mt-6">

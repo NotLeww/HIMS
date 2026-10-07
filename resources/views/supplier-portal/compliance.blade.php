@@ -1,5 +1,5 @@
 <x-layouts.supplier title="Compliance">
-    <section class="relative isolate overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-emerald-900/30 dark:bg-neutral-950">
+    <section class="relative isolate w-full min-w-0 max-w-none overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-emerald-900/30 dark:bg-neutral-950">
         <img
             src="{{ asset('img/hims-supplier-compliance-hero-light.png') }}"
             alt=""
@@ -14,7 +14,7 @@
         />
         <div class="absolute inset-0 bg-gradient-to-r from-white via-white/90 to-white/10 dark:hidden"></div>
         <div class="absolute inset-0 hidden bg-gradient-to-r from-neutral-950 via-neutral-950/90 to-emerald-950/25 dark:block"></div>
-        <div class="relative flex min-h-32 items-center gap-4 px-5 py-6 sm:px-7">
+        <div class="relative flex min-h-[104px] items-center gap-4 px-5 py-5 sm:px-6">
             <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-emerald-100/90 text-emerald-700 ring-1 ring-inset ring-emerald-200 backdrop-blur-sm dark:bg-emerald-500/20 dark:text-emerald-300 dark:ring-emerald-400/20">
                 <x-ui.icon name="document-check" class="h-7 w-7" :stroke-width="2" />
             </span>

@@ -1,10 +1,22 @@
 <x-app-layout :full-width="true">
-    <x-slot name="header">
-        <div>
-            <span class="rounded-md bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary-700 ring-1 ring-inset ring-primary-200">Operational workspace</span>
-            <h2 class="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Procurement &amp; Purchase Orders</h2>
+    <style>
+        [data-procurement-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-procurement-hero-day.png') }}');
+        }
+
+        .dark [data-procurement-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-procurement-hero-night.png') }}');
+        }
+    </style>
+
+    <div data-procurement-header>
+        <div class="hims-page-header flex h-28 min-h-28 w-full items-end" style="height: 112px; min-height: 112px; width: 100%;">
+            <div class="min-w-0">
+                <span class="rounded-md bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary-700 ring-1 ring-inset ring-primary-200 dark:bg-primary-950/80 dark:text-primary-300 dark:ring-primary-800/70">Operational workspace</span>
+                <h1 class="mt-1 text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">Procurement &amp; Purchase Orders</h1>
+            </div>
         </div>
-    </x-slot>
+    </div>
 
     @php
         $requestedTab = request('tab');

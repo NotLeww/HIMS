@@ -5,10 +5,22 @@
         $activeFilterCount = collect($filters)->except(['direction'])->filter(fn ($value, $key) => filled($value) && ! ($key === 'sort' && $value === 'name'))->count();
     @endphp
 
-    <x-ui.page-header
-        title="Supplier Vendor Analytics"
-        :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Supplier Management' => null]"
-    />
+    <style>
+        [data-supplier-management-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-supplier-management-hero-day.png') }}');
+        }
+
+        .dark [data-supplier-management-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-supplier-management-hero-night.png') }}');
+        }
+    </style>
+
+    <div data-supplier-management-header>
+        <x-ui.page-header
+            title="Supplier Directory"
+            :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Supplier Management' => null]"
+        />
+    </div>
 
     @if ($errors->any())
         <x-ui.alert variant="danger" class="mt-4" title="Operation refused">

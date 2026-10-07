@@ -1,5 +1,15 @@
 <x-app-layout full-width>
-    <x-slot name="header">
+    <style>
+        [data-dtrs-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-dtrs-hero-day.png') }}');
+        }
+
+        .dark [data-dtrs-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-dtrs-hero-night.png') }}');
+        }
+    </style>
+
+    <div data-dtrs-header>
         <x-ui.page-header
             :title="new \Illuminate\Support\HtmlString('Document Tracking & Logistics Records (DTRS)')"
             subtitle="COA GAM App. 50 statutory acceptance, WHO GDP cold chain custody, and BIR RA 11976 digital document vault"
@@ -8,7 +18,7 @@
                 'Logistics & DTRS' => '',
             ]"
         />
-    </x-slot>
+    </div>
 
     <div class="w-full space-y-6">
         {{-- Flash Notification Messages (Persistent Operational Warnings / Errors) --}}

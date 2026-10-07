@@ -282,7 +282,7 @@ class HospitalMasterDataCompletionSeederTest extends TestCase
         // 1. Directory renders all active suppliers and correct metrics
         $response = $this->actingAs($admin)->get(route('inventory.suppliers'));
         $response->assertOk();
-        $response->assertSee('Supplier Vendor Analytics');
+        $response->assertSee('Supplier Directory');
         $response->assertSee('Pan-Island Pharmaceuticals Distribution Corp.');
         $response->assertSee('MedSupply Healthcare Corporation');
         $response->assertSee('St. Jude Biomedical & Surgical Systems Corp.');

@@ -6,13 +6,25 @@
 @endphp
 
 <x-app-layout full-width>
+    <style>
+        [data-inventory-items-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-inventory-items-hero-day.png') }}');
+        }
+
+        .dark [data-inventory-items-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-inventory-items-hero-night.png') }}');
+        }
+    </style>
+
     <div x-data="{ createItemModal: {{ ($errors->any() && ! $errors->has('archive') && ! $errors->has('unarchive')) ? 'true' : 'false' }} }"
          @keydown.escape.window="createItemModal = false"
          class="space-y-6">
 
-        <x-ui.page-header
-            title="Inventory Items"
-            :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Inventory Items' => null]" />
+        <div data-inventory-items-header>
+            <x-ui.page-header
+                title="Inventory Items"
+                :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Inventory Items' => null]" />
+        </div>
 
         @if ($errors->any())
             <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
