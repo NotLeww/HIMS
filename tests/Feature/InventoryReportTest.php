@@ -146,6 +146,9 @@ class InventoryReportTest extends TestCase
         $response = $this->actingAs($financialReader)->get('/inventory/reports');
 
         $response->assertStatus(200)
+            ->assertSee('Report sections')
+            ->assertSee('Overview')
+            ->assertSee('report-panel-overview', false)
             ->assertSee('Valuation &amp; Locations', false)
             ->assertSee('View batches', false)
             ->assertSee('open-report-tab', false)

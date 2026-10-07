@@ -718,6 +718,96 @@
         </div>
     </div>
 
+    <div
+        id="report-sections"
+        x-data="{ activeTab: 'overview' }"
+        x-on:open-report-tab.window="activeTab = $event.detail.tab; $nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'start' }))"
+        class="space-y-4"
+    >
+        <div class="rounded-xl border border-neutral-200 bg-white p-2 shadow-xs dark:border-neutral-800 dark:bg-neutral-900 print:hidden">
+            <nav class="overflow-x-auto" aria-label="Report sections">
+                <div class="flex min-w-max items-center gap-1.5">
+                    <button
+                        type="button"
+                        aria-controls="report-panel-overview"
+                        x-bind:aria-pressed="activeTab === 'overview'"
+                        x-on:click="activeTab = 'overview'"
+                        :class="activeTab === 'overview'
+                            ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-700'
+                            : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
+                        class="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                    >
+                        <x-ui.icon name="squares-2x2" class="h-4 w-4" />
+                        <span>Overview</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        aria-controls="report-panel-valuation"
+                        x-bind:aria-pressed="activeTab === 'valuation'"
+                        x-on:click="activeTab = 'valuation'"
+                        :class="activeTab === 'valuation'
+                            ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-700'
+                            : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
+                        class="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                    >
+                        <x-ui.icon name="chart-bar" class="h-4 w-4" />
+                        <span>Valuation &amp; Locations</span>
+                    </button>
+
+                    @if ($canViewFinancialData)
+                        <button
+                            type="button"
+                            aria-controls="report-panel-procurement"
+                            x-bind:aria-pressed="activeTab === 'procurement'"
+                            x-on:click="activeTab = 'procurement'"
+                            :class="activeTab === 'procurement'
+                                ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-700'
+                                : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
+                            class="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                        >
+                            <x-ui.icon name="truck" class="h-4 w-4" />
+                            <span>Procurement &amp; Spending</span>
+                        </button>
+                    @endif
+
+                    <button
+                        type="button"
+                        aria-controls="report-panel-movements"
+                        x-bind:aria-pressed="activeTab === 'movements'"
+                        x-on:click="activeTab = 'movements'"
+                        :class="activeTab === 'movements'
+                            ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-700'
+                            : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
+                        class="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                    >
+                        <x-ui.icon name="arrows-right-left" class="h-4 w-4" />
+                        <span>Movements &amp; Consumption</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        aria-controls="report-panel-expiry"
+                        x-bind:aria-pressed="activeTab === 'expiry'"
+                        x-on:click="activeTab = 'expiry'"
+                        :class="activeTab === 'expiry'
+                            ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-700'
+                            : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
+                        class="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                    >
+                        <x-ui.icon name="exclamation-triangle" class="h-4 w-4" />
+                        <span>Expiry Risk Batches</span>
+                        @if ($expiry['rows']->isNotEmpty())
+                            <span class="rounded-full bg-warning-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-warning-800 dark:bg-warning-950/70 dark:text-warning-300">
+                                {{ $expiry['rows']->count() }}
+                            </span>
+                        @endif
+                    </button>
+                </div>
+            </nav>
+        </div>
+
+        <div id="report-panel-overview" x-show="activeTab === 'overview'" class="space-y-4 print:!block">
     {{-- ------------------------------------------------ 1. inventory summary --}}
 
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-12">
@@ -1152,71 +1242,13 @@
         </x-ui.card>
     </div>
 
-    {{-- --------------------------------------------------- 3. interactive detailed report center --}}
-
-    <div
-        id="report-detail-tabs"
-        x-data="{ activeTab: '{{ $canViewFinancialData ? 'valuation' : 'movements' }}' }"
-        x-on:open-report-tab.window="activeTab = $event.detail.tab; $nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'start' }))"
-        class="space-y-4">
-        {{-- Navigation tab bar (hidden on print) --}}
-        <div class="rounded-xl border border-neutral-200 bg-white px-2 py-2 shadow-xs dark:border-neutral-800 dark:bg-neutral-900 print:hidden">
-            <nav class="flex flex-wrap items-center gap-1.5" aria-label="Detailed Report Sections">
-                <button
-                    type="button"
-                    x-on:click="activeTab = 'valuation'"
-                    :class="activeTab === 'valuation'
-                        ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs'
-                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
-                    class="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition-colors">
-                    <x-ui.icon name="chart-bar" class="w-4 h-4" />
-                    <span>Valuation &amp; Locations</span>
-                </button>
-
-                @if ($canViewFinancialData)
-                <button
-                    type="button"
-                    x-on:click="activeTab = 'procurement'"
-                    :class="activeTab === 'procurement'
-                        ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs'
-                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
-                    class="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition-colors">
-                    <x-ui.icon name="truck" class="w-4 h-4" />
-                    <span>Procurement &amp; Spending</span>
-                </button>
-                @endif
-
-                <button
-                    type="button"
-                    x-on:click="activeTab = 'movements'"
-                    :class="activeTab === 'movements'
-                        ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs'
-                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
-                    class="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition-colors">
-                    <x-ui.icon name="arrows-right-left" class="w-4 h-4" />
-                    <span>Movements &amp; Consumption</span>
-                </button>
-
-                <button
-                    type="button"
-                    x-on:click="activeTab = 'expiry'"
-                    :class="activeTab === 'expiry'
-                        ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs'
-                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
-                    class="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition-colors">
-                    <x-ui.icon name="exclamation-triangle" class="w-4 h-4" />
-                    <span>Expiry Risk Batches</span>
-                    @if ($expiry['rows']->isNotEmpty())
-                        <span class="rounded-full bg-warning-100 text-warning-800 px-1.5 py-0.2 text-[10px] font-mono">
-                            {{ $expiry['rows']->count() }}
-                        </span>
-                    @endif
-                </button>
-            </nav>
         </div>
 
+    {{-- --------------------------------------------------- 3. interactive detailed report center --}}
+
+    <div id="report-detail-tabs" class="space-y-4">
         {{-- Tab 1: Valuation & Locations --}}
-        <div x-show="activeTab === 'valuation'" x-cloak class="space-y-4 print:!block">
+        <div id="report-panel-valuation" x-show="activeTab === 'valuation'" x-cloak class="space-y-4 print:!block">
             <div class="grid gap-4 lg:grid-cols-2">
                 <x-ui.card :padding="false">
                     <x-slot name="header">
@@ -1378,7 +1410,7 @@
 
         {{-- Tab 2: Procurement & Spending --}}
         @if ($canViewFinancialData)
-        <div x-show="activeTab === 'procurement'" x-cloak class="space-y-4 print:!block">
+        <div id="report-panel-procurement" x-show="activeTab === 'procurement'" x-cloak class="space-y-4 print:!block">
             <section class="space-y-4">
                 <div class="flex items-center gap-3">
                     <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm">
@@ -1550,7 +1582,7 @@
         @endif
 
         {{-- Tab 3: Movements & Consumption --}}
-        <div x-show="activeTab === 'movements'" x-cloak class="space-y-4 print:!block">
+        <div id="report-panel-movements" x-show="activeTab === 'movements'" x-cloak class="space-y-4 print:!block">
             <div
                 x-data="{
                     consumedSearch: '',
@@ -1709,7 +1741,7 @@
         </div>
 
         {{-- Tab 4: Expiry Risk Batches --}}
-        <div x-show="activeTab === 'expiry'" x-cloak class="space-y-6 print:!block">
+        <div id="report-panel-expiry" x-show="activeTab === 'expiry'" x-cloak class="space-y-6 print:!block">
             <x-ui.card title="Expiry Exposure - Detailed Batches" subtitle="Batches holding stock that are expired or approaching expiry." :padding="false">
                 <x-ui.table :sticky-header="false">
                     <x-ui.table.head>
@@ -1759,6 +1791,7 @@
                 </x-ui.table>
             </x-ui.card>
         </div>
+    </div>
     </div>
 
     <p class="text-xs text-neutral-400">
