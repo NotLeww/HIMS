@@ -19,6 +19,7 @@
     <style>
         [data-dashboard-header="super-admin"] .hims-page-header {
             --hims-header-image: url('{{ asset('img/hims-super-admin-hero-day.png') }}');
+            --hims-header-position: right 60%;
         }
 
         .dark [data-dashboard-header="super-admin"] .hims-page-header {
@@ -27,6 +28,7 @@
 
         [data-dashboard-header="admin"] .hims-page-header {
             --hims-header-image: url('{{ asset('img/hims-admin-dashboard-hero-day.png') }}');
+            --hims-header-position: right 58%;
         }
 
         .dark [data-dashboard-header="admin"] .hims-page-header {
@@ -35,6 +37,7 @@
 
         [data-dashboard-header="staff"] .hims-page-header {
             --hims-header-image: url('{{ asset('img/hims-staff-dashboard-hero-day.png') }}');
+            --hims-header-position: right 63%;
         }
 
         .dark [data-dashboard-header="staff"] .hims-page-header {

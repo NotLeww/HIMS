@@ -2,6 +2,7 @@
     <style>
         [data-procurement-header] .hims-page-header {
             --hims-header-image: url('{{ asset('img/hims-procurement-hero-day.png') }}');
+            --hims-header-position: right 66%;
         }
 
         .dark [data-procurement-header] .hims-page-header {

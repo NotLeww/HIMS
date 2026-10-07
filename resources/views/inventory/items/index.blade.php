@@ -9,6 +9,7 @@
     <style>
         [data-inventory-items-header] .hims-page-header {
             --hims-header-image: url('{{ asset('img/hims-inventory-items-hero-day.png') }}');
+            --hims-header-position: right 60%;
         }
 
         .dark [data-inventory-items-header] .hims-page-header {

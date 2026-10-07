@@ -8,6 +8,7 @@
     <style>
         [data-supplier-management-header] .hims-page-header {
             --hims-header-image: url('{{ asset('img/hims-supplier-management-hero-day.png') }}');
+            --hims-header-position: right 66%;
         }
 
         .dark [data-supplier-management-header] .hims-page-header {

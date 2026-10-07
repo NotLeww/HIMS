@@ -2,6 +2,7 @@
     <style>
         [data-warehousing-header] .hims-page-header {
             --hims-header-image: url('{{ asset('img/hims-warehousing-hero-day.png') }}');
+            --hims-header-position: right 58%;
         }
 
         .dark [data-warehousing-header] .hims-page-header {

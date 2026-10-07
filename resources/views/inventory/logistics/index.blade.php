@@ -2,6 +2,7 @@
     <style>
         [data-dtrs-header] .hims-page-header {
             --hims-header-image: url('{{ asset('img/hims-dtrs-hero-day.png') }}');
+            --hims-header-position: right 63%;
         }
 
         .dark [data-dtrs-header] .hims-page-header {
