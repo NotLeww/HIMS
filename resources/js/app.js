@@ -16,7 +16,13 @@ Alpine.data('himsCountUp', ({ value, decimals = 0, duration = 1000 }) => ({
         maximumFractionDigits: decimals,
     }).format(0),
 
+    animationFrame: null,
+
     init() {
+        this.animate();
+    },
+
+    animate() {
         const target = Number(value);
         const formatter = new Intl.NumberFormat('en-US', {
             minimumFractionDigits: decimals,
@@ -30,17 +36,86 @@ Alpine.data('himsCountUp', ({ value, decimals = 0, duration = 1000 }) => ({
             return;
         }
 
-        requestAnimationFrame((startedAt) => {
+        if (this.$el.offsetParent === null) return;
+        if (this.animationFrame) cancelAnimationFrame(this.animationFrame);
+
+        this.display = formatter.format(0);
+        this.animationFrame = requestAnimationFrame((startedAt) => {
             const animate = (now) => {
                 const progress = Math.min(1, (now - startedAt) / duration);
                 const eased = 1 - ((1 - progress) ** 3);
                 this.display = formatter.format(target * eased);
 
-                if (progress < 1) requestAnimationFrame(animate);
+                if (progress < 1) {
+                    this.animationFrame = requestAnimationFrame(animate);
+                } else {
+                    this.animationFrame = null;
+                }
             };
 
-            requestAnimationFrame(animate);
+            this.animationFrame = requestAnimationFrame(animate);
         });
+    },
+}));
+
+Alpine.data('inventoryReportTabs', ({ canViewFinancialData = false } = {}) => ({
+    activeTab: 'overview',
+    tabs: [
+        'overview',
+        'valuation',
+        ...(canViewFinancialData ? ['procurement'] : []),
+        'movements',
+        'expiry',
+    ],
+
+    init() {
+        const requestedTab = new URLSearchParams(window.location.search).get('section')
+            || window.location.hash.replace(/^#report-/, '');
+        if (this.tabs.includes(requestedTab)) this.activeTab = requestedTab;
+        this.syncFilterTab();
+        this.$nextTick(() => this.animateActiveTab());
+    },
+
+    selectTab(tab) {
+        if (!this.tabs.includes(tab)) return;
+
+        this.activeTab = tab;
+        const url = new URL(window.location.href);
+        url.hash = tab === 'overview' ? '' : `report-${tab}`;
+        window.history.replaceState({}, '', url);
+        this.syncFilterTab();
+        this.$nextTick(() => this.animateActiveTab());
+    },
+
+    syncFilterTab() {
+        const input = document.querySelector('[data-inventory-report-active-tab]');
+        if (input instanceof HTMLInputElement) input.value = this.activeTab;
+
+        const clearLink = document.querySelector('[data-inventory-report-clear]');
+        if (clearLink instanceof HTMLAnchorElement) {
+            const clearUrl = new URL(clearLink.href);
+            if (this.activeTab === 'overview') {
+                clearUrl.searchParams.delete('section');
+            } else {
+                clearUrl.searchParams.set('section', this.activeTab);
+            }
+            clearLink.href = clearUrl.toString();
+        }
+    },
+
+    animateActiveTab() {
+        const panel = document.getElementById(`report-panel-${this.activeTab}`);
+        if (!panel) return;
+
+        panel.querySelectorAll('.hims-metric-bar-x, .hims-metric-bar-y').forEach((bar) => {
+            bar.style.animation = 'none';
+            void bar.offsetWidth;
+            bar.style.animation = '';
+        });
+
+        window.dispatchEvent(new CustomEvent('animate-report-metrics', {
+            detail: { panelId: panel.id },
+        }));
     },
 }));
 

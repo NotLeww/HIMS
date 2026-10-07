@@ -235,13 +235,14 @@
     <form method="GET" action="{{ route('inventory.reports') }}"
           x-data="{ period: @js($currentPeriod) }"
           class="rounded-xl border border-neutral-200 bg-white p-3 shadow-xs dark:border-neutral-800 dark:bg-neutral-900 print:hidden sm:p-4">
+        <input type="hidden" name="section" value="{{ request('section', 'overview') }}" data-inventory-report-active-tab>
         <div class="flex items-start justify-between gap-3">
             <p class="min-w-0 max-w-5xl text-xs leading-5 text-neutral-600 dark:text-neutral-300">
                 <span class="font-semibold text-neutral-800 dark:text-neutral-100">Date range:</span> movements and procurement activity.
                 <span class="font-semibold text-neutral-800 dark:text-neutral-100">As of today:</span> inventory balances, valuation, reservations, and expiry risk.
             </p>
             @if ($activeFilters !== [] || $currentPeriod !== '30')
-                <a href="{{ route('inventory.reports') }}" class="shrink-0 text-xs font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200">Clear all</a>
+                <a href="{{ route('inventory.reports') }}" data-inventory-report-clear class="shrink-0 text-xs font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200">Clear all</a>
             @endif
         </div>
 
@@ -723,8 +724,8 @@
 
     <div
         id="report-sections"
-        x-data="{ activeTab: 'overview' }"
-        x-on:open-report-tab.window="activeTab = $event.detail.tab; $nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'start' }))"
+        x-data="inventoryReportTabs({ canViewFinancialData: {{ $canViewFinancialData ? 'true' : 'false' }} })"
+        x-on:open-report-tab.window="selectTab($event.detail.tab); $nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'start' }))"
         class="space-y-4"
     >
         <div class="rounded-xl border border-neutral-200 bg-white p-2 shadow-xs dark:border-neutral-800 dark:bg-neutral-900 print:hidden">
@@ -734,7 +735,7 @@
                         type="button"
                         aria-controls="report-panel-overview"
                         x-bind:aria-pressed="activeTab === 'overview'"
-                        x-on:click="activeTab = 'overview'"
+                        x-on:click="selectTab('overview')"
                         :class="activeTab === 'overview'
                             ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-700'
                             : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
@@ -748,7 +749,7 @@
                         type="button"
                         aria-controls="report-panel-valuation"
                         x-bind:aria-pressed="activeTab === 'valuation'"
-                        x-on:click="activeTab = 'valuation'"
+                        x-on:click="selectTab('valuation')"
                         :class="activeTab === 'valuation'
                             ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-700'
                             : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
@@ -763,7 +764,7 @@
                             type="button"
                             aria-controls="report-panel-procurement"
                             x-bind:aria-pressed="activeTab === 'procurement'"
-                            x-on:click="activeTab = 'procurement'"
+                            x-on:click="selectTab('procurement')"
                             :class="activeTab === 'procurement'
                                 ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-700'
                                 : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
@@ -778,7 +779,7 @@
                         type="button"
                         aria-controls="report-panel-movements"
                         x-bind:aria-pressed="activeTab === 'movements'"
-                        x-on:click="activeTab = 'movements'"
+                        x-on:click="selectTab('movements')"
                         :class="activeTab === 'movements'
                             ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-700'
                             : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
@@ -792,7 +793,7 @@
                         type="button"
                         aria-controls="report-panel-expiry"
                         x-bind:aria-pressed="activeTab === 'expiry'"
-                        x-on:click="activeTab = 'expiry'"
+                        x-on:click="selectTab('expiry')"
                         :class="activeTab === 'expiry'
                             ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-700'
                             : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
@@ -810,7 +811,7 @@
             </nav>
         </div>
 
-        <div id="report-panel-overview" x-show="activeTab === 'overview'" class="space-y-4 print:!block">
+        <div id="report-panel-overview" x-show="activeTab === 'overview'" x-cloak class="space-y-4 print:!block">
     {{-- ------------------------------------------------ 1. inventory summary --}}
 
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-12">
@@ -1388,7 +1389,7 @@
                                                 </span>
                                                 <span class="h-1.5 w-20 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" aria-hidden="true">
                                                     <span @class([
-                                                        'block h-full rounded-full',
+                                                        'hims-metric-bar-x block h-full rounded-full',
                                                         'bg-danger-500' => $row['utilisation'] >= 90,
                                                         'bg-warning-500' => $row['utilisation'] >= 75 && $row['utilisation'] < 90,
                                                         'bg-primary-500' => $row['utilisation'] < 75,
@@ -1434,7 +1435,7 @@
                         </span>
                         <div class="min-w-0">
                             <p class="text-xs font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">Ordered</p>
-                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-neutral-950 dark:text-white">₱{{ number_format($spend['ordered']['value'], 2) }}</p>
+                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-neutral-950 dark:text-white">₱<span x-data="himsCountUp({ value: {{ Illuminate\Support\Js::from((float) $spend['ordered']['value']) }}, decimals: 2 })" x-text="display" x-on:animate-report-metrics.window="if ($event.detail.panelId === 'report-panel-procurement') animate()" aria-label="{{ number_format($spend['ordered']['value'], 2) }}">{{ number_format($spend['ordered']['value'], 2) }}</span></p>
                             <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ $spend['ordered']['orders'] }} purchase orders</p>
                         </div>
                     </div>
@@ -1445,7 +1446,7 @@
                         </span>
                         <div class="min-w-0">
                             <p class="text-xs font-semibold uppercase tracking-wide text-success-700">QC Accepted</p>
-                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-success-800">₱{{ number_format($spend['received']['value'], 2) }}</p>
+                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-success-800">₱<span x-data="himsCountUp({ value: {{ Illuminate\Support\Js::from((float) $spend['received']['value']) }}, decimals: 2 })" x-text="display" x-on:animate-report-metrics.window="if ($event.detail.panelId === 'report-panel-procurement') animate()" aria-label="{{ number_format($spend['received']['value'], 2) }}">{{ number_format($spend['received']['value'], 2) }}</span></p>
                             <p class="mt-0.5 text-xs text-success-700">{{ $spend['received']['orders'] }} purchase orders with accepted goods</p>
                         </div>
                     </div>
@@ -1456,7 +1457,7 @@
                         </span>
                         <div class="min-w-0">
                             <p class="text-xs font-semibold uppercase tracking-wide text-warning-700">Outstanding</p>
-                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-warning-800">₱{{ number_format($spend['outstanding']['value'], 2) }}</p>
+                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-warning-800">₱<span x-data="himsCountUp({ value: {{ Illuminate\Support\Js::from((float) $spend['outstanding']['value']) }}, decimals: 2 })" x-text="display" x-on:animate-report-metrics.window="if ($event.detail.panelId === 'report-panel-procurement') animate()" aria-label="{{ number_format($spend['outstanding']['value'], 2) }}">{{ number_format($spend['outstanding']['value'], 2) }}</span></p>
                             <p class="mt-0.5 text-xs text-warning-700">{{ $spend['outstanding']['orders'] }} awaiting acceptance, all time</p>
                         </div>
                     </div>
@@ -1467,7 +1468,7 @@
                         </span>
                         <div class="min-w-0">
                             <p class="text-xs font-semibold uppercase tracking-wide text-violet-700">Average order</p>
-                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-neutral-950 dark:text-white">₱{{ number_format($spend['average_order_value'], 2) }}</p>
+                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-neutral-950 dark:text-white">₱<span x-data="himsCountUp({ value: {{ Illuminate\Support\Js::from((float) $spend['average_order_value']) }}, decimals: 2 })" x-text="display" x-on:animate-report-metrics.window="if ($event.detail.panelId === 'report-panel-procurement') animate()" aria-label="{{ number_format($spend['average_order_value'], 2) }}">{{ number_format($spend['average_order_value'], 2) }}</span></p>
                             <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Across orders raised in the window</p>
                         </div>
                     </div>
@@ -1560,7 +1561,7 @@
                                     <span class="mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400">{{ number_format($row->received_orders) }} received out of {{ number_format($row->orders) }} {{ $row->orders == 1 ? 'order' : 'orders' }}</span>
                                 </div>
                                 <div class="h-2.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" role="img" aria-label="{{ $spendShare }}% of the largest supplier commitment" title="{{ $spendShare }}% of the largest supplier commitment">
-                                    <div class="h-full rounded-full bg-primary-500 transition-all group-hover:bg-primary-600" style="width: {{ $spendShare }}%"></div>
+                                    <div class="hims-metric-bar-x h-full rounded-full bg-primary-500 transition-all group-hover:bg-primary-600" style="width: {{ $spendShare }}%"></div>
                                 </div>
                                 <span class="shrink-0 text-sm font-bold tabular-nums text-neutral-950 dark:text-white">₱{{ number_format($row->value, 2) }}</span>
                             </button>
@@ -1571,7 +1572,7 @@
                                     <span class="mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400">{{ number_format($row->received_orders) }} received out of {{ number_format($row->orders) }} {{ $row->orders == 1 ? 'order' : 'orders' }} · Supplier record unavailable</span>
                                 </div>
                                 <div class="h-2.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" role="img" aria-label="{{ $spendShare }}% of the largest supplier commitment" title="{{ $spendShare }}% of the largest supplier commitment">
-                                    <div class="h-full rounded-full bg-neutral-400" style="width: {{ $spendShare }}%"></div>
+                                    <div class="hims-metric-bar-x h-full rounded-full bg-neutral-400" style="width: {{ $spendShare }}%"></div>
                                 </div>
                                 <span class="shrink-0 text-sm font-bold tabular-nums text-neutral-950 dark:text-white">₱{{ number_format($row->value, 2) }}</span>
                             </div>

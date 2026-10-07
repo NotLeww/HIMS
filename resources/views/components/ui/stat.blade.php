@@ -137,6 +137,7 @@
                     @if ($animatedValue !== null)
                         x-data="himsCountUp({ value: {{ Illuminate\Support\Js::from($animatedValue) }}, decimals: {{ $valueDecimals }} })"
                         x-text="display"
+                        x-on:animate-report-metrics.window="if ($event.detail.panelId === $el.closest('[id^=report-panel-]')?.id) animate()"
                         aria-label="{{ $value }}"
                     @endif
                 >{{ $value }}</span>
