@@ -314,25 +314,6 @@
         {{-- Consolidated Inventory Workflow Navigation --}}
         @include('inventory.partials.workflow_nav')
 
-            <div class="rounded-xl border border-primary-200 bg-primary-50 p-4 text-sm text-primary-900 shadow-sm">
-                <div class="flex items-start gap-3">
-                    <svg class="mt-0.5 h-5 w-5 shrink-0 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
-                    </svg>
-                    <div>
-                        <p class="font-semibold">Who can approve a Store Requisition?</p>
-                        <p class="mt-1 text-xs leading-5 text-primary-800">
-                            Users with any of these active roles may approve: {{ implode(', ', $approverRoleLabels) }}. They cannot approve a requisition they created. Approval is not pre-assigned to one person; authorized independent reviewers receive the Approve action for pending requests.
-                        </p>
-                        @can(\App\Enums\Permission::ApproveRequisition->value)
-                            <p class="mt-2 text-xs font-semibold text-emerald-700">Your current role has approval access. You can approve another user's pending requisition from the Registry or its Details page.</p>
-                        @else
-                            <p class="mt-2 text-xs font-semibold text-neutral-700">Your current role can view or submit requisitions, but it cannot approve them.</p>
-                        @endcan
-                    </div>
-                </div>
-            </div>
-
             @if($errors->any())
                 <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 shadow-sm">
                     <div class="flex items-center gap-2 font-semibold">
@@ -377,11 +358,29 @@
 
             {{-- Requisitions Table --}}
             <div class="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-                <div class="border-b border-neutral-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div class="relative flex flex-col gap-3 border-b border-neutral-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-neutral-800">
                     <div>
                         <h3 class="text-base font-semibold text-neutral-900">Requisitions Registry</h3>
                         <p class="text-xs text-neutral-500">Track demand status, reservation holds, and FEFO picking fulfillment.</p>
                     </div>
+                    <details class="group relative sm:shrink-0">
+                        <summary class="inline-flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-xs transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800 [&::-webkit-details-marker]:hidden">
+                            <x-ui.icon name="shield-check" class="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                            Approval guide
+                            <x-ui.icon name="chevron-down" class="h-4 w-4 transition-transform group-open:rotate-180" />
+                        </summary>
+                        <div class="z-20 mt-2 w-full rounded-xl border border-neutral-200 bg-white p-4 text-left shadow-lg sm:absolute sm:right-0 sm:w-96 dark:border-neutral-700 dark:bg-neutral-900">
+                            <p class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Who can approve a Store Requisition?</p>
+                            <p class="mt-1.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300">
+                                Active approver roles: {{ implode(', ', $approverRoleLabels) }}. Requesters cannot approve their own requisitions; any authorized independent reviewer can act on a pending request.
+                            </p>
+                            @can(\App\Enums\Permission::ApproveRequisition->value)
+                                <p class="mt-3 border-t border-neutral-200 pt-3 text-xs font-semibold text-emerald-700 dark:border-neutral-700 dark:text-emerald-300">Your role can approve another user's pending requisition here or from its Details page.</p>
+                            @else
+                                <p class="mt-3 border-t border-neutral-200 pt-3 text-xs font-medium text-neutral-600 dark:border-neutral-700 dark:text-neutral-400">Your role can view or submit requisitions but cannot approve them.</p>
+                            @endcan
+                        </div>
+                    </details>
                 </div>
                 <div class="overflow-x-auto hims-table-scroll">
                     <table class="w-full text-left text-sm text-neutral-600">
