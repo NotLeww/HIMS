@@ -129,6 +129,7 @@ class PurchaseOrderWorkspaceTest extends TestCase
             ->assertSee('PO-WORKSPACE-DETAIL')
             ->assertSee('purchase-order-details')
             ->assertSee('openPurchaseOrderDetails', false)
+            ->assertSee('picklist-devices.png', false)
             ->assertSee('border-success-300', false)
             ->assertSee('lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.65fr)]', false)
             ->assertDontSee('name="unit_cost"', false)

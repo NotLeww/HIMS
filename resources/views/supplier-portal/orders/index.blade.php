@@ -59,6 +59,7 @@
         </x-ui.table>
 
         @foreach ($orders as $order)
+            @php($orderArtwork = \App\Support\ItemFamilyArtwork::filename($order->lines->pluck('item')))
             <x-ui.modal
                 name="supplier-order-quick-view-{{ $order->id }}"
                 title="Purchase order {{ $order->po_number }}"
@@ -84,16 +85,19 @@
                         <button
                             type="button"
                             x-on:click="close()"
-                            class="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-neutral-500 dark:hover:bg-neutral-800 dark:hover:text-neutral-200 sm:right-6 sm:top-6"
+                            class="absolute right-7 top-7 z-20 flex h-10 w-10 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-white/70 hover:text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-200 sm:right-10 sm:top-10 lg:right-12 lg:top-12"
                         >
                             <span class="sr-only">Close purchase order preview</span>
                             <x-ui.icon name="x-mark" class="h-6 w-6" />
                         </button>
 
-                        <header class="pr-12">
-                            <p class="text-xs font-bold uppercase tracking-[0.18em] text-neutral-500 dark:text-neutral-400">Purchase order</p>
-                            <h2 id="supplier-order-quick-view-{{ $order->id }}-title" class="mt-2 break-words text-2xl font-bold tracking-[-0.025em] text-neutral-950 dark:text-white sm:text-4xl">{{ $order->po_number }}</h2>
-                            <div class="mt-4"><x-ui.badge :status="$order->status" dot class="px-3 py-1.5 text-sm" /></div>
+                        <header class="relative isolate min-h-44 overflow-hidden rounded-xl border border-primary-100 bg-gradient-to-r from-primary-50 via-white to-cyan-50/80 p-5 pr-16 dark:border-primary-900/60 dark:from-primary-950/45 dark:via-neutral-900 dark:to-cyan-950/30 sm:p-7 sm:pr-20">
+                            <img src="{{ asset('img/requisition/'.$orderArtwork) }}" alt="" aria-hidden="true" loading="lazy" decoding="async" class="pointer-events-none absolute -right-4 top-1/2 hidden h-[145%] w-auto max-w-[46%] -translate-y-1/2 object-contain object-right opacity-45 mix-blend-multiply dark:opacity-25 dark:mix-blend-screen sm:block">
+                            <div class="relative flex min-h-28 max-w-full flex-col justify-center sm:max-w-[68%]">
+                                <p class="text-xs font-bold uppercase tracking-[0.18em] text-primary-700 dark:text-primary-300">Purchase order</p>
+                                <h2 id="supplier-order-quick-view-{{ $order->id }}-title" class="mt-2 break-words text-2xl font-bold tracking-[-0.025em] text-neutral-950 dark:text-white sm:text-4xl">{{ $order->po_number }}</h2>
+                                <div class="mt-4"><x-ui.badge :status="$order->status" dot class="px-3 py-1.5 text-sm" /></div>
+                            </div>
                         </header>
 
                         <dl class="mt-8 grid gap-5 sm:grid-cols-3">

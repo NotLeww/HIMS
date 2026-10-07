@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\WarehouseTask;
 use App\Services\AiDemandForecastService;
 use App\Services\Inventory\IssuanceEngine;
+use App\Support\ItemFamilyArtwork;
 use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -20,7 +21,6 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -188,20 +188,7 @@ class MaterialRequisitionController extends Controller implements HasMiddleware
         $pickList = $this->issuanceEngine->generatePickList($requisition);
         $approverRoleLabels = $this->approverRoleLabels();
         $primaryItem = $requisition->lines->first()?->item;
-        $artworkChoices = $requisition->lines
-            ->map(function (MaterialRequisitionLine $line): string {
-                $category = Str::lower(trim(($line->item?->category?->code ?? '').' '.($line->item?->category?->name ?? '')));
-
-                return match (true) {
-                    Str::contains($category, ['pharma', 'drug', 'medicine']) => 'picklist-pharmaceuticals.png',
-                    Str::contains($category, ['ppe', 'protective']) => 'picklist-ppe.png',
-                    Str::contains($category, ['diagnostic', 'laboratory', 'lab']) => 'picklist-diagnostics.png',
-                    Str::contains($category, ['device', 'equipment', 'implant', 'surgical']) => 'picklist-devices.png',
-                    default => 'picklist-supplies.png',
-                };
-            })
-            ->unique();
-        $pickListArtwork = $artworkChoices->count() === 1 ? $artworkChoices->first() : 'picklist-supplies.png';
+        $pickListArtwork = ItemFamilyArtwork::filename($requisition->lines->pluck('item'));
         $issueTask = WarehouseTask::query()
             ->where('reference_type', (new MaterialRequisitionLine)->getMorphClass())
             ->whereIn('reference_id', $requisition->lines->modelKeys())

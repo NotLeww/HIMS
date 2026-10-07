@@ -19,6 +19,7 @@ use App\Models\SupplierProduct;
 use App\Models\SupplierQuote;
 use App\Services\AuditLogger;
 use App\Services\FileContentValidator;
+use App\Support\ItemFamilyArtwork;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -50,13 +51,18 @@ class SupplierPortalController extends Controller
 
     public function orders(Request $request): View
     {
-        return view('supplier-portal.orders.index', ['orders' => PurchaseOrder::where('supplier_id', $request->user()->supplier_id)->with(['supplier', 'lines.item'])->latest('requested_at')->paginate(10)->withQueryString()]);
+        return view('supplier-portal.orders.index', ['orders' => PurchaseOrder::where('supplier_id', $request->user()->supplier_id)->with(['supplier', 'lines.item.category'])->latest('requested_at')->paginate(10)->withQueryString()]);
     }
 
     public function order(Request $request, PurchaseOrder $purchaseOrder): View
     {
         $this->own($request, $purchaseOrder->supplier_id);
-        return view('supplier-portal.orders.show', ['order' => $purchaseOrder->load(['lines.item.category', 'acknowledgements.responder', 'shipments.lines'])]);
+        $order = $purchaseOrder->load(['lines.item.category', 'acknowledgements.responder', 'shipments.lines']);
+
+        return view('supplier-portal.orders.show', [
+            'order' => $order,
+            'orderArtwork' => ItemFamilyArtwork::filename($order->lines->pluck('item')),
+        ]);
     }
 
     public function acknowledge(Request $request, PurchaseOrder $purchaseOrder, AuditLogger $audit): RedirectResponse
@@ -122,7 +128,7 @@ class SupplierPortalController extends Controller
 
     public function rfqs(Request $request): View
     {
-        return view('supplier-portal.rfqs', ['invitations' => RfqSupplierInvitation::where('supplier_id', $request->user()->supplier_id)->with(['rfq.lines.item', 'rfq.quotes' => fn ($q) => $q->where('supplier_id', $request->user()->supplier_id)])->latest('invited_at')->paginate(10)]);
+        return view('supplier-portal.rfqs', ['invitations' => RfqSupplierInvitation::where('supplier_id', $request->user()->supplier_id)->with(['rfq.lines.item.category', 'rfq.quotes' => fn ($q) => $q->where('supplier_id', $request->user()->supplier_id)])->latest('invited_at')->paginate(10)]);
     }
 
     public function submitBid(Request $request, RfqSupplierInvitation $invitation, AuditLogger $audit): RedirectResponse

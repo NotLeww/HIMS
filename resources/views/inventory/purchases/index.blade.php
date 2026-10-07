@@ -1856,6 +1856,11 @@
                                     };
                                     $poLines = $po->lines->isNotEmpty() ? $po->lines : collect();
                                     $primaryItem = $poLines->first()?->item ?? $po->item;
+                                    $poItems = $poLines->pluck('item')->filter();
+                                    if ($poItems->isEmpty() && $po->item) {
+                                        $poItems = collect([$po->item]);
+                                    }
+                                    $poArtworkUrl = asset('img/requisition/'.\App\Support\ItemFamilyArtwork::filename($poItems));
                                     $orderedQuantity = $poLines->isNotEmpty() ? (int) $poLines->sum('ordered_quantity') : (int) $po->quantity;
                                     $receivedQuantity = $poLines->isNotEmpty() ? (int) $poLines->sum('received_quantity') : ($po->received_at ? $orderedQuantity : 0);
                                     $expectedDelivery = $po->shipments->sortByDesc('id')->first()?->estimated_delivery_date ?? $po->delivery_date;
@@ -1929,6 +1934,7 @@
                                         'version' => $po->version,
                                         'status' => $statusLabel,
                                         'supplier' => $po->supplier?->name ?? 'Supplier unavailable',
+                                        'artwork_url' => $poArtworkUrl,
                                         'supplier_location' => $canViewSupplierLocation ? $po->supplier?->address : null,
                                         'item' => $primaryItem?->name ?? 'Multiple items',
                                         'quantity' => $orderedQuantity,
@@ -2242,7 +2248,9 @@
                 <x-ui.modal name="purchase-order-details" title="Purchase order details" maxWidth="3xl">
                     <template x-if="selectedPo">
                         <div class="space-y-4">
-                            <div class="flex flex-wrap items-start justify-between gap-3 border-b border-neutral-100 dark:border-neutral-800 pb-3">
+                            <div class="relative isolate min-h-28 overflow-hidden rounded-xl border border-primary-100 bg-gradient-to-r from-primary-50/90 via-white to-cyan-50/70 p-4 dark:border-primary-900/60 dark:from-primary-950/35 dark:via-neutral-900 dark:to-cyan-950/20">
+                                <img x-bind:src="selectedPo.artwork_url" alt="" aria-hidden="true" class="pointer-events-none absolute right-0 top-1/2 hidden h-[145%] w-auto max-w-[40%] -translate-y-1/2 object-contain object-right opacity-40 mix-blend-multiply dark:opacity-20 dark:mix-blend-screen sm:block">
+                                <div class="relative flex flex-wrap items-start justify-between gap-3 sm:pr-[32%]">
                                 <div class="min-w-0">
                                     <p class="font-mono text-base font-bold text-primary-700 dark:text-primary-400" x-text="selectedPo.number"></p>
                                     <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
@@ -2253,6 +2261,7 @@
                                 <div class="text-right">
                                     <p class="text-xs text-neutral-500 dark:text-neutral-400">Supplier</p>
                                     <p class="text-sm font-semibold text-neutral-900 dark:text-neutral-100" x-text="selectedPo.supplier"></p>
+                                </div>
                                 </div>
                             </div>
 

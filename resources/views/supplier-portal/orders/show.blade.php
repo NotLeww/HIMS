@@ -1,11 +1,10 @@
 <x-layouts.supplier :title="$order->po_number">
     <div class="space-y-6">
         <section class="relative isolate min-h-44 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xs dark:border-neutral-800 dark:bg-neutral-900">
-            <img src="{{ asset('img/hims-supplier-po-items-day.png') }}" alt="" class="absolute inset-0 h-full w-full object-cover object-center dark:hidden">
-            <img src="{{ asset('img/hims-supplier-po-items-night.png') }}" alt="" class="absolute inset-0 hidden h-full w-full object-cover object-center dark:block">
-            <div class="absolute inset-0 bg-gradient-to-r from-white via-white/95 to-white/25 dark:from-neutral-950 dark:via-neutral-950/95 dark:to-neutral-950/25"></div>
+            <div class="absolute inset-0 bg-gradient-to-r from-primary-50/80 via-white to-cyan-50/70 dark:from-primary-950/30 dark:via-neutral-900 dark:to-cyan-950/20"></div>
+            <img src="{{ asset('img/requisition/'.$orderArtwork) }}" alt="" aria-hidden="true" class="pointer-events-none absolute right-0 top-1/2 hidden h-[130%] w-auto max-w-[42%] -translate-y-1/2 object-contain object-right opacity-45 mix-blend-multiply dark:opacity-20 dark:mix-blend-screen sm:block">
 
-            <div class="relative flex min-h-44 max-w-3xl flex-col justify-center p-5 sm:p-7">
+            <div class="relative flex min-h-44 max-w-3xl flex-col justify-center p-5 sm:p-7 sm:pr-[34%]">
                 <a href="{{ route('supplier.orders.index') }}" class="inline-flex w-fit items-center gap-2 rounded-md text-sm font-medium text-neutral-600 underline-offset-4 hover:text-primary-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:text-neutral-300 dark:hover:text-primary-300 dark:focus-visible:ring-offset-neutral-900">
                     <x-ui.icon name="arrow-left" class="h-4 w-4" />
                     Back to Purchase Orders

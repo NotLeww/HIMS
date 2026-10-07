@@ -217,7 +217,7 @@ class ProcurementController extends Controller implements HasMiddleware
         $purchaseOrderQuery = PurchaseOrder::with([
             'supplier',
             'item.category',
-            'lines.item',
+            'lines.item.category',
             'revisions',
             'purchaseRequest',
             'costCenter',

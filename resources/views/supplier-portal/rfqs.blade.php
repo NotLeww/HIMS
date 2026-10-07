@@ -43,6 +43,7 @@
 
         <div class="grid items-start gap-5 xl:grid-cols-2">
             @forelse ($invitations as $invite)
+            @php($rfqArtwork = \App\Support\ItemFamilyArtwork::filename($invite->rfq->lines->pluck('item')))
             <x-ui.card :padding="false" class="min-w-0 border-l-2 border-l-primary-500 shadow-sm transition-shadow hover:shadow-md dark:border-l-primary-400" data-rfq-bid-card>
                 <x-slot:header>
                     <div class="flex min-w-0 items-start gap-3.5">
@@ -94,8 +95,9 @@
                     </x-slot:footer>
                 @endif
 
-                <div class="p-4 sm:p-5">
-                    <p class="text-sm leading-6 text-neutral-600 dark:text-neutral-300">{{ $invite->rfq->description }}</p>
+                <div class="relative isolate min-h-24 overflow-hidden bg-gradient-to-r from-white via-white to-primary-50/60 p-4 sm:min-h-28 sm:p-5 dark:from-neutral-900 dark:via-neutral-900 dark:to-primary-950/25">
+                    <img src="{{ asset('img/requisition/'.$rfqArtwork) }}" alt="" aria-hidden="true" loading="lazy" decoding="async" class="pointer-events-none absolute -right-3 top-1/2 hidden h-[145%] w-auto max-w-[36%] -translate-y-1/2 object-contain object-right opacity-40 mix-blend-multiply dark:opacity-20 dark:mix-blend-screen sm:block">
+                    <p class="relative text-sm leading-6 text-neutral-600 sm:max-w-[68%] dark:text-neutral-300">{{ $invite->rfq->description }}</p>
 
                     @if ($invite->rfq->lines->count() > 1)
                         <x-ui.modal

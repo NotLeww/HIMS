@@ -13,6 +13,7 @@ use App\Enums\UserStatus;
 use App\Models\GoodsReceiptNote;
 use App\Models\GoodsReceiptNoteLine;
 use App\Models\InventoryItem;
+use App\Models\ItemCategory;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
 use App\Models\RfqLineItem;
@@ -163,7 +164,8 @@ class SupplierPortalWorkflowTest extends TestCase
     {
         [$supplierA, $operationsA] = $this->supplierWithUser('Supplier A', UserRole::VendorOperations);
         [$supplierB, $operationsB] = $this->supplierWithUser('Supplier B', UserRole::VendorOperations);
-        $item = InventoryItem::create(['name' => 'Gloves M', 'sku' => 'GLOVE-PORTAL', 'unit' => 'box', 'status' => 'active']);
+        $category = ItemCategory::create(['name' => 'Personal Protective Equipment', 'code' => 'PPE', 'is_active' => true]);
+        $item = InventoryItem::create(['name' => 'Gloves M', 'sku' => 'GLOVE-PORTAL', 'unit' => 'box', 'status' => 'active', 'category_id' => $category->id]);
         $po = PurchaseOrder::create(['po_number' => 'PO-PORTAL-001', 'supplier_id' => $supplierA->id, 'quantity' => 10, 'unit_cost' => 100, 'total_amount' => 1000, 'status' => PurchaseOrderStatus::Approved, 'requested_at' => now()]);
         $line = PurchaseOrderLine::create(['purchase_order_id' => $po->id, 'item_id' => $item->id, 'line_number' => 1, 'ordered_quantity' => 10, 'unit_price' => 100, 'total_line_amount' => 1000]);
 
@@ -184,6 +186,7 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertSee('Open full order')
             ->assertSee('hims-supplier-po-items-day.png', false)
             ->assertSee('hims-supplier-po-items-night.png', false)
+            ->assertSee('picklist-ppe.png', false)
             ->assertSee('Gloves M');
         $this->actingAs($operationsA)->get(route('supplier.orders.show', $po))
             ->assertOk()
@@ -191,8 +194,7 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertSee('Back to Purchase Orders')
             ->assertSee('Order date')
             ->assertSee('Scheduled delivery')
-            ->assertSee('hims-supplier-po-items-day.png', false)
-            ->assertSee('hims-supplier-po-items-night.png', false)
+            ->assertSee('picklist-ppe.png', false)
             ->assertSee('Gloves M')
             ->assertSee('data-item-icon="hand-raised"', false);
         $item->update(['name' => 'Paracetamol 500 mg Tablet', 'sku' => 'MED-PARA-500']);
@@ -200,6 +202,8 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('Paracetamol 500 mg Tablet')
             ->assertSee('data-item-icon="capsule"', false);
+        $deviceCategory = ItemCategory::create(['name' => 'Medical Devices', 'code' => 'DEVICE', 'is_active' => true]);
+        $orthopedicItem = InventoryItem::create(['name' => 'Titanium Locking Reconstruction Plate 3.5mm', 'sku' => 'ORTHO-PLATE-35', 'unit' => 'piece', 'status' => 'active', 'category_id' => $deviceCategory->id]);
         $rfq = SourcingRfq::create([
             'rfq_number' => 'RFQ-PORTAL-001',
             'title' => 'Orthopedic Reconstruction Plates',
@@ -212,7 +216,7 @@ class SupplierPortalWorkflowTest extends TestCase
         ]);
         $rfqLine = RfqLineItem::create([
             'sourcing_rfq_id' => $rfq->id,
-            'item_id' => $item->id,
+            'item_id' => $orthopedicItem->id,
             'line_number' => 1,
             'item_description' => 'Titanium Locking Reconstruction Plate 3.5mm',
             'target_quantity' => 50,
@@ -236,6 +240,7 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertSee('hims-supplier-rfq-hero-night.png', false)
             ->assertSee('RFQ invitations')
             ->assertSee('1 invitation issued to your supplier.')
+            ->assertSee('picklist-devices.png', false)
             ->assertSee('data-rfq-bid-card', false)
             ->assertDontSee('data-rfq-bid-form', false);
         $this->actingAs($bidderA)->get(route('supplier.rfqs.index'))
