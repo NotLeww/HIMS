@@ -96,6 +96,7 @@ Do not invent props. Extend a shared component only when multiple real consumers
 - Match desktop control width to expected input length. Group related short and medium fields in responsive grids instead of stretching each one across the operational canvas; reserve dominant row width for genuinely long-form input. Keep controls stacked and full-width on narrow screens.
 - Every `<select>` needs arrow clearance: compact selects use at least `pl-2.5 pr-8`; standard selects use `pl-3 pr-10`. Do not use symmetrical `px-*` where text can sit under the browser chevron.
 - Use native date/datetime constraints when appropriate, update dependent limits, and mirror all chronology rules in Laravel validation. Client constraints are UX, not persistence authority.
+- Before implementing any date or datetime field, determine what the date represents and document its valid boundary from the workflow (past-only, today-or-later, future-only, bounded range, or relative to another field). Apply the matching native `min`/`max` constraint and server-side Laravel rule; do not allow past dates for required-by, appointment, delivery, scheduling, or other forward-looking fields unless the verified domain workflow explicitly permits them.
 - Use `<x-ui.button>` and its established variants/sizes. Preserve visible focus, disabled behavior, and `data-loading-text` integration.
 
 ### Cards, Dashboards, and Metrics

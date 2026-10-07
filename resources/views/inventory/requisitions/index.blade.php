@@ -167,12 +167,14 @@
             })
             .catch(err => {
                 console.warn('AI recommendation fetch error:', err);
-                this.applyRecommendationToDrawer({
-                    available: false,
-                    suggested_quantity: null,
-                    unit: this.getItemUnit(itemId),
-                    explanation: 'Recommendation unavailable. Enter the requested quantity manually.'
-                });
+                if (this.drawerForm.item_id == itemId) {
+                    this.applyRecommendationToDrawer({
+                        available: false,
+                        suggested_quantity: null,
+                        unit: this.getItemUnit(itemId),
+                        explanation: 'Recommendation unavailable. Enter the requested quantity manually.'
+                    });
+                }
             })
             .finally(() => {
                 if (this.drawerForm.item_id == itemId) {
@@ -733,8 +735,8 @@
                                 @endif
                             @endif
 
-                            {{-- Requisition-Level Fields (4-column responsive grid, perfectly aligned) --}}
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                            {{-- Requisition-Level Fields --}}
+                            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end">
                                 <div class="flex flex-col justify-end">
                                     <label class="flex items-end text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-1.5 h-6 truncate" title="Requesting Department">
                                         <span>Requesting Dept.</span> <span class="text-rose-500 ml-0.5">*</span>
@@ -747,25 +749,26 @@
                                     </select>
                                 </div>
                                 <div class="flex flex-col justify-end">
-                                    <div class="flex items-end justify-between mb-1.5 h-6">
-                                        <label class="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 truncate" title="Cost Center">
+                                    <div class="mb-1.5 flex min-h-6 items-center justify-between gap-2">
+                                        <label class="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
                                             Cost Center
                                         </label>
-                                        <span x-show="assignedCostCenter()" class="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.2 rounded">
+                                        <span x-show="assignedCostCenter()" class="shrink-0 whitespace-nowrap rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
                                             Auto-assigned
                                         </span>
                                     </div>
                                     
                                     {{-- Read-only system-derived presentation --}}
                                     <div class="relative">
-                                        <div class="h-9 w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-neutral-100/90 dark:bg-neutral-800/90 text-neutral-900 dark:text-neutral-100 px-2.5 flex items-center justify-between shadow-2xs select-none"
+                                        <div class="flex min-h-9 w-full items-center justify-between rounded-lg border border-neutral-300 bg-neutral-100/90 px-3 py-2 text-neutral-900 shadow-2xs select-none dark:border-neutral-700 dark:bg-neutral-800/90 dark:text-neutral-100"
+                                             x-bind:title="assignedCostCenter() ? assignedCostCenter().display : ''"
                                              :class="{
                                                  'border-amber-400 dark:border-amber-600 bg-amber-50/50 dark:bg-amber-950/20': (!assignedCostCenter() && selectedDepartment)
                                              }">
                                             <template x-if="assignedCostCenter()">
                                                 <div class="flex items-center gap-1.5 min-w-0 pr-1">
                                                     <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                                                    <span class="text-xs font-medium text-neutral-800 dark:text-neutral-200 truncate" x-text="assignedCostCenter().display"></span>
+                                                    <span class="truncate text-xs font-medium text-neutral-800 dark:text-neutral-200" x-text="assignedCostCenter().display"></span>
                                                 </div>
                                             </template>
                                             <template x-if="!assignedCostCenter() && selectedDepartment">
@@ -802,7 +805,10 @@
                                     <label class="flex items-end text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-1.5 h-6 truncate" title="Required Date">
                                         <span>Required Date</span>
                                     </label>
-                                    <input type="date" name="required_date" class="h-9 block w-full rounded-lg border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-2xs focus:border-primary-500 focus:ring-primary-500 text-xs font-medium py-1.5 px-2.5">
+                                    <input type="date" name="required_date" value="{{ old('required_date') }}" min="{{ today()->toDateString() }}" aria-describedby="required-date-error" class="h-9 block w-full rounded-lg border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-2xs focus:border-primary-500 focus:ring-primary-500 text-xs font-medium py-1.5 px-2.5">
+                                    @error('required_date')
+                                        <p id="required-date-error" class="mt-1 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>
+                                    @enderror
                                 </div>
                             </div>
 
@@ -1037,6 +1043,15 @@
                                             <button type="button" x-show="drawerForm.requested_quantity != drawerForm.ai_suggested_quantity" @click="drawerForm.requested_quantity = drawerForm.ai_suggested_quantity" class="shrink-0 text-[11px] font-bold text-primary-600 dark:text-primary-400 hover:underline">
                                                 Apply AI Qty (<span x-text="drawerForm.ai_suggested_quantity"></span>)
                                             </button>
+                                        </div>
+                                    </template>
+                                    <template x-if="!drawerForm.loading_ai && drawerForm.item_id && drawerForm.ai_recommendation && drawerForm.ai_suggested_quantity === null">
+                                        <div class="flex items-start gap-2 text-xs text-indigo-900 dark:text-indigo-200">
+                                            <x-ui.icon name="information-circle" class="mt-0.5 h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                                            <div>
+                                                <p class="font-bold">Not enough usage data yet</p>
+                                                <p class="mt-0.5 text-[11px] text-indigo-800 dark:text-indigo-300" x-text="drawerForm.ai_recommendation.explanation || 'Enter the requested quantity manually.'"></p>
+                                            </div>
                                         </div>
                                     </template>
                                 </div>

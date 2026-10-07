@@ -50,7 +50,7 @@ class RequisitionController extends Controller implements HasMiddleware
         $validator = Validator::make($request->all(), [
             'department' => ['required', 'string', 'max:100'],
             'cost_center_id' => ['nullable', 'integer'],
-            'required_date' => ['nullable', 'date'],
+            'required_date' => ['nullable', 'date', 'after_or_equal:today'],
             'urgency' => ['nullable', 'in:routine,urgent,stat_emergency'],
             'justification' => ['nullable', 'string', 'max:500'],
             'lines' => ['required', 'array', 'min:1'],
@@ -58,6 +58,8 @@ class RequisitionController extends Controller implements HasMiddleware
             'lines.*.requested_quantity' => ['required', 'integer', 'min:1'],
             'lines.*.allocation_strategy' => ['nullable', 'in:FEFO,FIFO,MANUAL'],
             'lines.*.notes' => ['nullable', 'string', 'max:255'],
+        ], [
+            'required_date.after_or_equal' => 'The required date must be today or a future date.',
         ]);
 
         $validator->after(function ($v) use ($request) {
