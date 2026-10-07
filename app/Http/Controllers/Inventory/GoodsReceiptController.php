@@ -19,6 +19,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 class GoodsReceiptController extends Controller implements HasMiddleware
@@ -38,11 +39,20 @@ class GoodsReceiptController extends Controller implements HasMiddleware
         private readonly QualityControlService $qcService
     ) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         abort_unless(auth()->user()->hasPermission(Permission::ViewInventory)
             || auth()->user()->hasPermission(Permission::ReceivePurchaseOrder), 403);
+        $filters = $request->validate([
+            'date_from' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from', 'before_or_equal:today'],
+        ]);
+        $dateFrom = filled($filters['date_from'] ?? null) ? Carbon::parse($filters['date_from'], config('app.timezone'))->startOfDay() : null;
+        $dateTo = filled($filters['date_to'] ?? null) ? Carbon::parse($filters['date_to'], config('app.timezone'))->endOfDay() : null;
+
         $goodsReceipts = GoodsReceiptNote::with(['purchaseOrder', 'supplier', 'receivedBy', 'lines.item'])
+            ->when($dateFrom, fn ($query) => $query->where('received_at', '>=', $dateFrom))
+            ->when($dateTo, fn ($query) => $query->where('received_at', '<=', $dateTo))
             ->latest('received_at')
             ->paginate(15)
             ->withQueryString();

@@ -246,6 +246,8 @@ class PurchaseOrderStatusTest extends TestCase
         $this->actingAs(User::factory()->role(UserRole::InventoryManager)->create())
             ->get(route('inventory.receiving.index'))
             ->assertOk()
+            ->assertSee('name="date_from"', false)
+            ->assertSee('name="date_to"', false)
             ->assertSee('PO-STATUS-001')
             ->assertSee('bg-amber-100 text-amber-800')
             ->assertDontSee('bg-blue-100 text-blue-800');

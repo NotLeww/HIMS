@@ -222,7 +222,8 @@ class StockAdjustmentTest extends TestCase
             && $adjustments->getCollection()->every(fn (InventoryAdjustment $adjustment) => $adjustment->status === 'pending_approval'));
         $response->assertSee('data-metric-details=', false);
         $response->assertSee('13 more', false);
-        $response->assertSee('Show all adjustments');
+        $response->assertSee('name="date_from"', false);
+        $response->assertSee('name="date_to"', false);
         $response->assertSee(route('inventory.adjustments', ['status' => 'posted']).'#adjustment-registry', false);
     }
 }

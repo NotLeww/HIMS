@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 class CycleCountController extends Controller implements HasMiddleware
@@ -30,9 +31,17 @@ class CycleCountController extends Controller implements HasMiddleware
 
     public function __construct(private readonly CycleCountService $cycleCountService) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
+        $filters = $request->validate([
+            'date_from' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from', 'before_or_equal:today'],
+        ]);
+        $dateFrom = filled($filters['date_from'] ?? null) ? Carbon::parse($filters['date_from'], config('app.timezone'))->startOfDay() : null;
+        $dateTo = filled($filters['date_to'] ?? null) ? Carbon::parse($filters['date_to'], config('app.timezone'))->endOfDay() : null;
         $cycleCounts = CycleCountDoc::with(['assignedCounter', 'approvedBy', 'location'])
+            ->when($dateFrom, fn ($query) => $query->where('created_at', '>=', $dateFrom))
+            ->when($dateTo, fn ($query) => $query->where('created_at', '<=', $dateTo))
             ->latest()
             ->paginate(15)
             ->withQueryString();

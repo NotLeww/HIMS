@@ -18,6 +18,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 class StockAdjustmentController extends Controller implements HasMiddleware
@@ -41,12 +42,18 @@ class StockAdjustmentController extends Controller implements HasMiddleware
     {
         $validated = $request->validate([
             'status' => ['nullable', 'in:pending_approval,pending_second_approval,approved,rejected,posted'],
+            'date_from' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from', 'before_or_equal:today'],
         ]);
         $status = $validated['status'] ?? null;
+        $dateFrom = filled($validated['date_from'] ?? null) ? Carbon::parse($validated['date_from'], config('app.timezone'))->startOfDay() : null;
+        $dateTo = filled($validated['date_to'] ?? null) ? Carbon::parse($validated['date_to'], config('app.timezone'))->endOfDay() : null;
         $items = InventoryItem::active()->orderBy('name')->get();
         $locations = StorageLocation::where('status', 'active')->orderBy('name')->get();
         $adjustments = InventoryAdjustment::with(['item', 'location', 'requestedBy', 'approvedBy', 'secondApprovedBy'])
             ->when($status, fn ($query, $status) => $query->where('status', $status))
+            ->when($dateFrom, fn ($query) => $query->where('created_at', '>=', $dateFrom))
+            ->when($dateTo, fn ($query) => $query->where('created_at', '<=', $dateTo))
             ->latest()
             ->paginate(15)
             ->withQueryString();

@@ -262,8 +262,16 @@
             {{-- Goods Receipt Notes History --}}
             <div class="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
                 <div class="border-b border-neutral-200 px-6 py-4">
-                    <h3 class="text-base font-semibold text-neutral-900">Historical Goods Receipt Notes (GRN)</h3>
-                    <p class="text-xs text-neutral-500">Authoritative audit evidence of physical stock deliveries and quarantine routing.</p>
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                        <div><h3 class="text-base font-semibold text-neutral-900">Historical Goods Receipt Notes (GRN)</h3><p class="text-xs text-neutral-500">Authoritative audit evidence of physical stock deliveries and quarantine routing.</p></div>
+                        <form method="GET" action="{{ route('inventory.receiving.index') }}" x-data="{ dateFrom: {{ Js::from(request('date_from', '')) }}, dateTo: {{ Js::from(request('date_to', '')) }} }" class="flex flex-wrap items-center gap-2">
+                            <label><span class="sr-only">Receipt date from</span><input type="date" name="date_from" x-model="dateFrom" @change="if (dateTo && dateFrom > dateTo) dateTo = dateFrom" max="{{ now()->toDateString() }}" class="rounded-lg border-neutral-300 py-1.5 text-xs"></label>
+                            <span class="inline-flex min-h-8 shrink-0 items-center text-xs text-neutral-400">to</span>
+                            <label><span class="sr-only">Receipt date to</span><input type="date" name="date_to" x-model="dateTo" @change="if (dateFrom && dateTo < dateFrom) dateTo = dateFrom" :min="dateFrom || null" max="{{ now()->toDateString() }}" class="rounded-lg border-neutral-300 py-1.5 text-xs"></label>
+                            <x-ui.button type="submit" size="sm" icon="funnel">Apply</x-ui.button>
+                            @if(request()->hasAny(['date_from', 'date_to']))<x-ui.button size="sm" variant="secondary" :href="route('inventory.receiving.index')">Clear</x-ui.button>@endif
+                        </form>
+                    </div>
                 </div>
                 <div class="overflow-x-auto hims-table-scroll">
                     <table class="w-full text-left text-sm text-neutral-600">

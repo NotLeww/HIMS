@@ -61,13 +61,19 @@
                     </select>
                 </div>
 
+                <div x-data="{ dateFrom: {{ Js::from(request('date_from', '')) }}, dateTo: {{ Js::from(request('date_to', '')) }} }" class="flex w-full items-center gap-2 sm:w-auto">
+                    <label><span class="sr-only">Custody date from</span><input type="date" name="date_from" x-model="dateFrom" @change="if (dateTo && dateFrom > dateTo) dateTo = dateFrom" max="{{ now()->toDateString() }}" class="w-full rounded-lg border-neutral-300 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800"></label>
+                    <span class="inline-flex min-h-8 shrink-0 items-center text-xs text-neutral-400">to</span>
+                    <label><span class="sr-only">Custody date to</span><input type="date" name="date_to" x-model="dateTo" @change="if (dateFrom && dateTo < dateFrom) dateTo = dateFrom" :min="dateFrom || null" max="{{ now()->toDateString() }}" class="w-full rounded-lg border-neutral-300 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800"></label>
+                </div>
+
                 {{-- Filter Action Buttons --}}
                 <div class="flex items-center gap-1.5 shrink-0">
                     <button type="submit" class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-neutral-900 px-4 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-neutral-800 dark:bg-primary-600 dark:hover:bg-primary-500 transition">
                         <x-ui.icon name="funnel" class="h-3.5 w-3.5 text-neutral-300 dark:text-white" />
                         <span>Filter</span>
                     </button>
-                    @if(request()->hasAny(['search', 'action']))
+                    @if(request()->hasAny(['search', 'action', 'date_from', 'date_to']))
                         <a href="{{ route('inventory.logistics.chain-of-custody') }}" class="inline-flex items-center justify-center rounded-lg border border-neutral-300 bg-white p-1.5 text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-neutral-100 transition" title="Reset Filters">
                             <x-ui.icon name="x-mark" class="h-3.5 w-3.5" />
                         </a>

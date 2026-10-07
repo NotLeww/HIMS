@@ -16,6 +16,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
@@ -44,11 +45,16 @@ class StockMovementController extends Controller implements HasMiddleware
 
     public function index(Request $request): View
     {
-        $filters = $request->validate([
+        $filters = $request->validateWithBag('movementHistoryFilter', [
             'search' => ['nullable', 'string', 'max:100'],
             'movement_type' => ['nullable', Rule::enum(MovementType::class)],
             'location_id' => ['nullable', 'integer', 'exists:storage_locations,id'],
+            'date_from' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from', 'before_or_equal:today'],
         ]);
+
+        $dateFrom = filled($filters['date_from'] ?? null) ? Carbon::parse($filters['date_from'], config('app.timezone'))->startOfDay() : null;
+        $dateTo = filled($filters['date_to'] ?? null) ? Carbon::parse($filters['date_to'], config('app.timezone'))->endOfDay() : null;
 
         // A transfer writes its source and destination rows inside one
         // transaction, so moved_at ties are common; id breaks the tie and keeps
@@ -79,6 +85,8 @@ class StockMovementController extends Controller implements HasMiddleware
                         });
                 });
             })
+            ->when($dateFrom, fn ($query) => $query->where('moved_at', '>=', $dateFrom))
+            ->when($dateTo, fn ($query) => $query->where('moved_at', '<=', $dateTo))
             ->latest('moved_at')
             ->latest('id')
             ->paginate(20)

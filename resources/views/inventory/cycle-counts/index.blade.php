@@ -69,6 +69,15 @@
                     <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Historical count registers with frozen inventory snapshots.</p>
                 </div>
             </x-slot:header>
+            <x-slot:actions>
+                <form method="GET" action="{{ route('inventory.cycle-counts.index') }}" x-data="{ dateFrom: {{ Js::from(request('date_from', '')) }}, dateTo: {{ Js::from(request('date_to', '')) }} }" class="flex flex-wrap items-center gap-2">
+                    <label><span class="sr-only">Cycle count date from</span><input type="date" name="date_from" x-model="dateFrom" @change="if (dateTo && dateFrom > dateTo) dateTo = dateFrom" max="{{ now()->toDateString() }}" class="rounded-lg border-neutral-300 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800"></label>
+                    <span class="inline-flex min-h-8 shrink-0 items-center text-xs text-neutral-400">to</span>
+                    <label><span class="sr-only">Cycle count date to</span><input type="date" name="date_to" x-model="dateTo" @change="if (dateFrom && dateTo < dateFrom) dateTo = dateFrom" :min="dateFrom || null" max="{{ now()->toDateString() }}" class="rounded-lg border-neutral-300 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800"></label>
+                    <x-ui.button type="submit" size="sm" icon="funnel">Apply</x-ui.button>
+                    @if(request()->hasAny(['date_from', 'date_to']))<x-ui.button size="sm" variant="secondary" :href="route('inventory.cycle-counts.index')">Clear</x-ui.button>@endif
+                </form>
+            </x-slot:actions>
 
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-xs text-neutral-600 dark:text-neutral-300 divide-y divide-neutral-200 dark:divide-neutral-800">

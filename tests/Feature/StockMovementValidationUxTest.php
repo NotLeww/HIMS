@@ -282,7 +282,7 @@ class StockMovementValidationUxTest extends TestCase
                 'quantity' => 1,
                 'to_location_id' => $location->id,
                 'user_id' => $user->id,
-                'moved_at' => now()->subMinutes($index),
+                'moved_at' => now()->subDay()->subMinutes($index),
                 'remarks' => "Routine intake {$index}",
             ]);
         }
@@ -310,6 +310,8 @@ class StockMovementValidationUxTest extends TestCase
             'search' => 'Emergency theatre',
             'movement_type' => MovementType::StockOut->value,
             'location_id' => $matchingLocation->id,
+            'date_from' => now()->toDateString(),
+            'date_to' => now()->toDateString(),
         ]));
 
         $filtered->assertOk();
@@ -325,5 +327,26 @@ class StockMovementValidationUxTest extends TestCase
         $this->assertSame('Emergency theatre', $nextPageQuery['search']);
         $this->assertSame(MovementType::StockOut->value, $nextPageQuery['movement_type']);
         $this->assertSame((string) $matchingLocation->id, $nextPageQuery['location_id']);
+        $this->assertSame(now()->toDateString(), $nextPageQuery['date_from']);
+        $this->assertSame(now()->toDateString(), $nextPageQuery['date_to']);
+        $filtered->assertSee('name="date_from"', false);
+        $filtered->assertSee('name="date_to"', false);
+    }
+
+    public function test_movement_history_rejects_an_invalid_date_range(): void
+    {
+        $user = User::factory()->warehouseStaff()->create();
+
+        $this->actingAs($user)
+            ->get(route('inventory.stock-movements', [
+                'date_from' => now()->toDateString(),
+                'date_to' => now()->subDay()->toDateString(),
+            ]))
+            ->assertSessionHasErrors('date_to', null, 'movementHistoryFilter');
+
+        $this->actingAs($user)
+            ->get(route('inventory.stock-movements'))
+            ->assertOk()
+            ->assertDontSee('x-init="$nextTick(() =&gt; $dispatch(\'open-modal\', \'record-quick-movement\'))"', false);
     }
 }
