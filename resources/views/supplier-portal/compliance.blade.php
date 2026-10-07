@@ -1,18 +1,51 @@
 <x-layouts.supplier title="Compliance">
-    <x-ui.page-header title="Compliance" subtitle="Submit current evidence for hospital verification. Previous records remain in the hospital audit history." />
+    <section class="relative isolate overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-emerald-900/30 dark:bg-neutral-950">
+        <img
+            src="{{ asset('img/hims-supplier-compliance-hero-light.png') }}"
+            alt=""
+            class="absolute inset-0 h-full w-full object-cover object-center dark:hidden"
+            aria-hidden="true"
+        />
+        <img
+            src="{{ asset('img/hims-supplier-compliance-hero.png') }}"
+            alt=""
+            class="absolute inset-0 hidden h-full w-full object-cover object-center dark:block"
+            aria-hidden="true"
+        />
+        <div class="absolute inset-0 bg-gradient-to-r from-white via-white/90 to-white/10 dark:hidden"></div>
+        <div class="absolute inset-0 hidden bg-gradient-to-r from-neutral-950 via-neutral-950/90 to-emerald-950/25 dark:block"></div>
+        <div class="relative flex min-h-32 items-center gap-4 px-5 py-6 sm:px-7">
+            <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-emerald-100/90 text-emerald-700 ring-1 ring-inset ring-emerald-200 backdrop-blur-sm dark:bg-emerald-500/20 dark:text-emerald-300 dark:ring-emerald-400/20">
+                <x-ui.icon name="document-check" class="h-7 w-7" :stroke-width="2" />
+            </span>
+            <div class="min-w-0">
+                <h1 class="text-2xl font-bold tracking-tight text-neutral-950 dark:text-white">Compliance</h1>
+                <p class="mt-1 max-w-3xl text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">Submit current evidence for hospital verification. Previous records remain in the hospital audit history.</p>
+            </div>
+        </div>
+    </section>
 
     @can(\App\Enums\Permission::SupplierManageProfile->value)
-        <x-ui.card title="Upload compliance evidence" class="mt-6">
-            <form method="POST" action="{{ route('supplier.compliance.store') }}" enctype="multipart/form-data" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <x-ui.card class="mt-6">
+            <x-slot:header>
+                <div class="flex items-center gap-3">
+                    <span class="h-7 w-1 rounded-full bg-emerald-400" aria-hidden="true"></span>
+                    <h2 class="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Upload compliance evidence</h2>
+                </div>
+            </x-slot:header>
+
+            <form method="POST" action="{{ route('supplier.compliance.store') }}" enctype="multipart/form-data" class="grid gap-x-6 gap-y-5 md:grid-cols-2 xl:grid-cols-3">
                 @csrf
-                <x-ui.field name="document_type" label="Document type" placeholder="e.g. FDA License to Operate" required />
-                <x-ui.field name="document_number" label="Reference number" />
-                <x-ui.field name="issuing_authority" label="Issuing authority" />
+                <x-ui.field name="document_type" label="Document type" icon="document-text" placeholder="e.g. FDA License to Operate" required />
+                <x-ui.field name="document_number" label="Reference number" icon="finger-print" placeholder="Enter reference number" />
+                <x-ui.field name="issuing_authority" label="Issuing authority" icon="shield-check" placeholder="Enter issuing authority" />
                 <x-ui.field name="issued_at" label="Issue date" type="date" />
                 <x-ui.field name="expires_at" label="Expiration date" type="date" />
                 <x-ui.field name="file" label="Evidence file" type="file" accept=".pdf,.jpg,.jpeg,.png" required hint="PDF, JPG, or PNG; maximum 10 MB." />
-                <div class="md:col-span-2 xl:col-span-3"><x-ui.field name="notes" label="Notes" type="textarea" rows="2" /></div>
-                <div class="md:col-span-2 xl:col-span-3"><x-ui.button type="submit">Submit for review</x-ui.button></div>
+                <div class="md:col-span-2 xl:col-span-3"><x-ui.field name="notes" label="Notes" type="textarea" rows="2" placeholder="Add relevant compliance notes" /></div>
+                <div class="md:col-span-2 xl:col-span-3">
+                    <x-ui.button type="submit" size="lg" icon="paper-airplane" class="w-full px-6 sm:w-auto" data-loading-text="Submitting...">Submit for review</x-ui.button>
+                </div>
             </form>
         </x-ui.card>
     @endcan
