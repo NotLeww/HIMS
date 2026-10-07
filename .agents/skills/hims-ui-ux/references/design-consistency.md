@@ -53,6 +53,9 @@ Size controls for their real content plus buffer space. No letters, descenders, 
 
 - Compact `<select>` controls use at least `pl-2.5 pr-8`; standard selects use at least `pl-3 pr-10`. Do not use symmetrical `px-*` when text can sit beneath the browser chevron.
 - Do not force dynamic button, select, badge, or input content into narrow widths such as `w-14`, `w-16`, or arbitrary small `max-w-*` values.
+- Let expected content length inform desktop width: identifiers, short codes, quantities, dates, and concise terms should occupy appropriately sized grid columns instead of separate full-width rows.
+- Use responsive `grid` tracks with `minmax(0, ...)` to place related short and medium fields side by side when space permits; stack the same fields at narrow breakpoints rather than assigning rigid pixel widths.
+- Give a textarea dominant or full-row width only when the workflow expects sustained narrative input. For brief notes or remarks, use a wider companion column or a bounded span so the surrounding space remains useful.
 - Use adequate horizontal padding and readable line height. Avoid fixed heights that clip `g`, `y`, `p`, `q`, `j`, or accented characters.
 - Table cells and status labels need enough padding and width for complete operational values.
 - Keep equivalent fields aligned and equally sized; component class composition must not accidentally remove `w-full`, padding, focus, or error styling.
@@ -173,6 +176,9 @@ Preserve the shared pagination signature:
 ## Forms and Dates
 
 - Use visible labels, associated hints/errors, retained `old()` values, correct required/disabled semantics, named error bags where established, and server-side authorization/validation.
+- HIMS forms must not rely on unstyled browser constraint-validation popovers. Suppress them with `novalidate` only after the complete Laravel error round trip is present: server validation for the same constraints, retained input, shared inline danger styling and message association, and focus on the first invalid field. Preserve `required`, `min`, `max`, `step`, `pattern`, and `maxlength` where applicable as semantic metadata and optional progressive-enhancement hooks.
+- Keep ordinary validation inline at the owning controls. Do not render a global, layout-level, card-level, modal-level, or form-level validation summary/banner that duplicates those messages. For several invalid fields, focus the first invalid control and retain programmatic field-message associations; reserve persistent alerts for actionable failures with no specific field owner.
+- Gate the primary action on create, submit, and mutation forms with real native `disabled` state while any required or conditionally required control is blank or client-invalid. Initialize disabled before scripts run, recompute against the form's current constraints after input/change and conditional-field updates, and enable only when the form is client-valid. Never treat button gating as authorization or authoritative validation; the server must reject the same invalid payload and return the established inline errors.
 - Native `date`, `datetime-local`, `min`, and `max` are preferred when they fit the domain.
 - State the precise chronology rule; do not confuse `after` with `after_or_equal`, or “not in the past” with “after today.”
 - Recalculate dependent limits when the controlling date changes. Handle a now-invalid selected value only in a visible, expected way.

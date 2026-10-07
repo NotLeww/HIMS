@@ -131,11 +131,12 @@ class SupplierPortalController extends Controller
         abort_unless($request->user()->can(Permission::SupplierSubmitBids->value), 403);
         $rfq = $invitation->rfq()->with('lines')->firstOrFail();
         abort_if($rfq->isBiddingClosed() || $rfq->status->value !== 'published', 422, 'Bidding is closed.');
-        $data = $request->validate(['quote_number' => ['required', 'string', 'max:60'], 'payment_terms' => ['nullable', 'string', 'max:100'], 'notes' => ['nullable', 'string', 'max:2000'], 'lines' => ['required', 'array'], 'lines.*.rfq_line_item_id' => ['required', 'integer'], 'lines.*.offered_unit_price' => ['required', 'numeric', 'min:0'], 'lines.*.offered_quantity' => ['required', 'integer', 'min:1'], 'lines.*.lead_time_days' => ['required', 'integer', 'min:0', 'max:3650']]);
-        $quote = DB::transaction(function () use ($data, $rfq, $invitation) {
+        $data = $request->validate(['quote_number' => ['required', 'string', 'max:60'], 'payment_terms' => ['nullable', 'string', 'max:100'], 'payment_terms_custom' => ['nullable', 'string', 'max:100', Rule::requiredIf(fn () => $request->input('payment_terms') === 'other')], 'notes' => ['nullable', 'string', 'max:2000'], 'lines' => ['required', 'array'], 'lines.*.rfq_line_item_id' => ['required', 'integer'], 'lines.*.offered_unit_price' => ['required', 'numeric', 'min:0'], 'lines.*.offered_quantity' => ['required', 'integer', 'min:1'], 'lines.*.lead_time_days' => ['required', 'integer', 'min:0', 'max:3650']]);
+        $paymentTerms = ($data['payment_terms'] ?? null) === 'other' ? $data['payment_terms_custom'] : ($data['payment_terms'] ?? null);
+        $quote = DB::transaction(function () use ($data, $paymentTerms, $rfq, $invitation) {
             $valid = $rfq->lines->keyBy('id'); $total = 0;
             foreach ($data['lines'] as $line) { if (! $valid->has($line['rfq_line_item_id'])) throw ValidationException::withMessages(['lines' => 'Bid lines must belong to the invited RFQ.']); $total += $line['offered_unit_price'] * $line['offered_quantity']; }
-            $quote = SupplierQuote::updateOrCreate(['sourcing_rfq_id' => $rfq->id, 'supplier_id' => $invitation->supplier_id], ['quote_number' => $data['quote_number'], 'quoted_price' => $total, 'total_bid_amount' => $total, 'currency' => $rfq->currency, 'status' => QuoteStatus::Submitted->value, 'is_sealed' => true, 'notes' => $data['notes'] ?? null, 'payment_terms' => $data['payment_terms'] ?? null]);
+            $quote = SupplierQuote::updateOrCreate(['sourcing_rfq_id' => $rfq->id, 'supplier_id' => $invitation->supplier_id], ['quote_number' => $data['quote_number'], 'quoted_price' => $total, 'total_bid_amount' => $total, 'currency' => $rfq->currency, 'status' => QuoteStatus::Submitted->value, 'is_sealed' => true, 'notes' => $data['notes'] ?? null, 'payment_terms' => $paymentTerms]);
             $quote->lines()->delete(); foreach ($data['lines'] as $line) { $model = new QuoteLineItem($line); $model->computeLandedCost(); $quote->lines()->save($model); }
             $invitation->update(['status' => 'submitted', 'acknowledged_at' => now()]); return $quote;
         });

@@ -73,10 +73,6 @@
 
             <main id="main-content" tabindex="-1" class="hims-app-content overflow-x-clip px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pb-8">
                 <div class="mx-auto w-full min-w-0 max-w-none space-y-6">
-                    @if ($errors->any())
-                        <x-ui.alert variant="danger" title="Please correct the form" :message="$errors->first()" />
-                    @endif
-
                     {{ $slot }}
                 </div>
             </main>

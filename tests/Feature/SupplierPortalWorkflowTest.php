@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Enums\AuditAction;
 use App\Enums\PurchaseOrderStatus;
+use App\Enums\RfqBiddingType;
+use App\Enums\RfqStatus;
 use App\Enums\SupplierAccreditationStatus;
 use App\Enums\SupplierStatus;
 use App\Enums\UserRole;
@@ -13,6 +15,9 @@ use App\Models\GoodsReceiptNoteLine;
 use App\Models\InventoryItem;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
+use App\Models\RfqLineItem;
+use App\Models\RfqSupplierInvitation;
+use App\Models\SourcingRfq;
 use App\Models\Supplier;
 use App\Models\SupplierDiscrepancy;
 use App\Models\User;
@@ -195,6 +200,84 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('Paracetamol 500 mg Tablet')
             ->assertSee('data-item-icon="capsule"', false);
+        $rfq = SourcingRfq::create([
+            'rfq_number' => 'RFQ-PORTAL-001',
+            'title' => 'Orthopedic Reconstruction Plates',
+            'description' => 'Competitive sealed tender for hospital implants.',
+            'created_by_user_id' => $operationsA->id,
+            'bidding_type' => RfqBiddingType::Sealed,
+            'status' => RfqStatus::Published,
+            'submission_deadline' => now()->addDay(),
+            'currency' => 'PHP',
+        ]);
+        $rfqLine = RfqLineItem::create([
+            'sourcing_rfq_id' => $rfq->id,
+            'item_id' => $item->id,
+            'line_number' => 1,
+            'item_description' => 'Titanium Locking Reconstruction Plate 3.5mm',
+            'target_quantity' => 50,
+            'uom' => 'piece',
+        ]);
+        $invitation = RfqSupplierInvitation::create([
+            'sourcing_rfq_id' => $rfq->id,
+            'supplier_id' => $supplierA->id,
+            'portal_token' => 'supplier-rfq-portal-token',
+            'status' => 'invited',
+            'invited_at' => now(),
+        ]);
+        $bidderA = User::factory()->role(UserRole::VendorAdministrator)->create([
+            'supplier_id' => $supplierA->id,
+            'department' => 'External Supplier',
+        ]);
+        $this->actingAs($operationsA)->get(route('supplier.rfqs.index'))
+            ->assertOk()
+            ->assertSee('RFQs &amp; Bids', false)
+            ->assertSee('hims-supplier-rfq-hero-day.png', false)
+            ->assertSee('hims-supplier-rfq-hero-night.png', false)
+            ->assertSee('data-rfq-bid-card', false)
+            ->assertDontSee('data-rfq-bid-form', false);
+        $this->actingAs($bidderA)->get(route('supplier.rfqs.index'))
+            ->assertOk()
+            ->assertSee('data-rfq-bid-form', false)
+            ->assertSee('novalidate', false)
+            ->assertSee('x-bind:disabled="!canSubmit"', false)
+            ->assertSee('Titanium Locking Reconstruction Plate 3.5mm')
+            ->assertSee('value="50"', false)
+            ->assertSee('Select payment terms')
+            ->assertSee('Other / Custom terms')
+            ->assertSee('Submit sealed bid');
+        $this->actingAs($bidderA)->from(route('supplier.rfqs.index'))->post(route('supplier.rfqs.bid', $invitation), [
+            'quote_number' => 'QUOTE-PORTAL-001',
+            'payment_terms' => 'other',
+            'lines' => [[
+                'rfq_line_item_id' => $rfqLine->id,
+                'offered_unit_price' => 2500,
+                'offered_quantity' => 50,
+                'lead_time_days' => 14,
+            ]],
+        ])->assertRedirect(route('supplier.rfqs.index'))->assertSessionHasErrors('payment_terms_custom');
+        $this->get(route('supplier.rfqs.index'))
+            ->assertOk()
+            ->assertDontSee('Please correct the form')
+            ->assertSee('id="payment_terms_custom-error"', false)
+            ->assertSee('aria-invalid="true"', false);
+        $this->actingAs($bidderA)->post(route('supplier.rfqs.bid', $invitation), [
+            'quote_number' => 'QUOTE-PORTAL-001',
+            'payment_terms' => 'other',
+            'payment_terms_custom' => '40% advance, balance on delivery',
+            'notes' => 'Pricing includes sterile packaging.',
+            'lines' => [[
+                'rfq_line_item_id' => $rfqLine->id,
+                'offered_unit_price' => 2500,
+                'offered_quantity' => 50,
+                'lead_time_days' => 14,
+            ]],
+        ])->assertRedirect();
+        $this->assertDatabaseHas('supplier_quotes', [
+            'sourcing_rfq_id' => $rfq->id,
+            'supplier_id' => $supplierA->id,
+            'payment_terms' => '40% advance, balance on delivery',
+        ]);
         $this->actingAs($operationsA)->get('/dashboard')->assertForbidden();
         $this->actingAs($operationsB)->get(route('supplier.orders.show', $po))->assertForbidden();
 

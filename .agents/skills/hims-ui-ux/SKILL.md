@@ -88,7 +88,11 @@ Do not invent props. Extend a shared component only when multiple real consumers
 ### Forms and Buttons
 
 - Use visible labels, associated hints/errors, retained `old()` values, correct required/disabled semantics, and the existing validation bags.
+- Do not expose browser-default constraint-validation bubbles on HIMS forms. Use `novalidate` only when every enforced constraint has matching server-side Laravel validation and the failed response renders the shared inline error treatment, retains user input, associates the message with its field, and focuses the first invalid control. Keep semantic attributes such as `required`, `min`, `max`, and `maxlength` as accessible input metadata even when native popovers are suppressed.
+- Show ordinary validation errors only beside their owning fields. Do not add a page-, layout-, card-, modal-, or form-level validation summary/banner that repeats field errors. Use a persistent alert only for an actionable failure that cannot be assigned to a specific control; keep multi-field discoverability through first-invalid-field focus and correct `aria-describedby` associations.
+- For create, submit, or mutation forms with required inputs, keep the primary submit button natively `disabled` until the current form satisfies its client-visible constraints. Recompute validity on initialization and after every relevant input/change, including conditional fields, and prevent an enabled flash before JavaScript initializes. The enabled state is guidance only: preserve the same server-side validation and inline error handling for bypasses, stale state, and no-JavaScript submissions.
 - Keep equivalent fields aligned and equally sized. Do not let component class composition accidentally drop `w-full`, padding, or error/focus styles.
+- Match desktop control width to expected input length. Group related short and medium fields in responsive grids instead of stretching each one across the operational canvas; reserve dominant row width for genuinely long-form input. Keep controls stacked and full-width on narrow screens.
 - Every `<select>` needs arrow clearance: compact selects use at least `pl-2.5 pr-8`; standard selects use `pl-3 pr-10`. Do not use symmetrical `px-*` where text can sit under the browser chevron.
 - Use native date/datetime constraints when appropriate, update dependent limits, and mirror all chronology rules in Laravel validation. Client constraints are UX, not persistence authority.
 - Use `<x-ui.button>` and its established variants/sizes. Preserve visible focus, disabled behavior, and `data-loading-text` integration.
@@ -125,7 +129,7 @@ Do not invent props. Extend a shared component only when multiple real consumers
 ### Notifications and Banners
 
 - Authenticated `<x-app-layout>` pages use `layouts/partials/toast-notifications.blade.php` as the single feedback HUD for `status`, `success`, `error`, `warning`, and `info`.
-- Do not duplicate a toast with an in-page success banner. Use `<x-ui.alert>` only for actionable error summaries or persistent operational/compliance warnings.
+- Do not duplicate a toast with an in-page success banner. Use `<x-ui.alert>` only for actionable non-field failures or persistent operational/compliance warnings, never as a duplicate summary of inline field validation errors.
 - Do not add welcome, marketing, reassurance, or decorative banners. Keep the page-header subtitle to one line of orientation.
 - Do not create ad-hoc popup styles, SweetAlert dialogs, or browser alerts. Update the shared toast or confirmation primitive when a system-wide change is genuinely required.
 
