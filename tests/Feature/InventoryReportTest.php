@@ -155,6 +155,7 @@ class InventoryReportTest extends TestCase
             ->assertSee("selectTab('procurement')", false)
             ->assertSee('animate-report-metrics', false)
             ->assertSee('data-inventory-report-active-tab', false)
+            ->assertSee('min-w-[90rem] table-fixed', false)
             ->assertSee('Valuation &amp; Locations', false)
             ->assertSee('View batches', false)
             ->assertSee('open-report-tab', false)

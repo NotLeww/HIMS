@@ -1483,7 +1483,7 @@
                 </div>
             </section>
 
-            <x-ui.card>
+            <x-ui.card :padding="false">
                 <x-slot name="header">
                     <div class="flex items-start gap-3">
                         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-primary-950/80 dark:text-primary-300">
@@ -1497,8 +1497,14 @@
                         </div>
                     </div>
                 </x-slot>
-                <div class="overflow-x-auto">
-                    <table class="min-w-[80rem] w-full border-separate border-spacing-0 text-left text-xs [&_td]:border-r [&_td]:border-neutral-100 [&_td:last-child]:border-r-0 [&_th]:border-r [&_th]:border-neutral-200 [&_th:last-child]:border-r-0 dark:[&_td]:border-neutral-800 dark:[&_th]:border-neutral-700">
+                <div class="hims-table-scroll w-full overflow-x-auto">
+                    <table class="w-full min-w-[90rem] table-fixed border-separate border-spacing-0 text-left text-xs [&_td]:border-r [&_td]:border-neutral-100 [&_td:last-child]:border-r-0 [&_th]:border-r [&_th]:border-neutral-200 [&_th:last-child]:border-r-0 dark:[&_td]:border-neutral-800 dark:[&_th]:border-neutral-700">
+                        <colgroup>
+                            <col class="w-[9%]"><col class="w-[17%]"><col class="w-[7%]">
+                            @for ($column = 0; $column < 12; $column++)
+                                <col class="w-[5.583%]">
+                            @endfor
+                        </colgroup>
                         <thead class="bg-primary-50/70 text-neutral-700 dark:bg-primary-950/40 dark:text-neutral-300"><tr>
                             <th class="p-2">PO / GRN / Receiver</th><th class="p-2">Item / Batch / Expiry</th>
                             <th class="p-2">Conversion</th><th class="p-2">Ordered</th><th class="p-2">Delivered</th>
@@ -1509,13 +1515,13 @@
                         <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800">
                             @forelse($receivingReconciliation as $row)
                                 <tr class="transition-colors hover:bg-primary-50/40 dark:hover:bg-primary-950/20">
-                                    <td class="p-2"><a class="font-semibold text-primary-700 hover:underline" href="{{ route('inventory.receiving.show', $row['grn']) }}">{{ $row['grn']->grn_number }}</a><br>{{ $row['po']?->po_number ?? 'Legacy' }}<br>{{ $row['receiver'] ?? 'Unknown' }}</td>
-                                    <td class="p-2">{{ $row['item']?->name }}<br>{{ $row['batch'] ?? 'No batch' }}<br>{{ $row['expiry']?->format('Y-m-d') ?? 'No expiry' }}</td>
-                                    <td class="p-2">1 {{ $row['purchase_unit'] }} = {{ $row['factor'] }} {{ $row['base_unit'] }}</td>
-                                    <td class="p-2">{{ $row['ordered'] }}</td><td class="p-2">{{ $row['delivered'] }}</td><td class="p-2">{{ $row['receipt_quantity'] }}</td>
-                                    <td class="p-2">{{ $row['accepted'] }}</td><td class="p-2">{{ $row['rejected'] }}</td><td class="p-2">{{ $row['pending_qc'] }}</td>
-                                    <td class="p-2">{{ $row['awaiting_put_away_base'] }}</td><td class="p-2">{{ $row['put_away_base'] }}</td><td class="p-2">{{ $row['available_base'] }}</td>
-                                    <td class="p-2">{{ $row['remaining'] }}</td><td class="p-2">{{ $row['outstanding'] }}</td><td class="p-2">{{ $row['returned_base'] }}</td>
+                                    <td class="p-2.5 align-top"><a class="whitespace-nowrap font-semibold text-primary-700 hover:underline" href="{{ route('inventory.receiving.show', $row['grn']) }}">{{ $row['grn']->grn_number }}</a><span class="mt-0.5 block whitespace-nowrap">{{ $row['po']?->po_number ?? 'Legacy' }}</span><span class="block truncate" title="{{ $row['receiver'] ?? 'Unknown' }}">{{ $row['receiver'] ?? 'Unknown' }}</span></td>
+                                    <td class="p-2.5 align-top"><span class="block font-medium text-neutral-900 dark:text-neutral-100">{{ $row['item']?->name }}</span><span class="mt-0.5 block">{{ $row['batch'] ?? 'No batch' }}</span><span class="block whitespace-nowrap">{{ $row['expiry']?->format('Y-m-d') ?? 'No expiry' }}</span></td>
+                                    <td class="p-2.5 align-top">1 {{ $row['purchase_unit'] }} = {{ $row['factor'] }} {{ $row['base_unit'] }}</td>
+                                    <td class="p-2.5 text-right align-top tabular-nums">{{ $row['ordered'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['delivered'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['receipt_quantity'] }}</td>
+                                    <td class="p-2.5 text-right align-top tabular-nums">{{ $row['accepted'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['rejected'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['pending_qc'] }}</td>
+                                    <td class="p-2.5 text-right align-top tabular-nums">{{ $row['awaiting_put_away_base'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['put_away_base'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['available_base'] }}</td>
+                                    <td class="p-2.5 text-right align-top tabular-nums">{{ $row['remaining'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['outstanding'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['returned_base'] }}</td>
                                 </tr>
                             @empty
                                 <tr><td colspan="15" class="p-4 text-center text-neutral-500">No receiving lines in this period.</td></tr>
