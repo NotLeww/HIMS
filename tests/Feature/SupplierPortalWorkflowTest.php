@@ -234,10 +234,18 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertSee('RFQs &amp; Bids', false)
             ->assertSee('hims-supplier-rfq-hero-day.png', false)
             ->assertSee('hims-supplier-rfq-hero-night.png', false)
+            ->assertSee('RFQ invitations')
+            ->assertSee('1 invitation issued to your supplier.')
             ->assertSee('data-rfq-bid-card', false)
             ->assertDontSee('data-rfq-bid-form', false);
         $this->actingAs($bidderA)->get(route('supplier.rfqs.index'))
             ->assertOk()
+            ->assertSee('Prepare bid')
+            ->assertDontSee('View 1 line item')
+            ->assertDontSee('rfq-items-'.$invitation->id, false)
+            ->assertSee('rfq-bid-'.$invitation->id, false)
+            ->assertSee('role="dialog"', false)
+            ->assertSee('Prepare bid — '.$rfq->rfq_number)
             ->assertSee('data-rfq-bid-form', false)
             ->assertSee('novalidate', false)
             ->assertSee('x-bind:disabled="!canSubmit"', false)
@@ -247,6 +255,7 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertSee('Other / Custom terms')
             ->assertSee('Submit sealed bid');
         $this->actingAs($bidderA)->from(route('supplier.rfqs.index'))->post(route('supplier.rfqs.bid', $invitation), [
+            '_invitation_id' => $invitation->id,
             'quote_number' => 'QUOTE-PORTAL-001',
             'payment_terms' => 'other',
             'lines' => [[
@@ -259,7 +268,8 @@ class SupplierPortalWorkflowTest extends TestCase
         $this->get(route('supplier.rfqs.index'))
             ->assertOk()
             ->assertDontSee('Please correct the form')
-            ->assertSee('id="payment_terms_custom-error"', false)
+            ->assertSee('rfq-bid-'.$invitation->id, false)
+            ->assertSee('id="payment-terms-custom-'.$invitation->id.'-error"', false)
             ->assertSee('aria-invalid="true"', false);
         $this->actingAs($bidderA)->post(route('supplier.rfqs.bid', $invitation), [
             'quote_number' => 'QUOTE-PORTAL-001',
