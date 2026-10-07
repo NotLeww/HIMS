@@ -1,3 +1,5 @@
+@php($isSupplierPortalUser = auth()->user()?->role?->isSupplier())
+
 <header class="hims-topbar sticky top-0 z-30 flex min-h-16 min-w-0 max-w-full flex-wrap items-center gap-2 border-b px-4 py-2 backdrop-blur-xl sm:px-6 lg:h-16 lg:flex-nowrap lg:gap-3 lg:px-8 lg:py-0">
     {{-- Sidebar toggle --}}
     <button
@@ -20,6 +22,12 @@
         </div>
     @endisset
 
+    @if ($isSupplierPortalUser)
+        <div class="min-w-0 flex-1">
+            <p class="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">Supplier workspace</p>
+            <p class="truncate text-xs text-neutral-500 dark:text-neutral-400">{{ auth()->user()?->supplier?->name }}</p>
+        </div>
+    @else
     {{-- Global HIMS Multi-Entity Live Search & Autocomplete --}}
     <div
         class="relative order-last w-full min-w-0 basis-full lg:order-none lg:w-auto lg:max-w-lg lg:flex-1 lg:basis-auto"
@@ -239,6 +247,8 @@
             </div>
         </div>
     </div>
+
+    @endif
 
     {{-- Spacer to push controls to the right --}}
     <div class="flex-1 min-w-0"></div>

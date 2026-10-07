@@ -162,7 +162,14 @@ class SupplierPortalWorkflowTest extends TestCase
         $po = PurchaseOrder::create(['po_number' => 'PO-PORTAL-001', 'supplier_id' => $supplierA->id, 'quantity' => 10, 'unit_cost' => 100, 'total_amount' => 1000, 'status' => PurchaseOrderStatus::Approved, 'requested_at' => now()]);
         $line = PurchaseOrderLine::create(['purchase_order_id' => $po->id, 'item_id' => $item->id, 'line_number' => 1, 'ordered_quantity' => 10, 'unit_price' => 100, 'total_line_amount' => 1000]);
 
-        $this->actingAs($operationsA)->get(route('supplier.dashboard'))->assertOk()->assertSee('PO-PORTAL-001');
+        $this->actingAs($operationsA)->get(route('supplier.dashboard'))
+            ->assertOk()
+            ->assertSee('PO-PORTAL-001')
+            ->assertSee('class="hims-app-shell', false)
+            ->assertSee('aria-label="Supplier portal navigation"', false)
+            ->assertSee('Supplier workspace')
+            ->assertDontSee('Procurement &amp; Sourcing', false)
+            ->assertDontSee('Administration');
         $this->actingAs($operationsA)->get(route('supplier.orders.show', $po))->assertOk()->assertSee('PO-PORTAL-001');
         $this->actingAs($operationsA)->get('/dashboard')->assertForbidden();
         $this->actingAs($operationsB)->get(route('supplier.orders.show', $po))->assertForbidden();

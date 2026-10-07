@@ -12,7 +12,7 @@
             <div class="min-w-0">
                 <p class="truncate text-sm font-bold leading-tight tracking-wide text-white">DJNRMHS</p>
                 <p class="mt-0.5 truncate text-[11px] leading-tight text-emerald-100/75">
-                    {{ match (\App\Support\AuthenticationContext::authenticatedGuard()) {
+                    {{ auth()->user()?->role?->isSupplier() ? 'Supplier Portal' : match (\App\Support\AuthenticationContext::authenticatedGuard()) {
                         \App\Support\AuthenticationContext::SUPER_ADMIN_GUARD => 'Super Admin Panel',
                         \App\Support\AuthenticationContext::ADMIN_GUARD => 'Admin Panel',
                         default => 'Staff Panel',
@@ -38,6 +38,35 @@
         Major modules are collapsible accordion dropdowns; clicking a major module expands its
         minor submodule links while automatically closing any other open major tab.
     --}}
+    @if (auth()->user()?->role?->isSupplier())
+        @php
+            $supplierNavigation = [
+                ['route' => 'supplier.dashboard', 'pattern' => 'supplier.dashboard', 'label' => 'Dashboard', 'icon' => 'home'],
+                ['route' => 'supplier.orders.index', 'pattern' => 'supplier.orders.*', 'label' => 'Purchase Orders', 'icon' => 'clipboard-document-list'],
+                ['route' => 'supplier.rfqs.index', 'pattern' => 'supplier.rfqs.*', 'label' => 'RFQs', 'icon' => 'scale'],
+                ['route' => 'supplier.discrepancies.index', 'pattern' => 'supplier.discrepancies.*', 'label' => 'Discrepancies', 'icon' => 'exclamation-triangle'],
+                ['route' => 'supplier.catalog.index', 'pattern' => 'supplier.catalog.*', 'label' => 'Catalog', 'icon' => 'shopping-bag'],
+                ['route' => 'supplier.compliance.index', 'pattern' => 'supplier.compliance.*', 'label' => 'Compliance', 'icon' => 'shield-check'],
+                ['route' => 'supplier.invoices.index', 'pattern' => 'supplier.invoices.*', 'label' => 'Invoices', 'icon' => 'document-text'],
+                ['route' => 'supplier.performance', 'pattern' => 'supplier.performance', 'label' => 'Performance', 'icon' => 'chart-bar'],
+            ];
+        @endphp
+        <nav
+            class="hims-sidebar__nav flex-1 space-y-1 overflow-y-auto px-3 py-5"
+            aria-label="Supplier portal navigation"
+            x-on:click="if (isMobile && $event.target.closest('a')) sidebarOpen = false"
+        >
+            @foreach ($supplierNavigation as $item)
+                <x-ui.nav-item
+                    :href="route($item['route'])"
+                    :icon="$item['icon']"
+                    :active="request()->routeIs($item['pattern'])"
+                >
+                    {{ $item['label'] }}
+                </x-ui.nav-item>
+            @endforeach
+        </nav>
+    @else
     @php
         $initialOpenDropdown = null;
         if (request()->routeIs(
@@ -199,11 +228,13 @@
             </x-ui.nav-dropdown>
         @endcanany
     </nav>
+    @endif
 
     {{-- Footer --}}
     <div class="hims-sidebar__footer shrink-0 border-t px-3 py-3">
-        <p class="px-3 text-[11px] text-emerald-100/60">
-            {{ config('app.name', 'HIMS') }} &middot; v1.0
-        </p>
+        @if (auth()->user()?->role?->isSupplier())
+            <p class="truncate px-3 text-[11px] font-medium text-emerald-100/80">{{ auth()->user()?->supplier?->name }}</p>
+        @endif
+        <p class="mt-0.5 px-3 text-[11px] text-emerald-100/60">{{ config('app.name', 'HIMS') }} &middot; v1.0</p>
     </div>
 </aside>
