@@ -1100,7 +1100,7 @@
                         </div>
 
                         <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" aria-hidden="true">
-                            <div class="h-full rounded-full {{ $bar['bar'] }} transition-all group-hover:brightness-90" style="width: {{ $share }}%"></div>
+                            <div class="hims-metric-bar-x h-full rounded-full {{ $bar['bar'] }} transition-all group-hover:brightness-90" style="width: {{ $share }}%"></div>
                         </div>
 
                         <p class="mt-1 text-xs text-neutral-500">
@@ -1233,7 +1233,7 @@
                             </span>
                         </div>
                         <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" aria-hidden="true">
-                            <div class="h-full rounded-full bg-primary-500 transition-all group-hover:bg-primary-600" style="width: {{ $movementShare }}%"></div>
+                            <div class="hims-metric-bar-x h-full rounded-full bg-primary-500 transition-all group-hover:bg-primary-600" style="width: {{ $movementShare }}%"></div>
                         </div>
                     </button>
                 @endforeach

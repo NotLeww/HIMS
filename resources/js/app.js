@@ -10,6 +10,40 @@ window.himsTheme = himsTheme;
 himsTheme.init();
 registerThemeWithAlpine(Alpine);
 
+Alpine.data('himsCountUp', ({ value, decimals = 0, duration = 1000 }) => ({
+    display: new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+    }).format(0),
+
+    init() {
+        const target = Number(value);
+        const formatter = new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
+        });
+
+        if (!Number.isFinite(target)
+            || target === 0
+            || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            this.display = formatter.format(Number.isFinite(target) ? target : 0);
+            return;
+        }
+
+        requestAnimationFrame((startedAt) => {
+            const animate = (now) => {
+                const progress = Math.min(1, (now - startedAt) / duration);
+                const eased = 1 - ((1 - progress) ** 3);
+                this.display = formatter.format(target * eased);
+
+                if (progress < 1) requestAnimationFrame(animate);
+            };
+
+            requestAnimationFrame(animate);
+        });
+    },
+}));
+
 const loadingButtons = new WeakMap();
 
 const loadingLabelFor = (button, form) => {

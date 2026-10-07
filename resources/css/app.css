@@ -1341,3 +1341,30 @@
         opacity: 1;
     }
 }
+
+.hims-metric-bar-x {
+    transform-origin: left center;
+    animation: hims-metric-bar-x 1000ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.hims-metric-bar-y {
+    transform-origin: center bottom;
+    animation: hims-metric-bar-y 1000ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes hims-metric-bar-x {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+}
+
+@keyframes hims-metric-bar-y {
+    from { transform: scaleY(0); }
+    to { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hims-metric-bar-x,
+    .hims-metric-bar-y {
+        animation: none;
+    }
+}
