@@ -33,7 +33,7 @@
         class="relative order-last w-full min-w-0 basis-full lg:order-none lg:w-auto lg:max-w-lg lg:flex-1 lg:basis-auto"
         x-data="himsGlobalSearch({
             endpoint: @js(route('global-search')),
-            initialQuery: @js(request()->routeIs('inventory.items') ? request('search', '') : '')
+            initialQuery: ''
         })"
         x-on:click.outside="close()"
         x-on:keydown.escape.stop="close()"

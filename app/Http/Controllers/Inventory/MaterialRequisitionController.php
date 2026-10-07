@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -183,9 +184,24 @@ class MaterialRequisitionController extends Controller implements HasMiddleware
 
     public function show(MaterialRequisition $requisition): View
     {
-        $requisition->load(['requestingUser', 'approvedBy', 'issuedBy', 'acknowledgedBy', 'costCenter', 'lines.item', 'lines.batch', 'lines.location']);
+        $requisition->load(['requestingUser', 'approvedBy', 'issuedBy', 'acknowledgedBy', 'costCenter', 'lines.item.category', 'lines.batch', 'lines.location']);
         $pickList = $this->issuanceEngine->generatePickList($requisition);
         $approverRoleLabels = $this->approverRoleLabels();
+        $primaryItem = $requisition->lines->first()?->item;
+        $artworkChoices = $requisition->lines
+            ->map(function (MaterialRequisitionLine $line): string {
+                $category = Str::lower(trim(($line->item?->category?->code ?? '').' '.($line->item?->category?->name ?? '')));
+
+                return match (true) {
+                    Str::contains($category, ['pharma', 'drug', 'medicine']) => 'picklist-pharmaceuticals.png',
+                    Str::contains($category, ['ppe', 'protective']) => 'picklist-ppe.png',
+                    Str::contains($category, ['diagnostic', 'laboratory', 'lab']) => 'picklist-diagnostics.png',
+                    Str::contains($category, ['device', 'equipment', 'implant', 'surgical']) => 'picklist-devices.png',
+                    default => 'picklist-supplies.png',
+                };
+            })
+            ->unique();
+        $pickListArtwork = $artworkChoices->count() === 1 ? $artworkChoices->first() : 'picklist-supplies.png';
         $issueTask = WarehouseTask::query()
             ->where('reference_type', (new MaterialRequisitionLine)->getMorphClass())
             ->whereIn('reference_id', $requisition->lines->modelKeys())
@@ -193,7 +209,7 @@ class MaterialRequisitionController extends Controller implements HasMiddleware
             ->oldest('id')
             ->first();
 
-        return view('inventory.requisitions.show', compact('requisition', 'pickList', 'approverRoleLabels', 'issueTask'));
+        return view('inventory.requisitions.show', compact('requisition', 'pickList', 'pickListArtwork', 'primaryItem', 'approverRoleLabels', 'issueTask'));
     }
 
     public function store(Request $request): RedirectResponse

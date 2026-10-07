@@ -8,6 +8,7 @@ use App\Enums\UserRole;
 use App\Enums\WarehouseTaskType;
 use App\Models\CostCenter;
 use App\Models\InventoryItem;
+use App\Models\ItemCategory;
 use App\Models\ItemStockLevel;
 use App\Models\MaterialRequisition;
 use App\Models\StorageLocation;
@@ -486,7 +487,12 @@ class MaterialRequisitionWorkflowTest extends TestCase
     {
         $requester = $this->createPharmacyUser();
         $manager = $this->createInventoryManager();
-        $item = $this->createItem(['quantity_on_hand' => 50]);
+        $category = ItemCategory::create([
+            'name' => 'Clinical Pharmaceuticals',
+            'code' => 'PHARMA-WH',
+            'is_active' => true,
+        ]);
+        $item = $this->createItem(['quantity_on_hand' => 50, 'category_id' => $category->id]);
         $location = $this->createLocation();
 
         ItemStockLevel::create([
@@ -522,6 +528,7 @@ class MaterialRequisitionWorkflowTest extends TestCase
         $response->assertSeeText('Outpatient Department');
         $response->assertSeeText('Weekly clinic supply');
         $response->assertSeeText($item->name);
+        $response->assertSee('picklist-pharmaceuticals.png', false);
     }
 
     public function test_registry_explains_exact_approver_roles_and_shows_the_action_only_to_an_independent_approver(): void
