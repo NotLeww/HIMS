@@ -56,6 +56,7 @@
     ];
 
     $key = $variant ?? ($map[strtolower((string) $status)] ?? 'neutral');
+    $showApprovalCheck = strtolower((string) $status) === 'approved';
 
     // Contrast checked against white and dark backgrounds:
     $styles = [
@@ -81,7 +82,11 @@
     'class' => 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium '
         .'ring-1 ring-inset whitespace-nowrap '.$styles[$key],
 ]) }}>
-    @if ($dot)
+    @if ($showApprovalCheck)
+        <span class="inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-emerald-400 text-emerald-950" aria-hidden="true">
+            <x-ui.icon name="check" :stroke-width="2.5" style="width: 11px; height: 11px; stroke: #064e3b" />
+        </span>
+    @elseif ($dot)
         <span class="w-1.5 h-1.5 rounded-full {{ $dots[$key] }}" aria-hidden="true"></span>
     @endif
     {{ $label }}

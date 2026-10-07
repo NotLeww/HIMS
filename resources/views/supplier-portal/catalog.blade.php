@@ -27,28 +27,51 @@
                 <x-ui.field name="lead_time_days" label="Lead time (days)" icon="calendar" type="number" min="0" placeholder="Enter lead time in days" required />
 
                 <div class="flex flex-col-reverse gap-3 border-t border-neutral-200 pt-6 md:col-span-2 sm:flex-row sm:justify-end xl:col-span-3 dark:border-neutral-800">
-                    <x-ui.button
-                        type="reset"
-                        variant="secondary"
-                        size="lg"
-                        class="w-full px-8 sm:w-auto"
-                        x-on:click="$nextTick(() => isValid = $el.form.checkValidity())"
-                    >Cancel</x-ui.button>
-                    <x-ui.button
-                        type="submit"
-                        icon="paper-airplane"
-                        size="lg"
-                        class="w-full px-8 sm:w-auto"
-                        disabled
-                        x-bind:disabled="! isValid"
-                        data-loading-text="Submitting..."
-                    >Submit for review</x-ui.button>
+                    <x-ui.button type="reset" variant="secondary" size="lg" class="w-full px-8 sm:w-auto" x-on:click="$nextTick(() => isValid = $el.form.checkValidity())">Cancel</x-ui.button>
+                    <x-ui.button type="submit" icon="paper-airplane" size="lg" class="w-full px-8 sm:w-auto" disabled x-bind:disabled="! isValid" data-loading-text="Submitting...">Submit for review</x-ui.button>
                 </div>
             </form>
         </x-ui.card>
     @endcan
-    <div class="mt-6"><x-ui.table>
-        <x-slot:head><x-ui.table.th>Product</x-ui.table.th><x-ui.table.th>Supplier code / GTIN</x-ui.table.th><x-ui.table.th>Approval</x-ui.table.th><x-ui.table.th>VMI stock</x-ui.table.th></x-slot:head>
-        @forelse($products as $product)<x-ui.table.row><x-ui.table.td>{{ $product->supplier_product_name }}<span class="block text-xs text-neutral-500">{{ $product->pack_size }} {{ $product->unit }}</span></x-ui.table.td><x-ui.table.td>{{ $product->supplier_sku }}<span class="block text-xs text-neutral-500">{{ $product->gtin ?: 'No GTIN' }}</span></x-ui.table.td><x-ui.table.td><x-ui.badge :status="$product->approval_status" /></x-ui.table.td><x-ui.table.td>@if($product->vmi_enabled){{ $product->item->quantity_on_hand }} / {{ $product->vmi_min }}–{{ $product->vmi_max }}<span class="block text-xs text-neutral-500">Forecast only; not a purchase order</span>@else Not enabled @endif</x-ui.table.td></x-ui.table.row>@empty<x-ui.table.empty colspan="4">No catalog products.</x-ui.table.empty>@endforelse
-    </x-ui.table><div class="mt-4">{{ $products->onEachSide(1)->links() }}</div></div>
+
+    <div class="mt-6">
+        <div class="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <x-ui.table :sticky-header="false">
+                <x-slot:head>
+                    <x-ui.table.th class="w-[44%] px-6 py-4 text-[0.75rem] font-bold tracking-[0.08em]">Product</x-ui.table.th>
+                    <x-ui.table.th class="w-[26%] px-6 py-4 text-[0.75rem] font-bold tracking-[0.08em]">Supplier code / GTIN</x-ui.table.th>
+                    <x-ui.table.th class="w-[16%] px-6 py-4 text-[0.75rem] font-bold tracking-[0.08em]">Approval</x-ui.table.th>
+                    <x-ui.table.th class="w-[14%] px-6 py-4 text-[0.75rem] font-bold tracking-[0.08em]">VMI stock</x-ui.table.th>
+                </x-slot:head>
+
+                @forelse($products as $product)
+                    <x-ui.table.row class="odd:!bg-white even:!bg-neutral-50/40 dark:odd:!bg-neutral-900 dark:even:!bg-neutral-900/70">
+                        <x-ui.table.td class="px-6 py-5">
+                            <span class="block text-base font-semibold leading-snug text-neutral-900 dark:text-neutral-100">{{ $product->supplier_product_name }}</span>
+                            <span class="mt-1 block text-sm text-neutral-500 dark:text-neutral-400">{{ $product->pack_size }} {{ $product->unit }}</span>
+                        </x-ui.table.td>
+                        <x-ui.table.td class="px-6 py-5">
+                            <span class="block text-base font-semibold leading-snug text-neutral-900 dark:text-neutral-100">{{ $product->supplier_sku }}</span>
+                            <span class="mt-1 block text-sm text-neutral-500 dark:text-neutral-400">{{ $product->gtin ?: 'No GTIN' }}</span>
+                        </x-ui.table.td>
+                        <x-ui.table.td class="px-6 py-5">
+                            <x-ui.badge :status="$product->approval_status" class="px-3 py-1 text-sm font-semibold" />
+                        </x-ui.table.td>
+                        <x-ui.table.td class="px-6 py-5 text-base font-medium text-neutral-700 dark:text-neutral-300">
+                            @if($product->vmi_enabled)
+                                {{ $product->item->quantity_on_hand }} / {{ $product->vmi_min }}&ndash;{{ $product->vmi_max }}
+                                <span class="mt-1 block text-sm font-normal text-neutral-500 dark:text-neutral-400">Forecast only; not a purchase order</span>
+                            @else
+                                Not enabled
+                            @endif
+                        </x-ui.table.td>
+                    </x-ui.table.row>
+                @empty
+                    <x-ui.table.empty colspan="4">No catalog products.</x-ui.table.empty>
+                @endforelse
+            </x-ui.table>
+        </div>
+
+        <div class="mt-4">{{ $products->onEachSide(1)->links() }}</div>
+    </div>
 </x-layouts.supplier>
