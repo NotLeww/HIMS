@@ -19,13 +19,13 @@
 
     <style>
         :root {
-            --hims-sidebar-day-image: url('{{ asset('img/hims-sidebar-hospital-day-v2.jpg') }}');
-            --hims-sidebar-night-image: url('{{ asset('img/hims-sidebar-hospital-night-matched.png') }}');
-            --hims-header-image: url('{{ asset('img/hims-header-logistics.jpg') }}');
+            --hims-sidebar-day-image: url('{{ asset('img/hims-supplier-sidebar-day.png') }}');
+            --hims-sidebar-night-image: url('{{ asset('img/hims-supplier-sidebar-night.png') }}');
+            --hims-header-image: url('{{ asset('img/hims-supplier-dashboard-hero-light.png') }}');
         }
 
         .dark {
-            --hims-header-image: url('{{ asset('img/hims-header-logistics-night-v2.png') }}');
+            --hims-header-image: url('{{ asset('img/hims-supplier-dashboard-hero.png') }}');
         }
     </style>
 </head>

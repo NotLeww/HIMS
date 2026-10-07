@@ -168,6 +168,10 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertSee('class="hims-app-shell', false)
             ->assertSee('aria-label="Supplier portal navigation"', false)
             ->assertSee('Supplier workspace')
+            ->assertSee('hims-supplier-sidebar-day.png', false)
+            ->assertSee('hims-supplier-sidebar-night.png', false)
+            ->assertSee('hims-supplier-dashboard-hero-light.png', false)
+            ->assertSee('hims-supplier-dashboard-hero.png', false)
             ->assertDontSee('Procurement &amp; Sourcing', false)
             ->assertDontSee('Administration');
         $this->actingAs($operationsA)->get(route('supplier.orders.show', $po))->assertOk()->assertSee('PO-PORTAL-001');
