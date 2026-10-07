@@ -440,7 +440,7 @@
             var(--hims-sidebar-day-image);
         background-position: center, center bottom;
         background-repeat: no-repeat;
-        background-size: cover, cover;
+        background-size: cover, var(--hims-header-size, cover);
         box-shadow: none;
     }
 

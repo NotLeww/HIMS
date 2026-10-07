@@ -1,6 +1,7 @@
 <x-app-layout full-width>
     <x-ui.page-header
         title="Master Records Archive"
+        :image="asset('img/hims-master-records-archive-hero.png')"
         :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Administration' => null, 'Archive' => null]">
         <x-slot:actions>
             <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::auditLogRoute())" icon="shield-check">

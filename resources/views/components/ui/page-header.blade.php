@@ -2,6 +2,10 @@
     'title' => '',
     'subtitle' => null,
     'breadcrumbs' => [],
+    'image' => null,
+    'imagePosition' => null,
+    'imageSize' => null,
+    'roomy' => false,
 ])
 
 {{--
@@ -11,8 +15,8 @@
     renders exactly the markup it did before.
 --}}
 <div
-    class="hims-page-header flex h-28 min-h-28 w-full flex-col gap-4 sm:flex-row @isset($media) sm:items-center @else sm:items-end sm:justify-between @endisset"
-    style="height: 112px; min-height: 112px; width: 100%;"
+    class="hims-page-header flex w-full flex-col gap-4 sm:flex-row {{ $roomy ? 'sm:items-center' : (isset($media) ? 'sm:items-center' : 'sm:items-end sm:justify-between') }}"
+    style="height: {{ $roomy ? 'auto' : '112px' }}; min-height: {{ $roomy ? '144px' : '112px' }}; width: 100%; @if($image) --hims-header-image: url('{{ $image }}'); @endif @if($imagePosition) --hims-header-position: {{ $imagePosition }}; @endif @if($imageSize) --hims-header-size: {{ $imageSize }}; @endif"
 >
     @isset($media)
         <div class="shrink-0">{{ $media }}</div>

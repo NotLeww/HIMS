@@ -12,6 +12,9 @@
 
     <x-ui.page-header
         title="User Management"
+        :image="asset('img/hims-user-management-hero.png')"
+        image-position="right center"
+        image-size="auto 100%"
         :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'User Management' => null]">
         <x-slot:actions>
             <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('permissions'))" icon="shield-check">Access Control</x-ui.button>

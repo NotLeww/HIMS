@@ -96,6 +96,7 @@ class ArchiveMasterRecordsTest extends TestCase
         $response = $this->actingAs($auditor)->get(route('admin.archive.index'));
         $response->assertOk();
         $response->assertViewIs('admin.archive.index');
+        $response->assertSee('hims-master-records-archive-hero.png', false);
     }
 
     public function test_auditor_cannot_perform_archive_or_unarchive_actions(): void
@@ -672,4 +673,3 @@ class ArchiveMasterRecordsTest extends TestCase
         $response->assertSee('Archive Justification / Reason', false);
     }
 }
-

@@ -450,7 +450,8 @@ class AuditTrailTest extends TestCase
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
             ->get('/super-admin/audit-trail')
             ->assertOk()
-            ->assertSee('Audit Trail');
+            ->assertSee('Audit Trail')
+            ->assertSee('hims-audit-trail-hero.png', false);
 
         $this->flushSession();
         $this->app['auth']->forgetGuards();

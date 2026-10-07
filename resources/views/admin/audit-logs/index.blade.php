@@ -5,6 +5,7 @@
     <div class="print:hidden">
         <x-ui.page-header
             title="Audit Trail"
+            :image="asset('img/hims-audit-trail-hero.png')"
             :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Audit Trail' => null]" />
     </div>
 

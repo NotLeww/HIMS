@@ -1494,6 +1494,9 @@ class UserManagementTest extends TestCase
         $response = $this->actingAs($admin)->get('/admin/users');
 
         $response->assertStatus(200)
+            ->assertSee('hims-user-management-hero.png', false)
+            ->assertSee('--hims-header-position: right center', false)
+            ->assertSee('--hims-header-size: auto 100%', false)
             ->assertSee('Role Permissions Reference')
             ->assertSee('View Role Permissions')
             ->assertSee('role-permissions-modal')
