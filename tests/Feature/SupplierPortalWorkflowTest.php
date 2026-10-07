@@ -168,12 +168,18 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertSee('class="hims-app-shell', false)
             ->assertSee('aria-label="Supplier portal navigation"', false)
             ->assertSee('Supplier workspace')
-            ->assertSee('hims-supplier-sidebar-day.png', false)
-            ->assertSee('hims-supplier-sidebar-night.png', false)
             ->assertSee('hims-supplier-dashboard-hero-light.png', false)
             ->assertSee('hims-supplier-dashboard-hero.png', false)
             ->assertDontSee('Procurement &amp; Sourcing', false)
             ->assertDontSee('Administration');
+        $this->actingAs($operationsA)->get(route('supplier.orders.index'))
+            ->assertOk()
+            ->assertSee('Quick view')
+            ->assertSee("supplier-order-quick-view-{$po->id}")
+            ->assertSee('Open full order')
+            ->assertSee('hims-supplier-po-items-day.png', false)
+            ->assertSee('hims-supplier-po-items-night.png', false)
+            ->assertSee('Sterile Gauze');
         $this->actingAs($operationsA)->get(route('supplier.orders.show', $po))->assertOk()->assertSee('PO-PORTAL-001');
         $this->actingAs($operationsA)->get('/dashboard')->assertForbidden();
         $this->actingAs($operationsB)->get(route('supplier.orders.show', $po))->assertForbidden();

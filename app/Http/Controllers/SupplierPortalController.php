@@ -50,7 +50,7 @@ class SupplierPortalController extends Controller
 
     public function orders(Request $request): View
     {
-        return view('supplier-portal.orders.index', ['orders' => PurchaseOrder::where('supplier_id', $request->user()->supplier_id)->with('supplier')->latest('requested_at')->paginate(10)->withQueryString()]);
+        return view('supplier-portal.orders.index', ['orders' => PurchaseOrder::where('supplier_id', $request->user()->supplier_id)->with(['supplier', 'lines.item'])->latest('requested_at')->paginate(10)->withQueryString()]);
     }
 
     public function order(Request $request, PurchaseOrder $purchaseOrder): View
