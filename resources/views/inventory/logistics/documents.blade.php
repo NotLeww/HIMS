@@ -1,4 +1,9 @@
 <x-app-layout full-width>
+    <style>
+        :root { --hims-header-image: url('{{ asset('img/hims-document-registry-hero-day.png') }}'); --hims-header-position: right center; }
+        .dark { --hims-header-image: url('{{ asset('img/hims-document-registry-hero-night.png') }}'); }
+    </style>
+
     <x-slot name="header">
         <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>

@@ -81,6 +81,11 @@
 @endphp
 
 <x-app-layout>
+    <style>
+        :root { --hims-header-image: url('{{ asset('img/hims-inventory-analytics-hero-day.png') }}'); --hims-header-position: right center; }
+        .dark { --hims-header-image: url('{{ asset('img/hims-inventory-analytics-hero-night.png') }}'); }
+    </style>
+
     <x-ui.page-header
         title="Inventory Analytics"
         subtitle="Healthcare inventory overview and key metrics."

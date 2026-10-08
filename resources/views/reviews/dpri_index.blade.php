@@ -1,11 +1,16 @@
 <x-app-layout>
+    <style>
+        :root { --hims-header-image: url('{{ asset('img/hims-dpri-hero-day.png') }}'); --hims-header-position: right center; }
+        .dark { --hims-header-image: url('{{ asset('img/hims-dpri-hero-night.png') }}'); }
+    </style>
+
     @include('inventory.logistics.partials.nav')
 
     <div x-data="{ newModal: {{ $errors->any() ? 'true' : 'false' }} }" class="space-y-6">
         <x-ui.validation-summary />
 
         {{-- Breadcrumbs & Header --}}
-        <div class="border-b border-neutral-200 pb-4">
+        <div class="hims-page-header">
             <nav class="flex text-xs text-neutral-500 mb-2" aria-label="Breadcrumb">
                 <a href="{{ route('reviews.index') }}" class="hover:text-indigo-600 transition">Process Reviews</a>
                 <span class="mx-2 text-neutral-400">/</span>

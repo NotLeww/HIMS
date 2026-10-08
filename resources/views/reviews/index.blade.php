@@ -1,8 +1,13 @@
 <x-app-layout>
+    <style>
+        :root { --hims-header-image: url('{{ asset('img/hims-process-reviews-hero-day.png') }}'); --hims-header-position: right center; }
+        .dark { --hims-header-image: url('{{ asset('img/hims-process-reviews-hero-night.png') }}'); }
+    </style>
+
     @include('inventory.logistics.partials.nav')
 
     {{-- Header with Action Buttons --}}
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-neutral-200 dark:border-neutral-800 pb-5">
+    <div class="hims-page-header flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <div class="flex items-center gap-2 flex-wrap">
                 <span class="rounded-md bg-indigo-100 dark:bg-indigo-950/80 px-2.5 py-0.5 text-xs font-semibold text-indigo-800 dark:text-indigo-300">Operational Analytics</span>
