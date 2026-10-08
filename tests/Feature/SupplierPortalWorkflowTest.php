@@ -174,6 +174,7 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertSee('PO-PORTAL-001')
             ->assertSee('class="hims-app-shell', false)
             ->assertSee('.supplier-portal .hims-page-header', false)
+            ->assertSee('hims-page-header flex w-full flex-col justify-center', false)
             ->assertSee('height: 144px !important', false)
             ->assertSee('aria-label="Supplier portal navigation"', false)
             ->assertSee('Supplier workspace')

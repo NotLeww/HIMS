@@ -14,7 +14,7 @@
     renders exactly the markup it did before.
 --}}
 <div
-    class="hims-page-header flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+    class="hims-page-header flex w-full flex-col justify-center gap-4 sm:flex-row sm:items-center sm:justify-between"
     style="width: 100%; @if($image) --hims-header-image: url('{{ $image }}'); @endif @if($imagePosition) --hims-header-position: {{ $imagePosition }}; @endif @if($imageSize) --hims-header-size: {{ $imageSize }}; @endif"
 >
     @isset($media)

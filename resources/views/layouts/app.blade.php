@@ -171,7 +171,9 @@
                 ])>
                     {{-- Legacy pages pass a $header slot; new pages use <x-ui.page-header>. --}}
                     @isset($header)
-                        <div class="hims-page-header">{{ $header }}</div>
+                        <div class="hims-page-header flex items-center" data-legacy-page-header>
+                            <div class="w-full min-w-0">{{ $header }}</div>
+                        </div>
                     @endisset
 
                     {{ $slot }}
