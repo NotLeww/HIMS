@@ -1,15 +1,15 @@
 <x-layouts.supplier title="Performance">
-    <style>
-        [data-performance-header] .hims-page-header {
-            --hims-header-image: url('{{ asset('img/hims-supplier-performance-hero-day.png') }}');
-        }
-
-        .dark [data-performance-header] .hims-page-header {
-            --hims-header-image: url('{{ asset('img/hims-supplier-performance-hero-night.png') }}');
-        }
-    </style>
-
     <div data-performance-header>
+        <style>
+            [data-performance-header] .hims-page-header {
+                --hims-header-image: url('{{ asset('img/hims-supplier-performance-hero-day.png') }}');
+            }
+
+            .dark [data-performance-header] .hims-page-header {
+                --hims-header-image: url('{{ asset('img/hims-supplier-performance-hero-night.png') }}');
+            }
+        </style>
+
         <x-ui.page-header
             title="Supplier Performance"
             subtitle="Latest hospital-approved scorecard calculated from operational records."

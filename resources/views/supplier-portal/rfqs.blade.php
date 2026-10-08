@@ -19,17 +19,17 @@
         );
     @endphp
 
-    <style>
-        [data-rfq-header] .hims-page-header {
-            --hims-header-image: url('{{ asset('img/hims-supplier-rfq-hero-day.png') }}');
-        }
-
-        .dark [data-rfq-header] .hims-page-header {
-            --hims-header-image: url('{{ asset('img/hims-supplier-rfq-hero-night.png') }}');
-        }
-    </style>
-
     <div data-rfq-header>
+        <style>
+            [data-rfq-header] .hims-page-header {
+                --hims-header-image: url('{{ asset('img/hims-supplier-rfq-hero-day.png') }}');
+            }
+
+            .dark [data-rfq-header] .hims-page-header {
+                --hims-header-image: url('{{ asset('img/hims-supplier-rfq-hero-night.png') }}');
+            }
+        </style>
+
         <x-ui.page-header title="RFQs & Bids" subtitle="Only invitations issued to your supplier are shown." />
     </div>
 

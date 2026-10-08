@@ -1,15 +1,15 @@
 <x-layouts.supplier title="Catalog">
-    <style>
-        [data-catalog-header] .hims-page-header {
-            --hims-header-image: url('{{ asset('img/hims-supplier-catalog-hero-day.png') }}');
-        }
-
-        .dark [data-catalog-header] .hims-page-header {
-            --hims-header-image: url('{{ asset('img/hims-supplier-catalog-hero-night.png') }}');
-        }
-    </style>
-
     <div data-catalog-header>
+        <style>
+            [data-catalog-header] .hims-page-header {
+                --hims-header-image: url('{{ asset('img/hims-supplier-catalog-hero-day.png') }}');
+            }
+
+            .dark [data-catalog-header] .hims-page-header {
+                --hims-header-image: url('{{ asset('img/hims-supplier-catalog-hero-night.png') }}');
+            }
+        </style>
+
         <x-ui.page-header title="Supplier Catalog" subtitle="Hospital-approved items and VMI visibility for your organization." />
     </div>
     @can('supplier_manage_profile')

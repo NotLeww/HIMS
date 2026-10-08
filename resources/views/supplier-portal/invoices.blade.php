@@ -1,15 +1,15 @@
 <x-layouts.supplier title="Invoices">
-    <style>
-        [data-invoices-header] .hims-page-header {
-            --hims-header-image: url('{{ asset('img/hims-supplier-invoices-hero-day.png') }}');
-        }
-
-        .dark [data-invoices-header] .hims-page-header {
-            --hims-header-image: url('{{ asset('img/hims-supplier-invoices-hero-night.png') }}');
-        }
-    </style>
-
     <div data-invoices-header>
+        <style>
+            [data-invoices-header] .hims-page-header {
+                --hims-header-image: url('{{ asset('img/hims-supplier-invoices-hero-day.png') }}');
+            }
+
+            .dark [data-invoices-header] .hims-page-header {
+                --hims-header-image: url('{{ asset('img/hims-supplier-invoices-hero-night.png') }}');
+            }
+        </style>
+
         <x-ui.page-header
             title="Invoices"
             subtitle="Submit invoices against accepted receipts; matching does not represent payment."

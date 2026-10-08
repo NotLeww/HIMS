@@ -14,10 +14,7 @@
         />
         <div class="absolute inset-0 bg-gradient-to-r from-white via-white/90 to-white/10 dark:hidden"></div>
         <div class="absolute inset-0 hidden bg-gradient-to-r from-neutral-950 via-neutral-950/90 to-emerald-950/25 dark:block"></div>
-        <div class="relative flex min-h-36 items-center gap-4 px-5 py-5 sm:h-36 sm:px-6">
-            <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-emerald-100/90 text-emerald-700 ring-1 ring-inset ring-emerald-200 backdrop-blur-sm dark:bg-emerald-500/20 dark:text-emerald-300 dark:ring-emerald-400/20">
-                <x-ui.icon name="document-check" class="h-7 w-7" :stroke-width="2" />
-            </span>
+        <div class="relative flex min-h-36 items-center px-5 py-5 sm:h-36 sm:px-6">
             <div class="min-w-0">
                 <h1 class="text-2xl font-bold tracking-tight text-neutral-950 dark:text-white">Compliance</h1>
                 <p class="mt-1 max-w-3xl text-sm leading-relaxed text-neutral-600 dark:text-neutral-300">Submit current evidence for hospital verification. Previous records remain in the hospital audit history.</p>

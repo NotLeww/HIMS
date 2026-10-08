@@ -1,17 +1,17 @@
 <x-layouts.supplier title="Purchase Orders">
-    <style>
-        [data-orders-header] .hims-page-header {
-            --hims-header-image: url('{{ asset('img/hims-supplier-orders-hero-day.png') }}');
-            box-sizing: border-box;
-            width: 100% !important;
-        }
-
-        .dark [data-orders-header] .hims-page-header {
-            --hims-header-image: url('{{ asset('img/hims-supplier-orders-hero-night.png') }}');
-        }
-    </style>
-
     <div data-orders-header>
+        <style>
+            [data-orders-header] .hims-page-header {
+                --hims-header-image: url('{{ asset('img/hims-supplier-orders-hero-day.png') }}');
+                box-sizing: border-box;
+                width: 100% !important;
+            }
+
+            .dark [data-orders-header] .hims-page-header {
+                --hims-header-image: url('{{ asset('img/hims-supplier-orders-hero-night.png') }}');
+            }
+        </style>
+
         <x-ui.page-header
             title="Purchase Orders"
             subtitle="Hospital-issued orders for your supplier account."

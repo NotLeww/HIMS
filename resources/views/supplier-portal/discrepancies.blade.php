@@ -1,15 +1,15 @@
 <x-layouts.supplier title="Discrepancies">
-    <style>
-        [data-discrepancies-header] .hims-page-header {
-            --hims-header-image: url('{{ asset('img/hims-supplier-discrepancies-hero-day.png') }}');
-        }
-
-        .dark [data-discrepancies-header] .hims-page-header {
-            --hims-header-image: url('{{ asset('img/hims-supplier-discrepancies-hero-night.png') }}');
-        }
-    </style>
-
     <div data-discrepancies-header>
+        <style>
+            [data-discrepancies-header] .hims-page-header {
+                --hims-header-image: url('{{ asset('img/hims-supplier-discrepancies-hero-day.png') }}');
+            }
+
+            .dark [data-discrepancies-header] .hims-page-header {
+                --hims-header-image: url('{{ asset('img/hims-supplier-discrepancies-hero-night.png') }}');
+            }
+        </style>
+
         <x-ui.page-header title="Receiving Discrepancies" subtitle="Respond to documented delivery variances; hospital staff close the resolution." />
     </div>
 
