@@ -21,15 +21,16 @@
             </div>
         </div>
 
-        {{-- Mobile close button --}}
+        {{-- Sidebar collapse button --}}
         <button
             type="button"
             x-on:click="sidebarOpen = false"
-            class="flex h-9 w-9 items-center justify-center rounded-lg text-emerald-100/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 lg:hidden shrink-0"
+            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-emerald-100/70 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
             aria-label="Close navigation"
             title="Close navigation"
         >
-            <x-ui.icon name="x-mark" class="w-5 h-5" />
+            <x-ui.icon name="x-mark" class="h-5 w-5 lg:hidden" />
+            <x-ui.icon name="bars-3" class="hidden h-5 w-5 lg:block" />
         </button>
     </div>
 

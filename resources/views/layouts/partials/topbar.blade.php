@@ -4,6 +4,8 @@
     {{-- Sidebar toggle --}}
     <button
         type="button"
+        x-show="!sidebarOpen"
+        x-cloak
         x-on:click="sidebarOpen = !sidebarOpen"
         class="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 lg:h-9 lg:w-9
                dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100
