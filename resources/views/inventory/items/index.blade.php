@@ -308,11 +308,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="{{ $tableColumnCount }}" class="px-3 py-8 text-center text-xs text-neutral-500 dark:text-neutral-400">
-                                    {{ $activeFilterCount > 0 ? 'No items match these filters.' : 'No inventory items yet.' }}
-                                </td>
-                            </tr>
+                            <x-ui.table.empty :colspan="$tableColumnCount" artwork="inventory" :title="$activeFilterCount > 0 ? 'No items match these filters' : 'No inventory items yet'" :message="$activeFilterCount > 0 ? 'Adjust or clear the filters to see more inventory records.' : 'Created inventory items will appear here.'" />
                         @endforelse
                     </tbody>
                 </table>

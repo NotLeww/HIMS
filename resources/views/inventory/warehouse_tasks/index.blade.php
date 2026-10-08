@@ -254,7 +254,7 @@
                             <x-ui.table.td><a class="text-sm font-semibold text-primary-700 hover:underline" href="{{ route('inventory.warehouse-tasks.show', $task) }}">Open</a></x-ui.table.td>
                         </x-ui.table.row>
                     @empty
-                        <x-ui.table.empty colspan="6" title="No warehouse tasks" message="Tasks appear when work is generated from an eligible workflow or created by a manager." />
+                        <x-ui.table.empty colspan="6" artwork="warehouse" title="No warehouse tasks" message="Tasks appear when work is generated from an eligible workflow or created by a manager." />
                     @endforelse
                     </tbody>
                 </x-ui.table>

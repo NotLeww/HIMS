@@ -512,7 +512,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <x-ui.table.empty
+                                <x-ui.table.empty artwork="procurement"
                                     colspan="8"
                                     icon="clipboard-document-list"
                                     title="No store requisitions yet"
@@ -832,11 +832,7 @@
                                 {{-- Empty Items State --}}
                                 <template x-if="lines.length === 0">
                                     <div class="rounded-xl border-2 border-dashed border-neutral-200 dark:border-neutral-800 p-8 text-center">
-                                        <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
-                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                                            </svg>
-                                        </div>
+                                        <x-ui.empty-artwork category="procurement" size="sm" />
                                         <p class="mt-2 text-xs font-semibold text-neutral-800 dark:text-neutral-200">No items requested yet</p>
                                         <p class="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">Add medical supplies and medications needed for your department.</p>
                                         <button type="button" @click="openAddItemDrawer()" class="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 transition">

@@ -244,11 +244,7 @@
                             @empty
                                 <tr>
                                     <td colspan="7" class="px-6 py-12 text-center">
-                                        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 mb-3">
-                                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                                            </svg>
-                                        </div>
+                                        <x-ui.empty-artwork category="logistics" size="sm" />
                                         <p class="text-sm font-semibold text-neutral-800 dark:text-neutral-200">No stock transfers recorded yet</p>
                                         <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">Move inventory between storerooms, wards, and facilities with in-transit buffer accounting.</p>
                                         @can(\App\Enums\Permission::TransferStock->value)

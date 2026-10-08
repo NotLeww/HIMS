@@ -327,7 +327,12 @@
                                 <form method="POST" action="{{ route('inventory.suppliers.discrepancies.resolve', [$supplier, $discrepancy]) }}" class="mt-3 flex gap-2">@csrf @method('PATCH')<input name="resolution" required maxlength="2000" class="w-full rounded-md border-neutral-300 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="Hospital resolution"><x-ui.button type="submit" size="sm">Close</x-ui.button></form>
                             @endif
                         </div>
-                    @empty<p class="text-sm text-neutral-500">No discrepancies.</p>@endforelse
+                    @empty
+                        <div class="py-4 text-center">
+                            <x-ui.empty-artwork category="receiving-discrepancies" size="sm" />
+                            <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No supplier discrepancies</p>
+                        </div>
+                    @endforelse
                 </div>
             </x-ui.card>
             <x-ui.card title="Supplier Invoices" subtitle="Three-way match results; payment is not processed by HIMS.">
@@ -344,7 +349,7 @@
                             <x-ui.table.td><x-ui.badge :status="$invoice->status" /></x-ui.table.td>
                         </x-ui.table.row>
                     @empty
-                        <x-ui.table.empty colspan="3">No invoices.</x-ui.table.empty>
+                        <x-ui.table.empty colspan="3" artwork="finance" title="No invoices" message="Invoices associated with this supplier will appear here." />
                     @endforelse
                 </x-ui.table>
             </x-ui.card>
@@ -475,7 +480,7 @@
                             <x-ui.table.td>{{ $contact->mobile ?: ($contact->phone ?: '—') }}</x-ui.table.td>
                         </x-ui.table.row>
                     @empty
-                        <x-ui.table.empty :colspan="4" icon="users" title="No supplier contacts" message="Add only contacts needed for procurement, delivery, or billing." />
+                        <x-ui.table.empty :colspan="4" artwork="users" icon="users" title="No supplier contacts" message="Add only contacts needed for procurement, delivery, or billing." />
                     @endforelse
                     </tbody>
                 </x-ui.table>
@@ -489,8 +494,12 @@
                         <div><p class="text-sm font-medium text-neutral-900">{{ $alert->message }}</p><p class="text-xs text-neutral-500">Due {{ $alert->due_date->format('M d, Y') }}</p></div>
                         <x-ui.badge :status="$alert->severity->value">{{ $alert->severity->label() }}</x-ui.badge>
                     </div>
-                @empty
-                    <p class="text-sm text-neutral-500">No open expiry alerts. The daily compliance check warns 30 days before recorded dates.</p>
+            @empty
+                <div class="py-4 text-center">
+                    <x-ui.empty-artwork category="compliance" size="sm" />
+                    <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No open expiry alerts</p>
+                    <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">The daily compliance check warns 30 days before recorded dates.</p>
+                </div>
                 @endforelse
             </x-ui.card>
 
@@ -526,7 +535,7 @@
                             </x-ui.table.td>
                         </x-ui.table.row>
                     @empty
-                        <x-ui.table.empty :colspan="5" icon="document-text" title="No compliance evidence" message="Add only documents applicable to this supplier, product, and organization." />
+                        <x-ui.table.empty :colspan="5" artwork="compliance" icon="document-text" title="No compliance evidence" message="Add only documents applicable to this supplier, product, and organization." />
                     @endforelse
                     </tbody>
                 </x-ui.table>
@@ -578,7 +587,7 @@
                             </x-ui.table.td>
                         </x-ui.table.row>
                     @empty
-                        <x-ui.table.empty :colspan="5" icon="cube" title="No products linked" message="Associate existing inventory items before recording supplier-specific prices." />
+                        <x-ui.table.empty :colspan="5" artwork="inventory" icon="cube" title="No products linked" message="Associate existing inventory items before recording supplier-specific prices." />
                     @endforelse
                     </tbody>
                 </x-ui.table>
@@ -597,7 +606,7 @@
                     <tbody>
                     @forelse($supplier->contracts as $contract)
                         <x-ui.table.row><x-ui.table.td><span class="font-medium">{{ $contract->contract_number }}</span><span class="block text-xs text-neutral-500">{{ $contract->contract_type ?: 'Type not specified' }}</span></x-ui.table.td><x-ui.table.td>{{ $contract->starts_at->format('M d, Y') }} — {{ $contract->ends_at?->format('M d, Y') ?? 'open-ended' }}</x-ui.table.td><x-ui.table.td><span class="block text-xs">Payment: {{ $contract->payment_terms ?: '—' }}</span><span class="block text-xs">Delivery: {{ $contract->delivery_terms ?: '—' }}</span></x-ui.table.td><x-ui.table.td><x-ui.badge :status="$contract->effectiveStatus()">{{ str($contract->effectiveStatus())->headline() }}</x-ui.badge>@can(\App\Enums\Permission::ManageSuppliers->value)<form method="POST" action="{{ route('inventory.suppliers.contracts.update', [$supplier, $contract]) }}" class="mt-2" data-confirm-title="Change contract status" data-confirm-message="Are you sure you want to change the status of Contract {{ $contract->contract_number }} to {{ $contract->status === 'active' ? 'inactive' : 'active' }}?" data-confirm-label="Update Status">@csrf @method('PATCH')<input type="hidden" name="status" value="{{ $contract->status === 'active' ? 'inactive' : 'active' }}"><button class="text-xs text-primary-700 hover:underline">Mark {{ $contract->status === 'active' ? 'inactive' : 'active' }}</button></form>@endcan</x-ui.table.td></x-ui.table.row>
-                    @empty <x-ui.table.empty :colspan="4" icon="document-text" title="No contracts recorded" message="Add a reference when a supplier agreement actually exists." /> @endforelse
+                    @empty <x-ui.table.empty :colspan="4" artwork="compliance" icon="document-text" title="No contracts recorded" message="Add a reference when a supplier agreement actually exists." /> @endforelse
                     </tbody>
                 </x-ui.table>
             </x-ui.card>
@@ -621,7 +630,9 @@
                 <ol class="space-y-4">
                     @forelse($supplier->accreditations as $review)
                         <li class="border-l-2 border-neutral-200 pl-4 text-sm"><div class="flex items-center gap-2"><span class="font-medium">Cycle {{ $review->cycle_number }}</span><x-ui.badge :status="$review->status->value">{{ $review->status->label() }}</x-ui.badge></div><p class="mt-1 text-xs text-neutral-500">Submitted {{ $review->submitted_at->format('M d, Y g:i A') }} by {{ $review->submitter?->name ?? 'Former/system user' }}@if($review->decided_at) · Decided {{ $review->decided_at->format('M d, Y g:i A') }} by {{ $review->decisionMaker?->name ?? 'Former/system user' }}@endif</p>@if($review->decision_notes)<p class="mt-1 text-neutral-700">{{ $review->decision_notes }}</p>@endif</li>
-                    @empty <li class="text-sm text-neutral-500">No accreditation cycle has been submitted.</li> @endforelse
+                    @empty
+                        <li class="py-4 text-center"><x-ui.empty-artwork category="compliance" size="sm" /><p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No accreditation cycle submitted</p></li>
+                    @endforelse
                 </ol>
             </x-ui.card>
             <x-ui.card title="Audit activity" subtitle="Restricted audit details are shown only to users with audit-trail permission.">
@@ -629,7 +640,9 @@
                     <ol class="space-y-3">
                         @forelse($recentAudit as $log)
                             <li class="text-sm"><p class="font-medium text-neutral-800">{{ $log->action->label() }}</p><p class="text-xs text-neutral-500">{{ $log->created_at->timezone(config('app.timezone'))->format('M d, Y g:i A') }} · {{ $log->actor_name }}</p><p class="mt-1 text-neutral-600">{{ $log->description }}</p></li>
-                        @empty <li class="text-sm text-neutral-500">No supplier audit events recorded.</li> @endforelse
+                        @empty
+                            <li class="py-4 text-center"><x-ui.empty-artwork category="governance" size="sm" /><p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No supplier audit events</p></li>
+                        @endforelse
                     </ol>
                 @else
                     <p class="text-sm text-neutral-500">Detailed append-only audit records are available through the restricted Audit Trail. Accreditation decisions above remain visible for operational continuity.</p>

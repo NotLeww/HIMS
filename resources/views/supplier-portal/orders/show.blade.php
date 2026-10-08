@@ -86,7 +86,7 @@
                             <x-ui.table.td align="right"><span class="whitespace-nowrap font-semibold tabular-nums text-neutral-950 dark:text-white">&#8369;{{ number_format($line->total_line_amount, 2) }}</span></x-ui.table.td>
                         </x-ui.table.row>
                     @empty
-                        <x-ui.table.empty colspan="5" title="No order lines found" message="This purchase order has no items." />
+                        <x-ui.table.empty colspan="5" artwork="procurement" title="No order lines found" message="This purchase order has no items." />
                     @endforelse
                 </x-ui.table>
             </div>

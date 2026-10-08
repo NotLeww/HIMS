@@ -204,15 +204,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="6" class="px-6 py-12 text-center text-xs">
-                                    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500">
-                                        <x-ui.icon name="clipboard-document-list" class="h-6 w-6" />
-                                    </div>
-                                    <p class="mt-3 font-semibold text-neutral-700 dark:text-neutral-300">No custody records found</p>
-                                    <p class="mt-1 text-neutral-500 dark:text-neutral-400">No chain of custody logs match the active filter criteria.</p>
-                                </td>
-                            </tr>
+                            <x-ui.table.empty colspan="6" artwork="logistics" title="No custody records found" message="No chain of custody logs match the active filter criteria." />
                         @endforelse
                     </tbody>
                 </table>

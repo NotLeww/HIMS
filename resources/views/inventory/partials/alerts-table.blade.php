@@ -51,7 +51,7 @@
                 </x-ui.table.td>
             </x-ui.table.row>
         @empty
-            <x-ui.table.empty
+            <x-ui.table.empty artwork="inventory"
                 :colspan="4"
                 icon="bell-alert"
                 title="No active alerts"

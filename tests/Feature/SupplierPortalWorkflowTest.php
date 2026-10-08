@@ -201,6 +201,12 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertSee('picklist-ppe.png', false)
             ->assertSee('Gloves M')
             ->assertSee('data-item-icon="hand-raised"', false);
+        $this->actingAs($operationsA)->get(route('supplier.discrepancies.index'))
+            ->assertOk()
+            ->assertSee('data-empty-state', false)
+            ->assertSee('data-empty-artwork="receiving-discrepancies"', false)
+            ->assertSee('No receiving discrepancies')
+            ->assertSee('Delivery variances requiring your response will appear here.');
         $item->update(['name' => 'Paracetamol 500 mg Tablet', 'sku' => 'MED-PARA-500']);
         $this->actingAs($operationsA)->get(route('supplier.orders.show', $po))
             ->assertOk()

@@ -92,11 +92,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="7" class="px-6 py-12 text-center text-neutral-500 text-xs">
-                                    No DPRI reference prices registered for this search.
-                                </td>
-                            </tr>
+                            <x-ui.table.empty colspan="7" artwork="reports" title="No DPRI reference prices" message="Adjust the search or register a reference price benchmark." />
                         @endforelse
                     </tbody>
                 </table>

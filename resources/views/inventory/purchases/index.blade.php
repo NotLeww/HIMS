@@ -726,9 +726,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="9" class="px-3.5 py-6 text-center text-sm text-neutral-500 dark:text-neutral-400">No enterprise purchase requests created yet. Submit one above.</td>
-                                    </tr>
+                                    <x-ui.table.empty colspan="9" artwork="procurement" title="No purchase requests" message="Create the first enterprise purchase request using the form above." />
                                 @endforelse
                             </tbody>
                         </table>
@@ -1013,9 +1011,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="8" class="px-3.5 py-6 text-center text-sm text-neutral-500">No sourcing events published. Create one above.</td>
-                                    </tr>
+                                    <x-ui.table.empty colspan="8" artwork="procurement" title="No sourcing events" message="Publish the first sourcing event using the form above." />
                                 @endforelse
                             </tbody>
                         </table>
@@ -1037,8 +1033,10 @@
                                 @endif
 
                                 @if($rfq->quotes->isEmpty())
-                                    <div class="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800/60 dark:text-neutral-300">
-                                        No submitted bids were recorded for this sourcing event.
+                                    <div class="rounded-lg border border-neutral-200 bg-neutral-50 p-6 text-center dark:border-neutral-700 dark:bg-neutral-800/60">
+                                        <x-ui.empty-artwork category="procurement" size="sm" />
+                                        <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No submitted bids</p>
+                                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Supplier bids for this sourcing event will appear here.</p>
                                     </div>
                                 @else
                                     <div class="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-700">
@@ -1482,9 +1480,7 @@
                                                             <td class="px-3 py-2.5 text-right font-bold tabular-nums text-neutral-900 dark:text-neutral-100">₱{{ number_format((float) $line->estimated_total_price, 2) }}</td>
                                                         </tr>
                                                     @empty
-                                                        <tr>
-                                                            <td colspan="6" class="px-3 py-6 text-center text-sm text-neutral-500 dark:text-neutral-400">No requested items recorded.</td>
-                                                        </tr>
+                                                        <x-ui.table.empty colspan="6" artwork="procurement" title="No requested items" message="Line items added to this purchase request will appear here." />
                                                     @endforelse
                                                 </tbody>
                                                 @if($targetPr->lines->count() > 1)
@@ -1549,9 +1545,7 @@
                             </article>
                         @empty
                             <div class="rounded-xl border border-dashed border-neutral-300 px-4 py-10 text-center dark:border-neutral-700">
-                                <span class="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
-                                    <x-ui.icon name="shield-check" class="h-5 w-5" />
-                                </span>
+                                <x-ui.empty-artwork category="procurement" size="sm" />
                                 <p class="mt-3 text-sm font-semibold text-neutral-800 dark:text-neutral-200">{{ $approvalFilters ? 'No approval chains match these filters' : 'No approval chains require review' }}</p>
                                 <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ $approvalFilters ? 'Try changing or clearing the filters.' : 'New procurement approvals will appear here.' }}</p>
                                 @if($approvalFilters)
@@ -2203,7 +2197,7 @@
                                 </article>
                             @empty
                                 <div class="px-5 py-12 text-center">
-                                    <span class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400"><x-ui.icon name="document-text" class="h-5 w-5" /></span>
+                                    <x-ui.empty-artwork category="procurement" size="sm" />
                                     <p class="mt-3 text-sm font-medium text-neutral-800 dark:text-neutral-200">No purchase orders found</p>
                                     <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ collect($poFilters)->filter()->isNotEmpty() || $supplierFilter ? 'Clear the filters to view other orders.' : 'Create the first catalog purchase order when stock needs replenishment.' }}</p>
                                 </div>
@@ -2906,7 +2900,7 @@
                             @can('manage_sourcing')
                                 @if ($approvedRequests->isEmpty())
                                     <div class="rounded-lg border border-dashed border-neutral-200 bg-neutral-50/70 p-5 text-center">
-                                        <x-ui.icon name="document-text" class="mx-auto h-7 w-7 text-neutral-400 mb-1.5" />
+                                        <x-ui.empty-artwork category="procurement" size="sm" />
                                         <p class="text-xs font-semibold text-neutral-700">Approve a procurement request first</p>
                                         <p class="mt-0.5 text-[11px] text-neutral-500">Supplier quotations can only be attached to approved requests.</p>
                                         <div class="mt-3">
@@ -3035,9 +3029,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="5" class="px-3.5 py-6 text-center text-sm text-neutral-500 dark:text-neutral-400">No procurement audit records captured yet.</td>
-                                    </tr>
+                                    <x-ui.table.empty colspan="5" artwork="governance" title="No procurement audit records" message="Tracked sourcing and approval activity will appear here." />
                                 @endforelse
                             </tbody>
                         </table>

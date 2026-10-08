@@ -250,7 +250,12 @@
                 </div>
             </x-ui.card>
             @empty
-                <x-ui.card class="xl:col-span-2"><p>No RFQ invitations.</p></x-ui.card>
+                <x-ui.empty-state
+                    artwork="procurement"
+                    title="No RFQ invitations"
+                    message="New hospital sourcing invitations will appear here when your supplier account is invited to bid."
+                    class="xl:col-span-2"
+                />
             @endforelse
         </div>
 

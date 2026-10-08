@@ -240,7 +240,7 @@
                 </div>
             @empty
                 <div class="p-8 text-center text-sm text-neutral-500">
-                    <x-ui.icon name="users" class="mx-auto h-8 w-8 text-neutral-400 mb-2" />
+                    <x-ui.empty-artwork category="users" size="sm" />
                     <p class="font-semibold text-neutral-700">No accounts match</p>
                     <p class="text-xs text-neutral-500 mt-1">Adjust the filters, or add the first staff account.</p>
                 </div>
@@ -425,7 +425,7 @@
                             </x-ui.table.td>
                         </x-ui.table.row>
                     @empty
-                        <x-ui.table.empty
+                        <x-ui.table.empty artwork="users"
                             :colspan="10"
                             icon="users"
                             title="No accounts match"

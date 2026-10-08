@@ -123,8 +123,9 @@
                                 </div>
                             </div>
                         @empty
-                            <div class="py-8 text-center text-sm text-neutral-500">
-                                No warehouse tasks generated.
+                            <div class="px-4 py-6 text-center">
+                                <x-ui.empty-artwork category="warehouse" size="sm" />
+                                <p class="mt-2 text-sm font-semibold text-neutral-700">No warehouse tasks generated</p>
                             </div>
                         @endforelse
                     </div>
@@ -157,8 +158,9 @@
                                 </div>
                             </div>
                         @empty
-                            <div class="py-8 text-center text-sm text-neutral-500">
-                                No barcode scan events recorded yet.
+                            <div class="px-4 py-6 text-center">
+                                <x-ui.empty-artwork category="warehouse" size="sm" />
+                                <p class="mt-2 text-sm font-semibold text-neutral-700">No barcode scans recorded</p>
                             </div>
                         @endforelse
                     </div>

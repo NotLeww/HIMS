@@ -62,7 +62,7 @@
                     <x-ui.table.td><x-ui.badge :status="$invoice->status" /></x-ui.table.td>
                 </x-ui.table.row>
             @empty
-                <x-ui.table.empty colspan="4">No invoices submitted.</x-ui.table.empty>
+                <x-ui.table.empty colspan="4" artwork="finance" title="No invoices submitted" message="Supplier invoices and matching results will appear here." />
             @endforelse
         </x-ui.table>
 

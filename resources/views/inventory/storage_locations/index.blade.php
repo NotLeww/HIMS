@@ -360,7 +360,7 @@
                     </div></x-ui.table.td>
                     </x-ui.table.row>
                 @empty
-                    <x-ui.table.empty colspan="7" title="No storage areas found" message="Adjust the filters or add a storage area to the warehouse hierarchy." />
+                    <x-ui.table.empty colspan="7" artwork="warehouse" title="No storage areas found" message="Adjust the filters or add a storage area to the warehouse hierarchy." />
                 @endforelse
                 </tbody>
             </x-ui.table>

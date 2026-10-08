@@ -546,9 +546,7 @@
 
                     {{-- 3. Empty State (Only when an item with zero history is selected) --}}
                     <div x-show="isSuccess() && !isLoading() && !hasChartData()" x-cloak class="rounded-xl border border-dashed border-neutral-300 bg-neutral-50/70 px-4 py-10 text-center dark:border-neutral-800 dark:bg-neutral-900/40">
-                        <span class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                            <x-ui.icon name="chart-bar" class="h-5 w-5" />
-                        </span>
+                        <x-ui.empty-artwork category="reports" size="sm" />
                         <p class="mt-3 text-sm font-semibold text-neutral-900 dark:text-neutral-100">No forecast data available</p>
                         <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">There are no historical consumption or forecast points recorded for this selection.</p>
                     </div>
@@ -661,7 +659,8 @@
 
                         {{-- 3. Empty State --}}
                         <div x-show="isEmpty()" x-cloak class="rounded-lg border border-neutral-200/80 bg-neutral-50/60 p-4 text-center text-xs text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-400">
-                            No clinical insights available for the selected scope.
+                            <x-ui.empty-artwork category="reports" size="sm" />
+                            <p class="mt-2 font-semibold text-neutral-700 dark:text-neutral-300">No clinical insights available for the selected scope</p>
                         </div>
 
                         {{-- 4. Error State --}}
@@ -802,7 +801,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty :colspan="9" icon="magnifying-glass" title="No matching forecast items" message="Adjust or clear the filters to see more results." />
+                            <x-ui.table.empty :colspan="9" artwork="reports" icon="magnifying-glass" title="No matching forecast items" message="Adjust or clear the filters to see more results." />
                         @endforelse
                     </tbody>
                 </x-ui.table>
@@ -869,7 +868,7 @@
                                 @endcan
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty :colspan="auth()->user()?->hasPermission(\App\Enums\Permission::GenerateForecasts) ? 10 : 9" icon="chart-bar" title="No items to forecast" message="Add inventory items and record stock movements, then the forecast will populate." />
+                            <x-ui.table.empty :colspan="auth()->user()?->hasPermission(\App\Enums\Permission::GenerateForecasts) ? 10 : 9" artwork="reports" icon="chart-bar" title="No items to forecast" message="Add inventory items and record stock movements, then the forecast will populate." />
                         @endforelse
                     </tbody>
                 </x-ui.table>
@@ -1005,7 +1004,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty :colspan="7" icon="table-cells" title="No source records in this window" message="Record Stock Out or Issuance movements to create forecast history." />
+                            <x-ui.table.empty :colspan="7" artwork="reports" icon="table-cells" title="No source records in this window" message="Record Stock Out or Issuance movements to create forecast history." />
                         @endforelse
                     </tbody>
                 </x-ui.table>
@@ -1047,7 +1046,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty :colspan="8" icon="document-text" title="No plans saved yet" message="Save a statistical forecast above to preserve the basis for a reorder decision." />
+                            <x-ui.table.empty :colspan="8" artwork="reports" icon="document-text" title="No plans saved yet" message="Save a statistical forecast above to preserve the basis for a reorder decision." />
                         @endforelse
                     </tbody>
                 </x-ui.table>

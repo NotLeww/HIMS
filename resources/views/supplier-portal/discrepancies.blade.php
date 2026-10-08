@@ -29,7 +29,11 @@
                 @endif
             </x-ui.card>
         @empty
-            <x-ui.card><p>No receiving discrepancies.</p></x-ui.card>
+            <x-ui.empty-state
+                artwork="receiving-discrepancies"
+                title="No receiving discrepancies"
+                message="Delivery variances requiring your response will appear here."
+            />
         @endforelse
 
         <div>{{ $discrepancies->onEachSide(1)->links() }}</div>

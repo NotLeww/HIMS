@@ -211,11 +211,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="6" class="px-4 py-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
-                                            No active inbound shipments recorded. Register a new shipment above.
-                                        </td>
-                                    </tr>
+                                    <x-ui.table.empty colspan="6" artwork="logistics" title="No active inbound shipments" message="Register a shipment to begin tracking its delivery journey." />
                                 @endforelse
                             </tbody>
                         </table>
@@ -353,11 +349,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="6" class="px-4 py-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
-                                            No Inspection and Acceptance Reports recorded. Receipts can be converted to IAR in the IAR Processing tab.
-                                        </td>
-                                    </tr>
+                                    <x-ui.table.empty colspan="6" artwork="receiving" title="No inspection and acceptance reports" message="Convert completed receipts from the IAR Processing tab." />
                                 @endforelse
                             </tbody>
                         </table>
@@ -446,8 +438,9 @@
                                     </div>
                                 </li>
                             @empty
-                                <li class="text-center py-6 text-xs text-neutral-400 dark:text-neutral-500">
-                                    No custody transfers logged yet.
+                                <li class="px-4 py-6 text-center">
+                                    <x-ui.empty-artwork category="logistics" size="sm" />
+                                    <p class="mt-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">No custody transfers logged</p>
                                 </li>
                             @endforelse
                         </ul>
@@ -527,8 +520,9 @@
                                 </a>
                             </div>
                         @empty
-                            <div class="text-center py-6 text-xs text-neutral-400 dark:text-neutral-500">
-                                No documents uploaded yet.
+                            <div class="px-4 py-6 text-center">
+                                <x-ui.empty-artwork category="governance" size="sm" />
+                                <p class="mt-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">No logistics documents uploaded</p>
                             </div>
                         @endforelse
                     </div>

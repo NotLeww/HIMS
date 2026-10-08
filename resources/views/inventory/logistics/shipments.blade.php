@@ -214,15 +214,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="7" class="px-6 py-12 text-center text-xs">
-                                    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500">
-                                        <x-ui.icon name="truck" class="h-6 w-6" />
-                                    </div>
-                                    <p class="mt-3 font-semibold text-neutral-700 dark:text-neutral-300">No shipments found</p>
-                                    <p class="mt-1 text-neutral-500 dark:text-neutral-400">No inbound freight records match the active search and filter criteria.</p>
-                                </td>
-                            </tr>
+                            <x-ui.table.empty colspan="7" artwork="logistics" title="No shipments found" message="No inbound freight records match the active search and filter criteria." />
                         @endforelse
                     </tbody>
                 </table>

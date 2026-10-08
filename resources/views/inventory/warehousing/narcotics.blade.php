@@ -78,11 +78,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="5" class="py-8 text-center text-sm text-neutral-500">
-                                        No controlled substances currently registered in narcotics vaults.
-                                    </td>
-                                </tr>
+                                <x-ui.table.empty colspan="5" artwork="narcotics" title="No controlled substances registered" message="Controlled medicines assigned to narcotics vaults will appear here." />
                             @endforelse
                         </tbody>
                     </table>
@@ -149,11 +145,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="8" class="py-8 text-center text-sm text-neutral-500">
-                                        No DDRB ledger entries recorded yet.
-                                    </td>
-                                </tr>
+                                <x-ui.table.empty colspan="8" artwork="narcotics" title="No DDRB ledger entries" message="Authorized controlled-medicine transactions will appear here." />
                             @endforelse
                         </tbody>
                     </table>

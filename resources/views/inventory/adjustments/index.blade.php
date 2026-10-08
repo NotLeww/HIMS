@@ -264,11 +264,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="7" class="px-6 py-8 text-center text-xs text-neutral-500 dark:text-neutral-400">
-                                    No inventory adjustments recorded.
-                                </td>
-                            </tr>
+                            <x-ui.table.empty colspan="7" artwork="inventory" title="No inventory adjustments" message="Approved quantity corrections and their reasons will appear here." />
                         @endforelse
                     </tbody>
                 </table>

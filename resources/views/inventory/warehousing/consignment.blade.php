@@ -87,11 +87,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="5" class="py-8 text-center text-sm text-neutral-500">
-                                        No consignment items currently registered in stock.
-                                    </td>
-                                </tr>
+                                <x-ui.table.empty colspan="5" artwork="inventory" title="No consignment stock" message="Supplier-owned items registered in inventory will appear here." />
                             @endforelse
                         </tbody>
                     </table>
@@ -159,11 +155,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="7" class="py-8 text-center text-sm text-neutral-500">
-                                        No consignment implant consumptions recorded yet.
-                                    </td>
-                                </tr>
+                                <x-ui.table.empty colspan="7" artwork="inventory" title="No consignment consumption" message="Consumed consignment implants will appear here for replenishment tracking." />
                             @endforelse
                         </tbody>
                     </table>

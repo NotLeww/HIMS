@@ -95,7 +95,7 @@
                     <x-ui.table.td><x-ui.badge :status="$document->isExpired() ? 'expired' : $document->verification_status->value" /></x-ui.table.td>
                 </x-ui.table.row>
             @empty
-                <x-ui.table.empty colspan="3">No current compliance documents.</x-ui.table.empty>
+                <x-ui.table.empty colspan="3" artwork="compliance" title="No compliance documents" message="Submitted compliance evidence will appear here." />
             @endforelse
         </x-ui.table>
         <div class="mt-4">{{ $documents->links() }}</div>

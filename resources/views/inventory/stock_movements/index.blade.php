@@ -925,9 +925,7 @@
 
             @if ($movements->isEmpty())
                 <div class="p-8 text-center text-neutral-500">
-                    <svg class="mx-auto h-8 w-8 text-neutral-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                    </svg>
+                    <x-ui.empty-artwork category="logistics" size="sm" />
                     <p class="text-sm font-semibold text-neutral-800 dark:text-neutral-200">{{ $historyFiltered ? 'No matching movements' : 'No movements yet' }}</p>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{{ $historyFiltered ? 'Try changing or clearing the active filters.' : 'Recorded stock in, stock out and transfers will appear here.' }}</p>
                 </div>

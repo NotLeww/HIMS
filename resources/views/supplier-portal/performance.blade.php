@@ -30,7 +30,11 @@
                 <p class="mt-2 text-sm text-neutral-600 dark:text-neutral-300">{{ $supplier->latestApprovedScorecard->notes ?: 'No additional assessment notes.' }}</p>
             </x-ui.card>
         @else
-            <x-ui.card><p>No approved performance scorecard is available yet.</p></x-ui.card>
+            <x-ui.empty-state
+                artwork="reports"
+                title="No approved scorecard"
+                message="Your latest hospital-approved delivery, fill-rate, and quality assessment will appear here."
+            />
         @endif
     </div>
 </x-layouts.supplier>

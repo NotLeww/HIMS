@@ -234,7 +234,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty :colspan="6" icon="truck" title="No matching suppliers" message="Adjust the filters or add a supplier record." />
+                            <x-ui.table.empty :colspan="6" artwork="suppliers" icon="truck" title="No matching suppliers" message="Adjust the filters or add a supplier record." />
                         @endforelse
                     </tbody>
                 </x-ui.table>
@@ -311,7 +311,7 @@
                         </div>
                     </div>
                 @empty
-                    <div class="p-8 text-center"><x-ui.icon name="truck" class="mx-auto h-8 w-8 text-neutral-300 dark:text-neutral-600" /><p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No matching suppliers</p><p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Adjust the filters or add a supplier record.</p></div>
+                    <div class="p-8 text-center"><x-ui.empty-artwork category="suppliers" size="sm" /><p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No matching suppliers</p><p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Adjust the filters or add a supplier record.</p></div>
                 @endforelse
             </div>
 

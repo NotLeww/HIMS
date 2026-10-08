@@ -360,7 +360,8 @@
                 </template>
 
                 <div class="py-8 text-center text-xs text-neutral-500 dark:text-neutral-400" x-show="visibleGroups().length === 0">
-                    No permissions found matching "<span x-text="permissionSearch" class="font-medium text-neutral-700 dark:text-neutral-300"></span>"
+                    <x-ui.empty-artwork category="users" size="sm" />
+                    <p class="mt-2">No permissions found matching "<span x-text="permissionSearch" class="font-medium text-neutral-700 dark:text-neutral-300"></span>"</p>
                 </div>
             </div>
         </div>

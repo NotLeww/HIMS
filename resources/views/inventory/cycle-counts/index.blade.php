@@ -151,14 +151,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="7" class="px-6 py-10 text-center text-xs text-neutral-500 dark:text-neutral-400">
-                                    <div class="max-w-md mx-auto space-y-1.5">
-                                        <p class="text-neutral-800 dark:text-neutral-200 font-semibold">No cycle count documents found.</p>
-                                        <p class="text-[11px] text-neutral-400">Schedule a blind physical inventory verification using the button in the workflow banner above to audit shelf stock against book balance.</p>
-                                    </div>
-                                </td>
-                            </tr>
+                            <x-ui.table.empty colspan="7" artwork="inventory" title="No cycle count documents" message="Schedule a blind physical inventory verification to audit shelf stock against book balance." />
                         @endforelse
                     </tbody>
                 </table>

@@ -112,7 +112,10 @@
                                     <a href="{{ route('inventory.logistics.documents.download', $doc) }}" class="text-primary-600 hover:underline" data-hims-download data-loading-text="Preparing document..." data-download-name="{{ $doc->original_name ?: ($doc->file_name ?: 'document') }}">Download</a>
                                 </li>
                             @empty
-                                <li class="text-neutral-400 text-xs italic">No direct file attachments linked to this IAR.</li>
+                                <li class="py-4 text-center">
+                                    <x-ui.empty-artwork category="governance" size="sm" />
+                                    <p class="mt-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">No linked file attachments</p>
+                                </li>
                             @endforelse
                         </ul>
                     </div>
@@ -126,7 +129,10 @@
                                     <div class="text-[10px] text-neutral-500">{{ $log->releasing_party_name }} &rarr; {{ $log->receiving_party_name }} on {{ $log->transferred_at->format('M d, Y h:i A') }}</div>
                                 </li>
                             @empty
-                                <li class="text-neutral-400 text-xs italic">No custody transfers recorded for this IAR yet.</li>
+                                <li class="py-4 text-center">
+                                    <x-ui.empty-artwork category="logistics" size="sm" />
+                                    <p class="mt-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">No custody transfers recorded</p>
+                                </li>
                             @endforelse
                         </ul>
                     </div>

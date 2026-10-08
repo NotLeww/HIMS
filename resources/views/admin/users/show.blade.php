@@ -273,7 +273,7 @@
                                 <x-ui.table.td muted>{{ $movement->moved_at?->format('M d, Y g:i A') ?? '—' }}</x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty
+                            <x-ui.table.empty artwork="logistics"
                                 :colspan="6"
                                 icon="arrows-right-left"
                                 title="No movements recorded"

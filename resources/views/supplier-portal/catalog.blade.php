@@ -104,7 +104,7 @@
                         </x-ui.table.td>
                     </x-ui.table.row>
                 @empty
-                    <x-ui.table.empty colspan="4">No catalog products.</x-ui.table.empty>
+                    <x-ui.table.empty colspan="4" artwork="inventory" title="No catalog products" message="Products shared with this supplier will appear here." />
                 @endforelse
             </x-ui.table>
         </div>

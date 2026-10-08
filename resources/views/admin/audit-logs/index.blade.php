@@ -355,7 +355,7 @@
                         @endif
                     </x-ui.table.row>
                 @empty
-                    <x-ui.table.empty
+                    <x-ui.table.empty artwork="governance"
                         :colspan="$isPrint ? 6 : 7"
                         icon="clipboard-document-list"
                         title="No activity found"

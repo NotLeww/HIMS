@@ -284,7 +284,7 @@
                                     </tr>
                                 @endif
                             @empty
-                                <tr><td colspan="6" class="px-5 py-10 text-center text-sm text-neutral-500">No delivered items are recorded for this receipt.</td></tr>
+                                <x-ui.table.empty colspan="6" artwork="receiving" title="No delivered items recorded" message="Accepted, rejected, and quarantined receipt lines will appear here." />
                             @endforelse
                         </tbody>
                     </table>
@@ -349,7 +349,11 @@
                             @endif
                         </article>
                     @empty
-                        <p class="px-5 py-10 text-center text-sm text-neutral-500 dark:text-neutral-400">No delivered items are recorded for this receipt.</p>
+                        <div class="px-5 py-8 text-center">
+                            <x-ui.empty-artwork category="receiving" size="sm" />
+                            <p class="mt-2 text-sm font-semibold text-neutral-900 dark:text-white">No delivered items recorded</p>
+                            <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Accepted, rejected, and quarantined receipt lines will appear here.</p>
+                        </div>
                     @endforelse
                 </div>
 

@@ -51,7 +51,7 @@
                     </x-ui.table.td>
                 </x-ui.table.row>
             @empty
-                <x-ui.table.empty colspan="5" title="No purchase orders found" message="Hospital-issued orders will appear here." />
+                <x-ui.table.empty colspan="5" artwork="procurement" title="No purchase orders found" message="Hospital-issued orders will appear here." />
             @endforelse
         </x-ui.table>
 

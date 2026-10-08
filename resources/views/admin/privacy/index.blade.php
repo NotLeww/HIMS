@@ -410,8 +410,10 @@
                 </div>
 
                 @if ($recentConsents->isEmpty())
-                    <div class="py-12 text-center text-xs text-neutral-500">
-                        No consent records have been registered yet.
+                    <div class="px-4 py-10 text-center">
+                        <x-ui.empty-artwork category="governance" size="sm" />
+                        <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No consent records</p>
+                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Registered privacy consents will appear here.</p>
                     </div>
                 @else
                     <div class="overflow-x-auto">
@@ -514,8 +516,10 @@
                 </div>
 
                 @if ($privacyRequests->isEmpty())
-                    <div class="py-12 text-center text-xs text-neutral-500">
-                        No Data Subject Requests have been submitted yet.
+                    <div class="px-4 py-10 text-center">
+                        <x-ui.empty-artwork category="governance" size="sm" />
+                        <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No data subject requests</p>
+                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Submitted privacy access, correction, and deletion requests will appear here.</p>
                     </div>
                 @else
                     <div class="overflow-x-auto">
@@ -854,8 +858,10 @@
                 </div>
 
                 @if ($securityIncidents->isEmpty())
-                    <div class="py-12 text-center text-xs text-neutral-500">
-                        No security incidents have been recorded.
+                    <div class="px-4 py-10 text-center">
+                        <x-ui.empty-artwork category="governance" size="sm" />
+                        <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No security incidents</p>
+                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Reported privacy and security incidents will appear here.</p>
                     </div>
                 @else
                     <div class="overflow-x-auto">

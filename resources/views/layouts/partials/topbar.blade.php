@@ -119,9 +119,7 @@
                 x-cloak
                 class="p-6 text-center"
             >
-                <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 mb-2">
-                    <x-ui.icon name="magnifying-glass" class="w-5 h-5" />
-                </div>
+                <x-ui.empty-artwork category="reports" size="sm" />
                 <p class="text-sm font-medium text-neutral-900 dark:text-neutral-100">No records found</p>
                 <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
                     No matching items, suppliers, documents, or POs found for <span class="font-semibold text-neutral-700 dark:text-neutral-300" x-text="`&ldquo;${query}&rdquo;`"></span>
@@ -360,9 +358,7 @@
 
                 @if($topbarNotifications->isEmpty())
                     <div class="flex flex-col items-center px-6 py-10 text-center">
-                        <span class="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500">
-                            <x-ui.icon name="bell-alert" class="h-5 w-5" />
-                        </span>
+                        <x-ui.empty-artwork category="governance" size="sm" />
                         <p class="mt-3 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No notifications</p>
                         <p class="mt-1 max-w-xs text-xs leading-5 text-neutral-500 dark:text-neutral-400">
                             Important updates that need your attention will appear here.

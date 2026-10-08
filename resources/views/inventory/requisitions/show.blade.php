@@ -337,11 +337,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="5" class="px-4 py-6 text-center text-xs text-neutral-500">
-                                        No specific batch pick list required or stock is currently unreserved.
-                                    </td>
-                                </tr>
+                                <x-ui.table.empty colspan="5" artwork="warehouse" title="No batch pick list" message="No specific batch allocation is required, or stock is currently unreserved." />
                             @endforelse
                         </tbody>
                     </table>

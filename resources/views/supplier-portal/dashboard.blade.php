@@ -52,7 +52,7 @@
                             <x-ui.table.td class="px-6 py-5"><a class="inline-flex min-h-9 items-center gap-1 rounded-full bg-primary-50 px-3.5 font-semibold text-primary-700 transition-colors hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:bg-primary-950/60 dark:text-primary-300 dark:hover:bg-primary-900/70 dark:focus-visible:ring-offset-neutral-900" href="{{ route('supplier.orders.show', $order) }}">View <x-ui.icon name="chevron-right" class="h-4 w-4" /></a></x-ui.table.td>
                         </x-ui.table.row>
                     @empty
-                        <x-ui.table.empty colspan="4" title="No purchase orders yet" message="New hospital-issued orders will appear here." />
+                        <x-ui.table.empty colspan="4" artwork="procurement" title="No purchase orders yet" message="New hospital-issued orders will appear here." />
                     @endforelse
                 </x-ui.table>
             </div>

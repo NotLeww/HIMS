@@ -1309,7 +1309,7 @@
                                     @endif
                                 </x-ui.table.row>
                             @empty
-                                <x-ui.table.empty
+                                <x-ui.table.empty artwork="inventory"
                                     :colspan="$canViewFinancialData ? 6 : 4"
                                     icon="cube"
                                     title="No items yet"
@@ -1400,7 +1400,7 @@
                                     </x-ui.table.td>
                                 </x-ui.table.row>
                             @empty
-                                <x-ui.table.empty
+                                <x-ui.table.empty artwork="inventory"
                                     :colspan="$canViewFinancialData ? 6 : 5"
                                     icon="building-storefront"
                                     title="No stock in any location"
@@ -1524,7 +1524,7 @@
                                     <td class="p-2.5 text-right align-top tabular-nums">{{ $row['remaining'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['outstanding'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['returned_base'] }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="15" class="p-4 text-center text-neutral-500">No receiving lines in this period.</td></tr>
+                                <x-ui.table.empty colspan="15" artwork="receiving" title="No receiving lines" message="No goods were received during the selected reporting period." />
                             @endforelse
                         </tbody>
                     </table>
@@ -1584,7 +1584,11 @@
                             </div>
                         @endif
                     @empty
-                        <p class="py-8 text-center text-sm text-neutral-500">No purchase orders match this period and supplier filter.</p>
+                        <div class="px-4 py-8 text-center">
+                            <x-ui.empty-artwork category="procurement" size="sm" />
+                            <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No matching purchase orders</p>
+                            <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Adjust the reporting period or supplier filter.</p>
+                        </div>
                     @endforelse
                 </div>
             </x-ui.card>
@@ -1661,7 +1665,7 @@
                                     @endif
                                 </x-ui.table.row>
                             @empty
-                                <x-ui.table.empty
+                                <x-ui.table.empty artwork="logistics"
                                     :colspan="$canViewFinancialData ? 4 : 3"
                                     icon="arrows-right-left"
                                     title="Nothing consumed in this window"
@@ -1739,7 +1743,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty
+                            <x-ui.table.empty artwork="logistics"
                                 :colspan="6"
                                 icon="arrows-right-left"
                                 title="No movements in this window"
@@ -1791,7 +1795,7 @@
                                 @endif
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty
+                            <x-ui.table.empty artwork="inventory"
                                 :colspan="$canViewFinancialData ? 6 : 5"
                                 icon="check-circle"
                                 title="No expired or expiring batches"
@@ -1919,7 +1923,7 @@
                         class="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center dark:border-neutral-700 dark:bg-neutral-800/50"
                         role="status"
                     >
-                        <x-ui.icon name="chart-bar" class="h-8 w-8 text-neutral-400" />
+                        <x-ui.empty-artwork category="reports" size="sm" />
                         <p class="mt-3 text-sm font-semibold text-neutral-800 dark:text-neutral-100">No data found</p>
                         <p
                             class="mt-1 max-w-lg text-sm text-neutral-500 dark:text-neutral-400"
@@ -1975,7 +1979,8 @@
                             x-show="searchQuery.trim() && filteredRows.length === 0"
                             class="mb-4 rounded-xl border border-neutral-200 bg-neutral-50 p-5 text-center text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300"
                         >
-                            No drill-down records match “<span class="font-semibold" x-text="searchQuery"></span>”.
+                            <x-ui.empty-artwork category="reports" size="sm" />
+                            <p class="mt-2">No drill-down records match “<span class="font-semibold" x-text="searchQuery"></span>”.</p>
                         </div>
 
                         {{-- VIEW 1: Responsive Cards Stream (Zero Horizontal Bar) --}}

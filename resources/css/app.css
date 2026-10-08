@@ -385,6 +385,101 @@
 }
 
 @layer components {
+    .hims-empty-surface,
+    :where(div, li, td):has(> img[data-empty-surface-artwork]) {
+        position: relative;
+        isolation: isolate;
+        overflow: hidden;
+        min-height: 18rem;
+        width: 100%;
+        padding: 3rem 1.5rem;
+        text-align: center;
+        background-color: #fff;
+        background-image: linear-gradient(to bottom, #fff 0%, #fff 48%, rgb(236 254 255 / 0.72) 100%);
+    }
+
+    :where(div, li, td):has(> img[data-empty-surface-artwork]) > img[data-empty-surface-artwork] + :is(p, div, h2, h3, h4) {
+        margin-top: 0.75rem;
+        color: theme('colors.neutral.950');
+        font-size: 1.25rem;
+        font-weight: 700;
+        line-height: 1.75rem;
+        letter-spacing: -0.025em;
+    }
+
+    :where(div, li, td):has(> img[data-empty-surface-artwork]) > img[data-empty-surface-artwork] + :is(p, div, h2, h3, h4) + p {
+        max-width: 36rem;
+        margin-top: 0.5rem;
+        margin-right: auto;
+        margin-left: auto;
+        color: theme('colors.neutral.500');
+        font-size: 1rem;
+        line-height: 1.5rem;
+    }
+
+    .hims-empty-surface::before,
+    :where(div, li, td):has(> img[data-empty-surface-artwork])::before {
+        position: absolute;
+        bottom: -72%;
+        left: 50%;
+        z-index: 0;
+        width: 118%;
+        height: 125%;
+        border-radius: 50%;
+        background: rgb(207 250 254 / 0.48);
+        content: '';
+        pointer-events: none;
+        transform: translateX(-50%);
+    }
+
+    .hims-empty-surface::after,
+    :where(div, li, td):has(> img[data-empty-surface-artwork])::after {
+        position: absolute;
+        inset: auto 0 0;
+        z-index: 0;
+        height: 6rem;
+        background: linear-gradient(to top, rgb(165 243 252 / 0.22), transparent);
+        content: '';
+        pointer-events: none;
+    }
+
+    .hims-empty-surface > *,
+    :where(div, li, td):has(> img[data-empty-surface-artwork]) > * {
+        position: relative;
+        z-index: 1;
+    }
+
+    .dark .hims-empty-surface,
+    .dark :where(div, li, td):has(> img[data-empty-surface-artwork]) {
+        background-color: theme('colors.neutral.900');
+        background-image: linear-gradient(to bottom, theme('colors.neutral.900') 0%, theme('colors.neutral.900') 48%, rgb(8 51 68 / 0.55) 100%);
+    }
+
+    .dark :where(div, li, td):has(> img[data-empty-surface-artwork]) > img[data-empty-surface-artwork] + :is(p, div, h2, h3, h4) {
+        color: #fff;
+    }
+
+    .dark :where(div, li, td):has(> img[data-empty-surface-artwork]) > img[data-empty-surface-artwork] + :is(p, div, h2, h3, h4) + p {
+        color: theme('colors.neutral.400');
+    }
+
+    @media (min-width: 640px) {
+        .hims-empty-surface,
+        :where(div, li, td):has(> img[data-empty-surface-artwork]) {
+            min-height: 19rem;
+        }
+    }
+
+    .dark .hims-empty-surface::before,
+    .dark :where(div, li, td):has(> img[data-empty-surface-artwork])::before {
+        background: rgb(8 145 178 / 0.14);
+    }
+
+    .dark .hims-empty-surface::after,
+    .dark :where(div, li, td):has(> img[data-empty-surface-artwork])::after {
+        background: linear-gradient(to top, rgb(8 145 178 / 0.1), transparent);
+    }
+
     form[data-required-submit-guard] :is(button:not([type]), button[type='submit'], input[type='submit'], input[type='image']):disabled {
         cursor: not-allowed;
         opacity: 0.5;

@@ -398,11 +398,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="8" class="px-4 py-8 text-center text-xs text-neutral-500">
-                                            No supply chain turnaround time transactions recorded for this review interval.
-                                        </td>
-                                    </tr>
+                                    <x-ui.table.empty colspan="8" artwork="reports" title="No turnaround transactions" message="No supply-chain transactions were recorded in this review interval." />
                                 @endforelse
                             </tbody>
                         </table>
@@ -472,9 +468,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="8" class="px-4 py-8 text-center text-neutral-500 text-xs">No supplier purchase orders within this review period.</td>
-                                    </tr>
+                                    <x-ui.table.empty colspan="8" artwork="procurement" title="No supplier purchase orders" message="No purchase orders fall within this review period." />
                                 @endforelse
                             </tbody>
                         </table>
@@ -537,9 +531,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="8" class="px-4 py-8 text-center text-neutral-500 text-xs">No PO lines with matched DPRI references during this review interval.</td>
-                                    </tr>
+                                    <x-ui.table.empty colspan="8" artwork="reports" title="No matched DPRI references" message="No purchase-order lines matched a DPRI reference in this interval." />
                                 @endforelse
                             </tbody>
                         </table>
@@ -604,9 +596,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="8" class="px-4 py-8 text-center text-neutral-500 text-xs">No completed cycle count physical audits recorded in this period.</td>
-                                    </tr>
+                                    <x-ui.table.empty colspan="8" artwork="inventory" title="No completed cycle-count audits" message="Completed physical inventory audits for this period will appear here." />
                                 @endforelse
                             </tbody>
                         </table>
@@ -682,8 +672,10 @@
                                 </div>
                             </div>
                         @empty
-                            <div class="py-8 text-center text-xs text-neutral-500">
-                                Zero process exceptions detected. Operations are currently performing within expected SLAs.
+                            <div class="px-4 py-8 text-center">
+                                <x-ui.empty-artwork category="reports" size="sm" />
+                                <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No process exceptions detected</p>
+                                <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Operations are currently performing within expected service levels.</p>
                             </div>
                         @endforelse
                     </div>

@@ -254,7 +254,10 @@
                         </div>
                     </div>
                 @empty
-                    <p class="px-5 py-8 text-center text-sm text-neutral-500 dark:text-neutral-400">No scans recorded for this task.</p>
+                    <div class="px-5 py-8 text-center">
+                        <x-ui.empty-artwork category="warehouse" size="sm" />
+                        <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No scans recorded for this task</p>
+                    </div>
                 @endforelse
             </div>
 
@@ -288,7 +291,10 @@
                         @endcan
                     </article>
                 @empty
-                    <p class="px-5 py-8 text-center text-sm text-neutral-500 dark:text-neutral-400">No exceptions recorded for this task.</p>
+                    <div class="px-5 py-8 text-center">
+                        <x-ui.empty-artwork category="warehouse" size="sm" />
+                        <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No exceptions recorded for this task</p>
+                    </div>
                 @endforelse
             </div>
         </section>

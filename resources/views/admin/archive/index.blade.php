@@ -205,7 +205,7 @@
                 </div>
             @empty
                 <div class="p-8 text-center text-sm text-neutral-500">
-                    <x-ui.icon name="archive-box" class="mx-auto h-8 w-8 text-neutral-400 mb-2" />
+                    <x-ui.empty-artwork category="governance" size="sm" />
                     <p class="font-semibold text-neutral-700 dark:text-neutral-300">No archived records found</p>
                     <p class="text-xs text-neutral-500 mt-1">Archived items, suppliers, and user accounts will appear here.</p>
                 </div>
@@ -280,7 +280,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty
+                            <x-ui.table.empty artwork="governance"
                                 :colspan="7"
                                 icon="archive-box"
                                 title="No archived records match the criteria"
@@ -340,7 +340,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty
+                            <x-ui.table.empty artwork="inventory"
                                 :colspan="7"
                                 icon="cube"
                                 title="No archived inventory items match"
@@ -395,7 +395,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty
+                            <x-ui.table.empty artwork="suppliers"
                                 :colspan="7"
                                 icon="building-office-2"
                                 title="No archived suppliers match"
@@ -462,7 +462,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty
+                            <x-ui.table.empty artwork="users"
                                 :colspan="8"
                                 icon="users"
                                 title="No archived user accounts match"

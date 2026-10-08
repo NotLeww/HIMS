@@ -809,11 +809,7 @@
                     container.className = 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5';
                     container.innerHTML = `
                         <div data-alert-empty-all class="col-span-full rounded-xl border border-dashed border-neutral-300 bg-white p-8 text-center dark:border-neutral-700 dark:bg-neutral-900">
-                            <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 mb-3">
-                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                </svg>
-                            </div>
+                            <img src="{{ asset('img/empty-inventory.png') }}" alt="" aria-hidden="true" loading="lazy" decoding="async" class="mx-auto h-20 w-20 object-contain drop-shadow-sm sm:h-24 sm:w-24" data-empty-artwork="inventory" data-empty-surface-artwork>
                             <h3 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200">All Stock Levels Optimal</h3>
                             <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">No items are below reorder levels, expiring within 90 days, or expired.</p>
                         </div>

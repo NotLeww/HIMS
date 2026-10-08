@@ -248,11 +248,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="6" class="px-6 py-8 text-center text-neutral-500">
-                                        No unreceived purchase orders found. All deliveries are up to date.
-                                    </td>
-                                </tr>
+                                <x-ui.table.empty colspan="6" artwork="receiving" title="No deliveries awaiting receipt" message="All eligible purchase-order deliveries are currently up to date." />
                             @endforelse
                         </tbody>
                     </table>
@@ -320,11 +316,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="8" class="px-6 py-8 text-center text-neutral-500">
-                                        No Goods Receipt Notes generated yet.
-                                    </td>
-                                </tr>
+                                <x-ui.table.empty colspan="8" artwork="receiving" title="No Goods Receipt Notes" message="Completed receiving records will appear here." />
                             @endforelse
                         </tbody>
                     </table>
