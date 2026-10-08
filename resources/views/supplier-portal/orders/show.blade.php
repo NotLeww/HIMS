@@ -4,7 +4,7 @@
             <div class="absolute inset-0 bg-gradient-to-r from-primary-50/80 via-white to-cyan-50/70 dark:from-primary-950/30 dark:via-neutral-900 dark:to-cyan-950/20"></div>
             <img src="{{ asset('img/requisition/'.$orderArtwork) }}" alt="" aria-hidden="true" class="pointer-events-none absolute right-0 top-1/2 hidden h-[130%] w-auto max-w-[42%] -translate-y-1/2 object-contain object-right opacity-45 mix-blend-multiply dark:opacity-20 dark:mix-blend-screen sm:block">
 
-            <div class="relative flex min-h-44 max-w-3xl flex-col justify-center p-5 sm:p-7 sm:pr-[34%]">
+            <div class="relative flex min-h-44 w-full flex-col justify-center p-5 sm:p-7 sm:pr-[34%]">
                 <a href="{{ route('supplier.orders.index') }}" class="inline-flex w-fit items-center gap-2 rounded-md text-sm font-medium text-neutral-600 underline-offset-4 hover:text-primary-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:text-neutral-300 dark:hover:text-primary-300 dark:focus-visible:ring-offset-neutral-900">
                     <x-ui.icon name="arrow-left" class="h-4 w-4" />
                     Back to Purchase Orders

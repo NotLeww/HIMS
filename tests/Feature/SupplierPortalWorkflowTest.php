@@ -193,6 +193,7 @@ class SupplierPortalWorkflowTest extends TestCase
         $this->actingAs($operationsA)->get(route('supplier.orders.show', $po))
             ->assertOk()
             ->assertSee('PO-PORTAL-001')
+            ->assertSee('min-h-44 w-full flex-col', false)
             ->assertSee('Back to Purchase Orders')
             ->assertSee('Order date')
             ->assertSee('Scheduled delivery')
