@@ -1,4 +1,9 @@
 <x-app-layout>
+    <style>
+        :root { --hims-header-image: url('{{ asset('img/hims-consignment-hero-day.png') }}'); --hims-header-position: right center; }
+        .dark { --hims-header-image: url('{{ asset('img/hims-consignment-hero-night.png') }}'); }
+    </style>
+
     <x-slot name="header">
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between" x-data="{ consumeModal: false }">
             <div>
@@ -32,19 +37,6 @@
                     <ul class="list-disc pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
                 </x-ui.alert>
             @endif
-
-            {{-- Consignment Status Banner --}}
-            <div class="rounded-xl border border-amber-200 bg-amber-50/70 p-5 flex items-start gap-4">
-                <div class="rounded-full bg-amber-500 p-2 text-white shrink-0">
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                </div>
-                <div>
-                    <h4 class="text-sm font-bold text-amber-900">Zero-Liability Consignment Accounting</h4>
-                    <p class="text-xs text-amber-800 mt-1">
-                        High-value implants housed in surgical suite coordinates remain vendor property until implanted in a patient. When a serial number is scanned during surgery with the patient encounter ID, the system automatically posts the patient charge capture and dispatches an automated <strong>Bill-Only Purchase Request</strong> to Procurement to process the supplier invoice.
-                    </p>
-                </div>
-            </div>
 
             {{-- Consignment Inventory Balances --}}
             <div class="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
