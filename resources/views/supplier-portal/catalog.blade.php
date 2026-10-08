@@ -10,19 +10,36 @@
             }
         </style>
 
-        <x-ui.page-header title="Supplier Catalog" subtitle="Hospital-approved items and VMI visibility for your organization." />
+        <x-ui.page-header title="Supplier Catalog" subtitle="Hospital-approved items and VMI visibility for your organization.">
+            @can('supplier_manage_profile')
+                <x-slot:actions>
+                    <x-ui.button
+                        type="button"
+                        icon="plus"
+                        x-data
+                        x-on:click="$dispatch('open-modal', 'submit-catalog-product')"
+                        x-init="if ({{ $errors->any() ? 'true' : 'false' }}) $nextTick(() => $dispatch('open-modal', 'submit-catalog-product'))"
+                    >
+                        Submit product
+                    </x-ui.button>
+                </x-slot:actions>
+            @endcan
+        </x-ui.page-header>
     </div>
+
     @can('supplier_manage_profile')
-        <x-ui.card class="mt-6">
+        <x-ui.modal name="submit-catalog-product" title="Submit catalog product" maxWidth="5xl">
             <x-slot:header>
-                <h2 class="text-xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">Submit catalog product</h2>
-                <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Submissions require hospital review and never edit the hospital item master.</p>
+                <div class="min-w-0">
+                    <h2 id="submit-catalog-product-title" class="text-lg font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">Submit catalog product</h2>
+                    <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Submissions require hospital review and never edit the hospital item master.</p>
+                </div>
             </x-slot:header>
 
             <form
                 method="POST"
                 action="{{ route('supplier.catalog.store') }}"
-                class="grid gap-x-6 gap-y-6 md:grid-cols-2 xl:grid-cols-3"
+                class="grid gap-x-6 gap-y-5 md:grid-cols-2"
                 x-data="{ isValid: false }"
                 x-init="$nextTick(() => isValid = $el.checkValidity())"
                 x-on:input="isValid = $el.checkValidity()"
@@ -38,12 +55,20 @@
                 <x-ui.field name="minimum_order_quantity" label="Minimum order quantity" icon="squares-2x2" type="number" min="1" placeholder="Enter minimum quantity" required />
                 <x-ui.field name="lead_time_days" label="Lead time (days)" icon="calendar" type="number" min="0" placeholder="Enter lead time in days" required />
 
-                <div class="flex flex-col-reverse gap-3 border-t border-neutral-200 pt-6 md:col-span-2 sm:flex-row sm:justify-end xl:col-span-3 dark:border-neutral-800">
-                    <x-ui.button type="reset" variant="secondary" size="lg" class="w-full px-8 sm:w-auto" x-on:click="$nextTick(() => isValid = $el.form.checkValidity())">Cancel</x-ui.button>
+                <div class="flex flex-col-reverse gap-3 border-t border-neutral-200 pt-5 md:col-span-2 sm:flex-row sm:justify-end dark:border-neutral-800">
+                    <x-ui.button
+                        type="reset"
+                        variant="secondary"
+                        size="lg"
+                        class="w-full px-8 sm:w-auto"
+                        x-on:click="$dispatch('close-modal', 'submit-catalog-product'); $nextTick(() => isValid = $el.form.checkValidity())"
+                    >
+                        Cancel
+                    </x-ui.button>
                     <x-ui.button type="submit" icon="paper-airplane" size="lg" class="w-full px-8 sm:w-auto" disabled x-bind:disabled="! isValid" data-loading-text="Submitting...">Submit for review</x-ui.button>
                 </div>
             </form>
-        </x-ui.card>
+        </x-ui.modal>
     @endcan
 
     <div class="mt-6">
