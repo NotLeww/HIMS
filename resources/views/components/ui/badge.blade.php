@@ -17,7 +17,7 @@
         'good' => 'success', 'sent' => 'success',
 
         // amber — needs attention, in flight
-        'low_stock' => 'warning', 'pending' => 'warning', 'pending_activation' => 'warning', 'submitted' => 'warning',
+        'low_stock' => 'warning', 'pending' => 'warning', 'pending_activation' => 'warning', 'pending_approval' => 'warning', 'submitted' => 'warning',
         'expiring_soon' => 'warning', 'partially_fulfilled' => 'warning',
         'acknowledged' => 'warning', 'under_review' => 'warning',
         'pending_review' => 'warning', 'action_required' => 'danger',
@@ -56,8 +56,6 @@
     ];
 
     $key = $variant ?? ($map[strtolower((string) $status)] ?? 'neutral');
-    $showApprovalCheck = strtolower((string) $status) === 'approved';
-
     // Contrast checked against white and dark backgrounds:
     $styles = [
         'success' => 'bg-success-50 dark:bg-emerald-950/60 text-success-700 dark:text-emerald-300 ring-success-600/20 dark:ring-emerald-500/30',
@@ -67,12 +65,12 @@
         'neutral' => 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 ring-neutral-500/20 dark:ring-neutral-700',
     ];
 
-    $dots = [
-        'success' => 'bg-success-500 dark:bg-emerald-400',
-        'warning' => 'bg-warning-500 dark:bg-amber-400',
-        'danger' => 'bg-danger-500 dark:bg-rose-400',
-        'primary' => 'bg-primary-500 dark:bg-primary-400',
-        'neutral' => 'bg-neutral-400 dark:bg-neutral-500',
+    $semanticIcons = [
+        'success' => 'check-circle',
+        'warning' => 'clock',
+        'danger' => 'exclamation-circle',
+        'primary' => 'information-circle',
+        'neutral' => 'information-circle',
     ];
 
     $label = trim($slot) !== '' ? $slot : \Illuminate\Support\Str::headline((string) $status);
@@ -82,12 +80,8 @@
     'class' => 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium '
         .'ring-1 ring-inset whitespace-nowrap '.$styles[$key],
 ]) }}>
-    @if ($showApprovalCheck)
-        <span class="inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-emerald-400 text-emerald-950" aria-hidden="true">
-            <x-ui.icon name="check" :stroke-width="2.5" style="width: 11px; height: 11px; stroke: #064e3b" />
-        </span>
-    @elseif ($dot)
-        <span class="w-1.5 h-1.5 rounded-full {{ $dots[$key] }}" aria-hidden="true"></span>
+    @if ($dot || strtolower((string) $status) === 'approved')
+        <x-ui.icon :name="$semanticIcons[$key]" class="h-3.5 w-3.5 shrink-0" aria-hidden="true" :data-badge-icon="$semanticIcons[$key]" />
     @endif
     {{ $label }}
 </span>

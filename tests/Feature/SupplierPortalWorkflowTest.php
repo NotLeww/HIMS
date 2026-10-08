@@ -179,6 +179,7 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertSee('Supplier workspace')
             ->assertSee('hims-supplier-dashboard-hero-light.png', false)
             ->assertSee('hims-supplier-dashboard-hero.png', false)
+            ->assertSee('data-badge-icon="check-circle"', false)
             ->assertDontSee('Procurement &amp; Sourcing', false)
             ->assertDontSee('Administration');
         $this->actingAs($operationsA)->get(route('supplier.orders.index'))
