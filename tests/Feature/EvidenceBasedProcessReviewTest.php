@@ -121,11 +121,8 @@ class EvidenceBasedProcessReviewTest extends TestCase
             'period_end' => '2040-01-31',
         ]);
 
-        $response->assertOk()
-            ->assertJson([
-                'has_sufficient_data' => false,
-                'pos_count' => 0,
-            ]);
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['period_start', 'period_end']);
     }
 
     public function test_full_evidence_based_review_lifecycle_and_sod(): void
@@ -216,7 +213,7 @@ class EvidenceBasedProcessReviewTest extends TestCase
         $response = $this->actingAs($this->evaluator)->post(route('reviews.store'), [
             'title' => 'Comprehensive Q3 Process Review',
             'period_start' => now()->subDays(15)->toDateString(),
-            'period_end' => now()->addDay()->toDateString(),
+            'period_end' => today()->toDateString(),
             'qualitative_context' => 'Routine operations with periodic batch delivery.',
             'executive_summary' => 'Tested end-to-end evaluation.',
         ]);

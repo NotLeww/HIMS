@@ -152,7 +152,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
             'carrier_name' => ['nullable', 'string', 'max:100'],
             'waybill_number' => ['nullable', 'string', 'max:100'],
             'packing_slip_number' => ['nullable', 'string', 'max:100'],
-            'received_at' => ['nullable', 'date'],
+            'received_at' => ['nullable', 'date', 'before_or_equal:now'],
             'destination_location_id' => ['nullable', 'exists:storage_locations,id'],
             'notes' => ['nullable', 'string', 'max:500'],
             'lines' => ['required', 'array', 'min:1'],
@@ -169,9 +169,12 @@ class GoodsReceiptController extends Controller implements HasMiddleware
             'lines.*.batch_number' => ['nullable', 'string', 'max:50'],
             'lines.*.lot_number' => ['nullable', 'string', 'max:50'],
             'lines.*.expiry_date' => ['nullable', 'date'],
-            'lines.*.manufactured_date' => ['nullable', 'date'],
+            'lines.*.manufactured_date' => ['nullable', 'date', 'before_or_equal:today'],
             'lines.*.serial_number' => ['nullable', 'string', 'max:100'],
             'lines.*.notes' => ['nullable', 'string', 'max:255'],
+        ], [
+            'received_at.before_or_equal' => 'The received date and time cannot be in the future.',
+            'lines.*.manufactured_date.before_or_equal' => 'A manufacturing date cannot be in the future.',
         ]);
 
         $po = PurchaseOrder::findOrFail($validated['purchase_order_id']);

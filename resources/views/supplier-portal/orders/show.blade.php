@@ -113,8 +113,10 @@
                         <x-ui.field name="carrier_name" label="Carrier" required />
                         <x-ui.field name="tracking_number" label="Tracking number" />
                         <x-ui.field name="sscc" label="SSCC (18 digits)" />
-                        <x-ui.field name="dispatch_date" label="Shipment date" type="date" required />
-                        <x-ui.field name="estimated_delivery_date" label="Expected arrival" type="date" required />
+                        <div x-data="{ dispatchDate: @js(old('dispatch_date', today()->toDateString())) }" class="contents">
+                            <x-ui.field name="dispatch_date" label="Shipment date" type="date" x-model="dispatchDate" :max="today()->toDateString()" required />
+                            <x-ui.field name="estimated_delivery_date" label="Expected arrival" type="date" x-bind:min="dispatchDate || @js(today()->toDateString())" required />
+                        </div>
 
                         @foreach ($order->lines as $i => $line)
                             <input type="hidden" name="lines[{{ $i }}][po_line_id]" value="{{ $line->id }}">

@@ -76,7 +76,7 @@
             @endforeach
         </div>
 
-        <form method="GET" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('archive.index')) }}" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end mt-4">
+        <form method="GET" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('archive.index')) }}" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end mt-4" x-data="{ dateFrom: @js($filters['archive_date_from'] ?? ''), dateTo: @js($filters['archive_date_to'] ?? '') }">
             <input type="hidden" name="type" value="{{ $currentType }}">
 
             <x-ui.field
@@ -89,13 +89,18 @@
                 name="archive_date_from"
                 label="Archived From"
                 type="date"
-                :value="$filters['archive_date_from'] ?? null" />
+                :value="$filters['archive_date_from'] ?? null"
+                x-model="dateFrom"
+                x-bind:max="dateTo || @js(today()->toDateString())" />
 
             <x-ui.field
                 name="archive_date_to"
                 label="Archived To"
                 type="date"
-                :value="$filters['archive_date_to'] ?? null" />
+                :value="$filters['archive_date_to'] ?? null"
+                x-model="dateTo"
+                x-bind:min="dateFrom || null"
+                :max="today()->toDateString()" />
 
             <div class="space-y-1">
                 <label for="archived_by" class="block text-xs font-medium text-neutral-700 dark:text-neutral-300">

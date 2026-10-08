@@ -599,7 +599,7 @@
                                                             :name="`lines[${index}][expiry_date]`"
                                                             x-model="line.expiry_date"
                                                             class="mt-0.5 w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-xs font-mono py-1.5 px-2 focus:ring-primary-500 focus:border-primary-500"
-                                                            :min="new Date().toISOString().split('T')[0]"
+                                                            :min="line.manufactured_date || null"
                                                             :required="line.item && line.item.is_expiry_tracked"
                                                         >
                                                     </div>
@@ -608,8 +608,9 @@
                                                         <input
                                                             type="date"
                                                             :name="`lines[${index}][manufactured_date]`"
+                                                            x-model="line.manufactured_date"
                                                             class="mt-0.5 w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-xs font-mono py-1.5 px-2 focus:ring-primary-500 focus:border-primary-500"
-                                                            :max="new Date().toISOString().split('T')[0]"
+                                                            max="{{ today()->toDateString() }}"
                                                         >
                                                     </div>
                                                 </div>

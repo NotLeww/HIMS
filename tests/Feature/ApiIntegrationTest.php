@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Models\InventoryItem;
+use App\Models\ProcurementRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
@@ -15,6 +16,42 @@ use Tests\TestCase;
 class ApiIntegrationTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_procurement_lifecycle_timestamp_cannot_be_overridden_through_the_api(): void
+    {
+        config(['auth.device_security.enabled' => false]);
+        Sanctum::actingAs(User::factory()->role(UserRole::InventoryManager)->create(), ['*']);
+
+        $this->postJson('/api/v1/procurement-requests', [
+            'request_number' => 'REQ-TIMESTAMP-TAMPER',
+            'title' => 'Timestamp tampering attempt',
+            'requested_at' => now()->subYears(5)->toIso8601String(),
+        ])->assertUnprocessable()->assertJsonValidationErrors('requested_at');
+
+        $this->assertDatabaseMissing('procurement_requests', [
+            'request_number' => 'REQ-TIMESTAMP-TAMPER',
+        ]);
+
+        $item = InventoryItem::create([
+            'name' => 'Timestamp Test Item',
+            'sku' => 'TIMESTAMP-ITEM',
+            'unit' => 'piece',
+            'status' => 'active',
+        ]);
+        $procurementRequest = ProcurementRequest::create([
+            'request_number' => 'REQ-SYSTEM-TIMESTAMP',
+            'title' => 'System timestamp',
+            'item_id' => $item->id,
+            'requested_at' => now(),
+        ]);
+        $originalTimestamp = $procurementRequest->requested_at->toDateTimeString();
+
+        $this->patchJson("/api/v1/procurement-requests/{$procurementRequest->id}", [
+            'requested_at' => now()->addYears(5)->toIso8601String(),
+        ])->assertUnprocessable()->assertJsonValidationErrors('requested_at');
+
+        $this->assertSame($originalTimestamp, $procurementRequest->fresh()->requested_at->toDateTimeString());
+    }
 
     public function test_inventory_item_rest_contract(): void
     {

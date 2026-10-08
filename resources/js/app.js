@@ -5089,6 +5089,7 @@ Alpine.data('shipmentTracking', () => ({
     selectedShipmentNumber: '',
     selectedPickup: '',
     selectedDestination: '',
+    selectedDispatchDate: '',
     isColdChain: false,
 
     openDockArrival(shipment) {
@@ -5096,6 +5097,7 @@ Alpine.data('shipmentTracking', () => ({
         this.selectedShipmentNumber = shipment.number;
         this.selectedPickup = shipment.pickup;
         this.selectedDestination = shipment.destination;
+        this.selectedDispatchDate = shipment.dispatch_date || '';
         this.isColdChain = Boolean(shipment.cold_chain);
         this.dockModalOpen = true;
     },

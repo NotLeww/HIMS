@@ -169,12 +169,6 @@
                             </div>
 
                             <div>
-                                <label class="block text-xs font-semibold uppercase text-neutral-600">Inspection Date *</label>
-                                <input type="date" name="inspection_date" required value="{{ date('Y-m-d') }}"
-                                       class="mt-1 block w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
-                            </div>
-
-                            <div>
                                 <label class="block text-xs font-semibold uppercase text-neutral-600">Inspection Remarks / Observations *</label>
                                 <textarea name="remarks" required rows="3" placeholder="Lot numbers verified against Certificate of Analysis. Packaging intact and free from defects..."
                                           class="mt-1 block w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500"></textarea>
@@ -219,12 +213,6 @@
                             </div>
 
                             <div>
-                                <label class="block text-xs font-semibold uppercase text-neutral-600">Acceptance Date *</label>
-                                <input type="date" name="acceptance_date" required value="{{ date('Y-m-d') }}"
-                                       class="mt-1 block w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
-                            </div>
-
-                            <div>
                                 <label class="block text-xs font-semibold uppercase text-neutral-600">Custodial Acceptance Remarks</label>
                                 <textarea name="remarks" rows="3" placeholder="Stock posted to storage locations. Stock cards updated..."
                                           class="mt-1 block w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500"></textarea>
@@ -262,12 +250,6 @@
                             <div>
                                 <label class="block text-xs font-semibold uppercase text-neutral-600">COA Auditor / Received By Staff Name *</label>
                                 <input type="text" name="transmittal_reference" required placeholder="e.g. Maria Teresa Gomez, CPA (COA State Auditor IV)"
-                                       class="mt-1 block w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-semibold uppercase text-neutral-600">Transmittal Date *</label>
-                                <input type="date" name="transmittal_date" required value="{{ date('Y-m-d') }}"
                                        class="mt-1 block w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
                             </div>
 

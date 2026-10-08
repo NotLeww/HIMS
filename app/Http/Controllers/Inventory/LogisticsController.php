@@ -362,13 +362,22 @@ class LogisticsController extends Controller implements HasMiddleware
     public function recordDockArrival(Shipment $shipment, Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'actual_delivery_date' => ['required', 'date'],
+            'actual_delivery_date' => ['required', 'date', 'before_or_equal:today'],
             'temp_min' => ['nullable', 'numeric'],
             'temp_max' => ['nullable', 'numeric'],
             'temp_logger_serial' => ['nullable', 'string', 'max:100'],
             'package_condition' => ['required', 'in:good_order,damaged_packaging,tampered_seal,seal_intact'],
             'notes' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'actual_delivery_date.before_or_equal' => 'The actual delivery date cannot be in the future.',
         ]);
+
+        if ($shipment->dispatch_date
+            && Carbon::parse($validated['actual_delivery_date'])->startOfDay()->lt($shipment->dispatch_date->copy()->startOfDay())) {
+            throw ValidationException::withMessages([
+                'actual_delivery_date' => ['The actual delivery date must be on or after the shipment date.'],
+            ]);
+        }
 
         try {
             $this->shipmentService->recordDockArrival($shipment, $validated, $request->user());
@@ -541,7 +550,6 @@ class LogisticsController extends Controller implements HasMiddleware
     {
         $validated = $request->validate([
             'status' => ['required', 'in:inspected,rejected'],
-            'inspection_date' => ['required', 'date'],
             'remarks' => ['required', 'string', 'max:1000'],
         ]);
 
@@ -576,7 +584,6 @@ class LogisticsController extends Controller implements HasMiddleware
     {
         $validated = $request->validate([
             'acceptance_type' => ['required', 'in:complete,partial'],
-            'acceptance_date' => ['required', 'date'],
             'remarks' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -612,7 +619,6 @@ class LogisticsController extends Controller implements HasMiddleware
     {
         $validated = $request->validate([
             'transmittal_reference' => ['required', 'string', 'max:100'],
-            'transmittal_date' => ['required', 'date'],
         ]);
 
         try {

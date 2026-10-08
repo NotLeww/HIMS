@@ -303,6 +303,13 @@ class SupplierPortalWorkflowTest extends TestCase
         $this->assertDatabaseHas('purchase_order_acknowledgements', ['purchase_order_id' => $po->id, 'supplier_id' => $supplierA->id, 'response' => 'accepted']);
 
         $this->actingAs($operationsA)->post(route('supplier.orders.asns.store', $po), [
+            'shipment_number' => 'ASN-FUTURE-DISPATCH', 'carrier_name' => 'Internal Carrier', 'dispatch_date' => today()->addDay()->toDateString(),
+            'estimated_delivery_date' => today()->addDays(2)->toDateString(),
+            'lines' => [['po_line_id' => $line->id, 'quantity' => 8]],
+        ])->assertSessionHasErrors('dispatch_date');
+        $this->assertDatabaseMissing('shipments', ['shipment_number' => 'ASN-FUTURE-DISPATCH']);
+
+        $this->actingAs($operationsA)->post(route('supplier.orders.asns.store', $po), [
             'shipment_number' => 'ASN-PORTAL-001', 'carrier_name' => 'Internal Carrier', 'dispatch_date' => today()->toDateString(),
             'estimated_delivery_date' => today()->addDay()->toDateString(), 'sscc' => '123456789012345678',
             'lines' => [['po_line_id' => $line->id, 'quantity' => 8, 'lot_number' => 'LOT-A']],
@@ -343,17 +350,40 @@ class SupplierPortalWorkflowTest extends TestCase
         $this->actingAs($administratorA)->get(route('supplier.compliance.index'))
             ->assertOk()
             ->assertSee('min-h-36', false)
-            ->assertSee('sm:h-36', false);
+            ->assertSee('sm:h-36', false)
+            ->assertSee('Expired documents may be submitted for historical verification.')
+            ->assertSee('max="'.today()->toDateString().'"', false);
+
+        $this->actingAs($administratorA)->post(route('supplier.compliance.store'), [
+            'document_type' => 'Expired Business Permit',
+            'document_number' => 'BP-EXPIRED',
+            'issued_at' => today()->subYear()->toDateString(),
+            'expires_at' => today()->subDay()->toDateString(),
+            'file' => UploadedFile::fake()->createWithContent('expired-permit.pdf', DemoPdfBuilder::create('Expired Business Permit', [['heading' => 'PERMIT', 'lines' => ['Expired supplier evidence.']]])),
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('supplier_documents', [
+            'supplier_id' => $supplierA->id,
+            'document_number' => 'BP-EXPIRED',
+            'expires_at' => today()->subDay()->startOfDay()->toDateTimeString(),
+        ]);
+
+        $this->actingAs($administratorA)->post(route('supplier.compliance.store'), [
+            'document_type' => 'Invalid Permit Dates',
+            'issued_at' => today()->subMonth()->toDateString(),
+            'expires_at' => today()->subMonths(2)->toDateString(),
+            'file' => UploadedFile::fake()->createWithContent('invalid-dates.pdf', DemoPdfBuilder::create('Invalid Permit Dates', [['heading' => 'PERMIT', 'lines' => ['Invalid chronology.']]])),
+        ])->assertSessionHasErrors('expires_at');
 
         $this->actingAs($administratorA)->post(route('supplier.compliance.store'), [
             'document_type' => 'Business Permit',
             'document_number' => 'BP-001',
             'issued_at' => today()->subMonth()->toDateString(),
-            'expires_at' => today()->addYear()->toDateString(),
+            'expires_at' => today()->toDateString(),
             'file' => UploadedFile::fake()->createWithContent('permit.pdf', DemoPdfBuilder::create('Business Permit', [['heading' => 'PERMIT', 'lines' => ['Valid supplier evidence.']]])),
         ])->assertRedirect();
 
-        $document = $supplierA->documents()->firstOrFail();
+        $document = $supplierA->documents()->where('document_number', 'BP-001')->firstOrFail();
         $this->assertSame('pending', $document->verification_status->value);
         Storage::disk('local')->assertExists($document->path);
         $this->actingAs($administratorB)->get(route('supplier.compliance.download', $document))->assertForbidden();

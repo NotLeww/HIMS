@@ -22,7 +22,7 @@ class UpdateProcurementRequestRequest extends FormRequest
             'requested_quantity' => 'nullable|numeric|min:0',
             'priority' => 'nullable|string',
             'status' => 'nullable|string',
-            'requested_at' => 'nullable|date',
+            'requested_at' => 'prohibited',
             'supplier_id' => ['nullable', 'integer', new ProcurementEligibleSupplier],
             'approved_by' => 'nullable|integer|exists:users,id',
             'approval_notes' => 'nullable|string',

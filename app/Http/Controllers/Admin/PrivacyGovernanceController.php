@@ -235,7 +235,9 @@ class PrivacyGovernanceController extends Controller implements HasMiddleware
             'remediation_notes' => ['nullable', 'string', 'max:5000'],
             'is_reportable_breach' => ['nullable', 'boolean'],
             'affected_subjects_count' => ['nullable', 'integer', 'min:0'],
-            'npc_notified_at' => ['nullable', 'date'],
+            'npc_notified_at' => ['nullable', 'date', 'before_or_equal:today'],
+        ], [
+            'npc_notified_at.before_or_equal' => 'The NPC notification date cannot be in the future.',
         ]);
 
         $this->securityIncidentService->updateIncidentStatus(

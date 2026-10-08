@@ -971,7 +971,7 @@
                                                     </div>
                                                     <div>
                                                         <label class="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">NPC Notified Date</label>
-                                                        <input type="date" name="npc_notified_at" value="{{ $incident->npc_notified_at?->format('Y-m-d') }}" class="mt-1 block w-full rounded-md border-neutral-300 dark:border-neutral-700 text-xs">
+                                                        <input type="date" name="npc_notified_at" value="{{ $incident->npc_notified_at?->format('Y-m-d') }}" max="{{ today()->toDateString() }}" class="mt-1 block w-full rounded-md border-neutral-300 dark:border-neutral-700 text-xs">
                                                     </div>
                                                 </div>
                                             </div>

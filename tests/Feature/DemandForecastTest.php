@@ -439,6 +439,9 @@ class DemandForecastTest extends TestCase
         $viewer = User::factory()->role(UserRole::Viewer)->create();
 
         $this->actingAs($viewer)->get('/inventory/demand-forecast')->assertStatus(200);
+
+        $this->actingAs($viewer)->get('/inventory/demand-forecast?dataset_from='.today()->addDay()->toDateString())
+            ->assertSessionHasErrors('dataset_from');
     }
 
     public function test_saving_a_plan_requires_the_forecast_permission(): void

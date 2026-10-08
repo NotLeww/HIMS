@@ -406,7 +406,9 @@ class ProcurementController extends Controller implements HasMiddleware
             'item_id' => ['required', 'exists:inventory_items,id'],
             'quantity' => ['required', 'integer', 'min:1'],
             'estimated_unit_price' => ['required', 'numeric', 'min:0.01'],
-            'need_by_date' => ['nullable', 'date'],
+            'need_by_date' => ['nullable', 'date', 'after_or_equal:today'],
+        ], [
+            'need_by_date.after_or_equal' => 'The needed-by date must be today or a future date.',
         ]);
 
         $costCenter = CostCenter::findOrFail($validated['cost_center_id']);

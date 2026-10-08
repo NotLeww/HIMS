@@ -719,6 +719,19 @@ class AuditTrailTest extends TestCase
             ->assertSee('PHT (UTC+8)');
     }
 
+    public function test_audit_history_filter_rejects_future_and_reversed_ranges(): void
+    {
+        $superAdmin = User::factory()->superAdministrator()->create();
+
+        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get('/super-admin/audit-trail?date_from='.today()->addDay()->toDateString())
+            ->assertSessionHasErrors('date_from');
+
+        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get('/super-admin/audit-trail?date_from='.today()->toDateString().'&date_to='.today()->subDay()->toDateString())
+            ->assertSessionHasErrors('date_to');
+    }
+
     public function test_sidebar_link_is_visible_only_to_audit_authorized_roles(): void
     {
         $this->actingAs($this->admin(), AuthenticationContext::ADMIN_GUARD)->get('/dashboard')

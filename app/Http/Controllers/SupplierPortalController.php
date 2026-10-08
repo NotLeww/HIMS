@@ -92,8 +92,8 @@ class SupplierPortalController extends Controller
         abort_unless($request->user()->can(Permission::SupplierFulfillOrders->value), 403);
         abort_unless(in_array($purchaseOrder->statusEnum(), [PurchaseOrderStatus::Acknowledged, PurchaseOrderStatus::PartiallyFulfilled], true), 422);
         $data = $request->validate([
-            'shipment_number' => ['required', 'string', 'max:80', 'unique:shipments,shipment_number'], 'dispatch_date' => ['required', 'date'],
-            'estimated_delivery_date' => ['required', 'date', 'after_or_equal:dispatch_date'], 'carrier_name' => ['required', 'string', 'max:150'],
+            'shipment_number' => ['required', 'string', 'max:80', 'unique:shipments,shipment_number'], 'dispatch_date' => ['required', 'date', 'before_or_equal:today'],
+            'estimated_delivery_date' => ['required', 'date', 'after_or_equal:today', 'after_or_equal:dispatch_date'], 'carrier_name' => ['required', 'string', 'max:150'],
             'tracking_number' => ['nullable', 'string', 'max:100'], 'sscc' => ['nullable', 'digits:18'], 'notes' => ['nullable', 'string', 'max:2000'],
             'lines' => ['required', 'array', 'min:1'], 'lines.*.po_line_id' => ['required', 'integer'], 'lines.*.quantity' => ['required', 'integer', 'min:1'],
             'lines.*.lot_number' => ['nullable', 'string', 'max:100'], 'lines.*.serial_number' => ['nullable', 'string', 'max:100'], 'lines.*.expiry_date' => ['nullable', 'date', 'after:today'],

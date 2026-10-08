@@ -844,7 +844,7 @@
                 <x-ui.alert variant="danger" title="Evidence could not be uploaded" class="mb-4">Review the highlighted fields and try again. A file must be re-selected after a failed upload.</x-ui.alert>
             @endif
             <p class="mb-3 text-xs text-neutral-500">Private PDF/JPG/PNG, up to 10 MB.</p>
-            <form method="POST" enctype="multipart/form-data" action="{{ route('inventory.suppliers.documents.store', $supplier) }}" class="space-y-3">
+            <form method="POST" enctype="multipart/form-data" action="{{ route('inventory.suppliers.documents.store', $supplier) }}" class="space-y-3" x-data="{ issuedAt: @js(old('issued_at', '')) }">
                 @csrf
                 <input type="hidden" name="_supplier_form" value="upload-evidence">
                 @if ($supplier->provides_regulated_health_products)
@@ -853,7 +853,7 @@
                 <x-ui.field name="document_type" label="Document type" placeholder="e.g. FDA License to Operate" required />
                 <x-ui.field name="document_number" label="Reference number" />
                 <x-ui.field name="issuing_authority" label="Issuing authority" />
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><x-ui.field name="issued_at" label="Issue date" type="date" /><x-ui.field name="expires_at" label="Expiry date" type="date" /></div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><x-ui.field name="issued_at" label="Issue date" type="date" x-model="issuedAt" :max="today()->toDateString()" /><x-ui.field name="expires_at" label="Expiry date" type="date" x-bind:min="issuedAt || null" hint="Expired evidence may be retained for historical verification." /></div>
                 <x-ui.field name="file" label="File" type="file" accept=".pdf,.jpg,.jpeg,.png" required />
                 <x-ui.field name="replaces_document_id" label="Replaces / renews" type="select" :options="$supplier->documents->where('is_current', true)->mapWithKeys(fn($document) => [$document->id => $document->document_type.' — '.($document->document_number ?: $document->original_name)])->all()" placeholder="New evidence (not a replacement)" hint="Selecting a document preserves it as history and carries forward its required/blocking controls." />
                 <label class="flex gap-2 text-sm"><input type="checkbox" name="required_for_accreditation" value="1" @checked(old('required_for_accreditation')) class="rounded border-neutral-300 text-primary-600"> Required for this accreditation</label>
@@ -910,14 +910,14 @@
                       data-confirm-title="Record product price"
                       data-confirm-message="Are you sure you want to commit this price schedule for this supplier product?"
                       data-confirm-label="Record price"
-                      class="space-y-3">
+                      class="space-y-3" x-data="{ effectiveFrom: @js(old('effective_from', '')) }">
                     @csrf
                     <input type="hidden" name="_supplier_form" value="record-price">
                     <x-ui.field name="supplier_product_id" label="Supplier product" type="select" :options="$activeProducts->mapWithKeys(fn($p) => [$p->id => $p->item->name])->all()" required />
                     <x-ui.field name="supplier_contract_id" label="Contract reference" type="select" :options="$supplier->contracts->filter(fn($c) => $c->effectiveStatus() === 'active')->mapWithKeys(fn($c) => [$c->id => $c->contract_number])->all()" placeholder="No contract" />
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><x-ui.field name="currency" label="Currency" value="PHP" required /><x-ui.field name="unit_price" label="Unit price" type="number" step="0.01" min="0.01" required /></div>
                     <x-ui.field name="minimum_order_quantity" label="Minimum quantity for price" type="number" min="1" value="1" required />
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><x-ui.field name="effective_from" label="Effective from" type="date" required /><x-ui.field name="effective_until" label="Effective until" type="date" /></div>
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><x-ui.field name="effective_from" label="Effective from" type="date" x-model="effectiveFrom" required /><x-ui.field name="effective_until" label="Effective until" type="date" x-bind:min="effectiveFrom || null" /></div>
                     <div class="flex flex-wrap justify-end gap-2 border-t border-neutral-200 pt-4">
                         <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'record-price')">Cancel</x-ui.button>
                         <x-ui.button type="submit" data-loading-text="Recording price...">Record Price</x-ui.button>
@@ -938,12 +938,12 @@
                   data-confirm-title="Register contract"
                   data-confirm-message="Are you sure you want to register this procurement contract reference?"
                   data-confirm-label="Register contract"
-                  class="space-y-3">
+                  class="space-y-3" x-data="{ startsAt: @js(old('starts_at', '')) }">
                 @csrf
                 <input type="hidden" name="_supplier_form" value="add-contract">
                 <x-ui.field name="contract_number" label="Contract number" required />
                 <x-ui.field name="contract_type" label="Contract type" />
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><x-ui.field name="starts_at" label="Start date" type="date" required /><x-ui.field name="ends_at" label="End date" type="date" /></div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><x-ui.field name="starts_at" label="Start date" type="date" x-model="startsAt" required /><x-ui.field name="ends_at" label="End date" type="date" x-bind:min="startsAt || null" /></div>
                 <x-ui.field name="status" label="Record status" type="select" :options="['active'=>'Active','inactive'=>'Inactive']" required />
                 <x-ui.field name="payment_terms" label="Payment terms" type="textarea" rows="2" />
                 <x-ui.field name="delivery_terms" label="Delivery terms" type="textarea" rows="2" />
@@ -983,7 +983,7 @@
                           data-confirm-label="Approve Supplier">
                         @csrf
                         <input type="hidden" name="_supplier_form" value="lifecycle">
-                        <x-ui.field name="expires_at" label="Accreditation valid until" type="date" hint="Leave blank only when the approving policy has no fixed renewal date." />
+                        <x-ui.field name="expires_at" label="Accreditation valid until" type="date" :min="today()->toDateString()" hint="Leave blank only when the approving policy has no fixed renewal date." />
                         <x-ui.field name="decision_notes" label="Approval notes" type="textarea" rows="2" />
                         <label class="flex items-start gap-2 text-xs text-neutral-700">
                             <input type="checkbox" name="compliance_attested" value="1" required class="mt-0.5 rounded border-neutral-300 text-primary-600 focus:ring-primary-500">

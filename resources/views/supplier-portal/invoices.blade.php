@@ -28,7 +28,7 @@
                     required
                 />
                 <x-ui.field name="invoice_number" label="Invoice number" required />
-                <x-ui.field name="invoice_date" label="Invoice date" type="date" required />
+                <x-ui.field name="invoice_date" label="Invoice date" type="date" :max="today()->toDateString()" required />
 
                 <div class="md:col-span-3">
                     <p class="text-sm text-neutral-600">Enter invoice lines for the selected PO. Line IDs are shown on the PO page.</p>

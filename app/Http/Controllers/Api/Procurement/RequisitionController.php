@@ -73,8 +73,10 @@ class RequisitionController extends Controller implements HasMiddleware
             'lines.*.uom' => ['nullable', 'string', 'max:40'],
             'lines.*.estimated_unit_price' => ['required', 'numeric', 'min:0'],
             'lines.*.gl_account_code' => ['nullable', 'string', 'max:50'],
-            'lines.*.need_by_date' => ['nullable', 'date'],
+            'lines.*.need_by_date' => ['nullable', 'date', 'after_or_equal:today'],
             'lines.*.contract_id' => ['nullable', 'exists:supplier_contracts,id'],
+        ], [
+            'lines.*.need_by_date.after_or_equal' => 'Each needed-by date must be today or a future date.',
         ]);
 
         $user = $request->user();

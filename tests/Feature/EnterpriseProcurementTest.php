@@ -1261,6 +1261,16 @@ class EnterpriseProcurementTest extends TestCase
             'description' => 'Clinical laboratory emergency cartridge replenishment',
         ];
 
+        $this->actingAs($manager)
+            ->post('/inventory/purchases/enterprise-requests', [
+                ...$prPayload,
+                'title' => 'Invalid Historical Need Date',
+                'need_by_date' => today()->subDay()->toDateString(),
+            ])
+            ->assertSessionHasErrors('need_by_date');
+
+        $this->assertDatabaseMissing('purchase_requests', ['title' => 'Invalid Historical Need Date']);
+
         $prPostResponse = $this->actingAs($manager)
             ->post('/inventory/purchases/enterprise-requests', $prPayload);
 

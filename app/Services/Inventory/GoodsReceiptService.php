@@ -102,6 +102,13 @@ class GoodsReceiptService
             $quarantineLocation = $quarantineLocations->first();
 
             $grnNumber = 'GRN-'.now()->format('Ymd').'-'.Str::ulid();
+            $receivedAt = isset($data['received_at']) ? Carbon::parse($data['received_at']) : now();
+
+            if ($receivedAt->isFuture()) {
+                throw ValidationException::withMessages([
+                    'received_at' => ['The received date and time cannot be in the future.'],
+                ]);
+            }
 
             $grn = GoodsReceiptNote::create([
                 'grn_number' => $grnNumber,
@@ -118,7 +125,7 @@ class GoodsReceiptService
                 'packing_slip_number' => $data['packing_slip_number'] ?? null,
                 'received_by_id' => $actor->id,
                 'receipt_status' => 'quarantined',
-                'received_at' => isset($data['received_at']) ? Carbon::parse($data['received_at']) : now(),
+                'received_at' => $receivedAt,
                 'notes' => $data['notes'] ?? null,
             ]);
 
@@ -187,6 +194,12 @@ class GoodsReceiptService
                 if ($manufacturedDate && $manufacturedDate->isFuture()) {
                     throw ValidationException::withMessages([
                         'lines' => ["Manufacturing date for {$item->name} cannot be in the future."],
+                    ]);
+                }
+
+                if ($expiryDate && $manufacturedDate && $expiryDate->lt($manufacturedDate)) {
+                    throw ValidationException::withMessages([
+                        'lines' => ["Expiration date for {$item->name} must be on or after its manufacturing date."],
                     ]);
                 }
 

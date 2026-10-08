@@ -602,7 +602,7 @@
                         {{-- Target Need-By Date --}}
                         <div>
                             <label class="mb-1 block text-xs font-semibold uppercase tracking-wider text-neutral-600">Target Need-By Date</label>
-                            <input type="date" name="need_by_date" value="{{ now()->addDays(14)->toDateString() }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500" />
+                            <input type="date" name="need_by_date" value="{{ old('need_by_date', now()->addDays(14)->toDateString()) }}" min="{{ today()->toDateString() }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500" />
                         </div>
 
                         {{-- Clinical Justification --}}

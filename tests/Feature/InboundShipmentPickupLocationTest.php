@@ -297,6 +297,31 @@ class InboundShipmentPickupLocationTest extends TestCase
         $this->assertTrue($shipment->is_cold_chain);
     }
 
+    public function test_dock_arrival_rejects_future_and_pre_dispatch_dates(): void
+    {
+        extract($this->setupLogistics());
+
+        $shipment = app(ShipmentTrackingService::class)->registerInboundShipment([
+            'pickup_source' => 'manual',
+            'pickup_location_name' => 'Validation Cross-Dock',
+            'origin_address' => 'Port Area, Manila',
+            'destination_storage_location_id' => $destination->id,
+            'carrier_name' => 'Validation Logistics',
+        ], $actor);
+
+        $this->actingAs($actor)->post(route('inventory.logistics.shipments.dock-arrival', $shipment), [
+            'actual_delivery_date' => today()->addDay()->toDateString(),
+            'package_condition' => 'good_order',
+        ])->assertSessionHasErrors('actual_delivery_date');
+
+        $this->actingAs($actor)->post(route('inventory.logistics.shipments.dock-arrival', $shipment), [
+            'actual_delivery_date' => $shipment->dispatch_date->copy()->subDay()->toDateString(),
+            'package_condition' => 'good_order',
+        ])->assertSessionHasErrors('actual_delivery_date');
+
+        $this->assertNull($shipment->fresh()->actual_delivery_date);
+    }
+
     public function test_legacy_shipment_without_pickup_renders_a_safe_state(): void
     {
         extract($this->setupLogistics());

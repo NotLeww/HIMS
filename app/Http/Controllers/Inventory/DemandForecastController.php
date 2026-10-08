@@ -62,18 +62,24 @@ class DemandForecastController extends Controller implements HasMiddleware
         $analysisStartsAt = now()->subDays($analysisDays);
         $forecasts = $this->forecasts->forecastAll($analysisDays, $forecastDays, $analysisStartsAt);
 
+        $datasetDates = $request->validate([
+            'dataset_from' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:'.$analysisStartsAt->toDateString(), 'before_or_equal:today'],
+            'dataset_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:dataset_from', 'after_or_equal:'.$analysisStartsAt->toDateString(), 'before_or_equal:today'],
+        ], [
+            'dataset_from.after_or_equal' => 'The dataset start date must be within the selected analysis window.',
+            'dataset_from.before_or_equal' => 'The dataset start date cannot be in the future.',
+            'dataset_to.after_or_equal' => 'The dataset end date must be on or after the start date and within the selected analysis window.',
+            'dataset_to.before_or_equal' => 'The dataset end date cannot be in the future.',
+        ]);
+
         $datasetSearch = Str::limit(trim((string) $request->query('dataset_search')), 100, '');
         $datasetCategoryId = filter_var($request->query('dataset_category_id'), FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE);
         $datasetLocationId = filter_var($request->query('dataset_location_id'), FILTER_VALIDATE_INT, FILTER_NULL_ON_FAILURE);
         $datasetMovementType = in_array($request->query('dataset_movement_type'), MovementType::consumptionValues(), true)
             ? (string) $request->query('dataset_movement_type')
             : null;
-        $datasetFrom = $this->validDatasetDate($request->query('dataset_from'));
-        $datasetTo = $this->validDatasetDate($request->query('dataset_to'));
-
-        if ($datasetFrom !== null && $datasetTo !== null && $datasetFrom > $datasetTo) {
-            [$datasetFrom, $datasetTo] = [$datasetTo, $datasetFrom];
-        }
+        $datasetFrom = $this->validDatasetDate($datasetDates['dataset_from'] ?? null);
+        $datasetTo = $this->validDatasetDate($datasetDates['dataset_to'] ?? null);
 
         $datasetMovements = StockMovement::query()
             ->with([

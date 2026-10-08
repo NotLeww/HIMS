@@ -20,7 +20,7 @@ class UpdateStockMovementRequest extends FormRequest
             'from_location_id' => 'nullable|integer|exists:storage_locations,id',
             'to_location_id' => 'nullable|integer|exists:storage_locations,id',
             'remarks' => 'nullable|string',
-            'moved_at' => 'nullable|date',
+            'moved_at' => 'prohibited',
             'user_id' => 'nullable|integer|exists:users,id',
         ];
     }

@@ -27,6 +27,9 @@
         .'focus:ring-2 focus:ring-offset-0 '
         .'disabled:bg-neutral-100 disabled:text-neutral-500 disabled:cursor-not-allowed '
         .'dark:disabled:bg-neutral-800 dark:disabled:text-neutral-500 '
+        .($type === 'file'
+            ? 'p-0 pr-3 leading-10 file:mr-3 file:h-10 file:border-0 file:border-r file:border-neutral-300 file:bg-neutral-50 file:px-3 file:text-sm file:font-medium file:text-neutral-700 dark:file:border-neutral-700 dark:file:bg-neutral-900 dark:file:text-neutral-200 '
+            : '')
         .($icon ? 'min-h-11 pl-10 ' : '')
         .($hasError
             ? 'border-danger-500 text-danger-900 dark:text-danger-200 focus:border-danger-500 focus:ring-danger-500/30'
