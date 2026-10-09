@@ -1,20 +1,20 @@
 <section class="py-4">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
-            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ __('Devices & Sessions') }}</h3>
+            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{{ __('Browsers & Sessions') }}</h3>
             <p class="mt-0.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300">
-                {{ __('Manage trusted devices and view your current active session.') }}
+                {{ __('Manage trusted browser profiles and view your current active session.') }}
             </p>
         </div>
         <div class="flex shrink-0 items-center gap-2">
-            <x-ui.badge status="active" dot>{{ $trustedDevices->count() }} {{ str('Device')->plural($trustedDevices->count()) }}</x-ui.badge>
+            <x-ui.badge status="active" dot>{{ $trustedDevices->count() }} {{ str('Browser')->plural($trustedDevices->count()) }}</x-ui.badge>
             <x-ui.button type="button" size="sm" variant="secondary" x-on:click="$dispatch('open-modal', 'manage-devices-modal')">
-                {{ __('Manage Devices') }}
+                {{ __('Manage Browsers') }}
             </x-ui.button>
         </div>
     </div>
 
-    <x-ui.modal name="manage-devices-modal" :title="__('Trusted Devices & Active Session')" maxWidth="lg">
+    <x-ui.modal name="manage-devices-modal" :title="__('Trusted Browsers & Active Session')" maxWidth="lg">
         <div class="space-y-5">
             {{-- Active Session Card --}}
             <div>
@@ -29,7 +29,7 @@
                             </span>
                             <div class="min-w-0">
                                 <p class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                                    {{ $activeSession?->device_name ?: 'Current Device' }}
+                                    {{ $activeSession?->device_name ?: 'Current Browser' }}
                                 </p>
                                 <p class="text-xs text-neutral-600 dark:text-neutral-400">
                                     {{ $activeSession?->browser }} on {{ $activeSession?->platform }} &bull; IP: {{ $activeSession?->ip_address ?: 'Unknown' }}
@@ -41,24 +41,24 @@
                         </div>
                         <span class="inline-flex items-center gap-1 rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-medium text-success-700 border border-success-200 dark:bg-success-950/50 dark:text-success-300 dark:border-success-800">
                             <span class="h-1.5 w-1.5 rounded-full bg-success-500"></span>
-                            {{ __('This Device') }}
+                            {{ __('This Browser') }}
                         </span>
                     </div>
                 </div>
             </div>
 
-            {{-- Trusted Devices List --}}
+            {{-- Trusted Browsers List --}}
             <div>
                 <h4 class="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                    {{ __('Recognized Trusted Devices') }} ({{ $trustedDevices->count() }})
+                    {{ __('Trusted Browsers') }} ({{ $trustedDevices->count() }})
                 </h4>
                 <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-                    {{ __('These devices can take over your active session without waiting for approval.') }}
+                    {{ __('These browser profiles can take over your active session without waiting for approval.') }}
                 </p>
 
                 @if ($trustedDevices->isEmpty())
                     <div class="mt-3 rounded-lg border border-dashed border-neutral-300 p-6 text-center text-xs text-neutral-500 dark:border-neutral-700">
-                        {{ __('No trusted devices registered yet.') }}
+                        {{ __('No trusted browsers registered yet.') }}
                     </div>
                 @else
                     <ul class="mt-3 divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
@@ -87,9 +87,9 @@
                                     <form
                                         method="POST"
                                         action="{{ route('profile.trusted-devices.destroy', $device) }}"
-                                        data-confirm-title="Revoke trusted device"
-                                        data-confirm-message="Revoke trust for this device? It will be required to verify again on its next sign-in."
-                                        data-confirm-label="Revoke Device"
+                                        data-confirm-title="Revoke trusted browser"
+                                        data-confirm-message="Revoke trust for this browser profile? It will be required to verify again on its next sign-in."
+                                        data-confirm-label="Revoke Browser"
                                         data-confirm-destructive
                                     >
                                         @csrf

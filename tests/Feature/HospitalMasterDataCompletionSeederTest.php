@@ -41,9 +41,9 @@ class HospitalMasterDataCompletionSeederTest extends TestCase
             ['id' => 3, 'code' => 'PHARMA', 'name' => 'Pharmaceuticals'],
             ['id' => 4, 'code' => 'MED-CONS', 'name' => 'Medical Consumables'],
             ['id' => 5, 'code' => 'DIAG-SUP', 'name' => 'Diagnostic Supplies'],
-            ['id' => 30001, 'code' => 'SWS-DEMO-MED', 'name' => 'Demo Med Supplies'],
-            ['id' => 30002, 'code' => 'SWS-DEMO-PHARMA', 'name' => 'Demo Pharma'],
-            ['id' => 30003, 'code' => 'SWS-DEMO-SURG', 'name' => 'Demo Surgery'],
+            ['id' => 30001, 'code' => 'MED-WH', 'name' => 'Central Warehouse Medical Supplies'],
+            ['id' => 30002, 'code' => 'PHARMA-WH', 'name' => 'Clinical Pharmaceuticals'],
+            ['id' => 30003, 'code' => 'SURG-CONS', 'name' => 'Surgical Consignment Implants'],
         ];
         foreach ($categories as $cat) {
             ItemCategory::create($cat + ['is_active' => true]);
@@ -54,7 +54,7 @@ class HospitalMasterDataCompletionSeederTest extends TestCase
             ['id' => 1, 'code' => 'WH-01', 'name' => 'Main Warehouse', 'type' => 'warehouse'],
             ['id' => 2, 'code' => 'WH-01-A', 'name' => 'Zone A', 'type' => 'zone'],
             ['id' => 3, 'code' => 'PHARM-01', 'name' => 'Central Pharmacy', 'type' => 'pharmacy'],
-            ['id' => 30005, 'code' => 'SWS-DEMO-PICK', 'name' => 'Pick Face', 'type' => 'bin'],
+            ['id' => 30005, 'code' => 'CWH-PICK-A01', 'name' => 'Fast-Moving Pick Face A01', 'type' => 'bin'],
             ['id' => 30008, 'code' => 'W1-Z1-A01-R01-B01', 'name' => 'Ambient Bin 1', 'type' => 'bin'],
             ['id' => 30011, 'code' => 'W1-Z2-COLD-R01-B01', 'name' => 'Cold Shelf 1', 'type' => 'bin'],
             ['id' => 30013, 'code' => 'W1-Z3-VAULT-S01-B01', 'name' => 'Narcotics Drawer 1', 'type' => 'bin'],
@@ -126,7 +126,7 @@ class HospitalMasterDataCompletionSeederTest extends TestCase
             'FCAST-GLOVE-M', 'FCAST-SYRINGE-5ML', 'FCAST-IVC-22G', 'FCAST-GAUZE-4X4',
             'FCAST-SALINE-1L', 'FCAST-CEFTRI-1G', 'FCAST-ALCOHOL-500', 'FCAST-ECG-ELECTRODE',
             'FCAST-GLUCOSE-STRIP', 'FCAST-CATHETER-16FR', 'FCAST-SUTURE-3-0', 'MED-VENT-01',
-            'MED-GAUZE-ST', 'MED-TITAN-PL', 'MED-INF-SET', 'SWS-DEMO-SYRINGE-5ML',
+            'MED-GAUZE-ST', 'MED-TITAN-PL', 'MED-INF-SET', 'MED-SYR-005ML',
             'DRG-MORS-002', 'DRG-RABV-003', 'DRG-DOBU-004', 'DRG-DOPA-005',
             'MED-STNT-006', 'VAC-RAB-VER05', 'ANT-MER-1G00', 'PPE-GOWN-XL',
         ];

@@ -1,8 +1,8 @@
 HIMS Security Notice - Session Transferred
 
-Your HIMS session was transferred to a recognized trusted device:
+Your HIMS session was transferred to a trusted browser:
 
-Device: {{ $deviceSummary }}
+Browser: {{ $deviceSummary }}
 @if ($ipAddress)
 IP Address: {{ $ipAddress }}
 @endif

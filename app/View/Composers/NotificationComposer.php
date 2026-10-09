@@ -3,30 +3,39 @@
 namespace App\View\Composers;
 
 use App\Models\User;
+use App\Services\HimsNotificationService;
 use Illuminate\View\View;
 
 class NotificationComposer
 {
+    public function __construct(private readonly HimsNotificationService $notifications) {}
+
     public function compose(View $view): void
     {
         $user = request()->user();
 
         if (! $user instanceof User) {
-            $view->with(['topbarNotifications' => collect(), 'topbarUnreadCount' => 0]);
+            $view->with([
+                'topbarNotifications' => collect(),
+                'topbarNotificationsNextUrl' => null,
+                'topbarUnreadCount' => 0,
+            ]);
 
             return;
         }
 
-        $notifications = $user->notifications()
-            ->select('notifications.*')
-            ->selectRaw('SUM(CASE WHEN read_at IS NULL THEN 1 ELSE 0 END) OVER () AS total_unread_count')
+        $feed = $this->notifications->feedFor($user);
+        $unreadCount = (clone $feed)->whereNull('read_at')->count();
+        $notifications = $feed
             ->latest()
-            ->limit(8)
-            ->get();
+            ->orderByDesc('id')
+            ->cursorPaginate(HimsNotificationService::FEED_BATCH_SIZE)
+            ->withPath(route('notifications.index'));
 
         $view->with([
-            'topbarNotifications' => $notifications,
-            'topbarUnreadCount' => (int) ($notifications->first()?->total_unread_count ?? 0),
+            'topbarNotifications' => $notifications->getCollection(),
+            'topbarNotificationsNextUrl' => $notifications->nextPageUrl(),
+            'topbarUnreadCount' => $unreadCount,
         ]);
     }
 }

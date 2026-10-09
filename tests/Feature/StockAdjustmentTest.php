@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\InventoryAdjustment;
 use App\Models\InventoryItem;
 use App\Models\ItemStockLevel;
 use App\Models\StockAlert;
@@ -167,5 +168,61 @@ class StockAdjustmentTest extends TestCase
         ])->assertSessionHasErrors('location_id');
 
         $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_adjustment_metric_cards_show_complete_counts_details_and_filter_the_registry(): void
+    {
+        [$user, $item, $location] = $this->stockedItem();
+
+        foreach (range(1, 17) as $index) {
+            InventoryAdjustment::create([
+                'adjustment_number' => sprintf('ADJ-TEST-%04d', $index),
+                'item_id' => $item->id,
+                'storage_location_id' => $location->id,
+                'current_quantity' => 100,
+                'adjustment_quantity' => 1,
+                'resulting_quantity' => 101,
+                'unit_cost' => 1.25,
+                'total_variance_value' => 1.25,
+                'adjustment_type' => 'increase',
+                'reason_code' => 'count_variance',
+                'explanation' => 'Metric card regression fixture',
+                'status' => 'pending_approval',
+                'requested_by_id' => $user->id,
+            ]);
+        }
+
+        InventoryAdjustment::create([
+            'adjustment_number' => 'ADJ-TEST-POSTED',
+            'item_id' => $item->id,
+            'storage_location_id' => $location->id,
+            'current_quantity' => 100,
+            'adjustment_quantity' => -1,
+            'resulting_quantity' => 99,
+            'unit_cost' => 1.25,
+            'total_variance_value' => 1.25,
+            'adjustment_type' => 'decrease',
+            'reason_code' => 'count_variance',
+            'explanation' => 'Metric card regression fixture',
+            'status' => 'posted',
+            'requested_by_id' => $user->id,
+            'posted_at' => now(),
+        ]);
+
+        $response = $this->actingAs($user)->get(route('inventory.adjustments', ['status' => 'pending_approval']));
+
+        $response->assertOk();
+        $response->assertViewHas('metrics', [
+            'total' => 18,
+            'pending_review' => 17,
+            'dual_tier' => 0,
+            'posted' => 1,
+        ]);
+        $response->assertViewHas('adjustments', fn ($adjustments) => $adjustments->total() === 17
+            && $adjustments->getCollection()->every(fn (InventoryAdjustment $adjustment) => $adjustment->status === 'pending_approval'));
+        $response->assertSee('data-metric-details=', false);
+        $response->assertSee('13 more', false);
+        $response->assertSee('Show all adjustments');
+        $response->assertSee(route('inventory.adjustments', ['status' => 'posted']).'#adjustment-registry', false);
     }
 }

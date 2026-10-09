@@ -1,11 +1,11 @@
-<header class="sticky top-0 z-30 flex min-w-0 max-w-full items-center gap-3 h-16 px-4 sm:px-6 lg:px-8
+<header class="sticky top-0 z-30 flex min-h-16 min-w-0 max-w-full flex-wrap items-center gap-2 px-4 py-2 sm:px-6 lg:h-16 lg:flex-nowrap lg:gap-3 lg:px-8 lg:py-0
                bg-white/95 backdrop-blur border-b border-neutral-200
                dark:bg-neutral-900/95 dark:border-neutral-800">
     {{-- Sidebar toggle --}}
     <button
         type="button"
         x-on:click="sidebarOpen = !sidebarOpen"
-        class="p-2 -ml-2 rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900
+        class="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 lg:h-9 lg:w-9
                dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
         :aria-expanded="sidebarOpen ? 'true' : 'false'"
@@ -24,7 +24,7 @@
 
     {{-- Global HIMS Multi-Entity Live Search & Autocomplete --}}
     <div
-        class="relative flex-1 min-w-0 max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg"
+        class="relative order-last w-full min-w-0 basis-full lg:order-none lg:w-auto lg:max-w-lg lg:flex-1 lg:basis-auto"
         x-data="himsGlobalSearch({
             endpoint: @js(route('global-search')),
             initialQuery: @js(request()->routeIs('inventory.items') ? request('search', '') : '')
@@ -55,7 +55,7 @@
                 x-bind:aria-expanded="open"
                 x-bind:aria-activedescendant="activeIndex >= 0 ? `global-search-item-${activeIndex}` : null"
                 placeholder="Search items, SKU, barcode..."
-                class="w-full pl-9 pr-8 py-2 text-sm bg-neutral-50 border border-neutral-300 rounded-md
+                class="min-h-11 w-full rounded-md border border-neutral-300 bg-neutral-50 py-2 pl-9 pr-10 text-base lg:min-h-0 lg:text-sm
                        placeholder:text-neutral-400 focus:bg-white focus:border-primary-500
                        focus:ring-2 focus:ring-primary-500/30
                        dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus:bg-neutral-900
@@ -83,7 +83,7 @@
             x-show="open"
             x-cloak
             x-transition.opacity.duration.150ms
-            class="absolute left-0 right-0 top-full mt-1.5 w-full z-50
+            class="absolute left-0 right-0 top-full z-50 mt-1.5 w-full
                    rounded-xl border border-neutral-200 dark:border-neutral-800
                    bg-white dark:bg-neutral-900 shadow-2xl overflow-hidden"
             role="listbox"
@@ -123,7 +123,7 @@
             {{-- Grouped Search Results --}}
             <div
                 x-show="categories.length > 0"
-                class="max-h-[min(70vh,520px)] overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800/70"
+                class="max-h-[calc(100dvh-9rem)] divide-y divide-neutral-100 overflow-y-auto overscroll-contain dark:divide-neutral-800/70 sm:max-h-[min(70vh,520px)]"
             >
                 <template x-for="category in categories" :key="category.key">
                     <div class="py-2">
@@ -145,7 +145,7 @@
                             <template x-for="item in category.items" :key="item.id">
                                 <button
                                     type="button"
-                                    class="w-full flex items-start gap-3 px-2.5 py-2 rounded-lg text-left transition-colors"
+                                    class="flex min-h-11 w-full items-start gap-3 rounded-lg px-2.5 py-2 text-left transition-colors"
                                     :id="`global-search-item-${flatItems.findIndex(f => f.id === item.id)}`"
                                     :class="activeIndex === flatItems.findIndex(f => f.id === item.id)
                                         ? 'bg-primary-50 dark:bg-primary-950/70 text-primary-950 dark:text-primary-100 ring-1 ring-primary-500/20'
@@ -229,7 +229,7 @@
             </div>
 
             {{-- Footer Keyboard Navigation Hints --}}
-            <div class="flex items-center justify-between gap-2 px-3.5 py-2 bg-neutral-50 dark:bg-neutral-950/50 border-t border-neutral-100 dark:border-neutral-800 text-[11px] text-neutral-400 dark:text-neutral-500">
+            <div class="hidden items-center justify-between gap-2 border-t border-neutral-100 bg-neutral-50 px-3.5 py-2 text-[11px] text-neutral-400 dark:border-neutral-800 dark:bg-neutral-950/50 dark:text-neutral-500 sm:flex">
                 <div class="flex items-center gap-2.5 truncate">
                     <span class="shrink-0"><kbd class="font-mono bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded px-1 py-0.5 text-[10px]">↑</kbd> <kbd class="font-mono bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded px-1 py-0.5 text-[10px]">↓</kbd> navigate</span>
                     <span class="hidden sm:inline shrink-0"><kbd class="font-mono bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded px-1 py-0.5 text-[10px]">↵</kbd> select</span>
@@ -249,11 +249,49 @@
     <x-ui.theme-toggle />
 
     {{-- Persistent, role-aware notifications --}}
-    <div class="relative" x-data="{ open: false }" x-on:keydown.escape.window="open = false">
+    <div
+        class="relative"
+        x-data="{
+            open: false,
+            nextUrl: @js($topbarNotificationsNextUrl),
+            loading: false,
+            loadError: '',
+            statusMessage: '',
+            async loadMore() {
+                if (!this.nextUrl || this.loading) return;
+
+                this.loading = true;
+                this.loadError = '';
+
+                try {
+                    const response = await fetch(this.nextUrl, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+
+                    if (!response.ok) throw new Error('Notification request failed.');
+
+                    const data = await response.json();
+                    this.$refs.notificationItems.insertAdjacentHTML('beforeend', data.html);
+                    this.nextUrl = data.next_url;
+                    this.statusMessage = data.loaded_count > 0
+                        ? `Loaded ${data.loaded_count} more notifications.`
+                        : 'All notifications are loaded.';
+                } catch (error) {
+                    this.loadError = 'Could not load older notifications. Please try again.';
+                } finally {
+                    this.loading = false;
+                }
+            }
+        }"
+        x-on:keydown.escape.window="open = false"
+    >
         <button
             type="button"
             x-on:click="open = !open"
-            class="relative flex h-9 w-9 items-center justify-center rounded-md text-neutral-500 transition
+            class="relative flex h-11 w-11 items-center justify-center rounded-md text-neutral-500 transition sm:h-9 sm:w-9
                    hover:bg-neutral-100 hover:text-neutral-900
                    dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
@@ -306,68 +344,11 @@
             </div>
 
             <div class="max-h-[min(70vh,32rem)] w-full min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain">
-                @forelse($topbarNotifications as $notification)
-                    @php
-                        $priority = \App\Enums\NotificationPriority::tryFrom((string) ($notification->data['priority'] ?? ''))
-                            ?? \App\Enums\NotificationPriority::Info;
-                        $isUnread = $notification->read_at === null;
-                        $accent = match($priority) {
-                            \App\Enums\NotificationPriority::Critical => 'bg-rose-500',
-                            \App\Enums\NotificationPriority::Warning => 'bg-amber-400',
-                            default => 'bg-primary-400',
-                        };
-                        $timestamp = $notification->created_at->diffInSeconds(now()) < 45
-                            ? 'Just now'
-                            : $notification->created_at->diffForHumans();
-                    @endphp
-                    <div class="grid w-full min-w-0 max-w-full grid-cols-[3px_minmax(0,1fr)_2.25rem] overflow-hidden border-b border-neutral-100 last:border-b-0 dark:border-neutral-800/80
-                                {{ $isUnread ? 'bg-primary-50/55 dark:bg-primary-950/20' : 'bg-white dark:bg-neutral-900' }}">
-                        <span class="{{ $accent }}" aria-hidden="true"></span>
-                        <a href="{{ route('notifications.open', $notification->id) }}"
-                           class="min-w-0 overflow-hidden px-3 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 focus-visible:outline-none focus-visible:ring-2
-                                  focus-visible:ring-inset focus-visible:ring-primary-500">
-                            <div class="flex items-start justify-between gap-2">
-                                <p class="truncate text-sm {{ $isUnread ? 'font-semibold text-neutral-950 dark:text-neutral-50' : 'font-medium text-neutral-800 dark:text-neutral-200' }}">
-                                    {{ $notification->data['title'] ?? 'HIMS notification' }}
-                                </p>
-                                @if($priority === \App\Enums\NotificationPriority::Critical)
-                                    <span class="shrink-0 rounded-full bg-rose-100 dark:bg-rose-950/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-700 dark:text-rose-300">
-                                        Critical
-                                    </span>
-                                @endif
-                            </div>
-                            <p class="mt-0.5 line-clamp-2 break-words text-xs leading-5 text-neutral-600 [overflow-wrap:anywhere] dark:text-neutral-400">
-                                {{ $notification->data['message'] ?? '' }}
-                            </p>
-                            <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-neutral-500 dark:text-neutral-400">
-                                <time datetime="{{ $notification->created_at->toIso8601String() }}">{{ $timestamp }}</time>
-                                @if($isUnread)
-                                    <span class="inline-flex items-center gap-1 font-medium text-primary-700 dark:text-primary-400">
-                                        <span class="h-1.5 w-1.5 rounded-full bg-primary-600 dark:bg-primary-500" aria-hidden="true"></span>
-                                        Unread
-                                    </span>
-                                @else
-                                    <span>Read</span>
-                                @endif
-                            </div>
-                        </a>
-                        <div class="flex min-w-0 items-start justify-center pt-3">
-                            @if($isUnread)
-                                <form method="POST" action="{{ route('notifications.read', $notification->id) }}">
-                                    @csrf
-                                    @method('PATCH')
-                                    <button type="submit"
-                                            class="rounded-md p-1.5 text-neutral-400 hover:bg-white hover:text-primary-700 dark:text-neutral-500 dark:hover:bg-neutral-800 dark:hover:text-primary-400
-                                                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-                                            title="Mark as read">
-                                        <span class="sr-only">Mark {{ $notification->data['title'] ?? 'notification' }} as read</span>
-                                        <x-ui.icon name="check" class="h-4 w-4" />
-                                    </button>
-                                </form>
-                            @endif
-                        </div>
-                    </div>
-                @empty
+                <div x-ref="notificationItems" :aria-busy="loading">
+                    @include('layouts.partials.notification-items', ['notifications' => $topbarNotifications])
+                </div>
+
+                @if($topbarNotifications->isEmpty())
                     <div class="flex flex-col items-center px-6 py-10 text-center">
                         <span class="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500">
                             <x-ui.icon name="bell-alert" class="h-5 w-5" />
@@ -377,7 +358,22 @@
                             Important updates that need your attention will appear here.
                         </p>
                     </div>
-                @endforelse
+                @endif
+
+                <div x-show="nextUrl || loadError" x-cloak class="border-t border-neutral-200 p-3 dark:border-neutral-800">
+                    <p x-show="loadError" x-text="loadError" role="alert" class="mb-2 text-center text-xs text-danger-700 dark:text-danger-300"></p>
+                    <button
+                        x-show="nextUrl"
+                        type="button"
+                        x-on:click="loadMore()"
+                        :disabled="loading"
+                        :aria-busy="loading"
+                        class="flex min-h-11 w-full items-center justify-center rounded-lg bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-200 disabled:cursor-wait disabled:opacity-70 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                    >
+                        <span x-text="loading ? 'Loading older notifications...' : (loadError ? 'Try again' : 'See previous notifications')"></span>
+                    </button>
+                    <p class="sr-only" aria-live="polite" x-text="statusMessage"></p>
+                </div>
             </div>
         </div>
     </div>
@@ -387,7 +383,7 @@
         <button
             type="button"
             x-on:click="open = !open"
-            class="flex items-center gap-2.5 p-1.5 pr-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition
+            class="flex min-h-11 items-center gap-2.5 rounded-lg p-1.5 pr-2 transition hover:bg-neutral-100 dark:hover:bg-neutral-800 sm:min-h-9
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
             :aria-expanded="open ? 'true' : 'false'"
             aria-haspopup="menu"

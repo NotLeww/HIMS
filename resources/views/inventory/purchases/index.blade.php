@@ -1966,8 +1966,8 @@
 
                                     @can(\App\Enums\Permission::ViewProcurementSensitiveData->value)
                                     {{-- Line Items Price & Total Breakdown --}}
-                                    <div class="mt-3 overflow-hidden rounded-md border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/60 text-xs">
-                                        <table class="w-full text-left">
+                                    <div class="hims-table-scroll mt-3 overflow-x-auto rounded-md border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/60 text-xs">
+                                        <table class="min-w-[42rem] w-full text-left">
                                             <thead class="bg-neutral-100/75 dark:bg-neutral-800/80 text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 border-b border-neutral-200/70 dark:border-neutral-700/80">
                                                 <tr>
                                                     <th scope="col" class="px-3 py-1.5">Item Name</th>
@@ -2244,11 +2244,16 @@
                                                     <td :colspan="selectedPo.amount !== null ? 5 : 3" class="px-3 py-4 text-center text-neutral-500 dark:text-neutral-400" x-text="selectedPo.item"></td>
                                                 </tr>
                                             </tbody>
-                                            <tfoot x-show="selectedPo.amount !== null" class="border-t border-neutral-200 dark:border-neutral-700/80 bg-neutral-50/70 dark:bg-neutral-800/80 text-xs">
-                                                <tr>
-                                                    <td colspan="4" class="px-3 py-2 text-right font-medium text-neutral-600 dark:text-neutral-300">Subtotal:</td>
-                                                    <td class="px-3 py-2 text-right font-semibold font-mono tabular-nums text-neutral-900 dark:text-neutral-100" x-text="formatCurrency(selectedPo.subtotal ?? selectedPo.amount, selectedPo.currency)"></td>
-                                                </tr>
+                                            <tfoot
+                                                x-show="selectedPo.amount !== null && (selectedPo.lines.length !== 1 || (selectedPo.additional_charges && selectedPo.additional_charges > 0) || (selectedPo.discounts && selectedPo.discounts > 0))"
+                                                class="border-t border-neutral-200 dark:border-neutral-700/80 bg-neutral-50/70 dark:bg-neutral-800/80 text-xs"
+                                            >
+                                                <template x-if="(selectedPo.additional_charges && selectedPo.additional_charges > 0) || (selectedPo.discounts && selectedPo.discounts > 0)">
+                                                    <tr>
+                                                        <td colspan="4" class="px-3 py-2 text-right font-medium text-neutral-600 dark:text-neutral-300">Subtotal:</td>
+                                                        <td class="px-3 py-2 text-right font-semibold font-mono tabular-nums text-neutral-900 dark:text-neutral-100" x-text="formatCurrency(selectedPo.subtotal ?? selectedPo.amount, selectedPo.currency)"></td>
+                                                    </tr>
+                                                </template>
                                                 <template x-if="selectedPo.additional_charges && selectedPo.additional_charges > 0">
                                                     <tr>
                                                         <td colspan="4" class="px-3 py-1.5 text-right font-medium text-neutral-600 dark:text-neutral-300">Additional Charges:</td>
@@ -2262,7 +2267,7 @@
                                                     </tr>
                                                 </template>
                                                 <tr class="border-t border-neutral-200 dark:border-neutral-700 font-semibold">
-                                                    <td colspan="4" class="px-3 py-2.5 text-right text-sm text-neutral-900 dark:text-neutral-100">Grand Total:</td>
+                                                    <td colspan="4" class="px-3 py-2.5 text-right text-sm text-neutral-900 dark:text-neutral-100">Order Total:</td>
                                                     <td class="px-3 py-2.5 text-right text-sm font-bold font-mono tabular-nums text-primary-700 dark:text-primary-400" x-text="formatCurrency(selectedPo.grand_total ?? selectedPo.amount, selectedPo.currency)"></td>
                                                 </tr>
                                             </tfoot>
@@ -2421,7 +2426,7 @@
             @php
                 $initialCanvassStep = 1;
                 if (session('success') && str_contains(session('success'), 'Procurement request')) {
-                    $initialCanvassStep = 3;
+                    $initialCanvassStep = 2;
                 } elseif (session('success') && str_contains(session('success'), 'Supplier quote')) {
                     $initialCanvassStep = 3;
                 } elseif (old('procurement_request_id') || old('quoted_price') || $errors->hasAny(['procurement_request_id', 'supplier_id', 'quoted_price', 'notes'])) {
@@ -2640,14 +2645,14 @@
                             <x-ui.button type="button" variant="secondary" size="sm" icon="arrow-left" @click="canvassStep = 1; window.scrollTo({ top: 0, behavior: 'smooth' })">
                                 Back: Planning
                             </x-ui.button>
-                            @if ($requests->isNotEmpty())
+                            @if ($approvedRequests->isNotEmpty())
                                 <x-ui.button type="button" variant="secondary" size="sm" @click="canvassStep = 3; window.scrollTo({ top: 0, behavior: 'smooth' })">
-                                    <span>Skip to Quotes</span>
+                                    <span>Continue with Approved Request</span>
                                     <x-ui.icon name="chevron-right" class="w-3.5 h-3.5 ml-1" />
                                 </x-ui.button>
                             @endif
                             <x-ui.button type="button" variant="primary" size="sm" icon="arrow-right" @click="proceedFromStep2()">
-                                <span>Save &amp; Next: Quotations</span>
+                                <span>Create Request</span>
                             </x-ui.button>
                         </div>
                     </div>
@@ -2788,9 +2793,9 @@
                                 <span>PO Workspace</span>
                                 <x-ui.icon name="chevron-right" class="w-3.5 h-3.5 ml-1" />
                             </x-ui.button>
-                            @if ($requests->isEmpty())
+                            @if ($approvedRequests->isEmpty())
                                 <x-ui.button type="button" variant="secondary" size="sm" icon="arrow-left" @click="canvassStep = 2; window.scrollTo({ top: 0, behavior: 'smooth' })">
-                                    Complete Requisition First
+                                    Approve a Request First
                                 </x-ui.button>
                             @else
                                 <x-ui.button type="button" variant="primary" size="sm" icon="check" @click="proceedFromStep3()">
@@ -2810,11 +2815,11 @@
                             </div>
 
                             @can('manage_sourcing')
-                                @if ($requests->isEmpty())
+                                @if ($approvedRequests->isEmpty())
                                     <div class="rounded-lg border border-dashed border-neutral-200 bg-neutral-50/70 p-5 text-center">
                                         <x-ui.icon name="document-text" class="mx-auto h-7 w-7 text-neutral-400 mb-1.5" />
-                                        <p class="text-xs font-semibold text-neutral-700">Create a procurement request first</p>
-                                        <p class="mt-0.5 text-[11px] text-neutral-500">A quote has to attach to one before quotes can be recorded.</p>
+                                        <p class="text-xs font-semibold text-neutral-700">Approve a procurement request first</p>
+                                        <p class="mt-0.5 text-[11px] text-neutral-500">Supplier quotations can only be attached to approved requests.</p>
                                         <div class="mt-3">
                                             <x-ui.button type="button" variant="primary" size="sm" icon="arrow-left" @click="canvassStep = 2; window.scrollTo({ top: 0, behavior: 'smooth' })">
                                                 Go to Step 2: Requisition
@@ -2833,7 +2838,7 @@
                                             </label>
                                             <select id="quote-request" name="procurement_request_id" class="block w-full rounded-lg border border-neutral-300 bg-white pl-3 pr-8 py-1.5 text-xs text-neutral-800 shadow-2xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-colors" required>
                                                 <option value="">Select request</option>
-                                                @foreach ($requests as $procurementRequest)
+                                                @foreach ($approvedRequests as $procurementRequest)
                                                     <option value="{{ $procurementRequest->id }}" @selected(old('procurement_request_id') == $procurementRequest->id)>
                                                         {{ $procurementRequest->request_number }} — {{ $procurementRequest->title }}
                                                         ({{ $procurementRequest->item?->name ?? 'no item' }})

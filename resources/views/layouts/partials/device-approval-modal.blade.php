@@ -196,34 +196,34 @@
                     <h3 id="device-approval-title" class="mt-2 text-xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
                         Is this you?
                     </h3>
-                    <p id="device-approval-description" class="mt-1 text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                        An unrecognized device entered the correct password for your account and is requesting access.
+                    <p id="device-approval-description" class="mt-1 text-sm text-neutral-700 dark:text-neutral-400 leading-relaxed">
+                        An unrecognized browser entered the correct password for your account and is requesting access.
                     </p>
                 </div>
             </div>
 
-            <div class="mt-5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/40 p-4 text-xs space-y-2.5 text-neutral-600 dark:text-neutral-400">
+            <div class="mt-5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/40 p-4 text-xs space-y-2.5 text-neutral-700 dark:text-neutral-400">
                 <div class="flex items-center justify-between">
-                    <span class="text-neutral-500">Device & Browser:</span>
+                    <span class="font-medium text-neutral-600 dark:text-neutral-400">Browser & Platform:</span>
                     <span class="font-semibold text-neutral-900 dark:text-neutral-200" x-text="pendingRequest ? `${pendingRequest.browser} on ${pendingRequest.platform}` : 'Unknown'"></span>
                 </div>
                 <div class="flex items-center justify-between">
-                    <span class="text-neutral-500">Network address:</span>
+                    <span class="font-medium text-neutral-600 dark:text-neutral-400">Network address:</span>
                     <span class="font-mono text-neutral-900 dark:text-neutral-200" x-text="pendingRequest?.ip_address || 'Unknown'"></span>
                 </div>
                 <div class="flex items-center justify-between">
-                    <span class="text-neutral-500">Requested:</span>
+                    <span class="font-medium text-neutral-600 dark:text-neutral-400">Requested:</span>
                     <span class="text-neutral-900 dark:text-neutral-200" x-text="pendingRequest ? `${pendingRequest.time_ago} (${pendingRequest.requested_at})` : 'Just now'"></span>
                 </div>
                 <div class="flex items-center justify-between">
-                    <span class="text-neutral-500">Device Status:</span>
-                    <span class="font-medium text-amber-700 dark:text-amber-400">Unrecognized Device</span>
+                    <span class="font-medium text-neutral-600 dark:text-neutral-400">Browser Status:</span>
+                    <span class="font-medium text-amber-700 dark:text-amber-400">Unrecognized Browser</span>
                 </div>
             </div>
 
-            <div class="mt-4 rounded-lg bg-neutral-100/70 dark:bg-neutral-800/50 p-3 text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+            <div class="mt-4 rounded-lg bg-neutral-100/70 dark:bg-neutral-800/50 p-3 text-xs text-neutral-700 dark:text-neutral-400 leading-relaxed">
                 <span class="font-medium text-neutral-800 dark:text-neutral-200">Notice:</span>
-                HIMS enforces single-active-device access. Approving will transfer your session and log out this device immediately.
+                HIMS allows one active browser session at a time. Approving will transfer your session and sign out this browser immediately.
             </div>
 
             <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -266,7 +266,7 @@
                     @click="approve(true)"
                     class="inline-flex justify-center items-center rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
-                    <span x-show="processingAction !== 'approve-trust'">Yes, approve and trust device</span>
+                    <span x-show="processingAction !== 'approve-trust'">Yes, approve and trust browser</span>
                     <span x-show="processingAction === 'approve-trust'" class="flex items-center gap-2">
                         <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

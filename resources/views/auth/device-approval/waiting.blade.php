@@ -1,5 +1,5 @@
 <x-guest-layout
-    :title="$panel->label().' Device Approval'"
+    :title="$panel->label().' Browser Approval'"
     portal="{{ $panel->value }}"
 >
     <div
@@ -144,20 +144,20 @@
                     </div>
 
                     <h1 class="mt-3 text-2xl font-bold tracking-tight text-neutral-900">
-                        {{ $approvalEmailsEnabled ? 'Check Your Email' : 'Check Your Active Device' }}
+                        {{ $approvalEmailsEnabled ? 'Check Your Email' : 'Check Your Active Browser' }}
                     </h1>
                     <p class="mt-2 text-sm leading-relaxed text-neutral-600">
                         @if ($approvalEmailsEnabled)
                             We sent a sign-in approval request to your registered email. If another trusted session is active, you can also approve it there.
                         @else
-                            Approve this sign-in request from a device where your account is already active. Without an active session, this request cannot be completed while approval emails are disabled.
+                            Approve this sign-in request from a browser where your account is already active. Without an active session, this request cannot be completed while approval emails are disabled.
                         @endif
                     </p>
                 </header>
 
                 <div class="rounded-xl border border-neutral-200/80 bg-neutral-50/50 p-4 text-xs text-neutral-600 space-y-2.5">
                     <div class="flex items-center justify-between">
-                        <span class="text-neutral-500">Requesting Device:</span>
+                        <span class="text-neutral-500">Requesting Browser:</span>
                         <span class="font-medium text-neutral-900">{{ $approvalRequest->device_name ?: 'Web Browser' }}</span>
                     </div>
                     <div class="flex items-center justify-between">
@@ -199,7 +199,7 @@
                 <div>
                     <h2 class="text-2xl font-bold tracking-tight text-neutral-900">Sign-In Approved!</h2>
                     <p class="mt-2 text-sm text-neutral-600">
-                        Transferring your active session to this device...
+                        Transferring your active session to this browser...
                     </p>
                 </div>
 
@@ -240,7 +240,7 @@
                 <div class="rounded-xl border border-danger-200 bg-danger-50 p-4 text-left text-xs text-danger-900 dark:border-rose-800/80 dark:bg-rose-950/60 dark:text-rose-100">
                     <p class="font-semibold">Temporary Security Cooldown Active</p>
                     <p class="mt-1 leading-relaxed text-danger-800 dark:text-rose-200">
-                        To protect the account, further sign-in attempts from this unrecognized device are temporarily suspended for 15 minutes.
+                        To protect the account, further sign-in attempts from this unrecognized browser are temporarily suspended for 15 minutes.
                     </p>
                 </div>
 
@@ -267,7 +267,7 @@
                         Request Expired
                     </h2>
                     <p class="mt-2 text-sm text-neutral-600 leading-relaxed">
-                        The approval request timed out before receiving a response from your active device.
+                        The approval request timed out before receiving a response from your active browser.
                     </p>
                 </div>
 

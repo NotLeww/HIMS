@@ -19,6 +19,7 @@
 @endphp
 
 <div
+    data-workflow-navigation
     class="rounded-xl border border-neutral-200 bg-white p-2.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
     x-data="{ openDropdown: null }"
     @keydown.escape.window="openDropdown = null"

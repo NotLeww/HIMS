@@ -1,16 +1,16 @@
 <x-app-layout>
     <x-slot name="header">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <p class="text-xs font-semibold uppercase tracking-wider text-primary-700 dark:text-primary-400">Smart Warehousing</p>
-                <h2 class="text-2xl font-bold text-neutral-900 dark:text-neutral-100">Warehouse Hierarchy &amp; Locations</h2>
+            <div class="flex min-w-0 items-center gap-3">
+                <span class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700 ring-1 ring-primary-200 dark:bg-primary-950/80 dark:text-primary-300 dark:ring-primary-800/60" aria-hidden="true">
+                    <x-ui.icon name="cube" class="size-6" />
+                </span>
+                <div class="min-w-0">
+                    <h2 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">Storage Areas</h2>
+                    <p class="text-sm text-neutral-600 dark:text-neutral-400">Manage rooms, shelves, and storage zones.</p>
+                </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                @can(\App\Enums\Permission::ManageLocations->value)
-                    <x-ui.button type="button" variant="primary" icon="plus" x-data x-on:click="$dispatch('open-modal', 'add-storage-location')">
-                        Add Location
-                    </x-ui.button>
-                @endcan
                 <x-ui.button variant="secondary" :href="route('inventory.warehousing.dashboard')" icon="arrow-left">Back to Smart Warehousing</x-ui.button>
             </div>
         </div>
@@ -191,23 +191,143 @@
     @endcan
 
     <div x-data="{ deactivateModal: false, confirmDeactivateModal: false, activateModal: false, confirmActivateModal: false, targetLocation: null, reason: '', reasonError: null }" class="space-y-6">
-        <x-ui.card title="Location registry" subtitle="Occupancy is calculated from the authoritative location balance.">
+        <x-ui.card :padding="false" title="Storage Areas" subtitle="Occupancy is calculated from the authoritative location balance.">
             @can(\App\Enums\Permission::ManageLocations->value)
                 <x-slot:actions>
                     <x-ui.button type="button" size="sm" variant="primary" icon="plus" x-data x-on:click="$dispatch('open-modal', 'add-storage-location')">
-                        Add Location
+                        Add Storage Area
                     </x-ui.button>
                 </x-slot:actions>
             @endcan
+
+            <form method="GET" action="{{ route('inventory.storage-locations') }}" class="grid gap-3 border-b border-neutral-200 p-4 dark:border-neutral-800 sm:grid-cols-2 lg:grid-cols-[minmax(18rem,1fr)_minmax(10rem,14rem)_minmax(10rem,14rem)_auto]" aria-label="Filter storage areas">
+                <div class="relative sm:col-span-2 lg:col-span-1">
+                    <label for="storage-area-search" class="sr-only">Search storage areas</label>
+                    <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-neutral-400" aria-hidden="true">
+                        <x-ui.icon name="magnifying-glass" class="size-4" />
+                    </span>
+                    <input id="storage-area-search" name="search" value="{{ request('search') }}" type="search" placeholder="Search room, department, or zone..." class="block min-h-10 w-full rounded-lg border-neutral-300 bg-white py-2 pl-10 pr-10 text-sm text-neutral-900 shadow-2xs placeholder:text-neutral-500 focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-400">
+                    <button type="submit" class="absolute inset-y-0 right-0 inline-flex w-10 items-center justify-center rounded-r-lg text-neutral-500 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 dark:text-neutral-400 dark:hover:text-primary-300" aria-label="Search storage areas">
+                        <x-ui.icon name="arrow-right" class="size-4" />
+                    </button>
+                </div>
+
+                <div>
+                    <label for="storage-area-type" class="sr-only">Location type</label>
+                    <select id="storage-area-type" name="type" onchange="this.form.submit()" class="block min-h-10 w-full rounded-lg border-neutral-300 bg-white py-2 pl-3 pr-10 text-sm text-neutral-900 shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                        <option value="">All location types</option>
+                        @foreach($locationTypes as $locationType)
+                            <option value="{{ $locationType }}" @selected(request('type') === $locationType)>{{ str($locationType)->replace('_', ' ')->title() }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div>
+                    <label for="storage-area-status" class="sr-only">Operational status</label>
+                    <select id="storage-area-status" name="status" onchange="this.form.submit()" class="block min-h-10 w-full rounded-lg border-neutral-300 bg-white py-2 pl-3 pr-10 text-sm text-neutral-900 shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                        <option value="">All statuses</option>
+                        @foreach(['active' => 'Active', 'blocked' => 'Blocked', 'inactive' => 'Inactive'] as $value => $label)
+                            <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                @if(request()->filled('search') || request()->filled('type') || request()->filled('status'))
+                    <x-ui.button variant="ghost" :href="route('inventory.storage-locations')">Clear filters</x-ui.button>
+                @else
+                    <div class="hidden lg:block" aria-hidden="true"></div>
+                @endif
+            </form>
+
             <x-ui.table>
-                <x-ui.table.head><tr><x-ui.table.th>Code / location</x-ui.table.th><x-ui.table.th>Type</x-ui.table.th><x-ui.table.th>Classification</x-ui.table.th><x-ui.table.th>Purpose</x-ui.table.th><x-ui.table.th>Occupancy</x-ui.table.th><x-ui.table.th>Status</x-ui.table.th><x-ui.table.th>Controls</x-ui.table.th></tr></x-ui.table.head>
-                <tbody>@forelse($locations as $location)<x-ui.table.row>
-                    <x-ui.table.td><p class="font-mono text-xs font-semibold text-primary-700">{{ $location->code }}</p><p class="font-medium">{{ $location->fullPath() }}</p></x-ui.table.td>
-                    <x-ui.table.td>{{ str($location->type)->replace('_',' ')->title() }}</x-ui.table.td>
-                    <x-ui.table.td><p>{{ $location->storage_classification ? str($location->storage_classification)->replace('_',' ')->title() : 'Any' }}</p><p class="text-xs text-neutral-500">{{ $location->temperature_classification ? str($location->temperature_classification)->replace('_',' ')->title() : 'Not fixed' }}</p></x-ui.table.td>
-                    <x-ui.table.td><div class="flex max-w-xs flex-wrap gap-1">@foreach(['is_receiving_staging'=>'Receiving','is_quarantine'=>'Quarantine','is_pick_face'=>'Pick face','is_reserve'=>'Reserve','is_dispatch_staging'=>'Dispatch','is_in_transit'=>'In transit','is_returns_area'=>'Returns','is_damaged_stock'=>'Damaged'] as $flag=>$label)@if($location->{$flag})<span class="rounded bg-neutral-100 px-2 py-0.5 text-xs">{{ $label }}</span>@endif @endforeach</div></x-ui.table.td>
-                    <x-ui.table.td>{{ number_format($location->totalQuantity()) }}@if($location->capacity) / {{ number_format($location->capacity) }} {{ $location->capacity_unit }}<p class="text-xs text-neutral-500">{{ $location->utilisation() }}%</p>@endif</x-ui.table.td>
-                    <x-ui.table.td><x-ui.badge :status="$location->status">{{ str($location->status)->title() }}</x-ui.badge></x-ui.table.td>
+                <x-ui.table.head>
+                    <tr>
+                        <x-ui.table.th>Area ID &amp; name</x-ui.table.th>
+                        <x-ui.table.th>Location</x-ui.table.th>
+                        <x-ui.table.th class="hidden md:table-cell">Item type</x-ui.table.th>
+                        <x-ui.table.th class="hidden lg:table-cell">Purpose</x-ui.table.th>
+                        <x-ui.table.th>Capacity / usage</x-ui.table.th>
+                        <x-ui.table.th>Status</x-ui.table.th>
+                        <x-ui.table.th align="right">Actions</x-ui.table.th>
+                    </tr>
+                </x-ui.table.head>
+                <tbody>
+                @forelse($locations as $location)
+                    @php
+                        $locationIcon = match (true) {
+                            in_array($location->temperature_classification, ['refrigerated', 'frozen', 'deep_frozen'], true) => 'beaker',
+                            $location->type === 'pharmacy' => 'building-storefront',
+                            $location->type === 'department' => 'building-office-2',
+                            in_array($location->type, ['rack', 'shelf', 'level'], true) => 'archive-box',
+                            $location->type === 'zone' => 'map-pin',
+                            default => 'cube',
+                        };
+                        $locationIconClasses = match (true) {
+                            $location->is_quarantine || $location->is_damaged_stock => 'bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-950/70 dark:text-rose-300 dark:ring-rose-900/60',
+                            $location->is_in_transit || $location->is_dispatch_staging => 'bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-950/70 dark:text-amber-300 dark:ring-amber-900/60',
+                            $location->type === 'pharmacy' => 'bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/70 dark:text-emerald-300 dark:ring-emerald-900/60',
+                            default => 'bg-primary-100 text-primary-700 ring-primary-200 dark:bg-primary-950/70 dark:text-primary-300 dark:ring-primary-900/60',
+                        };
+                        $quantity = $location->totalQuantity();
+                        $utilisation = $location->utilisation();
+                    @endphp
+                    <x-ui.table.row>
+                    <x-ui.table.td>
+                        <div class="flex min-w-56 items-center gap-3">
+                            <span class="flex size-10 shrink-0 items-center justify-center rounded-xl ring-1 {{ $locationIconClasses }}" aria-hidden="true">
+                                <x-ui.icon :name="$locationIcon" class="size-5" />
+                            </span>
+                            <div class="min-w-0">
+                                <p class="font-mono text-xs font-semibold text-primary-700 dark:text-primary-300">{{ $location->code }}</p>
+                                <p class="font-semibold text-neutral-900 dark:text-neutral-100">{{ $location->name }}</p>
+                            </div>
+                        </div>
+                    </x-ui.table.td>
+                    <x-ui.table.td>
+                        <div class="flex items-center gap-2">
+                            <span class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300" aria-hidden="true">
+                                <x-ui.icon name="map-pin" class="size-4" />
+                            </span>
+                            <div>
+                                <p class="font-medium text-neutral-900 dark:text-neutral-100">{{ str($location->type)->replace('_', ' ')->title() }}</p>
+                                <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ $location->parent?->name ?? 'Root location' }}</p>
+                            </div>
+                        </div>
+                    </x-ui.table.td>
+                    <x-ui.table.td class="hidden md:table-cell">
+                        <p class="font-medium text-neutral-900 dark:text-neutral-100">{{ $location->storage_classification ? str($location->storage_classification)->replace('_', ' ')->title() : 'Any compatible item' }}</p>
+                        <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ $location->temperature_classification ? str($location->temperature_classification)->replace('_', ' ')->title() : 'No fixed temperature' }}</p>
+                    </x-ui.table.td>
+                    <x-ui.table.td class="hidden lg:table-cell">
+                        <div class="flex max-w-xs flex-wrap gap-1.5">
+                            @forelse(['is_receiving_staging'=>'Receiving','is_quarantine'=>'Quarantine','is_pick_face'=>'Pick face','is_reserve'=>'Reserve','is_dispatch_staging'=>'Dispatch','is_in_transit'=>'In transit','is_returns_area'=>'Returns','is_damaged_stock'=>'Damaged'] as $flag=>$label)
+                                @if($location->{$flag})
+                                    <span class="inline-flex rounded-md bg-neutral-100 px-2 py-1 text-xs font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">{{ $label }}</span>
+                                @endif
+                            @empty
+                            @endforelse
+                            @if(! collect(['is_receiving_staging','is_quarantine','is_pick_face','is_reserve','is_dispatch_staging','is_in_transit','is_returns_area','is_damaged_stock'])->contains(fn ($flag) => $location->{$flag}))
+                                <span class="text-xs text-neutral-500 dark:text-neutral-400">General storage</span>
+                            @endif
+                        </div>
+                    </x-ui.table.td>
+                    <x-ui.table.td>
+                        <div class="min-w-32 tabular-nums">
+                            <p class="font-semibold text-neutral-900 dark:text-neutral-100">
+                                {{ number_format($quantity) }}@if($location->capacity) / {{ number_format($location->capacity) }}@endif
+                            </p>
+                            <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ $location->capacity_unit ?? 'units' }}</p>
+                            @if($utilisation !== null)
+                                <div class="mt-1.5 flex items-center gap-2">
+                                    <span class="h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700" aria-hidden="true">
+                                        <span class="block h-full rounded-full {{ $utilisation > 100 ? 'bg-rose-500' : 'bg-emerald-500' }}" style="width: {{ min(100, $utilisation) }}%"></span>
+                                    </span>
+                                    <span class="text-xs text-neutral-500 dark:text-neutral-400">{{ $utilisation }}%</span>
+                                </div>
+                            @endif
+                        </div>
+                    </x-ui.table.td>
+                    <x-ui.table.td><x-ui.badge :status="$location->status" :dot="true">{{ str($location->status)->title() }}</x-ui.badge></x-ui.table.td>
                     <x-ui.table.td><div class="flex min-w-40 items-center justify-end gap-2">
                         @can(\App\Enums\Permission::PrintWarehouseLabels->value)
                             <form method="POST" action="{{ route('inventory.storage-locations.label', $location) }}" target="_blank">
@@ -238,10 +358,14 @@
                             @endif
                         @endif
                     </div></x-ui.table.td>
-                </x-ui.table.row>@empty<x-ui.table.empty colspan="7" title="No storage locations" message="Configure the real warehouse hierarchy before creating physical tasks." />@endforelse</tbody>
+                    </x-ui.table.row>
+                @empty
+                    <x-ui.table.empty colspan="7" title="No storage areas found" message="Adjust the filters or add a storage area to the warehouse hierarchy." />
+                @endforelse
+                </tbody>
             </x-ui.table>
             @if ($locations->hasPages())
-                <div class="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+                <div class="border-t border-neutral-200 p-4 dark:border-neutral-800">
                     {{ $locations->onEachSide(1)->links() }}
                 </div>
             @endif

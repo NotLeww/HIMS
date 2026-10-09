@@ -200,6 +200,8 @@ class AuditTrailTest extends TestCase
             ->assertSee('Smartphone')
             ->assertSee('Apple iPhone')
             ->assertSee('Mobile Safari 18.0')
+            ->assertSee('IP Address')
+            ->assertSee('127.0.0.1')
             ->assertSee('Raw user agent');
     }
 

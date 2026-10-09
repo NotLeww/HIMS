@@ -109,6 +109,7 @@
     {{-- Delivered Item Table --}}
     <section class="iar-document__section" aria-labelledby="iar-items-title">
         <h2 id="iar-items-title" class="iar-document__section-title">Items delivered</h2>
+        <div class="iar-document__table-scroll" tabindex="0" role="region" aria-label="Items delivered">
         <table class="iar-document__table">
             <colgroup>
                 <col style="width: 6%">
@@ -163,6 +164,7 @@
                 </tr>
             </tfoot>
         </table>
+        </div>
     </section>
 
     {{-- Inspection and Acceptance Certification (Side-by-Side Unbroken) --}}
@@ -290,6 +292,7 @@
             @endif
 
             {{-- Supporting Document Register Table --}}
+            <div class="iar-document__table-scroll" tabindex="0" role="region" aria-label="Supporting document register">
             <table class="iar-document__table">
                 <colgroup>
                     <col style="width: 20%">
@@ -319,6 +322,7 @@
                     @endforeach
                 </tbody>
             </table>
+            </div>
             <p class="iar-document__attachment-note">Supporting files, including any Certificate of Analysis, remain separate protected records in the HIMS Digital Archive and retain their original format and proportions.</p>
         </section>
     @endif

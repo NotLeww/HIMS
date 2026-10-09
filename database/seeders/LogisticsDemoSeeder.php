@@ -152,6 +152,7 @@ class LogisticsDemoSeeder extends Seeder
                 'fund_cluster' => '01 - Regular Agency Fund',
                 'entity_name' => 'HOSPITAL INFORMATION MANAGEMENT SYSTEM',
                 'ors_burs_number' => 'ORS-2026-09-00941',
+                'requested_at' => now()->subDays(12),
                 'penalty_clause_rate' => 0.00100,
                 'conforme_date' => now()->subDays(5)->toDateString(),
                 'conforme_signed_by' => $zuellig->contact_person ?: $zuellig->name,
@@ -293,6 +294,7 @@ class LogisticsDemoSeeder extends Seeder
                 'fund_cluster' => '01 - Regular Agency Fund',
                 'entity_name' => 'HOSPITAL INFORMATION MANAGEMENT SYSTEM',
                 'ors_burs_number' => 'ORS-2026-08-00812',
+                'requested_at' => now()->subDays(35),
                 'penalty_clause_rate' => 0.00100,
                 'conforme_date' => now()->subDays(30)->toDateString(),
                 'conforme_signed_by' => $metroDrug->contact_person ?: $metroDrug->name,
@@ -399,7 +401,7 @@ class LogisticsDemoSeeder extends Seeder
 
         if (! LogisticsDocument::where('tracking_number', 'DOC-DR-202609-00001')->exists()) {
             $drPdfContent = DemoPdfBuilder::createDeliveryReceipt($grnRabies);
-            $docPath1 = 'logistics_documents/demo_dr_889922.pdf';
+            $docPath1 = 'logistics_documents/delivery_receipt_889922.pdf';
             Storage::disk('local')->put($docPath1, $drPdfContent);
 
             LogisticsDocument::create([
@@ -411,7 +413,7 @@ class LogisticsDemoSeeder extends Seeder
                 'goods_receipt_note_id' => $grnRabies->id,
                 'supplier_id' => $zuellig->id,
                 'file_path' => $docPath1,
-                'file_name' => 'demo_dr_889922.pdf',
+                'file_name' => 'delivery_receipt_889922.pdf',
                 'original_name' => 'DR-ZP-889922_HIMS.pdf',
                 'file_size_bytes' => strlen($drPdfContent),
                 'mime_type' => 'application/pdf',
@@ -430,7 +432,7 @@ class LogisticsDemoSeeder extends Seeder
 
         if (! LogisticsDocument::where('tracking_number', 'DOC-INV-202609-00002')->exists()) {
             $siPdfContent = DemoPdfBuilder::createSalesInvoice($grnRabies);
-            $docPath2 = 'logistics_documents/demo_si_088192.pdf';
+            $docPath2 = 'logistics_documents/sales_invoice_088192.pdf';
             Storage::disk('local')->put($docPath2, $siPdfContent);
 
             LogisticsDocument::create([
@@ -442,7 +444,7 @@ class LogisticsDemoSeeder extends Seeder
                 'goods_receipt_note_id' => $grnRabies->id,
                 'supplier_id' => $zuellig->id,
                 'file_path' => $docPath2,
-                'file_name' => 'demo_si_088192.pdf',
+                'file_name' => 'sales_invoice_088192.pdf',
                 'original_name' => 'SI-2026-088192_HIMS.pdf',
                 'file_size_bytes' => strlen($siPdfContent),
                 'mime_type' => 'application/pdf',

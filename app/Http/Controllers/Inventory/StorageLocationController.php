@@ -45,7 +45,16 @@ class StorageLocationController extends Controller implements HasMiddleware
 
     public function index(Request $request): View
     {
+        $locationTypes = StorageLocation::query()
+            ->whereNotNull('type')
+            ->distinct()
+            ->orderBy('type')
+            ->pluck('type');
+        $type = $request->string('type')->trim()->toString();
+        $status = $request->string('status')->trim()->toString();
+
         $locations = StorageLocation::with('parent')
+            ->withSum('stockLevels as total_stock_quantity', 'quantity')
             ->when($request->filled('search'), function ($query) use ($request): void {
                 $term = '%'.$request->string('search')->trim().'%';
                 $query->where(fn ($q) => $q
@@ -53,13 +62,15 @@ class StorageLocationController extends Controller implements HasMiddleware
                     ->orWhere('name', 'like', $term)
                     ->orWhere('zone', 'like', $term));
             })
+            ->when($locationTypes->contains($type), fn ($query) => $query->where('type', $type))
+            ->when(in_array($status, ['active', 'blocked', 'inactive'], true), fn ($query) => $query->where('status', $status))
             ->orderBy('sort_sequence')
             ->orderBy('code')
             ->paginate(20)
             ->withQueryString();
         $parentLocations = StorageLocation::active()->whereNotIn('type', ['bin', 'department'])->orderBy('code')->get();
 
-        return view('inventory.storage_locations.index', compact('locations', 'parentLocations'));
+        return view('inventory.storage_locations.index', compact('locations', 'parentLocations', 'locationTypes'));
     }
 
     public function store(Request $request): RedirectResponse

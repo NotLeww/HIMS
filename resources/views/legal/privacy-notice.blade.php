@@ -14,7 +14,7 @@
     @include('layouts.partials.theme-script')
     @include('layouts.partials.navigation-loading-state')
 
-    <link rel="preconnect" href="https://fonts.bunny.net">
+    @include('layouts.partials.font-loader')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     {{-- Official Institutional Document Engine & Print Safeguards --}}
@@ -183,6 +183,7 @@
 
             {{-- 3. Document Governance Information Block (Formal Metadata Table) --}}
             <section class="mb-6 keep-together">
+                <div class="doc-table-scroll" tabindex="0" role="region" aria-label="Document governance information">
                 <table class="doc-table w-full text-left text-[9pt] border border-neutral-600 dark:border-neutral-600 border-collapse">
                     <tbody>
                         <tr class="border-b border-neutral-400 dark:border-neutral-600">
@@ -221,6 +222,7 @@
                         </tr>
                     </tbody>
                 </table>
+                </div>
             </section>
 
             {{-- Document Preamble / Introduction --}}
@@ -310,6 +312,7 @@
                 </p>
 
                 {{-- Cookies Table --}}
+                <div class="doc-table-scroll" tabindex="0" role="region" aria-label="Cookies and local storage">
                 <table class="doc-table w-full text-left text-[9pt] border border-neutral-600 dark:border-neutral-600 border-collapse mb-3">
                     <thead>
                         <tr class="border-b border-neutral-400 dark:border-neutral-600">
@@ -340,6 +343,7 @@
                         </tr>
                     </tbody>
                 </table>
+                </div>
             </section>
 
             {{-- Section 6: Retention, Deactivation & Immutable Audit Trail --}}
@@ -387,6 +391,7 @@
                 </p>
 
                 {{-- Rights Matrix Table --}}
+                <div class="doc-table-scroll" tabindex="0" role="region" aria-label="Data subject rights">
                 <table class="doc-table w-full text-left text-[9pt] border border-neutral-600 dark:border-neutral-600 border-collapse mb-3">
                     <thead>
                         <tr class="border-b border-neutral-400 dark:border-neutral-600">
@@ -413,6 +418,7 @@
                         </tr>
                     </tbody>
                 </table>
+                </div>
 
                 <div class="doc-callout text-[9.5pt] border-l-4 border-primary-700 dark:border-primary-400 pl-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div class="text-neutral-900 dark:text-neutral-100">
@@ -450,6 +456,7 @@
                 <h2 class="doc-sec-title text-[12.5pt] font-bold uppercase tracking-wider text-neutral-900 dark:text-white mb-2">
                     10. Document Control &amp; Approval Record
                 </h2>
+                <div class="doc-table-scroll" tabindex="0" role="region" aria-label="Document control and approval record">
                 <table class="doc-table w-full text-left text-[8.5pt] border border-neutral-600 dark:border-neutral-600 border-collapse">
                     <thead>
                         <tr class="border-b border-neutral-400 dark:border-neutral-600">
@@ -480,6 +487,7 @@
                         </tr>
                     </tbody>
                 </table>
+                </div>
             </section>
 
             {{-- Document Footer Rule --}}

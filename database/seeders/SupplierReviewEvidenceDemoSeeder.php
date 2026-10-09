@@ -74,7 +74,7 @@ class SupplierReviewEvidenceDemoSeeder extends Seeder
                             'dispatched_at' => $dispatchedAt,
                             'received_at' => $receivedAt,
                             'delivery_date' => $deliveryDate,
-                            'notes' => 'Persisted demo procurement evidence for supplier performance scoring.',
+                            'notes' => 'Historical procurement evidence used for supplier performance scoring.',
                         ]
                     );
 

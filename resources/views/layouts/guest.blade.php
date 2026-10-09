@@ -32,8 +32,7 @@
 
         @include('layouts.partials.navigation-loading-state')
 
-        {{-- Inter is pulled in by app.css; this just warms the connection. --}}
-        <link rel="preconnect" href="https://fonts.bunny.net">
+        @include('layouts.partials.font-loader')
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>

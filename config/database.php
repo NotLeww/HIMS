@@ -3,10 +3,17 @@
 use Illuminate\Support\Str;
 use Pdo\Mysql;
 
-$mysqlSslCa = env('MYSQL_ATTR_SSL_CA');
+$mysqlSslCa = env('MYSQL_ATTR_SSL_CA') ?: env('TIDB_SSL_CA');
 
 if ($mysqlSslCa && ! preg_match('/^(?:[A-Za-z]:[\\\\\/]|[\\\\\/]{1,2})/', $mysqlSslCa)) {
     $mysqlSslCa = base_path($mysqlSslCa);
+}
+
+if ($mysqlSslCa && ! file_exists($mysqlSslCa)) {
+    $bundledCa = base_path('storage/certs/isrgrootx1.pem');
+    if (file_exists($bundledCa)) {
+        $mysqlSslCa = $bundledCa;
+    }
 }
 
 return [
@@ -23,7 +30,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => env('DB_CONNECTION') ?: (env('TIDB_HOST') ? 'mysql' : 'sqlite'),
 
     /*
     |--------------------------------------------------------------------------
@@ -53,13 +60,13 @@ return [
         'mysql' => [
             'driver' => 'mysql',
             'url' => env('DB_URL'),
-            'host' => env('DB_RESOLVE_IPV4', true) && env('DB_HOST') && ! in_array(env('DB_HOST'), ['127.0.0.1', 'localhost', '::1'])
-                ? gethostbyname(env('DB_HOST'))
-                : env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '3306'),
-            'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
+            'host' => env('DB_RESOLVE_IPV4', true) && (env('DB_HOST') ?: env('TIDB_HOST')) && ! in_array(env('DB_HOST') ?: env('TIDB_HOST'), ['127.0.0.1', 'localhost', '::1'])
+                ? gethostbyname(env('DB_HOST') ?: env('TIDB_HOST'))
+                : (env('DB_HOST') ?: env('TIDB_HOST', '127.0.0.1')),
+            'port' => env('DB_PORT') ?: env('TIDB_PORT', '4000'),
+            'database' => env('DB_DATABASE') ?: env('TIDB_DATABASE', 'laravel'),
+            'username' => env('DB_USERNAME') ?: env('TIDB_USERNAME', 'root'),
+            'password' => env('DB_PASSWORD') ?: env('TIDB_PASSWORD', ''),
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),

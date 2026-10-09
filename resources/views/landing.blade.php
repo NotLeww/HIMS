@@ -11,6 +11,7 @@
         <title>HIMS | Supply Chain &amp; Inventory Management</title>
         @include('layouts.partials.theme-script')
         @include('layouts.partials.navigation-loading-state')
+        @include('layouts.partials.font-loader')
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     @php

@@ -78,6 +78,7 @@ Route::get('/dashboard/ai-assistant/attachment/{message}', [DashboardAiAssistant
 Route::middleware(['auth:web,admin,super_admin', 'verified'])->group(function () {
     Route::get('/global-search', [GlobalSearchController::class, 'search'])->name('global-search');
 
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead'])
         ->whereUuid('notification')
@@ -207,6 +208,7 @@ Route::middleware(['auth:web,admin,super_admin', 'verified'])->group(function ()
     Route::post('/inventory/logistics/receipts/{goodsReceiptNote}/iar', [LogisticsController::class, 'generateIarFromReceipt'])->name('inventory.logistics.iar.generate');
     Route::get('/inventory/logistics/iar/{iar}', [LogisticsController::class, 'iarShow'])->name('inventory.logistics.iar.show');
     Route::get('/inventory/logistics/iar/{iar}/print', [LogisticsController::class, 'iarPrint'])->name('inventory.logistics.iar.print');
+    Route::get('/inventory/logistics/iar/{iar}/download', [LogisticsController::class, 'iarDownload'])->name('inventory.logistics.iar.download');
     Route::post('/inventory/logistics/iar/{iar}/technical-inspection', [LogisticsController::class, 'performTechnicalInspection'])->name('inventory.logistics.iar.technical-inspection');
     Route::post('/inventory/logistics/iar/{iar}/custodial-acceptance', [LogisticsController::class, 'approveCustodialAcceptance'])->name('inventory.logistics.iar.custodial-acceptance');
     Route::post('/inventory/logistics/iar/{iar}/transmit-coa', [LogisticsController::class, 'transmitToCoa'])->name('inventory.logistics.iar.transmit-coa');

@@ -398,8 +398,8 @@
                     </div>
 
                     {{-- Inventory Items Table --}}
-                    <div x-show="!loading && !errorMessage && items.length > 0" class="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800">
-                        <table class="min-w-full divide-y divide-neutral-200 text-left text-xs dark:divide-neutral-800">
+                    <div x-show="!loading && !errorMessage && items.length > 0" class="hims-table-scroll overflow-x-auto rounded-lg border border-neutral-200 dark:border-neutral-800">
+                        <table class="min-w-[56rem] w-full divide-y divide-neutral-200 text-left text-xs dark:divide-neutral-800">
                             <thead class="bg-neutral-50 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
                                 <tr>
                                     <th class="px-3.5 py-2.5">Item & SKU</th>

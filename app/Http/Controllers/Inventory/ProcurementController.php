@@ -37,6 +37,7 @@ use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -117,6 +118,7 @@ class ProcurementController extends Controller implements HasMiddleware
         $requests = ProcurementRequest::with(['item', 'supplier'])
             ->latest('id')
             ->get();
+        $approvedRequests = $requests->where('status', 'approved')->values();
 
         // Enterprise Purchase Requests
         $enterpriseRequests = PurchaseRequest::with(['requester', 'costCenter', 'lines.item'])
@@ -273,6 +275,7 @@ class ProcurementController extends Controller implements HasMiddleware
             'items',
             'suppliers',
             'requests',
+            'approvedRequests',
             'enterpriseRequests',
             'selectedPurchaseRequest',
             'rfqs',
@@ -332,10 +335,15 @@ class ProcurementController extends Controller implements HasMiddleware
     public function storeQuote(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'procurement_request_id' => ['required', 'exists:procurement_requests,id'],
+            'procurement_request_id' => [
+                'required',
+                Rule::exists('procurement_requests', 'id')->where('status', 'approved'),
+            ],
             'supplier_id' => ['required', new ProcurementEligibleSupplier],
             'quoted_price' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:255'],
+        ], [
+            'procurement_request_id.exists' => 'Select an approved procurement request.',
         ]);
 
         $quote = SupplierQuote::create($validated);

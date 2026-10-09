@@ -12,6 +12,7 @@ use App\Models\StorageLocation;
 use App\Services\AuditLogger;
 use App\Services\Inventory\AdjustmentApprovalService;
 use App\Services\InventoryAutomationService;
+use App\Support\MetricDetails;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,12 +39,53 @@ class StockAdjustmentController extends Controller implements HasMiddleware
 
     public function index(Request $request): View
     {
+        $validated = $request->validate([
+            'status' => ['nullable', 'in:pending_approval,pending_second_approval,approved,rejected,posted'],
+        ]);
+        $status = $validated['status'] ?? null;
         $items = InventoryItem::active()->orderBy('name')->get();
         $locations = StorageLocation::where('status', 'active')->orderBy('name')->get();
         $adjustments = InventoryAdjustment::with(['item', 'location', 'requestedBy', 'approvedBy', 'secondApprovedBy'])
+            ->when($status, fn ($query, $status) => $query->where('status', $status))
             ->latest()
             ->paginate(15)
             ->withQueryString();
+
+        $metricCounts = InventoryAdjustment::query()
+            ->selectRaw('COUNT(*) AS total_count')
+            ->selectRaw("SUM(CASE WHEN status = 'pending_approval' THEN 1 ELSE 0 END) AS pending_review_count")
+            ->selectRaw("SUM(CASE WHEN status = 'pending_second_approval' THEN 1 ELSE 0 END) AS dual_tier_count")
+            ->selectRaw("SUM(CASE WHEN status = 'posted' THEN 1 ELSE 0 END) AS posted_count")
+            ->first();
+        $metrics = [
+            'total' => (int) $metricCounts->total_count,
+            'pending_review' => (int) $metricCounts->pending_review_count,
+            'dual_tier' => (int) $metricCounts->dual_tier_count,
+            'posted' => (int) $metricCounts->posted_count,
+        ];
+        $latestAdjustments = fn (?string $status = null) => InventoryAdjustment::query()
+            ->with('item')
+            ->when($status, fn ($query, $status) => $query->where('status', $status))
+            ->latest()
+            ->take(5)
+            ->get();
+        $formatAdjustment = fn (InventoryAdjustment $adjustment): string => $adjustment->adjustment_number
+            .' · '.($adjustment->item?->name ?? 'Unknown item')
+            .' — ₱'.number_format(abs((float) $adjustment->total_variance_value), 2);
+        $metricDetails = [
+            'total' => MetricDetails::from($latestAdjustments(), $metrics['total'], $formatAdjustment, 'No stock adjustments recorded'),
+            'pending_review' => MetricDetails::from($latestAdjustments('pending_approval'), $metrics['pending_review'], $formatAdjustment, 'No adjustments awaiting Tier 1 review'),
+            'dual_tier' => MetricDetails::from($latestAdjustments('pending_second_approval'), $metrics['dual_tier'], $formatAdjustment, 'No adjustments awaiting Tier 2 approval'),
+            'posted' => MetricDetails::from($latestAdjustments('posted'), $metrics['posted'], $formatAdjustment, 'No adjustments posted to the ledger'),
+        ];
+        $statusLabels = [
+            'pending_approval' => 'Pending Review',
+            'pending_second_approval' => 'Dual-Tier Required',
+            'approved' => 'Approved',
+            'rejected' => 'Rejected',
+            'posted' => 'Posted & Reconciled',
+        ];
+        $activeStatusLabel = $status ? $statusLabels[$status] : null;
 
         $preselectedItem = null;
         if ($request->filled('item_id')) {
@@ -55,7 +97,16 @@ class StockAdjustmentController extends Controller implements HasMiddleware
 
         $preselectedType = $request->query('adjustment_type', 'correction');
 
-        return view('inventory.adjustments.index', compact('items', 'locations', 'adjustments', 'preselectedItem', 'preselectedType'));
+        return view('inventory.adjustments.index', compact(
+            'items',
+            'locations',
+            'adjustments',
+            'preselectedItem',
+            'preselectedType',
+            'metrics',
+            'metricDetails',
+            'activeStatusLabel',
+        ));
     }
 
     public function store(Request $request): RedirectResponse

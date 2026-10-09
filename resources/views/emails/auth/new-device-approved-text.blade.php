@@ -1,8 +1,8 @@
-HIMS Security Notice - New Device Approved
+HIMS Security Notice - New Browser Approved
 
-A new device was approved and signed in to your HIMS account:
+A new browser was approved and signed in to your HIMS account:
 
-Device: {{ $deviceSummary }}
+Browser: {{ $deviceSummary }}
 @if ($ipAddress)
 IP Address: {{ $ipAddress }}
 @endif

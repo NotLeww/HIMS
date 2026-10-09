@@ -18,12 +18,15 @@ use App\Services\Logistics\ChainOfCustodyService;
 use App\Services\Logistics\DocumentTrackingService;
 use App\Services\Logistics\InspectionAcceptanceService;
 use App\Services\Logistics\ShipmentTrackingService;
+use App\Support\DemoPdfBuilder;
 use App\Support\MetricDetails;
 use DomainException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use InvalidArgumentException;
@@ -46,6 +49,7 @@ class LogisticsController extends Controller implements HasMiddleware
                 'iarIndex',
                 'iarShow',
                 'iarPrint',
+                'iarDownload',
                 'chainOfCustody',
                 'risShow',
             ]),
@@ -396,12 +400,32 @@ class LogisticsController extends Controller implements HasMiddleware
             'acceptedBy',
         ]);
 
-        if ($search = $request->input('search')) {
+        if ($search = trim((string) $request->input('search'))) {
             $query->where(function ($q) use ($search) {
                 $q->where('iar_number', 'like', "%{$search}%")
                     ->orWhere('invoice_number', 'like', "%{$search}%")
-                    ->orWhereHas('purchaseOrder', fn ($po) => $po->where('po_number', 'like', "%{$search}%"))
-                    ->orWhereHas('goodsReceiptNote', fn ($grn) => $grn->where('dr_number', 'like', "%{$search}%"));
+                    ->orWhereHas('supplier', fn ($supplier) => $supplier->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('purchaseOrder', fn ($po) => $po
+                        ->where('po_number', 'like', "%{$search}%")
+                        ->orWhere('entity_name', 'like', "%{$search}%")
+                        ->orWhereHas('item', fn ($item) => $item
+                            ->where('name', 'like', "%{$search}%")
+                            ->orWhere('sku', 'like', "%{$search}%")
+                            ->orWhere('barcode_value', 'like', "%{$search}%")
+                            ->orWhere('generic_name', 'like', "%{$search}%"))
+                        ->orWhereHas('lines.item', fn ($item) => $item
+                            ->where('name', 'like', "%{$search}%")
+                            ->orWhere('sku', 'like', "%{$search}%")
+                            ->orWhere('barcode_value', 'like', "%{$search}%")
+                            ->orWhere('generic_name', 'like', "%{$search}%")))
+                    ->orWhereHas('goodsReceiptNote', fn ($grn) => $grn
+                        ->where('dr_number', 'like', "%{$search}%")
+                        ->orWhere('sales_invoice_number', 'like', "%{$search}%")
+                        ->orWhereHas('lines.item', fn ($item) => $item
+                            ->where('name', 'like', "%{$search}%")
+                            ->orWhere('sku', 'like', "%{$search}%")
+                            ->orWhere('barcode_value', 'like', "%{$search}%")
+                            ->orWhere('generic_name', 'like', "%{$search}%")));
             });
         }
 
@@ -473,6 +497,22 @@ class LogisticsController extends Controller implements HasMiddleware
         return view('inventory.logistics.iar_print', [
             'iar' => $iar,
             'autoPrint' => $request->boolean('print'),
+        ]);
+    }
+
+    /**
+     * Download a data-driven PDF copy of the IAR.
+     */
+    public function iarDownload(InspectionAcceptanceReport $iar): Response
+    {
+        $this->loadIarDocumentRelations($iar);
+        $pdf = DemoPdfBuilder::createInspectionAcceptanceReport($iar);
+        $filename = Str::slug($iar->iar_number ?: 'inspection-acceptance-report').'.pdf';
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Content-Length' => (string) strlen($pdf),
         ]);
     }
 

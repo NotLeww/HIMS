@@ -58,7 +58,7 @@ class SupplyChainTurnaroundDemoSeeder extends Seeder
         }
 
         $costCenter = CostCenter::firstOrCreate(
-            ['code' => 'CC-SCM-DEMO'],
+            ['code' => 'CC-SCM-OPS'],
             [
                 'name' => 'Supply Chain Operations',
                 'department' => 'Supply Chain Management',
@@ -67,11 +67,11 @@ class SupplyChainTurnaroundDemoSeeder extends Seeder
             ]
         );
         $category = ProcurementCategory::firstOrCreate(
-            ['code' => 'SCM-DEMO'],
+            ['code' => 'SCM-OPS'],
             [
                 'name' => 'Supply Chain Review Evidence',
                 'category_manager_id' => $users->first()->id,
-                'description' => 'Persisted demonstration transactions used by process velocity analytics.',
+                'description' => 'Completed supply-chain transactions used for process velocity analytics.',
                 'is_active' => true,
             ]
         );

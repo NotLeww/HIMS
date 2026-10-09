@@ -14,7 +14,7 @@
     @include('layouts.partials.theme-script')
     @include('layouts.partials.navigation-loading-state')
 
-    <link rel="preconnect" href="https://fonts.bunny.net">
+    @include('layouts.partials.font-loader')
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     {{-- Official Institutional Document Engine & Print Safeguards --}}
@@ -180,6 +180,7 @@
 
             {{-- 3. Document Governance Information Block (Formal Metadata Table) --}}
             <section class="mb-6 keep-together">
+                <div class="doc-table-scroll" tabindex="0" role="region" aria-label="Document governance information">
                 <table class="doc-table w-full text-left text-[9pt] border border-neutral-600 dark:border-neutral-600 border-collapse">
                     <tbody>
                         <tr class="border-b border-neutral-400 dark:border-neutral-600">
@@ -212,6 +213,7 @@
                         </tr>
                     </tbody>
                 </table>
+                </div>
             </section>
 
             {{-- Document Preamble / Section 1: Terms of Use --}}
@@ -283,6 +285,7 @@
                 </p>
 
                 {{-- Role Scope Table --}}
+                <div class="doc-table-scroll" tabindex="0" role="region" aria-label="Role scope">
                 <table class="doc-table w-full text-left text-[9pt] border border-neutral-600 dark:border-neutral-600 border-collapse mb-3">
                     <thead>
                         <tr class="border-b border-neutral-400 dark:border-neutral-600">
@@ -309,6 +312,7 @@
                         </tr>
                     </tbody>
                 </table>
+                </div>
 
                 <p class="doc-body-p text-justify text-neutral-900 dark:text-neutral-200 text-[9.5pt]">
                     Attempting to bypass role boundaries, access unauthorized modules, or tamper with security checks violates institutional governance policy and the Cybercrime Prevention Act of 2012 (Republic Act No. 10175).
@@ -477,6 +481,7 @@
                 <h2 class="doc-sec-title text-[12.5pt] font-bold uppercase tracking-wider text-neutral-900 dark:text-white mb-2">
                     11. Document Control &amp; Approval Record
                 </h2>
+                <div class="doc-table-scroll" tabindex="0" role="region" aria-label="Document control and approval record">
                 <table class="doc-table w-full text-left text-[8.5pt] border border-neutral-600 dark:border-neutral-600 border-collapse">
                     <thead>
                         <tr class="border-b border-neutral-400 dark:border-neutral-600">
@@ -507,6 +512,7 @@
                         </tr>
                     </tbody>
                 </table>
+                </div>
             </section>
 
             {{-- Document Footer Rule --}}

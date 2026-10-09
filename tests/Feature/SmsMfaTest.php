@@ -11,11 +11,14 @@ use App\Services\LoginMfaService;
 use App\Services\Sms\IprogSmsGateway;
 use App\Services\Sms\SmsOtpDelivery;
 use App\Support\AuthenticationContext;
+use Illuminate\Contracts\Notifications\Dispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use PragmaRX\Google2FA\Google2FA;
+use RuntimeException;
 use Tests\TestCase;
 
 class SmsMfaTest extends TestCase
@@ -87,6 +90,71 @@ class SmsMfaTest extends TestCase
         $this->post(route('login.mfa.verify'), ['otp' => $first])->assertSessionHasErrors('otp');
         $this->post(route('login.mfa.verify'), ['otp' => $second])
             ->assertRedirect(route('dashboard', absolute: false));
+    }
+
+    public function test_sms_challenge_can_switch_to_email_without_bypassing_verification(): void
+    {
+        Notification::fake();
+        $user = $this->smsUser();
+
+        $this->post(route('login'), $this->credentials($user));
+        $smsCode = $this->sms->latestCode();
+        $this->post(route('login.mfa.verify'), ['otp' => $smsCode === '000000' ? '999999' : '000000']);
+        $attemptsRemaining = session(LoginMfaService::SESSION_KEY)['attempts_remaining'];
+
+        $this->get(route('login.mfa'))->assertOk()
+            ->assertSee('Send via email instead')
+            ->assertSee('We’ll send the code to')
+            ->assertDontSee($user->email);
+
+        $this->post(route('login.mfa.email'))->assertSessionHas('status');
+        $state = session(LoginMfaService::SESSION_KEY);
+        $this->assertSame(LoginMfaService::METHOD_EMAIL, $state['method']);
+        $this->assertTrue($state['sms_fallback']);
+        $this->assertSame($attemptsRemaining, $state['attempts_remaining']);
+        $this->assertGuest(AuthenticationContext::WEB_GUARD);
+
+        $emailCode = Notification::sent($user, LoginMfaOtp::class)->first()->otp;
+        $this->post(route('login.mfa.verify'), ['otp' => $smsCode])->assertSessionHasErrors('otp');
+        $this->post(route('login.mfa.verify'), ['otp' => $emailCode])
+            ->assertRedirect(route('dashboard', absolute: false));
+        $this->assertAuthenticatedAs($user, AuthenticationContext::WEB_GUARD);
+    }
+
+    public function test_email_fallback_is_rejected_without_an_active_sms_challenge(): void
+    {
+        Notification::fake();
+
+        $this->post(route('login.mfa.email'))->assertRedirect(route('login'));
+        Notification::assertNothingSent();
+
+        $user = User::factory()->warehouseStaff()->create([
+            'password' => 'password',
+            'mfa_enabled' => true,
+        ]);
+        $this->post(route('login'), $this->credentials($user));
+        $this->post(route('login.mfa.email'))->assertSessionHasErrors('otp');
+        $this->assertSame(LoginMfaService::METHOD_EMAIL, session(LoginMfaService::SESSION_KEY)['method']);
+    }
+
+    public function test_email_fallback_delivery_failure_ends_the_pending_login(): void
+    {
+        $user = $this->smsUser();
+        $this->post(route('login'), $this->credentials($user));
+        Log::spy();
+
+        $dispatcher = $this->mock(Dispatcher::class);
+        $dispatcher->shouldReceive('send')
+            ->once()
+            ->andThrow(new RuntimeException('Synthetic mail failure.'));
+
+        $this->post(route('login.mfa.email'))
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors('email');
+
+        $this->assertGuest(AuthenticationContext::WEB_GUARD);
+        $this->assertNull(session(LoginMfaService::SESSION_KEY));
+        Log::shouldHaveReceived('error')->once();
     }
 
     public function test_expired_and_exhausted_codes_never_complete_login(): void
@@ -262,6 +330,32 @@ class SmsMfaTest extends TestCase
         $this->post(route('admin.login.mfa.verify'), ['otp' => $this->sms->latestCode()])
             ->assertRedirect(route('dashboard', absolute: false));
         $this->assertAuthenticatedAs($user, AuthenticationContext::ADMIN_GUARD);
+    }
+
+    public function test_administrator_can_use_email_fallback_for_the_sms_stage(): void
+    {
+        Notification::fake();
+        $user = User::factory()->administrator()->create([
+            'password' => 'password',
+            'phone' => '09171234567',
+            'mfa_enabled' => true,
+            'sms_mfa_enabled' => true,
+            'sms_mfa_phone' => '09171234567',
+        ]);
+
+        $this->post(route('admin.login.store'), $this->credentials($user));
+        $firstEmailCode = Notification::sent($user, LoginMfaOtp::class)->first()->otp;
+        $this->post(route('admin.login.mfa.verify'), ['otp' => $firstEmailCode])
+            ->assertRedirect(route('admin.login.mfa'));
+        $this->assertSame(LoginMfaService::METHOD_SMS, session(LoginMfaService::SESSION_KEY)['method']);
+
+        $this->post(route('admin.login.mfa.email'))->assertSessionHas('status');
+        $fallbackCode = Notification::sent($user, LoginMfaOtp::class)->last()->otp;
+        $this->post(route('admin.login.mfa.verify'), ['otp' => $fallbackCode])
+            ->assertRedirect(route('dashboard', absolute: false));
+
+        $this->assertAuthenticatedAs($user, AuthenticationContext::ADMIN_GUARD);
+        $this->assertNull(session(LoginMfaService::SESSION_KEY));
     }
 
     public function test_expired_password_flow_begins_only_after_sms_verification(): void

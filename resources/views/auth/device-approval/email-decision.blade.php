@@ -1,8 +1,8 @@
 @php
     $decisionContent = match ($decision) {
         'approve-once' => ['Confirm sign-in', 'Approve Once', 'This permits only this sign-in. The browser will remain untrusted.', 'primary'],
-        'approve-trust' => ['Confirm and trust device', 'Approve & Trust Device', 'This permits the sign-in and trusts this browser until its trust expires or is revoked.', 'primary'],
-        default => ['Deny sign-in', 'Deny Sign-In', 'This blocks the request and temporarily restricts repeated attempts from this device context.', 'danger'],
+        'approve-trust' => ['Confirm and trust browser', 'Approve & Trust Browser', 'This permits the sign-in and trusts this browser profile until its trust expires or is revoked.', 'primary'],
+        default => ['Deny sign-in', 'Deny Sign-In', 'This blocks the request and temporarily restricts repeated attempts from this browser context.', 'danger'],
     };
 @endphp
 
@@ -14,7 +14,7 @@
         </header>
 
         <dl class="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm dark:border-neutral-800 dark:bg-neutral-900/70">
-            <div class="flex items-start justify-between gap-4"><dt class="text-neutral-500 dark:text-neutral-400">Device</dt><dd class="text-right font-semibold text-neutral-900 dark:text-neutral-100">{{ $approvalRequest->device_name ?: 'Unknown device' }}</dd></div>
+            <div class="flex items-start justify-between gap-4"><dt class="text-neutral-500 dark:text-neutral-400">Browser</dt><dd class="text-right font-semibold text-neutral-900 dark:text-neutral-100">{{ $approvalRequest->device_name ?: 'Unknown browser' }}</dd></div>
             <div class="flex items-start justify-between gap-4"><dt class="text-neutral-500 dark:text-neutral-400">Network</dt><dd class="font-mono text-neutral-800 dark:text-neutral-200">{{ $approvalRequest->ip_address ?: 'Unavailable' }}</dd></div>
             <div class="flex items-start justify-between gap-4"><dt class="text-neutral-500 dark:text-neutral-400">Requested</dt><dd class="text-right text-neutral-800 dark:text-neutral-200">{{ $approvalRequest->requested_at->timezone(config('app.timezone', 'UTC'))->format('M d, Y h:i A') }}</dd></div>
         </dl>

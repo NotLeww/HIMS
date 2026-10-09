@@ -506,8 +506,8 @@
                                         </div>
 
                                         <div class="overflow-hidden rounded-xl border border-slate-200 shadow-sm">
-                                            <div class="overflow-y-auto max-h-[360px]">
-                                                <table class="min-w-full divide-y divide-slate-200 text-left text-xs">
+                                            <div class="hims-table-scroll max-h-[360px] overflow-x-auto overflow-y-auto">
+                                                <table class="min-w-[48rem] w-full divide-y divide-slate-200 text-left text-xs">
                                                     <thead class="bg-slate-50 font-semibold text-slate-700 sticky top-0 z-10">
                                                         <tr>
                                                             <th class="px-3 py-2.5 bg-slate-50">Row #</th>
@@ -573,8 +573,8 @@
                             {{-- Tab 2: Record Preview --}}
                             <div x-show="activeTab === 'preview'">
                                 <div class="overflow-hidden rounded-xl border border-slate-200 shadow-sm">
-                                    <div class="overflow-y-auto max-h-[360px]">
-                                        <table class="min-w-full divide-y divide-slate-200 text-left text-xs">
+                                    <div class="hims-table-scroll max-h-[360px] overflow-x-auto overflow-y-auto">
+                                        <table class="min-w-[56rem] w-full divide-y divide-slate-200 text-left text-xs">
                                             <thead class="bg-slate-50 font-semibold text-slate-700 sticky top-0 z-10">
                                                 <tr>
                                                     <th class="px-3.5 py-2.5 bg-slate-50">Row</th>
