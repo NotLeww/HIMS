@@ -167,12 +167,14 @@
             })
             .catch(err => {
                 console.warn('AI recommendation fetch error:', err);
-                this.applyRecommendationToDrawer({
-                    available: false,
-                    suggested_quantity: null,
-                    unit: this.getItemUnit(itemId),
-                    explanation: 'Recommendation unavailable. Enter the requested quantity manually.'
-                });
+                if (this.drawerForm.item_id == itemId) {
+                    this.applyRecommendationToDrawer({
+                        available: false,
+                        suggested_quantity: null,
+                        unit: this.getItemUnit(itemId),
+                        explanation: 'Recommendation unavailable. Enter the requested quantity manually.'
+                    });
+                }
             })
             .finally(() => {
                 if (this.drawerForm.item_id == itemId) {
@@ -314,25 +316,6 @@
         {{-- Consolidated Inventory Workflow Navigation --}}
         @include('inventory.partials.workflow_nav')
 
-            <div class="rounded-xl border border-primary-200 bg-primary-50 p-4 text-sm text-primary-900 shadow-sm">
-                <div class="flex items-start gap-3">
-                    <svg class="mt-0.5 h-5 w-5 shrink-0 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
-                    </svg>
-                    <div>
-                        <p class="font-semibold">Who can approve a Store Requisition?</p>
-                        <p class="mt-1 text-xs leading-5 text-primary-800">
-                            Users with any of these active roles may approve: {{ implode(', ', $approverRoleLabels) }}. They cannot approve a requisition they created. Approval is not pre-assigned to one person; authorized independent reviewers receive the Approve action for pending requests.
-                        </p>
-                        @can(\App\Enums\Permission::ApproveRequisition->value)
-                            <p class="mt-2 text-xs font-semibold text-emerald-700">Your current role has approval access. You can approve another user's pending requisition from the Registry or its Details page.</p>
-                        @else
-                            <p class="mt-2 text-xs font-semibold text-neutral-700">Your current role can view or submit requisitions, but it cannot approve them.</p>
-                        @endcan
-                    </div>
-                </div>
-            </div>
-
             @if($errors->any())
                 <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 shadow-sm">
                     <div class="flex items-center gap-2 font-semibold">
@@ -377,11 +360,29 @@
 
             {{-- Requisitions Table --}}
             <div class="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-                <div class="border-b border-neutral-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div class="relative flex flex-col gap-3 border-b border-neutral-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-neutral-800">
                     <div>
                         <h3 class="text-base font-semibold text-neutral-900">Requisitions Registry</h3>
                         <p class="text-xs text-neutral-500">Track demand status, reservation holds, and FEFO picking fulfillment.</p>
                     </div>
+                    <details class="group relative sm:shrink-0">
+                        <summary class="inline-flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-xs transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800 [&::-webkit-details-marker]:hidden">
+                            <x-ui.icon name="shield-check" class="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                            Approval guide
+                            <x-ui.icon name="chevron-down" class="h-4 w-4 transition-transform group-open:rotate-180" />
+                        </summary>
+                        <div class="z-20 mt-2 w-full rounded-xl border border-neutral-200 bg-white p-4 text-left shadow-lg sm:absolute sm:right-0 sm:w-96 dark:border-neutral-700 dark:bg-neutral-900">
+                            <p class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Who can approve a Store Requisition?</p>
+                            <p class="mt-1.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300">
+                                Active approver roles: {{ implode(', ', $approverRoleLabels) }}. Requesters cannot approve their own requisitions; any authorized independent reviewer can act on a pending request.
+                            </p>
+                            @can(\App\Enums\Permission::ApproveRequisition->value)
+                                <p class="mt-3 border-t border-neutral-200 pt-3 text-xs font-semibold text-emerald-700 dark:border-neutral-700 dark:text-emerald-300">Your role can approve another user's pending requisition here or from its Details page.</p>
+                            @else
+                                <p class="mt-3 border-t border-neutral-200 pt-3 text-xs font-medium text-neutral-600 dark:border-neutral-700 dark:text-neutral-400">Your role can view or submit requisitions but cannot approve them.</p>
+                            @endcan
+                        </div>
+                    </details>
                 </div>
                 <div class="overflow-x-auto hims-table-scroll">
                     <table class="w-full text-left text-sm text-neutral-600">
@@ -511,20 +512,12 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="8" class="px-6 py-10 text-center text-sm text-neutral-500">
-                                        <div class="max-w-md mx-auto space-y-3">
-                                            <p class="text-neutral-700 font-medium">No material store requisitions found.</p>
-                                            <p class="text-xs text-neutral-400">Initiate an internal stock request for your department from central inventory storage.</p>
-                                            @can(\App\Enums\Permission::CreateRequisition->value)
-                                                <button type="button" @click="newRequisitionModal = true" class="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-700 transition">
-                                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-                                                    Create First Store Requisition
-                                                </button>
-                                            @endcan
-                                        </div>
-                                    </td>
-                                </tr>
+                                <x-ui.table.empty artwork="procurement"
+                                    colspan="8"
+                                    icon="clipboard-document-list"
+                                    title="No store requisitions yet"
+                                    message="Use New Store Requisition above to request stock for your department."
+                                />
                             @endforelse
                         </tbody>
                     </table>
@@ -742,8 +735,8 @@
                                 @endif
                             @endif
 
-                            {{-- Requisition-Level Fields (4-column responsive grid, perfectly aligned) --}}
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                            {{-- Requisition-Level Fields --}}
+                            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end">
                                 <div class="flex flex-col justify-end">
                                     <label class="flex items-end text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-1.5 h-6 truncate" title="Requesting Department">
                                         <span>Requesting Dept.</span> <span class="text-rose-500 ml-0.5">*</span>
@@ -756,25 +749,26 @@
                                     </select>
                                 </div>
                                 <div class="flex flex-col justify-end">
-                                    <div class="flex items-end justify-between mb-1.5 h-6">
-                                        <label class="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 truncate" title="Cost Center">
+                                    <div class="mb-1.5 flex min-h-6 items-center justify-between gap-2">
+                                        <label class="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
                                             Cost Center
                                         </label>
-                                        <span x-show="assignedCostCenter()" class="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.2 rounded">
+                                        <span x-show="assignedCostCenter()" class="shrink-0 whitespace-nowrap rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
                                             Auto-assigned
                                         </span>
                                     </div>
                                     
                                     {{-- Read-only system-derived presentation --}}
                                     <div class="relative">
-                                        <div class="h-9 w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-neutral-100/90 dark:bg-neutral-800/90 text-neutral-900 dark:text-neutral-100 px-2.5 flex items-center justify-between shadow-2xs select-none"
+                                        <div class="flex min-h-9 w-full items-center justify-between rounded-lg border border-neutral-300 bg-neutral-100/90 px-3 py-2 text-neutral-900 shadow-2xs select-none dark:border-neutral-700 dark:bg-neutral-800/90 dark:text-neutral-100"
+                                             x-bind:title="assignedCostCenter() ? assignedCostCenter().display : ''"
                                              :class="{
                                                  'border-amber-400 dark:border-amber-600 bg-amber-50/50 dark:bg-amber-950/20': (!assignedCostCenter() && selectedDepartment)
                                              }">
                                             <template x-if="assignedCostCenter()">
                                                 <div class="flex items-center gap-1.5 min-w-0 pr-1">
                                                     <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                                                    <span class="text-xs font-medium text-neutral-800 dark:text-neutral-200 truncate" x-text="assignedCostCenter().display"></span>
+                                                    <span class="truncate text-xs font-medium text-neutral-800 dark:text-neutral-200" x-text="assignedCostCenter().display"></span>
                                                 </div>
                                             </template>
                                             <template x-if="!assignedCostCenter() && selectedDepartment">
@@ -811,7 +805,10 @@
                                     <label class="flex items-end text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-1.5 h-6 truncate" title="Required Date">
                                         <span>Required Date</span>
                                     </label>
-                                    <input type="date" name="required_date" class="h-9 block w-full rounded-lg border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-2xs focus:border-primary-500 focus:ring-primary-500 text-xs font-medium py-1.5 px-2.5">
+                                    <input type="date" name="required_date" value="{{ old('required_date') }}" min="{{ today()->toDateString() }}" aria-describedby="required-date-error" class="h-9 block w-full rounded-lg border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-2xs focus:border-primary-500 focus:ring-primary-500 text-xs font-medium py-1.5 px-2.5">
+                                    @error('required_date')
+                                        <p id="required-date-error" class="mt-1 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>
+                                    @enderror
                                 </div>
                             </div>
 
@@ -835,11 +832,7 @@
                                 {{-- Empty Items State --}}
                                 <template x-if="lines.length === 0">
                                     <div class="rounded-xl border-2 border-dashed border-neutral-200 dark:border-neutral-800 p-8 text-center">
-                                        <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
-                                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                                            </svg>
-                                        </div>
+                                        <x-ui.empty-artwork category="procurement" size="sm" />
                                         <p class="mt-2 text-xs font-semibold text-neutral-800 dark:text-neutral-200">No items requested yet</p>
                                         <p class="mt-1 text-[11px] text-neutral-500 dark:text-neutral-400">Add medical supplies and medications needed for your department.</p>
                                         <button type="button" @click="openAddItemDrawer()" class="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 transition">
@@ -1046,6 +1039,15 @@
                                             <button type="button" x-show="drawerForm.requested_quantity != drawerForm.ai_suggested_quantity" @click="drawerForm.requested_quantity = drawerForm.ai_suggested_quantity" class="shrink-0 text-[11px] font-bold text-primary-600 dark:text-primary-400 hover:underline">
                                                 Apply AI Qty (<span x-text="drawerForm.ai_suggested_quantity"></span>)
                                             </button>
+                                        </div>
+                                    </template>
+                                    <template x-if="!drawerForm.loading_ai && drawerForm.item_id && drawerForm.ai_recommendation && drawerForm.ai_suggested_quantity === null">
+                                        <div class="flex items-start gap-2 text-xs text-indigo-900 dark:text-indigo-200">
+                                            <x-ui.icon name="information-circle" class="mt-0.5 h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                                            <div>
+                                                <p class="font-bold">Not enough usage data yet</p>
+                                                <p class="mt-0.5 text-[11px] text-indigo-800 dark:text-indigo-300" x-text="drawerForm.ai_recommendation.explanation || 'Enter the requested quantity manually.'"></p>
+                                            </div>
                                         </div>
                                     </template>
                                 </div>

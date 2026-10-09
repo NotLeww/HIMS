@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Enums\AuditAction;
 use App\Enums\NotificationDestination;
+use App\Models\InventoryItem;
+use App\Models\PurchaseOrder;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\HimsNotificationService;
@@ -81,6 +83,8 @@ class NotificationController extends Controller
 
         $parameters = $stored->data['route_parameters'] ?? [];
         $parameters = is_array($parameters) ? $parameters : [];
+        $parameters = $this->resolveLegacyProcurementTarget($destination, $stored, $parameters);
+        $parameters = $this->resolveLegacyInventoryAlertTarget($destination, $stored, $parameters);
 
         if ($destination === null
             || ! $destination->isAuthorizedFor($user)
@@ -91,6 +95,67 @@ class NotificationController extends Controller
         }
 
         return redirect()->to($destination->url($user, $parameters));
+    }
+
+    /** @param array<string, scalar|null> $parameters */
+    private function resolveLegacyProcurementTarget(
+        ?NotificationDestination $destination,
+        DatabaseNotification $notification,
+        array $parameters,
+    ): array {
+        if ($destination !== NotificationDestination::Procurement || ! empty($parameters['purchase_order'])) {
+            return $parameters;
+        }
+
+        $purchaseOrderId = null;
+        $purchaseOrderNumber = trim((string) ($parameters['po_search'] ?? ''));
+
+        if ($purchaseOrderNumber !== '') {
+            $purchaseOrderId = PurchaseOrder::query()
+                ->where('po_number', $purchaseOrderNumber)
+                ->value('id');
+        } elseif (preg_match(
+            '/Purchase Order(?: \(PO\))? #(\d+)/i',
+            (string) ($notification->data['message'] ?? ''),
+            $matches,
+        ) === 1) {
+            $purchaseOrderId = (int) $matches[1];
+        }
+
+        if ($purchaseOrderId !== null) {
+            $parameters['purchase_order'] = (int) $purchaseOrderId;
+        }
+
+        return $parameters;
+    }
+
+    /** @param array<string, scalar|null> $parameters */
+    private function resolveLegacyInventoryAlertTarget(
+        ?NotificationDestination $destination,
+        DatabaseNotification $notification,
+        array $parameters,
+    ): array {
+        if ($destination !== NotificationDestination::InventoryAlerts || ! empty($parameters['item'])) {
+            return $parameters;
+        }
+
+        if (preg_match('/\(([^()]+)\)\s+is\s+/i', (string) ($notification->data['message'] ?? ''), $matches) !== 1) {
+            return $parameters;
+        }
+
+        $itemId = InventoryItem::query()
+            ->where('sku', trim($matches[1]))
+            ->value('id');
+
+        if ($itemId !== null) {
+            $parameters['item'] = (int) $itemId;
+            $parameters['alert_type'] = str_contains(
+                strtolower((string) ($notification->data['message'] ?? '')),
+                'out of stock'
+            ) ? 'out_of_stock' : 'low_stock';
+        }
+
+        return $parameters;
     }
 
     private function notificationFor(Request $request, string $id): DatabaseNotification

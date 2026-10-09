@@ -36,6 +36,15 @@ class ArchiveController extends Controller implements HasMiddleware
 
     public function index(Request $request): View
     {
+        $request->validate([
+            'archive_date_from' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'archive_date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:archive_date_from', 'before_or_equal:today'],
+        ], [
+            'archive_date_from.before_or_equal' => 'The archive start date cannot be in the future.',
+            'archive_date_to.after_or_equal' => 'The archive end date must be on or after the start date.',
+            'archive_date_to.before_or_equal' => 'The archive end date cannot be in the future.',
+        ]);
+
         $filters = $request->only(['type', 'search', 'archive_date_from', 'archive_date_to', 'archived_by']);
         $records = $this->archiveService->getArchivedRecords($filters, 15);
         $counts = $this->archiveService->getArchiveCounts();

@@ -61,6 +61,16 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     <style>
+        :root {
+            --hims-sidebar-day-image: url('{{ asset('img/hims-sidebar-hospital-day-v2.jpg') }}');
+            --hims-sidebar-night-image: url('{{ asset('img/hims-sidebar-hospital-night-matched.png') }}');
+            --hims-header-image: url('{{ asset('img/hims-header-logistics.jpg') }}');
+        }
+
+        .dark {
+            --hims-header-image: url('{{ asset('img/hims-header-logistics-night-v2.png') }}');
+        }
+
         /* Suppress layout transitions during initial page load and after navigation */
         .hims-app-shell:not([data-ready]) aside,
         .hims-app-shell:not([data-ready]) .transition-\[padding\],
@@ -161,7 +171,9 @@
                 ])>
                     {{-- Legacy pages pass a $header slot; new pages use <x-ui.page-header>. --}}
                     @isset($header)
-                        <div>{{ $header }}</div>
+                        <div class="hims-page-header flex items-center" data-legacy-page-header>
+                            <div class="w-full min-w-0">{{ $header }}</div>
+                        </div>
                     @endisset
 
                     {{ $slot }}

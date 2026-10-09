@@ -97,10 +97,14 @@ class NarcoticsVaultController extends Controller implements HasMiddleware
     public function exportReport(Request $request): StreamedResponse
     {
         $request->validate([
-            'start_date' => ['nullable', 'date'],
-            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'start_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date', 'before_or_equal:today'],
             'item_id' => ['nullable', 'integer', 'exists:inventory_items,id'],
             'spf' => ['nullable', 'string', 'max:50'],
+        ], [
+            'start_date.before_or_equal' => 'The report start date cannot be in the future.',
+            'end_date.after_or_equal' => 'The report end date must be on or after the start date.',
+            'end_date.before_or_equal' => 'The report end date cannot be in the future.',
         ]);
 
         $start = $request->filled('start_date') ? Carbon::parse($request->start_date)->startOfDay() : now()->subMonths(6)->startOfDay();

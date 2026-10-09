@@ -32,7 +32,6 @@ use Database\Seeders\SmartWarehousingDemoSeeder;
 use Database\Seeders\SupplierManagementDemoSeeder;
 use Database\Seeders\SupplierReviewEvidenceDemoSeeder;
 use Database\Seeders\SupplierScorecardDemoSeeder;
-use Database\Seeders\SupplyChainTurnaroundDemoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
 use Tests\Concerns\ConfiguresAccountProvisioning;
@@ -75,16 +74,7 @@ class ComprehensiveDemoSeederTest extends TestCase
         $this->assertTrue(SupplierScorecard::query()->exists());
         $this->assertTrue(SystemRecoveryRecord::where('error_id', 'like', 'REC-2026-%')->exists());
 
-        $turnaroundReports = InspectionAcceptanceReport::query()
-            ->with('goodsReceiptNote.lines')
-            ->where('iar_number', 'like', 'IAR-REV-2026-%')
-            ->get();
-        $this->assertCount(6, $turnaroundReports);
         $this->assertFalse(PurchaseOrder::where('requested_at', '>', now())->exists());
-        $this->assertTrue($turnaroundReports->every(
-            fn (InspectionAcceptanceReport $report): bool => $report->goodsReceiptNote?->lines->isNotEmpty()
-                && $report->coa_transmittal_deadline_at !== null
-        ));
     }
 
     public function test_it_can_be_repeated_without_duplicating_demo_records(): void
@@ -122,7 +112,6 @@ class ComprehensiveDemoSeederTest extends TestCase
             SupplierManagementDemoSeeder::class,
             SupplierReviewEvidenceDemoSeeder::class,
             SupplierScorecardDemoSeeder::class,
-            SupplyChainTurnaroundDemoSeeder::class,
         ];
 
         foreach ($seeders as $seeder) {

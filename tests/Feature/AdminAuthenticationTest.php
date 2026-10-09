@@ -91,6 +91,16 @@ class AdminAuthenticationTest extends TestCase
             ->assertDontSee('Privileged system access');
     }
 
+    public function test_supplier_login_uses_the_theme_aware_guest_layout(): void
+    {
+        $this->get(route('supplier.login'))
+            ->assertOk()
+            ->assertSee('Supplier Portal Sign in')
+            ->assertSee('bg-neutral-50 dark:bg-neutral-950', false)
+            ->assertSee('bg-neutral-100/95 dark:bg-neutral-900', false)
+            ->assertSee('data-theme-toggle', false);
+    }
+
     public function test_admin_can_login_only_through_the_dedicated_admin_guard(): void
     {
         $admin = $this->admin();

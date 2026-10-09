@@ -1,10 +1,23 @@
 <x-app-layout :full-width="true">
-    <x-slot name="header">
-        <div>
-            <span class="rounded-md bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary-700 ring-1 ring-inset ring-primary-200">Operational workspace</span>
-            <h2 class="mt-1 text-2xl font-bold tracking-tight text-neutral-900">Procurement &amp; Purchase Orders</h2>
+    <style>
+        [data-procurement-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-procurement-hero-day.png') }}');
+            --hims-header-position: right 66%;
+        }
+
+        .dark [data-procurement-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-procurement-hero-night.png') }}');
+        }
+    </style>
+
+    <div data-procurement-header>
+        <div class="hims-page-header flex h-36 min-h-36 w-full items-center" style="height: 144px; min-height: 144px; width: 100%;">
+            <div class="min-w-0">
+                <span class="rounded-md bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary-700 ring-1 ring-inset ring-primary-200 dark:bg-primary-950/80 dark:text-primary-300 dark:ring-primary-800/70">Operational workspace</span>
+                <h1 class="mt-1 text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">Procurement &amp; Purchase Orders</h1>
+            </div>
         </div>
-    </x-slot>
+    </div>
 
     @php
         $requestedTab = request('tab');
@@ -27,6 +40,7 @@
             : null;
         $procurementWorkspaceConfig = [
             'activeTab' => $defaultTab,
+            'openPurchaseOrderId' => request()->integer('open_po') ?: null,
             'items' => $canIssuePurchaseOrder ? $items->map(function ($item) use ($itemProcurementContext) {
                 $context = $itemProcurementContext->get((string) $item->id, []);
 
@@ -98,7 +112,7 @@
             @endif
 
             {{-- Operational KPI Metric Cards (Standardized 3-Zone Architecture per hims-ui-ux) --}}
-            <div class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4 xl:gap-4">
+            <div x-show="activeTab === 'orders_revisions'" x-cloak class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4 xl:gap-4">
                 {{-- 1. Open Purchase Orders --}}
                 <a href="{{ route('inventory.purchases', ['po_status' => 'open']).'#purchase-orders' }}" data-metric-title="Open purchase orders" data-metric-details="{{ json_encode($poMetricDetails['open']) }}" class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-primary-400 dark:hover:border-primary-600 transition-all duration-150 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950">
                     {{-- Zone 1: Header --}}
@@ -193,7 +207,7 @@
                     </label>
                     <select
                         id="procurement-mobile-tab-select"
-                        x-on:change="if ($event.target.value.startsWith('http') || $event.target.value.startsWith('/')) { window.himsNavigate($event.target.value); } else { activeTab = $event.target.value; }"
+                        x-on:change="if ($event.target.value.startsWith('http') || $event.target.value.startsWith('/')) { window.himsNavigate($event.target.value); } else { navigateToTab($event.target.value); }"
                         class="block w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 py-2.5 pl-3 pr-10 text-xs font-semibold text-neutral-800 dark:text-neutral-200 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 shadow-2xs"
                     >
                         <optgroup label="Purchasing &amp; Orders">
@@ -265,7 +279,7 @@
                             @canany(['view_procurement_sensitive_data', 'create_requisition', 'manage_sourcing', 'issue_purchase_order', 'manage_procurement'])
                                 <button
                                     type="button"
-                                    @click="activeTab = 'enterprise_s2p'; openDropdown = null"
+                                    @click="openDropdown = null; navigateToTab('enterprise_s2p')"
                                     class="w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between"
                                     :class="activeTab === 'enterprise_s2p' ? 'bg-primary-50 text-primary-800 dark:bg-primary-950/60 dark:text-primary-300 font-semibold' : 'text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'"
                                 >
@@ -279,7 +293,7 @@
 
                             <button
                                 type="button"
-                                @click="activeTab = 'orders_revisions'; openDropdown = null"
+                                @click="openDropdown = null; navigateToTab('orders_revisions')"
                                 class="w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between"
                                 :class="activeTab === 'orders_revisions' ? 'bg-primary-50 text-primary-800 dark:bg-primary-950/60 dark:text-primary-300 font-semibold' : 'text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'"
                             >
@@ -293,7 +307,7 @@
                             @canany(['create_requisition', 'manage_sourcing', 'issue_purchase_order'])
                                 <button
                                     type="button"
-                                    @click="activeTab = 'legacy_canvass'; openDropdown = null"
+                                    @click="openDropdown = null; navigateToTab('legacy_canvass')"
                                     class="w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between"
                                     :class="activeTab === 'legacy_canvass' ? 'bg-primary-50 text-primary-800 dark:bg-primary-950/60 dark:text-primary-300 font-semibold' : 'text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'"
                                 >
@@ -341,7 +355,7 @@
                                 @canany(['view_procurement_sensitive_data', 'manage_sourcing', 'evaluate_bids'])
                                     <button
                                         type="button"
-                                        @click="activeTab = 'sourcing_rfqs'; openDropdown = null"
+                                        @click="openDropdown = null; navigateToTab('sourcing_rfqs')"
                                         class="w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between"
                                         :class="activeTab === 'sourcing_rfqs' ? 'bg-primary-50 text-primary-800 dark:bg-primary-950/60 dark:text-primary-300 font-semibold' : 'text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'"
                                     >
@@ -356,7 +370,7 @@
                                 @canany(['view_procurement_sensitive_data', 'evaluate_bids', 'award_procurement'])
                                     <button
                                         type="button"
-                                        @click="activeTab = 'evaluations'; openDropdown = null"
+                                        @click="openDropdown = null; navigateToTab('evaluations')"
                                         class="w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between"
                                         :class="activeTab === 'evaluations' ? 'bg-primary-50 text-primary-800 dark:bg-primary-950/60 dark:text-primary-300 font-semibold' : 'text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'"
                                     >
@@ -415,7 +429,7 @@
                                 @can('approve_purchase_order')
                                     <button
                                         type="button"
-                                        @click="activeTab = 'doa_approvals'; openDropdown = null"
+                                        @click="openDropdown = null; navigateToTab('doa_approvals')"
                                         class="w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between"
                                         :class="activeTab === 'doa_approvals' ? 'bg-primary-50 text-primary-800 dark:bg-primary-950/60 dark:text-primary-300 font-semibold' : 'text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'"
                                     >
@@ -430,7 +444,7 @@
                                 @can('view_audit_trail')
                                     <button
                                         type="button"
-                                        @click="activeTab = 'audit_trail'; openDropdown = null"
+                                        @click="openDropdown = null; navigateToTab('audit_trail')"
                                         class="w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-between"
                                         :class="activeTab === 'audit_trail' ? 'bg-primary-50 text-primary-800 dark:bg-primary-950/60 dark:text-primary-300 font-semibold' : 'text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'"
                                     >
@@ -588,7 +602,7 @@
                         {{-- Target Need-By Date --}}
                         <div>
                             <label class="mb-1 block text-xs font-semibold uppercase tracking-wider text-neutral-600">Target Need-By Date</label>
-                            <input type="date" name="need_by_date" value="{{ now()->addDays(14)->toDateString() }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500" />
+                            <input type="date" name="need_by_date" value="{{ old('need_by_date', now()->addDays(14)->toDateString()) }}" min="{{ today()->toDateString() }}" class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-primary-500" />
                         </div>
 
                         {{-- Clinical Justification --}}
@@ -712,9 +726,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="9" class="px-3.5 py-6 text-center text-sm text-neutral-500 dark:text-neutral-400">No enterprise purchase requests created yet. Submit one above.</td>
-                                    </tr>
+                                    <x-ui.table.empty colspan="9" artwork="procurement" title="No purchase requests" message="Create the first enterprise purchase request using the form above." />
                                 @endforelse
                             </tbody>
                         </table>
@@ -878,6 +890,7 @@
                                     <th class="px-3.5 py-3">Bids Received</th>
                                     <th class="px-3.5 py-3">Status</th>
                                     <th class="px-3.5 py-3">Evaluation Action</th>
+                                    <th class="w-12 px-2 py-3"><span class="sr-only">Bid results</span></th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-neutral-200 dark:divide-neutral-800">
@@ -949,7 +962,7 @@
                                                 </div>
                                             @elseif($rfq->evaluations->isNotEmpty())
                                                 <div class="flex items-center gap-1.5">
-                                                    <button @click="activeTab = 'evaluations'" type="button" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 shadow-sm">
+                                                    <button @click="navigateToTab('evaluations')" type="button" class="inline-flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 shadow-sm">
                                                         View Matrix
                                                     </button>
                                                     @can('evaluate_bids')
@@ -985,15 +998,81 @@
                                                 @endcan
                                             @endif
                                         </td>
+                                        <td class="px-2 py-3 text-right">
+                                            <button
+                                                type="button"
+                                                x-on:click="$dispatch('open-modal', 'rfq-bid-results-{{ $rfq->id }}')"
+                                                aria-label="View bid results for {{ $rfq->rfq_number }}"
+                                                title="View bid results"
+                                                class="inline-flex size-9 items-center justify-center rounded-md text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+                                            >
+                                                <x-ui.icon name="ellipsis-vertical" class="size-5" />
+                                            </button>
+                                        </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="7" class="px-3.5 py-6 text-center text-sm text-neutral-500">No sourcing events published. Create one above.</td>
-                                    </tr>
+                                    <x-ui.table.empty colspan="8" artwork="procurement" title="No sourcing events" message="Publish the first sourcing event using the form above." />
                                 @endforelse
                             </tbody>
                         </table>
                     </div>
+                    @foreach($rfqs as $rfq)
+                        <x-ui.modal name="rfq-bid-results-{{ $rfq->id }}" title="Bid Results — {{ $rfq->rfq_number }}" maxWidth="2xl">
+                            <div class="space-y-4">
+                                <div>
+                                    <p class="font-semibold text-neutral-900 dark:text-neutral-100">{{ $rfq->title }}</p>
+                                    <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+                                        {{ $rfq->quotes->count() }} submitted {{ Str::plural('bid', $rfq->quotes->count()) }} from {{ $rfq->invitations->count() }} invited {{ Str::plural('supplier', $rfq->invitations->count()) }}.
+                                    </p>
+                                </div>
+
+                                @if($rfq->status !== \App\Enums\RfqStatus::Awarded)
+                                    <div class="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                                        Participating suppliers are visible. Bid pricing, proposals, scores, and outcomes remain sealed until the award is finalized.
+                                    </div>
+                                @endif
+
+                                @if($rfq->quotes->isEmpty())
+                                    <div class="rounded-lg border border-neutral-200 bg-neutral-50 p-6 text-center dark:border-neutral-700 dark:bg-neutral-800/60">
+                                        <x-ui.empty-artwork category="procurement" size="sm" />
+                                        <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No submitted bids</p>
+                                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Supplier bids for this sourcing event will appear here.</p>
+                                    </div>
+                                @else
+                                    <div class="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-700">
+                                        <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-4 bg-neutral-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:bg-neutral-800/80 dark:text-neutral-400">
+                                            <span>Bidder</span>
+                                            <span>Result</span>
+                                        </div>
+                                        <div class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                                            @foreach($rfq->quotes->sortByDesc('is_awarded') as $quote)
+                                                <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3">
+                                                    <div class="min-w-0">
+                                                        <p class="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100" title="{{ $quote->supplier?->name ?? 'Supplier not recorded' }}">
+                                                            {{ $quote->supplier?->name ?? 'Supplier not recorded' }}
+                                                        </p>
+                                                        <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                                                            {{ $rfq->status === \App\Enums\RfqStatus::Awarded ? $quote->quote_number : 'Bid received' }}
+                                                        </p>
+                                                    </div>
+                                                    @if($rfq->status !== \App\Enums\RfqStatus::Awarded)
+                                                        <span class="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">Bid submitted</span>
+                                                    @elseif($quote->is_awarded)
+                                                        <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                                                            <span class="size-1.5 rounded-full bg-emerald-500" aria-hidden="true"></span>
+                                                            Winning bidder
+                                                        </span>
+                                                    @else
+                                                        <span class="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-semibold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">Unsuccessful bidder</span>
+                                                    @endif
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
+                            </div>
+                        </x-ui.modal>
+                    @endforeach
                     @if ($rfqs->hasPages())
                         <div class="mt-4 border-t border-neutral-200 pt-4 dark:border-neutral-800">
                             {{ $rfqs->appends(['tab' => 'sourcing_rfqs'])->onEachSide(1)->links() }}
@@ -1401,9 +1480,7 @@
                                                             <td class="px-3 py-2.5 text-right font-bold tabular-nums text-neutral-900 dark:text-neutral-100">₱{{ number_format((float) $line->estimated_total_price, 2) }}</td>
                                                         </tr>
                                                     @empty
-                                                        <tr>
-                                                            <td colspan="6" class="px-3 py-6 text-center text-sm text-neutral-500 dark:text-neutral-400">No requested items recorded.</td>
-                                                        </tr>
+                                                        <x-ui.table.empty colspan="6" artwork="procurement" title="No requested items" message="Line items added to this purchase request will appear here." />
                                                     @endforelse
                                                 </tbody>
                                                 @if($targetPr->lines->count() > 1)
@@ -1468,9 +1545,7 @@
                             </article>
                         @empty
                             <div class="rounded-xl border border-dashed border-neutral-300 px-4 py-10 text-center dark:border-neutral-700">
-                                <span class="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
-                                    <x-ui.icon name="shield-check" class="h-5 w-5" />
-                                </span>
+                                <x-ui.empty-artwork category="procurement" size="sm" />
                                 <p class="mt-3 text-sm font-semibold text-neutral-800 dark:text-neutral-200">{{ $approvalFilters ? 'No approval chains match these filters' : 'No approval chains require review' }}</p>
                                 <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ $approvalFilters ? 'Try changing or clearing the filters.' : 'New procurement approvals will appear here.' }}</p>
                                 @if($approvalFilters)
@@ -1775,6 +1850,11 @@
                                     };
                                     $poLines = $po->lines->isNotEmpty() ? $po->lines : collect();
                                     $primaryItem = $poLines->first()?->item ?? $po->item;
+                                    $poItems = $poLines->pluck('item')->filter();
+                                    if ($poItems->isEmpty() && $po->item) {
+                                        $poItems = collect([$po->item]);
+                                    }
+                                    $poArtworkUrl = asset('img/requisition/'.\App\Support\ItemFamilyArtwork::filename($poItems));
                                     $orderedQuantity = $poLines->isNotEmpty() ? (int) $poLines->sum('ordered_quantity') : (int) $po->quantity;
                                     $receivedQuantity = $poLines->isNotEmpty() ? (int) $poLines->sum('received_quantity') : ($po->received_at ? $orderedQuantity : 0);
                                     $expectedDelivery = $po->shipments->sortByDesc('id')->first()?->estimated_delivery_date ?? $po->delivery_date;
@@ -1848,6 +1928,7 @@
                                         'version' => $po->version,
                                         'status' => $statusLabel,
                                         'supplier' => $po->supplier?->name ?? 'Supplier unavailable',
+                                        'artwork_url' => $poArtworkUrl,
                                         'supplier_location' => $canViewSupplierLocation ? $po->supplier?->address : null,
                                         'item' => $primaryItem?->name ?? 'Multiple items',
                                         'quantity' => $orderedQuantity,
@@ -1910,7 +1991,7 @@
                                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                         <div class="min-w-0 space-y-1">
                                             <div class="flex flex-wrap items-center gap-2">
-                                                <button type="button" x-on:click="openPurchaseOrderDetails({{ Js::from($poDetail) }})" class="font-mono text-xs font-bold text-primary-700 hover:text-primary-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 flex items-center gap-1 dark:text-primary-400 dark:hover:text-primary-300">
+                                                <button type="button" data-purchase-order-details="{{ $po->id }}" x-on:click="openPurchaseOrderDetails({{ Js::from($poDetail) }})" class="font-mono text-xs font-bold text-primary-700 hover:text-primary-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 flex items-center gap-1 dark:text-primary-400 dark:hover:text-primary-300">
                                                     <svg class="h-3.5 w-3.5 text-neutral-400 dark:text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                                                     <span>{{ $po->po_number }}</span>
                                                 </button>
@@ -2116,7 +2197,7 @@
                                 </article>
                             @empty
                                 <div class="px-5 py-12 text-center">
-                                    <span class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400"><x-ui.icon name="document-text" class="h-5 w-5" /></span>
+                                    <x-ui.empty-artwork category="procurement" size="sm" />
                                     <p class="mt-3 text-sm font-medium text-neutral-800 dark:text-neutral-200">No purchase orders found</p>
                                     <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{{ collect($poFilters)->filter()->isNotEmpty() || $supplierFilter ? 'Clear the filters to view other orders.' : 'Create the first catalog purchase order when stock needs replenishment.' }}</p>
                                 </div>
@@ -2161,7 +2242,9 @@
                 <x-ui.modal name="purchase-order-details" title="Purchase order details" maxWidth="3xl">
                     <template x-if="selectedPo">
                         <div class="space-y-4">
-                            <div class="flex flex-wrap items-start justify-between gap-3 border-b border-neutral-100 dark:border-neutral-800 pb-3">
+                            <div class="relative isolate min-h-28 overflow-hidden rounded-xl border border-primary-100 bg-gradient-to-r from-primary-50/90 via-white to-cyan-50/70 p-4 dark:border-primary-900/60 dark:from-primary-950/35 dark:via-neutral-900 dark:to-cyan-950/20">
+                                <img x-bind:src="selectedPo.artwork_url" alt="" aria-hidden="true" class="pointer-events-none absolute right-0 top-1/2 hidden h-[145%] w-auto max-w-[40%] -translate-y-1/2 object-contain object-right opacity-40 mix-blend-multiply dark:opacity-20 dark:mix-blend-screen sm:block">
+                                <div class="relative flex flex-wrap items-start justify-between gap-3 sm:pr-[32%]">
                                 <div class="min-w-0">
                                     <p class="font-mono text-base font-bold text-primary-700 dark:text-primary-400" x-text="selectedPo.number"></p>
                                     <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
@@ -2172,6 +2255,7 @@
                                 <div class="text-right">
                                     <p class="text-xs text-neutral-500 dark:text-neutral-400">Supplier</p>
                                     <p class="text-sm font-semibold text-neutral-900 dark:text-neutral-100" x-text="selectedPo.supplier"></p>
+                                </div>
                                 </div>
                             </div>
 
@@ -2465,8 +2549,7 @@
                             }
                             form.submit();
                         } else {
-                            this.activeTab = 'orders_revisions';
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                            this.navigateToTab('orders_revisions');
                         }
                     }
                 }"
@@ -2789,7 +2872,7 @@
                             <x-ui.button type="button" variant="secondary" size="sm" icon="arrow-left" @click="canvassStep = 2; window.scrollTo({ top: 0, behavior: 'smooth' })">
                                 Back: Procurement request
                             </x-ui.button>
-                            <x-ui.button type="button" variant="secondary" size="sm" x-on:click="activeTab = 'orders_revisions'; window.scrollTo({ top: 0, behavior: 'smooth' })">
+                            <x-ui.button type="button" variant="secondary" size="sm" x-on:click="navigateToTab('orders_revisions')">
                                 <span>PO Workspace</span>
                                 <x-ui.icon name="chevron-right" class="w-3.5 h-3.5 ml-1" />
                             </x-ui.button>
@@ -2817,7 +2900,7 @@
                             @can('manage_sourcing')
                                 @if ($approvedRequests->isEmpty())
                                     <div class="rounded-lg border border-dashed border-neutral-200 bg-neutral-50/70 p-5 text-center">
-                                        <x-ui.icon name="document-text" class="mx-auto h-7 w-7 text-neutral-400 mb-1.5" />
+                                        <x-ui.empty-artwork category="procurement" size="sm" />
                                         <p class="text-xs font-semibold text-neutral-700">Approve a procurement request first</p>
                                         <p class="mt-0.5 text-[11px] text-neutral-500">Supplier quotations can only be attached to approved requests.</p>
                                         <div class="mt-3">
@@ -2904,7 +2987,7 @@
                                 <h3 class="text-xs sm:text-sm font-semibold text-primary-950">Continue to purchase orders</h3>
                                 <p class="text-[11px] text-primary-800">Order creation, status tracking, details, and receiving actions are consolidated in the primary workspace.</p>
                             </div>
-                            <x-ui.button type="button" size="sm" x-on:click="activeTab = 'orders_revisions'; window.scrollTo({ top: 0, behavior: 'smooth' })">
+                            <x-ui.button type="button" size="sm" x-on:click="navigateToTab('orders_revisions')">
                                 Open PO workspace
                             </x-ui.button>
                         </div>
@@ -2946,9 +3029,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="5" class="px-3.5 py-6 text-center text-sm text-neutral-500 dark:text-neutral-400">No procurement audit records captured yet.</td>
-                                    </tr>
+                                    <x-ui.table.empty colspan="5" artwork="governance" title="No procurement audit records" message="Tracked sourcing and approval activity will appear here." />
                                 @endforelse
                             </tbody>
                         </table>

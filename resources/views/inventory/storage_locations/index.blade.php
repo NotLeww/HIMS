@@ -1,4 +1,9 @@
 <x-app-layout>
+    <style>
+        :root { --hims-header-image: url('{{ asset('img/hims-storage-locations-hero-day.png') }}'); --hims-header-position: right center; }
+        .dark { --hims-header-image: url('{{ asset('img/hims-storage-locations-hero-night.png') }}'); }
+    </style>
+
     <x-slot name="header">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex min-w-0 items-center gap-3">
@@ -360,7 +365,7 @@
                     </div></x-ui.table.td>
                     </x-ui.table.row>
                 @empty
-                    <x-ui.table.empty colspan="7" title="No storage areas found" message="Adjust the filters or add a storage area to the warehouse hierarchy." />
+                    <x-ui.table.empty colspan="7" artwork="warehouse" title="No storage areas found" message="Adjust the filters or add a storage area to the warehouse hierarchy." />
                 @endforelse
                 </tbody>
             </x-ui.table>

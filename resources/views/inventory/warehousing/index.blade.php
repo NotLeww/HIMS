@@ -1,10 +1,23 @@
 <x-app-layout>
-    <x-slot name="header">
-        <div>
-            <p class="text-xs font-semibold uppercase tracking-wider text-primary-700">Hospital Supply Chain Execution</p>
-            <h1 class="text-2xl font-bold text-neutral-900">Smart Warehousing System (SWS)</h1>
+    <style>
+        [data-warehousing-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-warehousing-hero-day.png') }}');
+            --hims-header-position: right 58%;
+        }
+
+        .dark [data-warehousing-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-warehousing-hero-night.png') }}');
+        }
+    </style>
+
+    <div data-warehousing-header>
+        <div class="hims-page-header flex h-36 min-h-36 w-full items-center" style="height: 144px; min-height: 144px; width: 100%;">
+            <div class="min-w-0">
+                <p class="text-xs font-semibold uppercase tracking-wider text-primary-700 dark:text-primary-300">Hospital Supply Chain Execution</p>
+                <h1 class="mt-1 text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">Smart Warehousing System (SWS)</h1>
+            </div>
         </div>
-    </x-slot>
+    </div>
 
             {{-- SWS Consolidated Workflow Navigation --}}
             @include('inventory.warehousing.partials.workflow_nav')
@@ -110,8 +123,9 @@
                                 </div>
                             </div>
                         @empty
-                            <div class="py-8 text-center text-sm text-neutral-500">
-                                No warehouse tasks generated.
+                            <div class="px-4 py-6 text-center">
+                                <x-ui.empty-artwork category="warehouse" size="sm" />
+                                <p class="mt-2 text-sm font-semibold text-neutral-700">No warehouse tasks generated</p>
                             </div>
                         @endforelse
                     </div>
@@ -144,8 +158,9 @@
                                 </div>
                             </div>
                         @empty
-                            <div class="py-8 text-center text-sm text-neutral-500">
-                                No barcode scan events recorded yet.
+                            <div class="px-4 py-6 text-center">
+                                <x-ui.empty-artwork category="warehouse" size="sm" />
+                                <p class="mt-2 text-sm font-semibold text-neutral-700">No barcode scans recorded</p>
                             </div>
                         @endforelse
                     </div>

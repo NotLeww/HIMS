@@ -33,9 +33,7 @@
             </a>
         @empty
             <div class="px-4 py-7 text-center">
-                <span class="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-success-50 text-success-700">
-                    <x-ui.icon name="check-circle" class="h-4 w-4" />
-                </span>
+                <x-ui.empty-artwork category="inventory" size="sm" />
                 <p class="mt-2 text-xs font-semibold text-neutral-800">No active alerts</p>
                 <p class="mt-0.5 text-[11px] text-neutral-500">Inventory conditions are within their alert thresholds.</p>
             </div>

@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\WarehouseTask;
 use App\Services\AiDemandForecastService;
 use App\Services\Inventory\IssuanceEngine;
+use App\Support\ItemFamilyArtwork;
 use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -167,7 +168,7 @@ class MaterialRequisitionController extends Controller implements HasMiddleware
                 'available' => false,
                 'suggested_quantity' => null,
                 'unit' => $unitLabel,
-                'explanation' => 'No forecast or configured planning quantity is available. Enter the requested quantity manually.',
+                'explanation' => 'No recorded consumption was found for this item. Enter the required quantity manually. Future recommendations will improve after issuances are recorded.',
             ];
         }
 
@@ -183,9 +184,11 @@ class MaterialRequisitionController extends Controller implements HasMiddleware
 
     public function show(MaterialRequisition $requisition): View
     {
-        $requisition->load(['requestingUser', 'approvedBy', 'issuedBy', 'acknowledgedBy', 'costCenter', 'lines.item', 'lines.batch', 'lines.location']);
+        $requisition->load(['requestingUser', 'approvedBy', 'issuedBy', 'acknowledgedBy', 'costCenter', 'lines.item.category', 'lines.batch', 'lines.location']);
         $pickList = $this->issuanceEngine->generatePickList($requisition);
         $approverRoleLabels = $this->approverRoleLabels();
+        $primaryItem = $requisition->lines->first()?->item;
+        $pickListArtwork = ItemFamilyArtwork::filename($requisition->lines->pluck('item'));
         $issueTask = WarehouseTask::query()
             ->where('reference_type', (new MaterialRequisitionLine)->getMorphClass())
             ->whereIn('reference_id', $requisition->lines->modelKeys())
@@ -193,7 +196,7 @@ class MaterialRequisitionController extends Controller implements HasMiddleware
             ->oldest('id')
             ->first();
 
-        return view('inventory.requisitions.show', compact('requisition', 'pickList', 'approverRoleLabels', 'issueTask'));
+        return view('inventory.requisitions.show', compact('requisition', 'pickList', 'pickListArtwork', 'primaryItem', 'approverRoleLabels', 'issueTask'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -201,7 +204,7 @@ class MaterialRequisitionController extends Controller implements HasMiddleware
         $validator = Validator::make($request->all(), [
             'department' => ['required', 'string', 'max:100'],
             'cost_center_id' => ['nullable', 'integer'],
-            'required_date' => ['nullable', 'date'],
+            'required_date' => ['nullable', 'date', 'after_or_equal:today'],
             'urgency' => ['nullable', 'in:routine,urgent,stat_emergency'],
             'justification' => ['nullable', 'string', 'max:500'],
             'lines' => ['required', 'array', 'min:1'],
@@ -220,6 +223,7 @@ class MaterialRequisitionController extends Controller implements HasMiddleware
             'lines.*.item_id.required' => 'An inventory item must be selected for each line.',
             'lines.*.requested_quantity.required' => 'Requested quantity is required.',
             'lines.*.requested_quantity.min' => 'Requested quantity must be at least 1.',
+            'required_date.after_or_equal' => 'The required date must be today or a future date.',
         ]);
 
         $validator->after(function ($v) use ($request) {

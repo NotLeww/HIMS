@@ -1,4 +1,9 @@
 <x-app-layout>
+    <style>
+        :root { --hims-header-image: url('{{ asset('img/hims-receiving-hero-day.png') }}'); --hims-header-position: right center; }
+        .dark { --hims-header-image: url('{{ asset('img/hims-receiving-hero-night.png') }}'); }
+    </style>
+
     <x-slot name="header">
         <div>
             <div class="flex items-center gap-2">
@@ -248,11 +253,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="6" class="px-6 py-8 text-center text-neutral-500">
-                                        No unreceived purchase orders found. All deliveries are up to date.
-                                    </td>
-                                </tr>
+                                <x-ui.table.empty colspan="6" artwork="receiving" title="No deliveries awaiting receipt" message="All eligible purchase-order deliveries are currently up to date." />
                             @endforelse
                         </tbody>
                     </table>
@@ -262,8 +263,16 @@
             {{-- Goods Receipt Notes History --}}
             <div class="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
                 <div class="border-b border-neutral-200 px-6 py-4">
-                    <h3 class="text-base font-semibold text-neutral-900">Historical Goods Receipt Notes (GRN)</h3>
-                    <p class="text-xs text-neutral-500">Authoritative audit evidence of physical stock deliveries and quarantine routing.</p>
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                        <div><h3 class="text-base font-semibold text-neutral-900">Historical Goods Receipt Notes (GRN)</h3><p class="text-xs text-neutral-500">Authoritative audit evidence of physical stock deliveries and quarantine routing.</p></div>
+                        <form method="GET" action="{{ route('inventory.receiving.index') }}" x-data="{ dateFrom: {{ Js::from(request('date_from', '')) }}, dateTo: {{ Js::from(request('date_to', '')) }} }" class="flex flex-wrap items-center gap-2">
+                            <label><span class="sr-only">Receipt date from</span><input type="date" name="date_from" x-model="dateFrom" @change="if (dateTo && dateFrom > dateTo) dateTo = dateFrom" max="{{ now()->toDateString() }}" class="rounded-lg border-neutral-300 py-1.5 text-xs"></label>
+                            <span class="inline-flex min-h-8 shrink-0 items-center text-xs text-neutral-400">to</span>
+                            <label><span class="sr-only">Receipt date to</span><input type="date" name="date_to" x-model="dateTo" @change="if (dateFrom && dateTo < dateFrom) dateTo = dateFrom" :min="dateFrom || null" max="{{ now()->toDateString() }}" class="rounded-lg border-neutral-300 py-1.5 text-xs"></label>
+                            <x-ui.button type="submit" size="sm" icon="funnel">Apply</x-ui.button>
+                            @if(request()->hasAny(['date_from', 'date_to']))<x-ui.button size="sm" variant="secondary" :href="route('inventory.receiving.index')">Clear</x-ui.button>@endif
+                        </form>
+                    </div>
                 </div>
                 <div class="overflow-x-auto hims-table-scroll">
                     <table class="w-full text-left text-sm text-neutral-600">
@@ -312,11 +321,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="8" class="px-6 py-8 text-center text-neutral-500">
-                                        No Goods Receipt Notes generated yet.
-                                    </td>
-                                </tr>
+                                <x-ui.table.empty colspan="8" artwork="receiving" title="No Goods Receipt Notes" message="Completed receiving records will appear here." />
                             @endforelse
                         </tbody>
                     </table>
@@ -591,7 +596,7 @@
                                                             :name="`lines[${index}][expiry_date]`"
                                                             x-model="line.expiry_date"
                                                             class="mt-0.5 w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-xs font-mono py-1.5 px-2 focus:ring-primary-500 focus:border-primary-500"
-                                                            :min="new Date().toISOString().split('T')[0]"
+                                                            :min="line.manufactured_date || null"
                                                             :required="line.item && line.item.is_expiry_tracked"
                                                         >
                                                     </div>
@@ -600,8 +605,9 @@
                                                         <input
                                                             type="date"
                                                             :name="`lines[${index}][manufactured_date]`"
+                                                            x-model="line.manufactured_date"
                                                             class="mt-0.5 w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-xs font-mono py-1.5 px-2 focus:ring-primary-500 focus:border-primary-500"
-                                                            :max="new Date().toISOString().split('T')[0]"
+                                                            max="{{ today()->toDateString() }}"
                                                         >
                                                     </div>
                                                 </div>

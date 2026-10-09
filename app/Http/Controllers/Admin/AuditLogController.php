@@ -44,9 +44,13 @@ class AuditLogController extends Controller implements HasMiddleware
             'action' => ['nullable', Rule::enum(AuditAction::class)],
             'outcome' => ['nullable', Rule::in(['success', 'failure'])],
             'source' => ['nullable', Rule::in(['user', 'system', 'scheduled_job', 'integration'])],
-            'date_from' => ['nullable', 'date_format:Y-m-d'],
-            'date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from'],
+            'date_from' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from', 'before_or_equal:today'],
             'print' => ['nullable', 'boolean'],
+        ], [
+            'date_from.before_or_equal' => 'The audit start date cannot be in the future.',
+            'date_to.after_or_equal' => 'The audit end date must be on or after the start date.',
+            'date_to.before_or_equal' => 'The audit end date cannot be in the future.',
         ]);
 
         $isPrint = (bool) ($filters['print'] ?? false);
@@ -239,7 +243,7 @@ class AuditLogController extends Controller implements HasMiddleware
             ],
             [
                 'column' => 'actor_employee_id',
-                'category' => 'Employee ID',
+                'category' => 'Account ID',
                 'identity_columns' => ['user_id'],
                 'identity' => fn (AuditLog $log) => $log->user_id === null ? null : 'employee:'.$log->user_id,
             ],

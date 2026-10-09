@@ -58,7 +58,7 @@ Prefer an existing `<x-ui.*>` component when its contract fits:
 - `loader`: `label`, `size`
 - `modal`: `name`, `title`, `maxWidth`
 - `nav-item`: `href`, `icon`, `active`, `badge`, `disabled`, `sub`
-- `page-header`: `title`, `subtitle`, `breadcrumbs`, with optional `actions`
+- `page-header`: `title`, `subtitle`, `breadcrumbs`, optional `actions`, and optional contextual `image`, `imagePosition`, and `imageSize`
 - `stat`: `label`, `value`, `icon`, `tone`, `hint`, `summary`, `href`, `compact`
 - `table`: `stickyHeader`, `zebra`, plus `table.head`, `table.row`, `table.th`, `table.td`, and `table.empty`
 
@@ -73,6 +73,7 @@ Do not invent props. Extend a shared component only when multiple real consumers
 - Put substantial companion panels side by side at `lg` or `xl` only when both remain independently usable. Use `minmax(0, ...)`, `min-w-0`, `items-start`, and stack them below the chosen breakpoint.
 - Boxed widths are appropriate for login dialogs, narrow security/profile forms, and focused prose such as legal pages—not operational dashboards, catalogs, or tables.
 - Do not add oversized empty hero sections, decorative spacer blocks, or fixed heights that waste working space.
+- Standard HIMS page and hero headers are 144px tall from sm upward, regardless of how little content they contain. On narrower screens use 144px as the minimum and allow growth only to prevent wrapping or action clipping. Custom page headers outside <x-ui.page-header> must follow the same sizing contract; do not reintroduce legacy 104px or 112px overrides.
 
 ### Responsive Behavior and Overflow
 
@@ -81,6 +82,7 @@ Do not invent props. Extend a shared component only when multiple real consumers
 - Tables may use the shared `overflow-x-auto` shell as a safeguard, but first progressively hide secondary columns or use a mobile composition. Always preserve the row identifier, primary state, and required action.
 - Inputs and controls should be `w-full` on narrow screens and size naturally at larger breakpoints. Avoid rigid widths for dynamic labels or values.
 - Long unstructured strings may use `truncate` only with `min-w-0` and an accessible `title`; do not truncate short controls, status labels, or operational values.
+- Keep short labels, badge text, status text, and control text intact at natural word boundaries. Never split a word to make adjacent content fit; use normal word breaking and let the row wrap, stack, or widen instead.
 - Verify no horizontal overflow at 375px, 768px, 1280px, and 1920px, including nested cards, modals, and table shells.
 
 ## HIMS Interface Conventions
@@ -88,9 +90,14 @@ Do not invent props. Extend a shared component only when multiple real consumers
 ### Forms and Buttons
 
 - Use visible labels, associated hints/errors, retained `old()` values, correct required/disabled semantics, and the existing validation bags.
+- Do not expose browser-default constraint-validation bubbles on HIMS forms. Use `novalidate` only when every enforced constraint has matching server-side Laravel validation and the failed response renders the shared inline error treatment, retains user input, associates the message with its field, and focuses the first invalid control. Keep semantic attributes such as `required`, `min`, `max`, and `maxlength` as accessible input metadata even when native popovers are suppressed.
+- Show ordinary validation errors only beside their owning fields. Do not add a page-, layout-, card-, modal-, or form-level validation summary/banner that repeats field errors. Use a persistent alert only for an actionable failure that cannot be assigned to a specific control; keep multi-field discoverability through first-invalid-field focus and correct `aria-describedby` associations.
+- For create, submit, or mutation forms with required inputs, keep the primary submit button natively `disabled` until the current form satisfies its client-visible constraints. Recompute validity on initialization and after every relevant input/change, including conditional fields, and prevent an enabled flash before JavaScript initializes. The enabled state is guidance only: preserve the same server-side validation and inline error handling for bypasses, stale state, and no-JavaScript submissions.
 - Keep equivalent fields aligned and equally sized. Do not let component class composition accidentally drop `w-full`, padding, or error/focus styles.
+- Match desktop control width to expected input length. Group related short and medium fields in responsive grids instead of stretching each one across the operational canvas; reserve dominant row width for genuinely long-form input. Keep controls stacked and full-width on narrow screens.
 - Every `<select>` needs arrow clearance: compact selects use at least `pl-2.5 pr-8`; standard selects use `pl-3 pr-10`. Do not use symmetrical `px-*` where text can sit under the browser chevron.
 - Use native date/datetime constraints when appropriate, update dependent limits, and mirror all chronology rules in Laravel validation. Client constraints are UX, not persistence authority.
+- Before implementing any date or datetime field, determine what the date represents and document its valid boundary from the workflow (past-only, today-or-later, future-only, bounded range, or relative to another field). Apply the matching native `min`/`max` constraint and server-side Laravel rule; do not allow past dates for required-by, appointment, delivery, scheduling, or other forward-looking fields unless the verified domain workflow explicitly permits them.
 - Use `<x-ui.button>` and its established variants/sizes. Preserve visible focus, disabled behavior, and `data-loading-text` integration.
 
 ### Cards, Dashboards, and Metrics
@@ -125,7 +132,7 @@ Do not invent props. Extend a shared component only when multiple real consumers
 ### Notifications and Banners
 
 - Authenticated `<x-app-layout>` pages use `layouts/partials/toast-notifications.blade.php` as the single feedback HUD for `status`, `success`, `error`, `warning`, and `info`.
-- Do not duplicate a toast with an in-page success banner. Use `<x-ui.alert>` only for actionable error summaries or persistent operational/compliance warnings.
+- Do not duplicate a toast with an in-page success banner. Use `<x-ui.alert>` only for actionable non-field failures or persistent operational/compliance warnings, never as a duplicate summary of inline field validation errors.
 - Do not add welcome, marketing, reassurance, or decorative banners. Keep the page-header subtitle to one line of orientation.
 - Do not create ad-hoc popup styles, SweetAlert dialogs, or browser alerts. Update the shared toast or confirmation primitive when a system-wide change is genuinely required.
 
@@ -133,8 +140,17 @@ Do not invent props. Extend a shared component only when multiple real consumers
 
 - Forms with submit buttons use the existing in-button loader through `data-loading-text`; do not also show the central loading overlay for the same action.
 - The central overlay is for link navigation, downloads/exports, or programmatic submissions without a contextual submit button.
+- For server-backed tabs or views, follow the tab-transition sequencing contract in `references/design-consistency.md`; never expose the target tab with stale content before its loading state begins.
 - Async HIMS content must distinguish loading, success, empty, and error. Use a lightweight skeleton shaped like the final component, preserve layout size, support dark mode and reduced motion, and prevent stale responses from replacing newer results.
 - Never display fake HIMS data during loading or expose testing shortcuts in production UI.
+
+### Empty States
+
+- Every data-bearing table, list, queue, dashboard region, or async result must render an intentional empty state when it has no records. Do not leave a blank surface, an unexplained empty table body, or a zero-height region.
+- Distinguish first-use emptiness from filtered no-results. First-use copy should explain what will appear and the legitimate next step; filtered no-results should name the mismatch and suggest adjusting or clearing filters without implying that records do not exist.
+- Reuse `<x-ui.table.empty>` inside shared tables. For non-table surfaces, follow the same compact anatomy: one purposeful outline icon, a precise title, and one short explanatory sentence using HIMS theme tokens.
+- Include an empty-state action only when it is authorized, immediately useful, and not already available as the page or section's primary action. Never duplicate a header CTA inside the empty state.
+- Empty states must preserve table structure, responsive layout, light/dark themes, semantic reading order, and permission boundaries. Never show fake sample records to make a surface look populated.
 
 ## Restraint Rules
 

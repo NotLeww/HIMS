@@ -6,32 +6,68 @@
         $isAdminPanel => 'Admin Dashboard',
         default => 'Staff Dashboard',
     };
+    $dashboardHeader = match (true) {
+        $isSuperAdminPanel => 'super-admin',
+        $isAdminPanel => 'admin',
+        default => 'staff',
+    };
 @endphp
 
 <x-app-layout full-width>
     <x-slot:title>{{ $dashboardTitle }}</x-slot:title>
 
-    <x-ui.page-header
-        :title="$dashboardTitle"
-    >
-        <x-slot:actions>
-            @canany([\App\Enums\Permission::IssueStock->value, \App\Enums\Permission::RecordMovements->value, \App\Enums\Permission::TransferStock->value])
-            <x-ui.button variant="secondary" icon="arrows-right-left" :href="route('inventory.stock-movements')">
-                Record movement
-            </x-ui.button>
-            @endcanany
-            @canany([\App\Enums\Permission::ManageItems->value, \App\Enums\Permission::ManageLocations->value, \App\Enums\Permission::ManageSuppliers->value])
-            <x-ui.button variant="secondary" icon="arrow-up-tray" :href="route('inventory.import.index')">
-                Import data
-            </x-ui.button>
-            @endcanany
-            @can(\App\Enums\Permission::ManageItems->value)
-            <x-ui.button variant="primary" icon="plus" :href="route('inventory.items')">
-                New item
-            </x-ui.button>
-            @endcan
-        </x-slot:actions>
-    </x-ui.page-header>
+    <style>
+        [data-dashboard-header="super-admin"] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-super-admin-hero-day.png') }}');
+            --hims-header-position: right 60%;
+        }
+
+        .dark [data-dashboard-header="super-admin"] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-super-admin-hero-night.png') }}');
+        }
+
+        [data-dashboard-header="admin"] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-admin-dashboard-hero-day.png') }}');
+            --hims-header-position: right 58%;
+        }
+
+        .dark [data-dashboard-header="admin"] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-admin-dashboard-hero-night.png') }}');
+        }
+
+        [data-dashboard-header="staff"] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-staff-dashboard-hero-day.png') }}');
+            --hims-header-position: right 63%;
+        }
+
+        .dark [data-dashboard-header="staff"] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-staff-dashboard-hero-night.png') }}');
+        }
+    </style>
+
+    <div data-dashboard-header="{{ $dashboardHeader }}">
+        <x-ui.page-header
+            :title="$dashboardTitle"
+        >
+            <x-slot:actions>
+                @canany([\App\Enums\Permission::IssueStock->value, \App\Enums\Permission::RecordMovements->value, \App\Enums\Permission::TransferStock->value])
+                <x-ui.button variant="secondary" icon="arrows-right-left" :href="route('inventory.stock-movements')">
+                    Record movement
+                </x-ui.button>
+                @endcanany
+                @canany([\App\Enums\Permission::ManageItems->value, \App\Enums\Permission::ManageLocations->value, \App\Enums\Permission::ManageSuppliers->value])
+                <x-ui.button variant="secondary" icon="arrow-up-tray" :href="route('inventory.import.index')">
+                    Import data
+                </x-ui.button>
+                @endcanany
+                @can(\App\Enums\Permission::ManageItems->value)
+                <x-ui.button variant="primary" icon="plus" :href="route('inventory.items')">
+                    New item
+                </x-ui.button>
+                @endcan
+            </x-slot:actions>
+        </x-ui.page-header>
+    </div>
 
     {{--
         Alerts and the counters above them are re-fetched every 30s so the
@@ -237,9 +273,11 @@
                     <div
                         x-show="isEmpty()"
                         x-cloak
-                        aria-busy="true"
+                        class="rounded-xl border border-dashed border-neutral-300 bg-neutral-50/70 px-4 py-10 text-center dark:border-neutral-800 dark:bg-neutral-900/40"
                     >
-                        <x-ui.forecast-chart-skeleton />
+                        <x-ui.empty-artwork category="reports" size="sm" />
+                        <p class="mt-3 text-sm font-semibold text-neutral-900 dark:text-neutral-100">No forecast data yet</p>
+                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Historical stock movement data will populate this forecast.</p>
                     </div>
 
                     {{-- 4. SUCCESS / POPULATED FORECAST STATE (Only revealed when real data exists) --}}
@@ -820,9 +858,10 @@
                         <div
                             x-show="isEmpty()"
                             x-cloak
-                            aria-busy="true"
+                            class="rounded-lg border border-neutral-200/80 bg-neutral-50/60 p-4 text-center dark:border-neutral-800 dark:bg-neutral-900/40"
                         >
-                            <x-ui.forecast-insight-skeleton />
+                            <x-ui.empty-artwork category="reports" size="sm" />
+                            <p class="mt-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">No forecast insights available</p>
                         </div>
 
                         {{-- 3. Error State --}}
@@ -1165,9 +1204,7 @@
 
                     {{-- Empty Filter Results State --}}
                     <div x-show="filteredItems().length === 0" class="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-8 text-center dark:border-neutral-700 dark:bg-neutral-900/50">
-                        <span class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-neutral-200/70 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
-                            <x-ui.icon name="funnel" class="h-5 w-5" />
-                        </span>
+                        <x-ui.empty-artwork category="reports" size="sm" />
                         <p class="mt-2.5 text-sm font-semibold text-neutral-900 dark:text-neutral-100">No matching forecast items</p>
                         <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">None of the forecast items match your current filter criteria.</p>
                         <div class="mt-3.5">
@@ -1387,7 +1424,7 @@
                             </x-ui.table.td>
                         </x-ui.table.row>
                     @empty
-                        <x-ui.table.empty
+                        <x-ui.table.empty artwork="procurement"
                             :colspan="4"
                             icon="clipboard-document-list"
                             title="No pending purchase orders"
@@ -1453,7 +1490,7 @@
                             </x-ui.table.td>
                         </x-ui.table.row>
                     @empty
-                        <x-ui.table.empty
+                        <x-ui.table.empty artwork="logistics"
                             :colspan="4"
                             icon="arrows-right-left"
                             title="No stock movements yet"
@@ -1676,11 +1713,7 @@
 
                 {{-- Empty History State --}}
                 <div x-show="!isHistoryLoading && conversationsList.length === 0" class="py-12 text-center text-neutral-500">
-                    <div class="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-400">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                        </svg>
-                    </div>
+                    <x-ui.empty-artwork category="reports" size="sm" />
                     <p class="text-xs font-semibold text-neutral-700">No previous conversations</p>
                     <p class="mt-0.5 text-[11px] text-neutral-400">Your chat conversations will be saved and listed here.</p>
                 </div>

@@ -81,6 +81,11 @@
 @endphp
 
 <x-app-layout>
+    <style>
+        :root { --hims-header-image: url('{{ asset('img/hims-inventory-analytics-hero-day.png') }}'); --hims-header-position: right center; }
+        .dark { --hims-header-image: url('{{ asset('img/hims-inventory-analytics-hero-night.png') }}'); }
+    </style>
+
     <x-ui.page-header
         title="Inventory Analytics"
         subtitle="Healthcare inventory overview and key metrics."
@@ -235,10 +240,14 @@
     <form method="GET" action="{{ route('inventory.reports') }}"
           x-data="{ period: @js($currentPeriod) }"
           class="rounded-xl border border-neutral-200 bg-white p-3 shadow-xs dark:border-neutral-800 dark:bg-neutral-900 print:hidden sm:p-4">
-        <div class="flex items-center justify-between gap-3">
-            <p class="text-xs text-neutral-500 dark:text-neutral-400">Filters apply to all charts and tables.</p>
+        <input type="hidden" name="section" value="{{ request('section', 'overview') }}" data-inventory-report-active-tab>
+        <div class="flex items-start justify-between gap-3">
+            <p class="min-w-0 max-w-5xl text-xs leading-5 text-neutral-600 dark:text-neutral-300">
+                <span class="font-semibold text-neutral-800 dark:text-neutral-100">Date range:</span> movements and procurement activity.
+                <span class="font-semibold text-neutral-800 dark:text-neutral-100">As of today:</span> inventory balances, valuation, reservations, and expiry risk.
+            </p>
             @if ($activeFilters !== [] || $currentPeriod !== '30')
-                <a href="{{ route('inventory.reports') }}" class="shrink-0 text-xs font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200">Clear all</a>
+                <a href="{{ route('inventory.reports') }}" data-inventory-report-clear class="shrink-0 text-xs font-semibold text-primary-700 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200">Clear all</a>
             @endif
         </div>
 
@@ -718,6 +727,96 @@
         </div>
     </div>
 
+    <div
+        id="report-sections"
+        x-data="inventoryReportTabs({ canViewFinancialData: {{ $canViewFinancialData ? 'true' : 'false' }} })"
+        x-on:open-report-tab.window="selectTab($event.detail.tab); $nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'start' }))"
+        class="space-y-4"
+    >
+        <div class="rounded-xl border border-neutral-200 bg-white p-2 shadow-xs dark:border-neutral-800 dark:bg-neutral-900 print:hidden">
+            <nav class="overflow-x-auto" aria-label="Report sections">
+                <div class="flex min-w-max items-center gap-1.5">
+                    <button
+                        type="button"
+                        aria-controls="report-panel-overview"
+                        x-bind:aria-pressed="activeTab === 'overview'"
+                        x-on:click="selectTab('overview')"
+                        :class="activeTab === 'overview'
+                            ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-700'
+                            : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
+                        class="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                    >
+                        <x-ui.icon name="squares-2x2" class="h-4 w-4" />
+                        <span>Overview</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        aria-controls="report-panel-valuation"
+                        x-bind:aria-pressed="activeTab === 'valuation'"
+                        x-on:click="selectTab('valuation')"
+                        :class="activeTab === 'valuation'
+                            ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-700'
+                            : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
+                        class="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                    >
+                        <x-ui.icon name="chart-bar" class="h-4 w-4" />
+                        <span>Valuation &amp; Locations</span>
+                    </button>
+
+                    @if ($canViewFinancialData)
+                        <button
+                            type="button"
+                            aria-controls="report-panel-procurement"
+                            x-bind:aria-pressed="activeTab === 'procurement'"
+                            x-on:click="selectTab('procurement')"
+                            :class="activeTab === 'procurement'
+                                ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-700'
+                                : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
+                            class="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                        >
+                            <x-ui.icon name="truck" class="h-4 w-4" />
+                            <span>Procurement &amp; Spending</span>
+                        </button>
+                    @endif
+
+                    <button
+                        type="button"
+                        aria-controls="report-panel-movements"
+                        x-bind:aria-pressed="activeTab === 'movements'"
+                        x-on:click="selectTab('movements')"
+                        :class="activeTab === 'movements'
+                            ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-700'
+                            : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
+                        class="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                    >
+                        <x-ui.icon name="arrows-right-left" class="h-4 w-4" />
+                        <span>Movements &amp; Consumption</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        aria-controls="report-panel-expiry"
+                        x-bind:aria-pressed="activeTab === 'expiry'"
+                        x-on:click="selectTab('expiry')"
+                        :class="activeTab === 'expiry'
+                            ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs dark:bg-primary-950/60 dark:text-primary-300 dark:border-primary-700'
+                            : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
+                        class="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                    >
+                        <x-ui.icon name="exclamation-triangle" class="h-4 w-4" />
+                        <span>Expiry Risk Batches</span>
+                        @if ($expiry['rows']->isNotEmpty())
+                            <span class="rounded-full bg-warning-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-warning-800 dark:bg-warning-950/70 dark:text-warning-300">
+                                {{ $expiry['rows']->count() }}
+                            </span>
+                        @endif
+                    </button>
+                </div>
+            </nav>
+        </div>
+
+        <div id="report-panel-overview" x-show="activeTab === 'overview'" x-cloak class="space-y-4 print:!block">
     {{-- ------------------------------------------------ 1. inventory summary --}}
 
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-12">
@@ -730,7 +829,7 @@
             suffix="items"
             icon="cube"
             tone="primary"
-            context="Current"
+            context="As of today"
             href="#report-detail-tabs"
             summary="Open the item-level records included in the current filtered inventory."
             summary-title="Current stock status"
@@ -764,7 +863,7 @@
             :value="number_format($summary['stock_value'], 2)"
             icon="chart-bar"
             tone="success"
-            context="Current"
+            context="As of today"
             href="#report-detail-tabs"
             summary="Open the item-level quantities, unit costs, and total values behind this valuation."
             summary-title="Valuation records"
@@ -798,7 +897,7 @@
             suffix="items"
             icon="exclamation-triangle"
             :tone="$summary['needs_attention'] > 0 ? 'warning' : 'success'"
-            context="Current"
+            context="As of today"
             href="#inventory-health"
             summary="Open the status breakdown, then select Low stock or Out of stock to inspect its matching items."
             summary-title="Items needing attention"
@@ -827,7 +926,7 @@
             suffix="units"
             icon="clipboard-document-list"
             tone="primary"
-            context="Current"
+            context="As of today"
             href="#report-detail-tabs"
             summary="Open only the filtered items that currently have reserved units."
             summary-title="Reserved-unit breakdown"
@@ -858,7 +957,7 @@
             suffix="units"
             icon="calendar"
             :tone="$expiryRiskUnits > 0 ? 'warning' : 'success'"
-            context="Current"
+            context="As of today"
             href="#report-detail-tabs"
             summary="Open the dated batches currently contributing to expiry exposure."
             summary-title="Expiry exposure"
@@ -1007,7 +1106,7 @@
                         </div>
 
                         <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" aria-hidden="true">
-                            <div class="h-full rounded-full {{ $bar['bar'] }} transition-all group-hover:brightness-90" style="width: {{ $share }}%"></div>
+                            <div class="hims-metric-bar-x h-full rounded-full {{ $bar['bar'] }} transition-all group-hover:brightness-90" style="width: {{ $share }}%"></div>
                         </div>
 
                         <p class="mt-1 text-xs text-neutral-500">
@@ -1140,7 +1239,7 @@
                             </span>
                         </div>
                         <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" aria-hidden="true">
-                            <div class="h-full rounded-full bg-primary-500 transition-all group-hover:bg-primary-600" style="width: {{ $movementShare }}%"></div>
+                            <div class="hims-metric-bar-x h-full rounded-full bg-primary-500 transition-all group-hover:bg-primary-600" style="width: {{ $movementShare }}%"></div>
                         </div>
                     </button>
                 @endforeach
@@ -1152,71 +1251,13 @@
         </x-ui.card>
     </div>
 
-    {{-- --------------------------------------------------- 3. interactive detailed report center --}}
-
-    <div
-        id="report-detail-tabs"
-        x-data="{ activeTab: '{{ $canViewFinancialData ? 'valuation' : 'movements' }}' }"
-        x-on:open-report-tab.window="activeTab = $event.detail.tab; $nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'start' }))"
-        class="space-y-4">
-        {{-- Navigation tab bar (hidden on print) --}}
-        <div class="rounded-xl border border-neutral-200 bg-white px-2 py-2 shadow-xs dark:border-neutral-800 dark:bg-neutral-900 print:hidden">
-            <nav class="flex flex-wrap items-center gap-1.5" aria-label="Detailed Report Sections">
-                <button
-                    type="button"
-                    x-on:click="activeTab = 'valuation'"
-                    :class="activeTab === 'valuation'
-                        ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs'
-                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
-                    class="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition-colors">
-                    <x-ui.icon name="chart-bar" class="w-4 h-4" />
-                    <span>Valuation &amp; Locations</span>
-                </button>
-
-                @if ($canViewFinancialData)
-                <button
-                    type="button"
-                    x-on:click="activeTab = 'procurement'"
-                    :class="activeTab === 'procurement'
-                        ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs'
-                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
-                    class="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition-colors">
-                    <x-ui.icon name="truck" class="w-4 h-4" />
-                    <span>Procurement &amp; Spending</span>
-                </button>
-                @endif
-
-                <button
-                    type="button"
-                    x-on:click="activeTab = 'movements'"
-                    :class="activeTab === 'movements'
-                        ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs'
-                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
-                    class="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition-colors">
-                    <x-ui.icon name="arrows-right-left" class="w-4 h-4" />
-                    <span>Movements &amp; Consumption</span>
-                </button>
-
-                <button
-                    type="button"
-                    x-on:click="activeTab = 'expiry'"
-                    :class="activeTab === 'expiry'
-                        ? 'bg-primary-50 text-primary-700 border-primary-300 font-semibold shadow-2xs'
-                        : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 border-transparent dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-neutral-100'"
-                    class="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition-colors">
-                    <x-ui.icon name="exclamation-triangle" class="w-4 h-4" />
-                    <span>Expiry Risk Batches</span>
-                    @if ($expiry['rows']->isNotEmpty())
-                        <span class="rounded-full bg-warning-100 text-warning-800 px-1.5 py-0.2 text-[10px] font-mono">
-                            {{ $expiry['rows']->count() }}
-                        </span>
-                    @endif
-                </button>
-            </nav>
         </div>
 
+    {{-- --------------------------------------------------- 3. interactive detailed report center --}}
+
+    <div id="report-detail-tabs" class="space-y-4">
         {{-- Tab 1: Valuation & Locations --}}
-        <div x-show="activeTab === 'valuation'" x-cloak class="space-y-4 print:!block">
+        <div id="report-panel-valuation" x-show="activeTab === 'valuation'" x-cloak class="space-y-4 print:!block">
             <div class="grid gap-4 lg:grid-cols-2">
                 <x-ui.card :padding="false">
                     <x-slot name="header">
@@ -1273,7 +1314,7 @@
                                     @endif
                                 </x-ui.table.row>
                             @empty
-                                <x-ui.table.empty
+                                <x-ui.table.empty artwork="inventory"
                                     :colspan="$canViewFinancialData ? 6 : 4"
                                     icon="cube"
                                     title="No items yet"
@@ -1353,7 +1394,7 @@
                                                 </span>
                                                 <span class="h-1.5 w-20 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" aria-hidden="true">
                                                     <span @class([
-                                                        'block h-full rounded-full',
+                                                        'hims-metric-bar-x block h-full rounded-full',
                                                         'bg-danger-500' => $row['utilisation'] >= 90,
                                                         'bg-warning-500' => $row['utilisation'] >= 75 && $row['utilisation'] < 90,
                                                         'bg-primary-500' => $row['utilisation'] < 75,
@@ -1364,7 +1405,7 @@
                                     </x-ui.table.td>
                                 </x-ui.table.row>
                             @empty
-                                <x-ui.table.empty
+                                <x-ui.table.empty artwork="inventory"
                                     :colspan="$canViewFinancialData ? 6 : 5"
                                     icon="building-storefront"
                                     title="No stock in any location"
@@ -1378,7 +1419,7 @@
 
         {{-- Tab 2: Procurement & Spending --}}
         @if ($canViewFinancialData)
-        <div x-show="activeTab === 'procurement'" x-cloak class="space-y-4 print:!block">
+        <div id="report-panel-procurement" x-show="activeTab === 'procurement'" x-cloak class="space-y-4 print:!block">
             <section class="space-y-4">
                 <div class="flex items-center gap-3">
                     <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm">
@@ -1399,7 +1440,7 @@
                         </span>
                         <div class="min-w-0">
                             <p class="text-xs font-semibold uppercase tracking-wide text-primary-700 dark:text-primary-300">Ordered</p>
-                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-neutral-950 dark:text-white">₱{{ number_format($spend['ordered']['value'], 2) }}</p>
+                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-neutral-950 dark:text-white">₱<span x-data="himsCountUp({ value: {{ Illuminate\Support\Js::from((float) $spend['ordered']['value']) }}, decimals: 2 })" x-text="display" x-on:animate-report-metrics.window="if ($event.detail.panelId === 'report-panel-procurement') animate()" aria-label="{{ number_format($spend['ordered']['value'], 2) }}">{{ number_format($spend['ordered']['value'], 2) }}</span></p>
                             <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{{ $spend['ordered']['orders'] }} purchase orders</p>
                         </div>
                     </div>
@@ -1410,7 +1451,7 @@
                         </span>
                         <div class="min-w-0">
                             <p class="text-xs font-semibold uppercase tracking-wide text-success-700">QC Accepted</p>
-                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-success-800">₱{{ number_format($spend['received']['value'], 2) }}</p>
+                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-success-800">₱<span x-data="himsCountUp({ value: {{ Illuminate\Support\Js::from((float) $spend['received']['value']) }}, decimals: 2 })" x-text="display" x-on:animate-report-metrics.window="if ($event.detail.panelId === 'report-panel-procurement') animate()" aria-label="{{ number_format($spend['received']['value'], 2) }}">{{ number_format($spend['received']['value'], 2) }}</span></p>
                             <p class="mt-0.5 text-xs text-success-700">{{ $spend['received']['orders'] }} purchase orders with accepted goods</p>
                         </div>
                     </div>
@@ -1421,7 +1462,7 @@
                         </span>
                         <div class="min-w-0">
                             <p class="text-xs font-semibold uppercase tracking-wide text-warning-700">Outstanding</p>
-                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-warning-800">₱{{ number_format($spend['outstanding']['value'], 2) }}</p>
+                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-warning-800">₱<span x-data="himsCountUp({ value: {{ Illuminate\Support\Js::from((float) $spend['outstanding']['value']) }}, decimals: 2 })" x-text="display" x-on:animate-report-metrics.window="if ($event.detail.panelId === 'report-panel-procurement') animate()" aria-label="{{ number_format($spend['outstanding']['value'], 2) }}">{{ number_format($spend['outstanding']['value'], 2) }}</span></p>
                             <p class="mt-0.5 text-xs text-warning-700">{{ $spend['outstanding']['orders'] }} awaiting acceptance, all time</p>
                         </div>
                     </div>
@@ -1432,7 +1473,7 @@
                         </span>
                         <div class="min-w-0">
                             <p class="text-xs font-semibold uppercase tracking-wide text-violet-700">Average order</p>
-                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-neutral-950 dark:text-white">₱{{ number_format($spend['average_order_value'], 2) }}</p>
+                            <p class="mt-1 break-words text-xl font-bold tracking-tight tabular-nums text-neutral-950 dark:text-white">₱<span x-data="himsCountUp({ value: {{ Illuminate\Support\Js::from((float) $spend['average_order_value']) }}, decimals: 2 })" x-text="display" x-on:animate-report-metrics.window="if ($event.detail.panelId === 'report-panel-procurement') animate()" aria-label="{{ number_format($spend['average_order_value'], 2) }}">{{ number_format($spend['average_order_value'], 2) }}</span></p>
                             <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Across orders raised in the window</p>
                         </div>
                     </div>
@@ -1447,7 +1488,7 @@
                 </div>
             </section>
 
-            <x-ui.card>
+            <x-ui.card :padding="false">
                 <x-slot name="header">
                     <div class="flex items-start gap-3">
                         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 dark:bg-primary-950/80 dark:text-primary-300">
@@ -1461,8 +1502,14 @@
                         </div>
                     </div>
                 </x-slot>
-                <div class="overflow-x-auto">
-                    <table class="min-w-[80rem] w-full border-separate border-spacing-0 text-left text-xs [&_td]:border-r [&_td]:border-neutral-100 [&_td:last-child]:border-r-0 [&_th]:border-r [&_th]:border-neutral-200 [&_th:last-child]:border-r-0 dark:[&_td]:border-neutral-800 dark:[&_th]:border-neutral-700">
+                <div class="hims-table-scroll w-full overflow-x-auto">
+                    <table class="w-full min-w-[90rem] table-fixed border-separate border-spacing-0 text-left text-xs [&_td]:border-r [&_td]:border-neutral-100 [&_td:last-child]:border-r-0 [&_th]:border-r [&_th]:border-neutral-200 [&_th:last-child]:border-r-0 dark:[&_td]:border-neutral-800 dark:[&_th]:border-neutral-700">
+                        <colgroup>
+                            <col class="w-[9%]"><col class="w-[17%]"><col class="w-[7%]">
+                            @for ($column = 0; $column < 12; $column++)
+                                <col class="w-[5.583%]">
+                            @endfor
+                        </colgroup>
                         <thead class="bg-primary-50/70 text-neutral-700 dark:bg-primary-950/40 dark:text-neutral-300"><tr>
                             <th class="p-2">PO / GRN / Receiver</th><th class="p-2">Item / Batch / Expiry</th>
                             <th class="p-2">Conversion</th><th class="p-2">Ordered</th><th class="p-2">Delivered</th>
@@ -1473,16 +1520,16 @@
                         <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800">
                             @forelse($receivingReconciliation as $row)
                                 <tr class="transition-colors hover:bg-primary-50/40 dark:hover:bg-primary-950/20">
-                                    <td class="p-2"><a class="font-semibold text-primary-700 hover:underline" href="{{ route('inventory.receiving.show', $row['grn']) }}">{{ $row['grn']->grn_number }}</a><br>{{ $row['po']?->po_number ?? 'Legacy' }}<br>{{ $row['receiver'] ?? 'Unknown' }}</td>
-                                    <td class="p-2">{{ $row['item']?->name }}<br>{{ $row['batch'] ?? 'No batch' }}<br>{{ $row['expiry']?->format('Y-m-d') ?? 'No expiry' }}</td>
-                                    <td class="p-2">1 {{ $row['purchase_unit'] }} = {{ $row['factor'] }} {{ $row['base_unit'] }}</td>
-                                    <td class="p-2">{{ $row['ordered'] }}</td><td class="p-2">{{ $row['delivered'] }}</td><td class="p-2">{{ $row['receipt_quantity'] }}</td>
-                                    <td class="p-2">{{ $row['accepted'] }}</td><td class="p-2">{{ $row['rejected'] }}</td><td class="p-2">{{ $row['pending_qc'] }}</td>
-                                    <td class="p-2">{{ $row['awaiting_put_away_base'] }}</td><td class="p-2">{{ $row['put_away_base'] }}</td><td class="p-2">{{ $row['available_base'] }}</td>
-                                    <td class="p-2">{{ $row['remaining'] }}</td><td class="p-2">{{ $row['outstanding'] }}</td><td class="p-2">{{ $row['returned_base'] }}</td>
+                                    <td class="p-2.5 align-top"><a class="whitespace-nowrap font-semibold text-primary-700 hover:underline" href="{{ route('inventory.receiving.show', $row['grn']) }}">{{ $row['grn']->grn_number }}</a><span class="mt-0.5 block whitespace-nowrap">{{ $row['po']?->po_number ?? 'Legacy' }}</span><span class="block truncate" title="{{ $row['receiver'] ?? 'Unknown' }}">{{ $row['receiver'] ?? 'Unknown' }}</span></td>
+                                    <td class="p-2.5 align-top"><span class="block font-medium text-neutral-900 dark:text-neutral-100">{{ $row['item']?->name }}</span><span class="mt-0.5 block">{{ $row['batch'] ?? 'No batch' }}</span><span class="block whitespace-nowrap">{{ $row['expiry']?->format('Y-m-d') ?? 'No expiry' }}</span></td>
+                                    <td class="p-2.5 align-top">1 {{ $row['purchase_unit'] }} = {{ $row['factor'] }} {{ $row['base_unit'] }}</td>
+                                    <td class="p-2.5 text-right align-top tabular-nums">{{ $row['ordered'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['delivered'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['receipt_quantity'] }}</td>
+                                    <td class="p-2.5 text-right align-top tabular-nums">{{ $row['accepted'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['rejected'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['pending_qc'] }}</td>
+                                    <td class="p-2.5 text-right align-top tabular-nums">{{ $row['awaiting_put_away_base'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['put_away_base'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['available_base'] }}</td>
+                                    <td class="p-2.5 text-right align-top tabular-nums">{{ $row['remaining'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['outstanding'] }}</td><td class="p-2.5 text-right align-top tabular-nums">{{ $row['returned_base'] }}</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="15" class="p-4 text-center text-neutral-500">No receiving lines in this period.</td></tr>
+                                <x-ui.table.empty colspan="15" artwork="receiving" title="No receiving lines" message="No goods were received during the selected reporting period." />
                             @endforelse
                         </tbody>
                     </table>
@@ -1525,7 +1572,7 @@
                                     <span class="mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400">{{ number_format($row->received_orders) }} received out of {{ number_format($row->orders) }} {{ $row->orders == 1 ? 'order' : 'orders' }}</span>
                                 </div>
                                 <div class="h-2.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" role="img" aria-label="{{ $spendShare }}% of the largest supplier commitment" title="{{ $spendShare }}% of the largest supplier commitment">
-                                    <div class="h-full rounded-full bg-primary-500 transition-all group-hover:bg-primary-600" style="width: {{ $spendShare }}%"></div>
+                                    <div class="hims-metric-bar-x h-full rounded-full bg-primary-500 transition-all group-hover:bg-primary-600" style="width: {{ $spendShare }}%"></div>
                                 </div>
                                 <span class="shrink-0 text-sm font-bold tabular-nums text-neutral-950 dark:text-white">₱{{ number_format($row->value, 2) }}</span>
                             </button>
@@ -1536,13 +1583,17 @@
                                     <span class="mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400">{{ number_format($row->received_orders) }} received out of {{ number_format($row->orders) }} {{ $row->orders == 1 ? 'order' : 'orders' }} · Supplier record unavailable</span>
                                 </div>
                                 <div class="h-2.5 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800" role="img" aria-label="{{ $spendShare }}% of the largest supplier commitment" title="{{ $spendShare }}% of the largest supplier commitment">
-                                    <div class="h-full rounded-full bg-neutral-400" style="width: {{ $spendShare }}%"></div>
+                                    <div class="hims-metric-bar-x h-full rounded-full bg-neutral-400" style="width: {{ $spendShare }}%"></div>
                                 </div>
                                 <span class="shrink-0 text-sm font-bold tabular-nums text-neutral-950 dark:text-white">₱{{ number_format($row->value, 2) }}</span>
                             </div>
                         @endif
                     @empty
-                        <p class="py-8 text-center text-sm text-neutral-500">No purchase orders match this period and supplier filter.</p>
+                        <div class="px-4 py-8 text-center">
+                            <x-ui.empty-artwork category="procurement" size="sm" />
+                            <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No matching purchase orders</p>
+                            <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Adjust the reporting period or supplier filter.</p>
+                        </div>
                     @endforelse
                 </div>
             </x-ui.card>
@@ -1550,7 +1601,7 @@
         @endif
 
         {{-- Tab 3: Movements & Consumption --}}
-        <div x-show="activeTab === 'movements'" x-cloak class="space-y-4 print:!block">
+        <div id="report-panel-movements" x-show="activeTab === 'movements'" x-cloak class="space-y-4 print:!block">
             <div
                 x-data="{
                     consumedSearch: '',
@@ -1619,7 +1670,7 @@
                                     @endif
                                 </x-ui.table.row>
                             @empty
-                                <x-ui.table.empty
+                                <x-ui.table.empty artwork="logistics"
                                     :colspan="$canViewFinancialData ? 4 : 3"
                                     icon="arrows-right-left"
                                     title="Nothing consumed in this window"
@@ -1697,7 +1748,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty
+                            <x-ui.table.empty artwork="logistics"
                                 :colspan="6"
                                 icon="arrows-right-left"
                                 title="No movements in this window"
@@ -1709,7 +1760,7 @@
         </div>
 
         {{-- Tab 4: Expiry Risk Batches --}}
-        <div x-show="activeTab === 'expiry'" x-cloak class="space-y-6 print:!block">
+        <div id="report-panel-expiry" x-show="activeTab === 'expiry'" x-cloak class="space-y-6 print:!block">
             <x-ui.card title="Expiry Exposure - Detailed Batches" subtitle="Batches holding stock that are expired or approaching expiry." :padding="false">
                 <x-ui.table :sticky-header="false">
                     <x-ui.table.head>
@@ -1749,7 +1800,7 @@
                                 @endif
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty
+                            <x-ui.table.empty artwork="inventory"
                                 :colspan="$canViewFinancialData ? 6 : 5"
                                 icon="check-circle"
                                 title="No expired or expiring batches"
@@ -1759,6 +1810,7 @@
                 </x-ui.table>
             </x-ui.card>
         </div>
+    </div>
     </div>
 
     <p class="text-xs text-neutral-400">
@@ -1876,7 +1928,7 @@
                         class="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center dark:border-neutral-700 dark:bg-neutral-800/50"
                         role="status"
                     >
-                        <x-ui.icon name="chart-bar" class="h-8 w-8 text-neutral-400" />
+                        <x-ui.empty-artwork category="reports" size="sm" />
                         <p class="mt-3 text-sm font-semibold text-neutral-800 dark:text-neutral-100">No data found</p>
                         <p
                             class="mt-1 max-w-lg text-sm text-neutral-500 dark:text-neutral-400"
@@ -1932,7 +1984,8 @@
                             x-show="searchQuery.trim() && filteredRows.length === 0"
                             class="mb-4 rounded-xl border border-neutral-200 bg-neutral-50 p-5 text-center text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800/50 dark:text-neutral-300"
                         >
-                            No drill-down records match “<span class="font-semibold" x-text="searchQuery"></span>”.
+                            <x-ui.empty-artwork category="reports" size="sm" />
+                            <p class="mt-2">No drill-down records match “<span class="font-semibold" x-text="searchQuery"></span>”.</p>
                         </div>
 
                         {{-- VIEW 1: Responsive Cards Stream (Zero Horizontal Bar) --}}

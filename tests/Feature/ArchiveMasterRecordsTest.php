@@ -96,6 +96,7 @@ class ArchiveMasterRecordsTest extends TestCase
         $response = $this->actingAs($auditor)->get(route('admin.archive.index'));
         $response->assertOk();
         $response->assertViewIs('admin.archive.index');
+        $response->assertSee('hims-master-records-archive-hero.png', false);
     }
 
     public function test_auditor_cannot_perform_archive_or_unarchive_actions(): void
@@ -117,6 +118,21 @@ class ArchiveMasterRecordsTest extends TestCase
         $response = $this->actingAs($admin)->get(route('admin.archive.index'));
         $response->assertOk();
         $response->assertViewIs('admin.archive.index');
+    }
+
+    public function test_archive_history_filter_rejects_future_and_reversed_ranges(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->get(route('admin.archive.index', [
+            'archive_date_from' => today()->addDay()->toDateString(),
+            'archive_date_to' => today()->addDays(2)->toDateString(),
+        ]))->assertSessionHasErrors(['archive_date_from', 'archive_date_to']);
+
+        $this->actingAs($admin)->get(route('admin.archive.index', [
+            'archive_date_from' => today()->toDateString(),
+            'archive_date_to' => today()->subDay()->toDateString(),
+        ]))->assertSessionHasErrors('archive_date_to');
     }
 
     // ==========================================
@@ -672,4 +688,3 @@ class ArchiveMasterRecordsTest extends TestCase
         $response->assertSee('Archive Justification / Reason', false);
     }
 }
-

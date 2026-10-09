@@ -1,4 +1,9 @@
 <x-app-layout>
+    <style>
+        :root { --hims-header-image: url('{{ asset('img/hims-iar-hero-day.png') }}'); --hims-header-position: right center; }
+        .dark { --hims-header-image: url('{{ asset('img/hims-iar-hero-night.png') }}'); }
+    </style>
+
     <x-slot name="header">
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -225,15 +230,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="7" class="px-6 py-12 text-center text-sm text-neutral-500 dark:text-neutral-400">
-                                        <x-ui.icon name="magnifying-glass" class="mx-auto mb-3 h-6 w-6 text-neutral-400" />
-                                        <p class="font-semibold text-neutral-700 dark:text-neutral-300">No matching IAR records found.</p>
-                                        @if(request()->hasAny(['search', 'status']))
-                                            <p class="mt-1">Try another keyword or <a href="{{ route('inventory.logistics.iar.index') }}" class="font-semibold text-primary-700 hover:underline dark:text-primary-300">clear the filters</a>.</p>
-                                        @endif
-                                    </td>
-                                </tr>
+                                <x-ui.table.empty colspan="7" artwork="receiving" title="No matching IAR records" :message="request()->hasAny(['search', 'status']) ? 'Try another keyword or clear the active filters.' : 'Inspection and Acceptance Reports will appear here after receiving.'" />
                             @endforelse
                         </tbody>
                     </table>

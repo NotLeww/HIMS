@@ -7,7 +7,9 @@ use App\Enums\MovementType;
 use App\Enums\UserRole;
 use App\Models\DemandPlan;
 use App\Models\InventoryItem;
+use App\Models\ItemCategory;
 use App\Models\StockMovement;
+use App\Models\StorageLocation;
 use App\Models\User;
 use App\Services\DemandForecastService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -437,6 +439,9 @@ class DemandForecastTest extends TestCase
         $viewer = User::factory()->role(UserRole::Viewer)->create();
 
         $this->actingAs($viewer)->get('/inventory/demand-forecast')->assertStatus(200);
+
+        $this->actingAs($viewer)->get('/inventory/demand-forecast?dataset_from='.today()->addDay()->toDateString())
+            ->assertSessionHasErrors('dataset_from');
     }
 
     public function test_saving_a_plan_requires_the_forecast_permission(): void
@@ -510,6 +515,80 @@ class DemandForecastTest extends TestCase
             ->assertStatus(200)
             ->assertSee('N95 Respirator Mask')
             ->assertSee('Paracetamol 500mg Tablets');
+    }
+
+    public function test_the_screen_exposes_the_consumption_rows_used_as_forecast_source_data(): void
+    {
+        $user = User::factory()->inventoryManager()->create();
+        $item = $this->item(onHand: 40);
+
+        $stockOut = $this->consume($item, 12, 5, MovementType::StockOut);
+        $issuance = $this->consume($item, 8, 6, MovementType::Issuance);
+        $transfer = $this->consume($item, 99, 4, MovementType::Transfer);
+        $outsideWindow = $this->consume($item, 777, 91, MovementType::StockOut);
+
+        $response = $this->actingAs($user)->get('/inventory/demand-forecast?analysis_days=90');
+
+        $response->assertOk()
+            ->assertSee('Source Dataset')
+            ->assertSee('Forecast source dataset')
+            ->assertSee("Movement #{$stockOut->id}")
+            ->assertSee("Movement #{$issuance->id}")
+            ->assertDontSee("Movement #{$transfer->id}")
+            ->assertDontSee("Movement #{$outsideWindow->id}")
+            ->assertViewHas('datasetMovements', fn ($movements): bool => $movements->total() === 2);
+    }
+
+    public function test_forecast_source_dataset_filters_apply_to_the_ledger_query(): void
+    {
+        $user = User::factory()->inventoryManager()->create();
+        $category = ItemCategory::create(['name' => 'Medicines', 'code' => 'MED', 'is_active' => true]);
+        $otherCategory = ItemCategory::create(['name' => 'Supplies', 'code' => 'SUP', 'is_active' => true]);
+        $warehouse = StorageLocation::create(['name' => 'Main Warehouse', 'code' => 'WH-01', 'status' => 'active']);
+        $otherLocation = StorageLocation::create(['name' => 'Secondary Warehouse', 'code' => 'WH-02', 'status' => 'active']);
+        $item = $this->item(onHand: 40);
+        $item->update(['category_id' => $category->id]);
+
+        $match = $this->consume($item, 12, 5, MovementType::StockOut);
+        $match->update(['from_location_id' => $warehouse->id]);
+
+        $wrongType = $this->consume($item, 8, 6, MovementType::Issuance);
+        $wrongType->update(['from_location_id' => $warehouse->id]);
+
+        $wrongLocation = $this->consume($item, 7, 7, MovementType::StockOut);
+        $wrongLocation->update(['from_location_id' => $otherLocation->id]);
+
+        $otherItem = InventoryItem::create([
+            'name' => 'Sterile Gauze',
+            'sku' => 'SUP-GAUZE',
+            'unit' => 'pack',
+            'category_id' => $otherCategory->id,
+            'status' => 'active',
+        ]);
+        $wrongItem = $this->consume($otherItem, 5, 5, MovementType::StockOut);
+        $wrongItem->update(['from_location_id' => $warehouse->id]);
+
+        $query = http_build_query([
+            'analysis_days' => 90,
+            'dataset_view' => 1,
+            'dataset_search' => 'PHARMA-PARA',
+            'dataset_category_id' => $category->id,
+            'dataset_movement_type' => MovementType::StockOut->value,
+            'dataset_location_id' => $warehouse->id,
+            'dataset_from' => today()->subDays(10)->toDateString(),
+            'dataset_to' => today()->subDay()->toDateString(),
+        ]);
+
+        $response = $this->actingAs($user)->get("/inventory/demand-forecast?{$query}");
+
+        $response->assertOk()
+            ->assertSee('Item or SKU')
+            ->assertSee('Category')
+            ->assertSee('Movement type')
+            ->assertSee('Source location')
+            ->assertSee('Apply Filters')
+            ->assertViewHas('datasetMovements', fn ($movements): bool => $movements->total() === 1
+                && $movements->first()->is($match));
     }
 
     /**

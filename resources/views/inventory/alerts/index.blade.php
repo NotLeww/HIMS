@@ -121,9 +121,11 @@
                         <span class="sr-only">Sort inventory alerts</span>
                         <x-ui.icon name="arrows-right-left" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 rotate-90 text-neutral-400" />
                         <select id="alerts-priority" class="h-10 w-full rounded-lg border-neutral-300 bg-white pl-9 pr-8 text-xs font-medium text-neutral-700 shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
-                            <option value="critical">Prioritize: Critical</option>
+                            <option value="critical">Critical First</option>
+                            <option value="fefo">FEFO · Earliest Expiry</option>
+                            <option value="fifo">FIFO · Oldest Stock</option>
                             <option value="shortage">Largest Shortage</option>
-                            <option value="name">Item Name</option>
+                            <option value="name">Item Name A–Z</option>
                         </select>
                     </label>
                     <button id="alerts-clear-filter" type="button" hidden class="inline-flex min-h-9 items-center rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-2xs transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 dark:focus-visible:ring-offset-neutral-900">
@@ -534,6 +536,64 @@
             else element.style.setProperty('display', 'none', 'important');
         }
 
+        function compareOptionalDates(a, b, dataKey) {
+            const dateA = a.dataset[dataKey] || '';
+            const dateB = b.dataset[dataKey] || '';
+
+            if (!dateA && !dateB) return 0;
+            if (!dateA) return 1;
+            if (!dateB) return -1;
+
+            return dateA.localeCompare(dateB);
+        }
+
+        function formatQueueDate(value) {
+            if (!value) return null;
+
+            return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                .format(new Date(`${value}T00:00:00`));
+        }
+
+        function alertOrderReason(card, priority) {
+            if (priority === 'fefo') {
+                const expiry = formatQueueDate(card.dataset.alertExpiry);
+                return expiry ? `Expires ${expiry}` : 'No stocked expiry';
+            }
+
+            if (priority === 'fifo') {
+                const fifoDate = formatQueueDate(card.dataset.alertFifo);
+                return fifoDate ? `Oldest stock ${fifoDate}` : 'No stocked batch';
+            }
+
+            if (priority === 'shortage') {
+                const deficit = Number(card.dataset.alertDeficit);
+                return deficit > 0 ? `${deficit.toLocaleString()} unit shortage` : 'No shortage';
+            }
+
+            if (priority === 'name') return 'A–Z';
+
+            return {
+                out_of_stock: 'Out of stock',
+                expired: 'Expired batch',
+                expiring_soon: Number(card.dataset.alertPriority) === 2 ? 'Critical expiry' : 'Expiring soon',
+                low_stock: 'Low stock',
+            }[card.dataset.alertKind] || 'Attention required';
+        }
+
+        function updateAlertRanks(itemCards, priority) {
+            let visibleRank = 0;
+
+            itemCards.forEach(card => {
+                if (card.hidden) return;
+
+                visibleRank += 1;
+                const rank = card.querySelector('[data-alert-rank]');
+                const reason = card.querySelector('[data-alert-order-reason]');
+                if (rank) rank.textContent = `#${visibleRank}`;
+                if (reason) reason.textContent = alertOrderReason(card, priority);
+            });
+        }
+
         function applyAlertFilter() {
             const container = document.getElementById('alerts-list');
             if (!container) return;
@@ -553,11 +613,22 @@
             itemCards.sort((a, b) => {
                 if (priority === 'name') return a.dataset.alertName.localeCompare(b.dataset.alertName);
                 if (priority === 'shortage') return Number(b.dataset.alertDeficit) - Number(a.dataset.alertDeficit);
+                if (priority === 'fefo') {
+                    return compareOptionalDates(a, b, 'alertExpiry')
+                        || Number(a.dataset.alertPriority) - Number(b.dataset.alertPriority)
+                        || a.dataset.alertName.localeCompare(b.dataset.alertName);
+                }
+                if (priority === 'fifo') {
+                    return compareOptionalDates(a, b, 'alertFifo')
+                        || Number(a.dataset.alertPriority) - Number(b.dataset.alertPriority)
+                        || a.dataset.alertName.localeCompare(b.dataset.alertName);
+                }
 
                 return Number(a.dataset.alertPriority) - Number(b.dataset.alertPriority)
                     || a.dataset.alertName.localeCompare(b.dataset.alertName);
             });
             itemCards.forEach(card => container.append(card));
+            updateAlertRanks(itemCards, priority);
 
             container.querySelector('[data-alert-filter-empty]')?.remove();
             const allEmptyState = container.querySelector('[data-alert-empty-all]');
@@ -738,11 +809,7 @@
                     container.className = 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5';
                     container.innerHTML = `
                         <div data-alert-empty-all class="col-span-full rounded-xl border border-dashed border-neutral-300 bg-white p-8 text-center dark:border-neutral-700 dark:bg-neutral-900">
-                            <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 mb-3">
-                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                </svg>
-                            </div>
+                            <img src="{{ asset('img/empty-inventory.png') }}" alt="" aria-hidden="true" loading="lazy" decoding="async" class="mx-auto h-20 w-20 object-contain drop-shadow-sm sm:h-24 sm:w-24" data-empty-artwork="inventory" data-empty-surface-artwork>
                             <h3 class="text-sm font-semibold text-neutral-800 dark:text-neutral-200">All Stock Levels Optimal</h3>
                             <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">No items are below reorder levels, expiring within 90 days, or expired.</p>
                         </div>
@@ -770,8 +837,12 @@
                                         const dotClass = isOut ? 'bg-rose-500' : 'bg-amber-500';
                                         const badgeLabel = isOut ? 'OUT OF STOCK' : 'LOW STOCK';
                                         return `
-                                            <article data-alert-kind="${isOut ? 'out_of_stock' : 'low_stock'}" data-alert-category="${categoryText || 'Uncategorized'}" data-alert-search="${escapeHtml(searchText)}" data-alert-name="${escapeHtml((item.name || '').toLowerCase())}" data-alert-priority="${isOut ? 0 : 3}" data-alert-deficit="${deficit}" class="group flex min-w-0 flex-col justify-between rounded-xl border ${isOut ? 'border-rose-200 bg-rose-50/35 dark:border-rose-900/60 dark:bg-rose-950/15' : 'border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900'} p-4 shadow-xs transition-[border-color,box-shadow,transform] motion-safe:duration-150 hover:-translate-y-0.5 ${isOut ? 'hover:border-rose-300 dark:hover:border-rose-800' : 'hover:border-amber-300 dark:hover:border-amber-800'} hover:shadow-md">
+                                            <article data-alert-kind="${isOut ? 'out_of_stock' : 'low_stock'}" data-alert-category="${categoryText || 'Uncategorized'}" data-alert-search="${escapeHtml(searchText)}" data-alert-name="${escapeHtml((item.name || '').toLowerCase())}" data-alert-priority="${isOut ? 0 : 3}" data-alert-deficit="${deficit}" data-alert-expiry="" data-alert-fifo="${escapeHtml(item.fifo_date || '')}" class="group flex min-w-0 flex-col justify-between rounded-xl border ${isOut ? 'border-rose-200 bg-rose-50/35 dark:border-rose-900/60 dark:bg-rose-950/15' : 'border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900'} p-4 shadow-xs transition-[border-color,box-shadow,transform] motion-safe:duration-150 hover:-translate-y-0.5 ${isOut ? 'hover:border-rose-300 dark:hover:border-rose-800' : 'hover:border-amber-300 dark:hover:border-amber-800'} hover:shadow-md">
                                                 <div>
+                                                    <div class="mb-3 flex items-center justify-between gap-2 border-b border-neutral-100 pb-2 text-[10px] dark:border-neutral-800/80">
+                                                        <span class="font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Queue <span data-alert-rank class="tabular-nums text-neutral-900 dark:text-neutral-100"></span></span>
+                                                        <span data-alert-order-reason class="truncate font-medium text-neutral-500 dark:text-neutral-400"></span>
+                                                    </div>
                                                     <div class="flex items-start justify-between gap-2">
                                                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isOut ? 'bg-rose-50 text-rose-600 ring-rose-100 dark:bg-rose-950/70 dark:text-rose-300 dark:ring-rose-900/70' : 'bg-amber-50 text-amber-600 ring-amber-100 dark:bg-amber-950/70 dark:text-amber-300 dark:ring-amber-900/70'} ring-1">
                                                             ${inventoryItemIcon(item)}
@@ -830,8 +901,12 @@
                                         const isCritical = item.expiry_status === 'critical';
 
                                         return `
-                                            <article data-alert-kind="expiring_soon" data-alert-category="${categoryText || 'Uncategorized'}" data-alert-search="${escapeHtml(searchText)}" data-alert-name="${escapeHtml((item.name || '').toLowerCase())}" data-alert-priority="${isCritical ? 2 : 4}" data-alert-deficit="0" class="group flex min-w-0 flex-col justify-between rounded-xl border border-neutral-200 bg-white p-4 shadow-xs transition-[border-color,box-shadow,transform] motion-safe:duration-150 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-indigo-800">
+                                            <article data-alert-kind="expiring_soon" data-alert-category="${categoryText || 'Uncategorized'}" data-alert-search="${escapeHtml(searchText)}" data-alert-name="${escapeHtml((item.name || '').toLowerCase())}" data-alert-priority="${isCritical ? 2 : 4}" data-alert-deficit="0" data-alert-expiry="${escapeHtml(item.expiry_date || '')}" data-alert-fifo="${escapeHtml(item.fifo_date || '')}" class="group flex min-w-0 flex-col justify-between rounded-xl border border-neutral-200 bg-white p-4 shadow-xs transition-[border-color,box-shadow,transform] motion-safe:duration-150 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-indigo-800">
                                                 <div>
+                                                    <div class="mb-3 flex items-center justify-between gap-2 border-b border-neutral-100 pb-2 text-[10px] dark:border-neutral-800/80">
+                                                        <span class="font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Queue <span data-alert-rank class="tabular-nums text-neutral-900 dark:text-neutral-100"></span></span>
+                                                        <span data-alert-order-reason class="truncate font-medium text-neutral-500 dark:text-neutral-400"></span>
+                                                    </div>
                                                     <div class="flex items-start justify-between gap-2">
                                                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isCritical ? 'bg-rose-50 text-rose-600 ring-rose-100 dark:bg-rose-950/40 dark:text-rose-400 dark:ring-rose-900/60' : 'bg-indigo-50 text-indigo-600 ring-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-400 dark:ring-indigo-900/60'} ring-1">
                                                             ${inventoryItemIcon(item)}
@@ -888,8 +963,12 @@
                                         const elapsedLabel = item.days_remaining === 0 ? 'Expired today' : `${Math.abs(item.days_remaining)}d overdue`;
 
                                         return `
-                                            <article data-alert-kind="expired" data-alert-category="${categoryText || 'Uncategorized'}" data-alert-search="${escapeHtml(searchText)}" data-alert-name="${escapeHtml((item.name || '').toLowerCase())}" data-alert-priority="1" data-alert-deficit="0" class="group flex min-w-0 flex-col justify-between rounded-xl border border-rose-200 bg-rose-50/35 p-4 shadow-xs transition-[border-color,box-shadow,transform] motion-safe:duration-150 hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-md dark:border-rose-900/60 dark:bg-rose-950/15 dark:hover:border-rose-800">
+                                            <article data-alert-kind="expired" data-alert-category="${categoryText || 'Uncategorized'}" data-alert-search="${escapeHtml(searchText)}" data-alert-name="${escapeHtml((item.name || '').toLowerCase())}" data-alert-priority="1" data-alert-deficit="0" data-alert-expiry="${escapeHtml(item.expiry_date || '')}" data-alert-fifo="${escapeHtml(item.fifo_date || '')}" class="group flex min-w-0 flex-col justify-between rounded-xl border border-rose-200 bg-rose-50/35 p-4 shadow-xs transition-[border-color,box-shadow,transform] motion-safe:duration-150 hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-md dark:border-rose-900/60 dark:bg-rose-950/15 dark:hover:border-rose-800">
                                                 <div>
+                                                    <div class="mb-3 flex items-center justify-between gap-2 border-b border-rose-100 pb-2 text-[10px] dark:border-rose-900/40">
+                                                        <span class="font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">Queue <span data-alert-rank class="tabular-nums"></span></span>
+                                                        <span data-alert-order-reason class="truncate font-medium text-rose-600 dark:text-rose-400"></span>
+                                                    </div>
                                                     <div class="flex items-start justify-between gap-2">
                                                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 ring-1 ring-rose-100 dark:bg-rose-950/40 dark:text-rose-400 dark:ring-rose-900/60">
                                                             ${inventoryItemIcon(item)}
@@ -936,6 +1015,15 @@
                 }
 
                 applyAlertFilter();
+
+                const requestedItem = new URLSearchParams(window.location.search).get('manage_item');
+                if (requestedItem && !window.__requestedAlertModalOpened) {
+                    const requestedBatch = new URLSearchParams(window.location.search).get('manage_batch');
+                    const requestedType = new URLSearchParams(window.location.search).get('alert_type');
+                    const itemKey = requestedBatch ? `${requestedItem}:${requestedBatch}` : requestedItem;
+                    window.__requestedAlertModalOpened = true;
+                    window.__openItemManageModal(itemKey, requestedType);
+                }
 
                 // Hide loader cleanly without showing 'Alerts loaded from API.' text
                 if (status) {

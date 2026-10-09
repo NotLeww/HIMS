@@ -87,6 +87,8 @@ class CycleCountWorkflowTest extends TestCase
         $response->assertViewIs('inventory.cycle-counts.index');
         $response->assertSeeText('Cycle Counts & Physical Audits');
         $response->assertSeeText('Schedule Cycle Count');
+        $response->assertSee('name="date_from"', false);
+        $response->assertSee('name="date_to"', false);
 
         // Check that counters passed to view contains active authorized users only
         $response->assertViewHas('counters', function ($counters) use ($warehouse, $manager, $pharmacy, $inactiveWarehouse) {
@@ -306,4 +308,3 @@ class CycleCountWorkflowTest extends TestCase
             ->assertSee('Variance Analysis &amp; Reconciliation Matrix', false);
     }
 }
-

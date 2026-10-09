@@ -104,9 +104,7 @@
                                     <td class="px-3 py-2 text-[10px] text-neutral-600"></td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="8" class="text-center py-4 text-neutral-400">No line items in this requisition.</td>
-                                </tr>
+                                <x-ui.table.empty colspan="8" artwork="procurement" title="No requisition lines" message="Requested items will appear here when they are added to this requisition." />
                             @endforelse
                         </tbody>
                     </table>

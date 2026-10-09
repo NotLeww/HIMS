@@ -88,11 +88,26 @@
         {{-- Consolidated Inventory Workflow Navigation --}}
         @include('inventory.partials.workflow_nav')
 
+        @php
+            $quickMovementErrorFields = [
+                'item_id',
+                'movement_type',
+                'quantity',
+                'from_location_id',
+                'to_location_id',
+                'issued_to_location_id',
+                'return_supplier_id',
+                'remarks',
+            ];
+            $hasQuickMovementErrors = ! $errors->movementHistoryFilter->any()
+                && $errors->getBag('default')->hasAny($quickMovementErrorFields);
+        @endphp
+
         {{-- Server Error Alert (Only rendered after failed server submission) --}}
-        @if ($errors->any())
+        @if ($hasQuickMovementErrors)
             <x-ui.alert variant="danger" title="This movement was not recorded" class="mb-4">
                 <ul class="space-y-0.5 list-disc list-inside text-xs">
-                    @foreach ($errors->all() as $error)
+                    @foreach ($errors->getBag('default')->all() as $error)
                         <li>{{ $error }}</li>
                     @endforeach
                 </ul>
@@ -814,7 +829,7 @@
             </div>
         </x-ui.modal>
 
-        @if ($errors->any())
+        @if ($hasQuickMovementErrors)
             <div x-data x-init="$nextTick(() => $dispatch('open-modal', 'record-quick-movement'))"></div>
         @endif
         @endif
@@ -823,7 +838,9 @@
         @php
             $historyFiltered = request()->filled('search')
                 || request()->filled('movement_type')
-                || request()->filled('location_id');
+                || request()->filled('location_id')
+                || request()->filled('date_from')
+                || request()->filled('date_to');
         @endphp
         <x-ui.card id="movement-history" :padding="false">
             <x-slot:header>
@@ -877,6 +894,23 @@
                         </select>
                     </div>
 
+                    <div
+                        x-data="{ dateFrom: {{ Js::from(request('date_from', '')) }}, dateTo: {{ Js::from(request('date_to', '')) }} }"
+                        class="flex w-full flex-wrap items-start gap-2 sm:w-auto sm:flex-nowrap"
+                    >
+                        <label class="min-w-0 flex-1 sm:w-32">
+                            <span class="sr-only">Movement date from</span>
+                            <input type="date" name="date_from" x-model="dateFrom" @change="if (dateTo && dateFrom > dateTo) dateTo = dateFrom" max="{{ now()->toDateString() }}" aria-describedby="movement-date-from-error" @class(['w-full rounded-lg py-1.5 text-xs dark:bg-neutral-800', 'border-danger-500 focus:border-danger-500 focus:ring-danger-500' => $errors->movementHistoryFilter->has('date_from'), 'border-neutral-300 dark:border-neutral-700' => ! $errors->movementHistoryFilter->has('date_from')])>
+                            @error('date_from', 'movementHistoryFilter')<span id="movement-date-from-error" class="mt-1 block text-xs text-danger-600 dark:text-danger-400">{{ $message }}</span>@enderror
+                        </label>
+                        <span class="inline-flex min-h-8 shrink-0 items-center self-start text-xs text-neutral-400">to</span>
+                        <label class="min-w-0 flex-1 sm:w-32">
+                            <span class="sr-only">Movement date to</span>
+                            <input type="date" name="date_to" x-model="dateTo" @change="if (dateFrom && dateTo < dateFrom) dateTo = dateFrom" :min="dateFrom || null" max="{{ now()->toDateString() }}" aria-describedby="movement-date-to-error" @class(['w-full rounded-lg py-1.5 text-xs dark:bg-neutral-800', 'border-danger-500 focus:border-danger-500 focus:ring-danger-500' => $errors->movementHistoryFilter->has('date_to'), 'border-neutral-300 dark:border-neutral-700' => ! $errors->movementHistoryFilter->has('date_to')])>
+                            @error('date_to', 'movementHistoryFilter')<span id="movement-date-to-error" class="mt-1 block text-xs text-danger-600 dark:text-danger-400">{{ $message }}</span>@enderror
+                        </label>
+                    </div>
+
                     <button type="submit" class="inline-flex min-h-8 items-center justify-center rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs transition hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">
                         Apply
                     </button>
@@ -891,9 +925,7 @@
 
             @if ($movements->isEmpty())
                 <div class="p-8 text-center text-neutral-500">
-                    <svg class="mx-auto h-8 w-8 text-neutral-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                    </svg>
+                    <x-ui.empty-artwork category="logistics" size="sm" />
                     <p class="text-sm font-semibold text-neutral-800 dark:text-neutral-200">{{ $historyFiltered ? 'No matching movements' : 'No movements yet' }}</p>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{{ $historyFiltered ? 'Try changing or clearing the active filters.' : 'Recorded stock in, stock out and transfers will appear here.' }}</p>
                 </div>

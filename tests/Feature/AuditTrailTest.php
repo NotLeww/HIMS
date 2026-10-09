@@ -450,7 +450,8 @@ class AuditTrailTest extends TestCase
         $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
             ->get('/super-admin/audit-trail')
             ->assertOk()
-            ->assertSee('Audit Trail');
+            ->assertSee('Audit Trail')
+            ->assertSee('hims-audit-trail-hero.png', false);
 
         $this->flushSession();
         $this->app['auth']->forgetGuards();
@@ -716,6 +717,19 @@ class AuditTrailTest extends TestCase
             ->assertSee('Logged In')
             ->assertSee('Aug 27, 2026, 8:15:00 PM')
             ->assertSee('PHT (UTC+8)');
+    }
+
+    public function test_audit_history_filter_rejects_future_and_reversed_ranges(): void
+    {
+        $superAdmin = User::factory()->superAdministrator()->create();
+
+        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get('/super-admin/audit-trail?date_from='.today()->addDay()->toDateString())
+            ->assertSessionHasErrors('date_from');
+
+        $this->actingAs($superAdmin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->get('/super-admin/audit-trail?date_from='.today()->toDateString().'&date_to='.today()->subDay()->toDateString())
+            ->assertSessionHasErrors('date_to');
     }
 
     public function test_sidebar_link_is_visible_only_to_audit_authorized_roles(): void

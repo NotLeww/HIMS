@@ -62,6 +62,11 @@ enum AuditAction: string
     case CreatedSourcingRfq = 'created_sourcing_rfq';
     case PublishedSourcingRfq = 'published_sourcing_rfq';
     case SubmittedSupplierQuote = 'submitted_supplier_quote';
+    case AcknowledgedPurchaseOrder = 'acknowledged_purchase_order';
+    case SubmittedAdvanceShipNotice = 'submitted_advance_ship_notice';
+    case RespondedToSupplierDiscrepancy = 'responded_to_supplier_discrepancy';
+    case ResolvedSupplierDiscrepancy = 'resolved_supplier_discrepancy';
+    case SubmittedSupplierInvoice = 'submitted_supplier_invoice';
     case EvaluatedSourcingRfq = 'evaluated_sourcing_rfq';
     case AwardedSourcingRfq = 'awarded_sourcing_rfq';
     case IssuedPurchaseOrder = 'issued_purchase_order';
@@ -220,6 +225,11 @@ enum AuditAction: string
             self::CreatedSourcingRfq => 'Created Sourcing RFQ',
             self::PublishedSourcingRfq => 'Published Sourcing RFQ',
             self::SubmittedSupplierQuote => 'Submitted Supplier Quote',
+            self::AcknowledgedPurchaseOrder => 'Acknowledged Purchase Order',
+            self::SubmittedAdvanceShipNotice => 'Submitted Advance Ship Notice',
+            self::RespondedToSupplierDiscrepancy => 'Responded to Supplier Discrepancy',
+            self::ResolvedSupplierDiscrepancy => 'Resolved Supplier Discrepancy',
+            self::SubmittedSupplierInvoice => 'Submitted Supplier Invoice',
             self::EvaluatedSourcingRfq => 'Evaluated Sourcing RFQ',
             self::AwardedSourcingRfq => 'Awarded Sourcing RFQ',
             self::IssuedPurchaseOrder => 'Issued Purchase Order',

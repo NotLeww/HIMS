@@ -1,6 +1,7 @@
 <x-app-layout full-width>
     <x-ui.page-header
         title="Master Records Archive"
+        :image="asset('img/hims-master-records-archive-hero.png')"
         :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Administration' => null, 'Archive' => null]">
         <x-slot:actions>
             <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::auditLogRoute())" icon="shield-check">
@@ -75,7 +76,7 @@
             @endforeach
         </div>
 
-        <form method="GET" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('archive.index')) }}" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end mt-4">
+        <form method="GET" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('archive.index')) }}" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end mt-4" x-data="{ dateFrom: @js($filters['archive_date_from'] ?? ''), dateTo: @js($filters['archive_date_to'] ?? '') }">
             <input type="hidden" name="type" value="{{ $currentType }}">
 
             <x-ui.field
@@ -88,13 +89,18 @@
                 name="archive_date_from"
                 label="Archived From"
                 type="date"
-                :value="$filters['archive_date_from'] ?? null" />
+                :value="$filters['archive_date_from'] ?? null"
+                x-model="dateFrom"
+                x-bind:max="dateTo || @js(today()->toDateString())" />
 
             <x-ui.field
                 name="archive_date_to"
                 label="Archived To"
                 type="date"
-                :value="$filters['archive_date_to'] ?? null" />
+                :value="$filters['archive_date_to'] ?? null"
+                x-model="dateTo"
+                x-bind:min="dateFrom || null"
+                :max="today()->toDateString()" />
 
             <div class="space-y-1">
                 <label for="archived_by" class="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
@@ -199,7 +205,7 @@
                 </div>
             @empty
                 <div class="p-8 text-center text-sm text-neutral-500">
-                    <x-ui.icon name="archive-box" class="mx-auto h-8 w-8 text-neutral-400 mb-2" />
+                    <x-ui.empty-artwork category="governance" size="sm" />
                     <p class="font-semibold text-neutral-700 dark:text-neutral-300">No archived records found</p>
                     <p class="text-xs text-neutral-500 mt-1">Archived items, suppliers, and user accounts will appear here.</p>
                 </div>
@@ -274,7 +280,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty
+                            <x-ui.table.empty artwork="governance"
                                 :colspan="7"
                                 icon="archive-box"
                                 title="No archived records match the criteria"
@@ -334,7 +340,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty
+                            <x-ui.table.empty artwork="inventory"
                                 :colspan="7"
                                 icon="cube"
                                 title="No archived inventory items match"
@@ -389,7 +395,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty
+                            <x-ui.table.empty artwork="suppliers"
                                 :colspan="7"
                                 icon="building-office-2"
                                 title="No archived suppliers match"
@@ -398,7 +404,7 @@
                     </tbody>
                 @elseif ($currentType === 'users')
                     <x-ui.table.head>
-                        <x-ui.table.th class="px-3 py-3 w-28">Employee ID</x-ui.table.th>
+                        <x-ui.table.th class="px-3 py-3 w-28">Account ID</x-ui.table.th>
                         <x-ui.table.th class="px-3 py-3">User Name &amp; Email</x-ui.table.th>
                         <x-ui.table.th class="px-3 py-3 w-32">Role</x-ui.table.th>
                         <x-ui.table.th class="px-3 py-3 w-36">Department</x-ui.table.th>
@@ -445,7 +451,7 @@
                                     @can(\App\Enums\Permission::ManageArchive->value)
                                         <form method="POST" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('archive.users.unarchive'), $userAccount) }}"
                                               data-confirm-title="Restore User Account"
-                                              data-confirm-message="Restore account for '{{ $userAccount->name }}' ({{ $userAccount->email }})? Duplicate email or employee ID checks will be enforced."
+                                              data-confirm-message="Restore account for '{{ $userAccount->name }}' ({{ $userAccount->email }})? Duplicate email or account ID checks will be enforced."
                                               data-confirm-label="Restore Account">
                                             @csrf
                                             <x-ui.button type="submit" size="sm" variant="secondary" icon="arrow-path" class="px-2.5 py-1 text-xs">
@@ -456,7 +462,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty
+                            <x-ui.table.empty artwork="users"
                                 :colspan="8"
                                 icon="users"
                                 title="No archived user accounts match"

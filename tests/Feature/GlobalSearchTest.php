@@ -307,14 +307,15 @@ class GlobalSearchTest extends TestCase
             ->assertSee('id="global-search-dropdown"', false);
     }
 
-    public function test_page_search_filter_does_not_open_global_search(): void
+    public function test_inventory_catalog_filter_does_not_prefill_or_open_global_search(): void
     {
         $user = User::factory()->role(UserRole::WarehouseStaff)->create();
 
-        $response = $this->actingAs($user)->get(route('dashboard', ['search' => 'SHP-2026-00001']));
+        $response = $this->actingAs($user)->get(route('inventory.items', ['search' => 'DRG-DOBU-004']));
 
         $response->assertOk()
-            ->assertSee("initialQuery: ''", false);
+            ->assertSee("initialQuery: ''", false)
+            ->assertSee('value="DRG-DOBU-004"', false);
     }
 
     public function test_search_finds_goods_receipts_transfers_and_locations(): void

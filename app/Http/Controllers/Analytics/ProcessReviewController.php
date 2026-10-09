@@ -75,9 +75,9 @@ class ProcessReviewController extends Controller implements HasMiddleware
     public function checkAvailability(Request $request): JsonResponse
     {
         $request->validate([
-            'period_start' => ['required', 'date'],
-            'period_end' => ['required', 'date', 'after_or_equal:period_start'],
-        ]);
+            'period_start' => ['required', 'date', 'before_or_equal:today'],
+            'period_end' => ['required', 'date', 'after_or_equal:period_start', 'before_or_equal:today'],
+        ], $this->periodValidationMessages());
 
         $start = Carbon::parse($request->string('period_start'));
         $end = Carbon::parse($request->string('period_end'));
@@ -91,11 +91,11 @@ class ProcessReviewController extends Controller implements HasMiddleware
     {
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
-            'period_start' => ['required', 'date'],
-            'period_end' => ['required', 'date', 'after_or_equal:period_start'],
+            'period_start' => ['required', 'date', 'before_or_equal:today'],
+            'period_end' => ['required', 'date', 'after_or_equal:period_start', 'before_or_equal:today'],
             'qualitative_context' => ['nullable', 'string'],
             'executive_summary' => ['nullable', 'string'],
-        ]);
+        ], $this->periodValidationMessages());
 
         try {
             $review = $this->reviewService->createReview($validated, $request->user());
@@ -106,6 +106,15 @@ class ProcessReviewController extends Controller implements HasMiddleware
         } catch (ValidationException $e) {
             return back()->withInput()->withErrors($e->errors());
         }
+    }
+
+    private function periodValidationMessages(): array
+    {
+        return [
+            'period_start.before_or_equal' => 'The evaluation period cannot start in the future.',
+            'period_end.after_or_equal' => 'The evaluation period end must be on or after its start.',
+            'period_end.before_or_equal' => 'The evaluation period cannot end in the future.',
+        ];
     }
 
     public function show(KpiProcessReview $review): View

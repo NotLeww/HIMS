@@ -1,4 +1,9 @@
 <x-app-layout>
+    <style>
+        :root { --hims-header-image: url('{{ asset('img/hims-warehouse-tasks-hero-day.png') }}'); --hims-header-position: right center; }
+        .dark { --hims-header-image: url('{{ asset('img/hims-warehouse-tasks-hero-night.png') }}'); }
+    </style>
+
     <x-slot name="header">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -194,7 +199,7 @@
                     </div>
                     <div>
                         <label for="due_at" class="block text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-1">Due at</label>
-                        <input id="due_at" name="due_at" type="datetime-local" value="{{ old('due_at') }}" class="block w-full rounded-lg border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-2xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm">
+                        <input id="due_at" name="due_at" type="datetime-local" value="{{ old('due_at') }}" min="{{ now()->addMinute()->format('Y-m-d\TH:i') }}" class="block w-full rounded-lg border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-2xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm">
                     </div>
                 </div>
 
@@ -254,7 +259,7 @@
                             <x-ui.table.td><a class="text-sm font-semibold text-primary-700 hover:underline" href="{{ route('inventory.warehouse-tasks.show', $task) }}">Open</a></x-ui.table.td>
                         </x-ui.table.row>
                     @empty
-                        <x-ui.table.empty colspan="6" title="No warehouse tasks" message="Tasks appear when work is generated from an eligible workflow or created by a manager." />
+                        <x-ui.table.empty colspan="6" artwork="warehouse" title="No warehouse tasks" message="Tasks appear when work is generated from an eligible workflow or created by a manager." />
                     @endforelse
                     </tbody>
                 </x-ui.table>

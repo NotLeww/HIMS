@@ -48,13 +48,13 @@
                     <div>
                         <label for="period_start" class="block text-sm font-semibold text-neutral-800">Evaluation Period Start <span class="text-rose-500">*</span></label>
                         <input type="date" name="period_start" id="period_start" required
-                               x-model="periodStart" @change="checkAvailability()"
+                               x-model="periodStart" :max="periodEnd || '{{ today()->toDateString() }}'" @change="checkAvailability()"
                                class="mt-1 block w-full rounded-lg border-neutral-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                     </div>
                     <div>
                         <label for="period_end" class="block text-sm font-semibold text-neutral-800">Evaluation Period End <span class="text-rose-500">*</span></label>
                         <input type="date" name="period_end" id="period_end" required
-                               x-model="periodEnd" @change="checkAvailability()"
+                               x-model="periodEnd" :min="periodStart || null" max="{{ today()->toDateString() }}" @change="checkAvailability()"
                                class="mt-1 block w-full rounded-lg border-neutral-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                     </div>
                 </div>

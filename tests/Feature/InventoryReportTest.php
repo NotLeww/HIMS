@@ -146,6 +146,16 @@ class InventoryReportTest extends TestCase
         $response = $this->actingAs($financialReader)->get('/inventory/reports');
 
         $response->assertStatus(200)
+            ->assertSee('Report sections')
+            ->assertSee('Overview')
+            ->assertSee('Date range:')
+            ->assertSee('As of today:')
+            ->assertSee('report-panel-overview', false)
+            ->assertSee('inventoryReportTabs({ canViewFinancialData: true })', false)
+            ->assertSee("selectTab('procurement')", false)
+            ->assertSee('animate-report-metrics', false)
+            ->assertSee('data-inventory-report-active-tab', false)
+            ->assertSee('min-w-[90rem] table-fixed', false)
             ->assertSee('Valuation &amp; Locations', false)
             ->assertSee('View batches', false)
             ->assertSee('open-report-tab', false)
@@ -170,6 +180,11 @@ class InventoryReportTest extends TestCase
     public function test_every_signed_in_role_may_read_the_report(): void
     {
         foreach (UserRole::cases() as $role) {
+            if ($role->isSupplier()) {
+                $this->assertFalse($role->grants(Permission::ViewReports));
+                continue;
+            }
+
             $this->assertTrue($role->grants(Permission::ViewReports));
 
             $this->actingAs(User::factory()->create(['role' => $role]))
@@ -1720,6 +1735,10 @@ class InventoryReportTest extends TestCase
             ->assertSee('Stock Out')
             ->assertSee('bg-gradient-to-br', false)
             ->assertSee('rounded-2xl', false)
+            ->assertSee('x-data="himsCountUp({ value:', false)
+            ->assertSee('x-text="display"', false)
+            ->assertSee('hims-metric-bar-x', false)
+            ->assertSee('hims-metric-bar-y', false)
             ->assertSee('aria-label="Item distribution"', false)
             ->assertSee('aria-label="Value by stock status"', false)
             ->assertSee('aria-label="Attention distribution"', false)

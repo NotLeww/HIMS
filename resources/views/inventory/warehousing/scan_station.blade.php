@@ -691,11 +691,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="6" class="px-4 py-6 text-center text-xs text-neutral-500 dark:text-neutral-400">
-                                            No warehouse tasks recorded yet.
-                                        </td>
-                                    </tr>
+                                    <x-ui.table.empty colspan="6" artwork="warehouse" title="No warehouse tasks" message="Generated picking, receiving, and storage tasks will appear here." />
                                 @endforelse
                             </tbody>
                         </table>
@@ -727,7 +723,10 @@
                                 </div>
                             </div>
                         @empty
-                            <p class="text-xs text-neutral-400 py-4 text-center">No scans recorded yet.</p>
+                            <div class="px-3 py-5 text-center">
+                                <x-ui.empty-artwork category="warehouse" size="sm" />
+                                <p class="mt-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">No scans recorded yet</p>
+                            </div>
                         @endforelse
                     </div>
                 </div>

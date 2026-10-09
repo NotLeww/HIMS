@@ -66,7 +66,7 @@ The source and target counts matched for these non-empty tables:
 - `audit_logs`
 - `system_recovery_records`
 
-Meaningful records include the existing seeder's 12 `IAR-REV-2026-*` inspection/acceptance reports. After restore, every report retained its goods receipt note and at least one related line item. The restored inventory manager retained current privacy consent and could read the dashboard through the normal authenticated HTTP/application path.
+After restore, every inspection/acceptance report retained its goods receipt note and at least one related line item. Retired `IAR-REV-2026-*` demonstration chains were absent. The restored inventory manager retained current privacy consent and could read the dashboard through the normal authenticated HTTP/application path.
 
 ## Integrity and readability checks
 

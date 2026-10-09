@@ -41,7 +41,10 @@ class PurchaseOrderApprovalReminderService
                     ? "Purchase Order {$purchaseOrder->po_number} passed its expected delivery date of {$deliveryDate->toFormattedDateString()}. Update the date and approve or reject it."
                     : "Purchase Order {$purchaseOrder->po_number} is still awaiting approval before its expected delivery on {$deliveryDate->toFormattedDateString()}.";
                 $dedupeKey = "purchase-order:{$purchaseOrder->id}:approval-reminder:{$stage}:{$deliveryDate->toDateString()}";
-                $routeParameters = ['po_search' => $purchaseOrder->po_number];
+                $routeParameters = [
+                    'purchase_order' => $purchaseOrder->id,
+                    'po_search' => $purchaseOrder->po_number,
+                ];
                 $except = $purchaseOrder->createdBy;
                 $step = $chain?->steps->first(
                     fn ($approvalStep) => $approvalStep->status === ApprovalStepStatus::Pending

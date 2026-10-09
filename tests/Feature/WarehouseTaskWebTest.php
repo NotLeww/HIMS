@@ -101,9 +101,10 @@ class WarehouseTaskWebTest extends TestCase
 
         $response = $this->actingAs($manager)->post(route('inventory.warehouse-tasks.store'), [
             'task_type' => 'invalid_type',
+            'due_at' => now()->subMinute()->format('Y-m-d H:i:s'),
         ]);
 
-        $response->assertSessionHasErrors(['task_type', 'source_location_id', 'destination_location_id', 'item_id', 'requested_quantity']);
+        $response->assertSessionHasErrors(['task_type', 'source_location_id', 'destination_location_id', 'item_id', 'requested_quantity', 'due_at']);
     }
 
     public function test_manager_sees_compact_task_workspace_and_secondary_action_modals(): void

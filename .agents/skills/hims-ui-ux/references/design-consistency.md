@@ -30,6 +30,13 @@ Authenticated operational workspaces, catalogs, dashboards, tables, inventory, a
 
 When a user must scroll past vertically stacked content while wide desktop space is empty, recompose the layout horizontally.
 
+### Page Header Sizing and Artwork
+
+- Treat 144px as the shared desktop height for HIMS page and hero headers, independent of title, subtitle, breadcrumb, media, or action count. A sparse header must not collapse below the same height used by a content-rich header.
+- Below sm, retain a 144px minimum but allow the header to grow when wrapped content or controls require more room; never clip navigation, headings, descriptions, or actions to preserve a fixed mobile height.
+- Use <x-ui.page-header> when its contract fits. Any custom supplier, inventory, procurement, or administration hero must match the same 144px desktop height instead of carrying a page-local 104px or 112px exception.
+- Contextual header artwork belongs on the right with the text-safe region on the left. Use imagePosition and imageSize to preserve meaningful subjects such as faces; do not rely on cover when it crops the subject. Verify the actual crop at the rendered header ratio in both themes.
+
 ## Responsive Acceptance Standard
 
 Page-level horizontal scrolling is a layout failure. Reflow the same workflow across mobile, tablet, desktop, and wide desktop; do not create divergent workflows or shrink text below readable sizes.
@@ -40,6 +47,7 @@ Page-level horizontal scrolling is a layout failure. Reflow the same workflow ac
 - Toolbars and action rows wrap or stack without hiding critical controls.
 - Use `min-w-0` with `break-words`, or with `truncate` plus an accessible full-value mechanism such as `title`, for long unstructured values.
 - Never truncate short controls, option labels, statuses, identifiers required to distinguish a row, or primary actions.
+- Short labels, badges, statuses, and controls must wrap only at natural word boundaries. Do not use `break-all`, `overflow-wrap: anywhere`, or an undersized text track for them; reflow adjacent metadata to another line or widen the track before allowing a word to split.
 - Tables progressively hide secondary columns or use a mobile composition. Always preserve row identity, primary state, and required action.
 - The shared table's `overflow-x-auto` is a safeguard for genuinely dense data, not the default responsive strategy.
 - Modals must fit the viewport, preserve controls, and use a vertically scrollable content region when needed.
@@ -53,6 +61,9 @@ Size controls for their real content plus buffer space. No letters, descenders, 
 
 - Compact `<select>` controls use at least `pl-2.5 pr-8`; standard selects use at least `pl-3 pr-10`. Do not use symmetrical `px-*` when text can sit beneath the browser chevron.
 - Do not force dynamic button, select, badge, or input content into narrow widths such as `w-14`, `w-16`, or arbitrary small `max-w-*` values.
+- Let expected content length inform desktop width: identifiers, short codes, quantities, dates, and concise terms should occupy appropriately sized grid columns instead of separate full-width rows.
+- Use responsive `grid` tracks with `minmax(0, ...)` to place related short and medium fields side by side when space permits; stack the same fields at narrow breakpoints rather than assigning rigid pixel widths.
+- Give a textarea dominant or full-row width only when the workflow expects sustained narrative input. For brief notes or remarks, use a wider companion column or a bounded span so the surrounding space remains useful.
 - Use adequate horizontal padding and readable line height. Avoid fixed heights that clip `g`, `y`, `p`, `q`, `j`, or accented characters.
 - Table cells and status labels need enough padding and width for complete operational values.
 - Keep equivalent fields aligned and equally sized; component class composition must not accidentally remove `w-full`, padding, focus, or error styling.
@@ -142,6 +153,8 @@ Show one loading indicator per action.
 
 - Button-triggered form submissions use the established in-button loader and contextual `data-loading-text`; do not also show the central overlay.
 - Reserve the central overlay for navigation, downloads/exports, or programmatic submission without a contextual submit button.
+- Distinguish local presentation tabs from server-backed tabs. A local tab whose current content is already in memory may switch immediately without a loader. A server-backed tab that promises fresh data must use this order: keep the currently rendered tab visible, mark the trigger busy and start the shared loading state, request or navigate for fresh data, then activate and render the target tab only after the successful response. On failure, retain the current tab and expose a recoverable error or retry path.
+- Do not implement server-backed navigation by mutating `activeTab`, selected state, or the target panel first and reacting afterward with a watcher. Invoke navigation or loading directly from the user action so stale target content never flashes underneath the loader.
 - Async content distinguishes loading, success, empty, and error. Never show an empty-state message while a request is still pending.
 - Use lightweight CSS skeletons shaped like the final component, not generic repeated rectangles. Match its sections, count, approximate dimensions, responsive layout, and reserved space.
 - Skeletons support light/dark themes, stop when loading ends, respect `prefers-reduced-motion`, and expose appropriate `aria-busy` or status semantics without repeatedly announcing animation.
@@ -171,6 +184,9 @@ Preserve the shared pagination signature:
 ## Forms and Dates
 
 - Use visible labels, associated hints/errors, retained `old()` values, correct required/disabled semantics, named error bags where established, and server-side authorization/validation.
+- HIMS forms must not rely on unstyled browser constraint-validation popovers. Suppress them with `novalidate` only after the complete Laravel error round trip is present: server validation for the same constraints, retained input, shared inline danger styling and message association, and focus on the first invalid field. Preserve `required`, `min`, `max`, `step`, `pattern`, and `maxlength` where applicable as semantic metadata and optional progressive-enhancement hooks.
+- Keep ordinary validation inline at the owning controls. Do not render a global, layout-level, card-level, modal-level, or form-level validation summary/banner that duplicates those messages. For several invalid fields, focus the first invalid control and retain programmatic field-message associations; reserve persistent alerts for actionable failures with no specific field owner.
+- Gate the primary action on create, submit, and mutation forms with real native `disabled` state while any required or conditionally required control is blank or client-invalid. Initialize disabled before scripts run, recompute against the form's current constraints after input/change and conditional-field updates, and enable only when the form is client-valid. Never treat button gating as authorization or authoritative validation; the server must reject the same invalid payload and return the established inline errors.
 - Native `date`, `datetime-local`, `min`, and `max` are preferred when they fit the domain.
 - State the precise chronology rule; do not confuse `after` with `after_or_equal`, or “not in the past” with “after today.”
 - Recalculate dependent limits when the controlling date changes. Handle a now-invalid selected value only in a visible, expected way.

@@ -91,6 +91,11 @@
         'warning' => 'border-amber-100 bg-white/70 dark:border-amber-900/60 dark:bg-neutral-900/60',
         'danger' => 'border-rose-100 bg-white/70 dark:border-rose-900/60 dark:bg-neutral-900/60',
     ];
+    $normalizedValue = str_replace([',', ' '], '', (string) $value);
+    $animatedValue = $analytics && is_numeric($normalizedValue) ? (float) $normalizedValue : null;
+    $valueDecimals = $animatedValue !== null && str_contains($normalizedValue, '.')
+        ? min(2, strlen(explode('.', $normalizedValue, 2)[1]))
+        : 0;
 @endphp
 
 <{{ $tag }}
@@ -116,10 +121,10 @@
                         <x-ui.icon :name="$icon" class="{{ $analytics ? 'h-5 w-5' : ($compact ? 'h-4 w-4' : 'h-5 w-5') }}" />
                     </span>
                 @endif
-                <p class="min-w-0 font-bold uppercase tracking-wider {{ $analytics ? 'text-[11px] leading-snug sm:text-xs' : 'text-xs '.(!$compact ? 'sm:text-sm' : '') }} {{ $tones[$tone]['label'] }}">{{ $label }}</p>
+                <p class="min-w-0 whitespace-normal [overflow-wrap:normal] [word-break:normal] font-bold uppercase tracking-wider {{ $analytics ? 'text-[11px] leading-snug sm:text-xs' : 'text-xs '.(!$compact ? 'sm:text-sm' : '') }} {{ $tones[$tone]['label'] }}">{{ $label }}</p>
             </div>
             @if ($analytics && $context)
-                <span class="shrink-0 rounded-lg bg-neutral-100/80 px-2.5 py-1.5 text-[11px] font-medium text-neutral-600 ring-1 ring-neutral-200/70 dark:bg-neutral-800/80 dark:text-neutral-300 dark:ring-neutral-700">{{ $context }}</span>
+                <span class="shrink-0 whitespace-nowrap rounded-lg bg-neutral-100/80 px-2.5 py-1.5 text-[11px] font-medium text-neutral-600 ring-1 ring-neutral-200/70 dark:bg-neutral-800/80 dark:text-neutral-300 dark:ring-neutral-700">{{ $context }}</span>
             @endif
         </div>
 
@@ -128,7 +133,14 @@
                 @if ($prefix)
                     <span class="text-[0.72em] font-black tracking-normal {{ $analytics ? $tones[$tone]['value'] : $tones[$tone]['label'] }}">{{ $prefix }}</span>
                 @endif
-                <span>{{ $value }}</span>
+                <span
+                    @if ($animatedValue !== null)
+                        x-data="himsCountUp({ value: {{ Illuminate\Support\Js::from($animatedValue) }}, decimals: {{ $valueDecimals }} })"
+                        x-text="display"
+                        x-on:animate-report-metrics.window="if ($event.detail.panelId === $el.closest('[id^=report-panel-]')?.id) animate()"
+                        aria-label="{{ $value }}"
+                    @endif
+                >{{ $value }}</span>
                 @if ($suffix)
                     <span class="text-xs font-bold tracking-normal text-neutral-500 dark:text-neutral-400 sm:text-sm">{{ $suffix }}</span>
                 @endif
@@ -165,7 +177,7 @@
                             >
                                 <div class="flex h-9 items-end overflow-hidden rounded-md bg-neutral-100 dark:bg-neutral-800">
                                     <span
-                                        class="block w-full rounded-md {{ $chartTones[$item['tone']] ?? $chartTones['primary'] }}"
+                                        class="hims-metric-bar-y block w-full rounded-md {{ $chartTones[$item['tone']] ?? $chartTones['primary'] }}"
                                         style="height: {{ $item['value'] > 0 ? max(8, round(($item['value'] / $chartMaximum) * 100)) : 4 }}%;"
                                     ></span>
                                 </div>
@@ -195,7 +207,7 @@
                             >
                                 <div class="h-3 overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
                                     <span
-                                        class="block h-full rounded-full {{ $chartTones[$item['tone']] ?? $chartTones['primary'] }}"
+                                        class="hims-metric-bar-x block h-full rounded-full {{ $chartTones[$item['tone']] ?? $chartTones['primary'] }}"
                                         style="width: {{ $item['value'] > 0 ? max(3, round(($item['value'] / $chartMaximum) * 100)) : 0 }}%;"
                                     ></span>
                                 </div>
@@ -222,7 +234,7 @@
                                     x-on:click.stop.prevent="$dispatch('open-chart-drilldown', { url: $el.dataset.drilldownUrl, title: $el.dataset.drilldownTitle, focus: $el.dataset.drilldownFocus })"
                                     aria-label="View {{ $item['label'] }} records"
                                 @endif
-                                class="h-full {{ $chartTotal > 0 ? ($chartTones[$item['tone']] ?? $chartTones['primary']) : 'bg-transparent hover:bg-neutral-200/70 dark:hover:bg-neutral-700/70' }} {{ $chartItemTag === 'button' ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500' : '' }}"
+                                class="hims-metric-bar-x h-full {{ $chartTotal > 0 ? ($chartTones[$item['tone']] ?? $chartTones['primary']) : 'bg-transparent hover:bg-neutral-200/70 dark:hover:bg-neutral-700/70' }} {{ $chartItemTag === 'button' ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500' : '' }}"
                                 style="width: {{ $chartTotal > 0 ? round(($item['value'] / $chartTotal) * 100, 2) : round(100 / max(1, $chartItems->count()), 2) }}%;"
                                 title="{{ $item['label'] }}: {{ number_format($item['value'], 2) }}"
                             ></{{ $chartItemTag }}>

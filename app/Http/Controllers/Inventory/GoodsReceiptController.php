@@ -19,6 +19,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 class GoodsReceiptController extends Controller implements HasMiddleware
@@ -38,11 +39,20 @@ class GoodsReceiptController extends Controller implements HasMiddleware
         private readonly QualityControlService $qcService
     ) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         abort_unless(auth()->user()->hasPermission(Permission::ViewInventory)
             || auth()->user()->hasPermission(Permission::ReceivePurchaseOrder), 403);
+        $filters = $request->validate([
+            'date_from' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from', 'before_or_equal:today'],
+        ]);
+        $dateFrom = filled($filters['date_from'] ?? null) ? Carbon::parse($filters['date_from'], config('app.timezone'))->startOfDay() : null;
+        $dateTo = filled($filters['date_to'] ?? null) ? Carbon::parse($filters['date_to'], config('app.timezone'))->endOfDay() : null;
+
         $goodsReceipts = GoodsReceiptNote::with(['purchaseOrder', 'supplier', 'receivedBy', 'lines.item'])
+            ->when($dateFrom, fn ($query) => $query->where('received_at', '>=', $dateFrom))
+            ->when($dateTo, fn ($query) => $query->where('received_at', '<=', $dateTo))
             ->latest('received_at')
             ->paginate(15)
             ->withQueryString();
@@ -142,7 +152,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
             'carrier_name' => ['nullable', 'string', 'max:100'],
             'waybill_number' => ['nullable', 'string', 'max:100'],
             'packing_slip_number' => ['nullable', 'string', 'max:100'],
-            'received_at' => ['nullable', 'date'],
+            'received_at' => ['nullable', 'date', 'before_or_equal:now'],
             'destination_location_id' => ['nullable', 'exists:storage_locations,id'],
             'notes' => ['nullable', 'string', 'max:500'],
             'lines' => ['required', 'array', 'min:1'],
@@ -159,9 +169,12 @@ class GoodsReceiptController extends Controller implements HasMiddleware
             'lines.*.batch_number' => ['nullable', 'string', 'max:50'],
             'lines.*.lot_number' => ['nullable', 'string', 'max:50'],
             'lines.*.expiry_date' => ['nullable', 'date'],
-            'lines.*.manufactured_date' => ['nullable', 'date'],
+            'lines.*.manufactured_date' => ['nullable', 'date', 'before_or_equal:today'],
             'lines.*.serial_number' => ['nullable', 'string', 'max:100'],
             'lines.*.notes' => ['nullable', 'string', 'max:255'],
+        ], [
+            'received_at.before_or_equal' => 'The received date and time cannot be in the future.',
+            'lines.*.manufactured_date.before_or_equal' => 'A manufacturing date cannot be in the future.',
         ]);
 
         $po = PurchaseOrder::findOrFail($validated['purchase_order_id']);

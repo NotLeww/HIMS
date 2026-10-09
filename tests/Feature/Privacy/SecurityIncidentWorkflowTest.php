@@ -121,4 +121,28 @@ class SecurityIncidentWorkflowTest extends TestCase
             'category' => 'credential_stuffing_attempt',
         ]);
     }
+
+    public function test_npc_notification_date_cannot_be_in_the_future(): void
+    {
+        $admin = User::factory()->superAdministrator()->create();
+        $incident = SecurityIncident::create([
+            'incident_number' => 'INC-FUTURE-NPC',
+            'title' => 'Future notification validation',
+            'incident_type' => 'policy_violation',
+            'severity' => 'low',
+            'status' => 'reported',
+            'description' => 'Validation fixture for an impossible notification date.',
+            'reported_by_user_id' => $admin->id,
+        ]);
+
+        $this->actingAs($admin, AuthenticationContext::SUPER_ADMIN_GUARD)
+            ->put(route('super-admin.privacy.incidents.update', $incident), [
+                'status' => 'reported',
+                'severity' => 'low',
+                'npc_notified_at' => today()->addDay()->toDateString(),
+            ])
+            ->assertSessionHasErrors('npc_notified_at');
+
+        $this->assertNull($incident->fresh()->npc_notified_at);
+    }
 }

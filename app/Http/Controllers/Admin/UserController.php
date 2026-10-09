@@ -269,8 +269,14 @@ class UserController extends Controller implements HasMiddleware
     {
         abort_unless($this->accounts->canManage($request->user(), $user), 403);
 
+        $redirect = $request->boolean('return_to_supplier') && $user->supplier_id !== null
+            ? redirect()
+                ->route('inventory.suppliers.show', $user->supplier_id)
+                ->withFragment('supplier-portal-access')
+            : redirect()->back();
+
         if ($user->hasVerifiedEmail()) {
-            return back()->with('success', sprintf('%s is already verified.', $user->name));
+            return $redirect->with('success', sprintf('%s is already verified.', $user->name));
         }
 
         if ($user->isCancelled()) {
@@ -282,11 +288,11 @@ class UserController extends Controller implements HasMiddleware
         if ($user->isPendingActivation()) {
             $user->notify(new AccountCreated);
 
-            return back()->with('success', sprintf('A new activation email was sent to %s.', $user->email));
+            return $redirect->with('success', sprintf('A new activation email was sent to %s.', $user->email));
         }
 
         $user->sendEmailVerificationNotification();
 
-        return back()->with('success', sprintf('A new verification email was sent to %s.', $user->email));
+        return $redirect->with('success', sprintf('A new verification email was sent to %s.', $user->email));
     }
 }

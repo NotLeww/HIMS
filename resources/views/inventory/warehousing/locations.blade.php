@@ -1,4 +1,9 @@
 <x-app-layout :full-width="true">
+    <style>
+        :root { --hims-header-image: url('{{ asset('img/hims-storage-locations-hero-day.png') }}'); --hims-header-position: right center; }
+        .dark { --hims-header-image: url('{{ asset('img/hims-storage-locations-hero-night.png') }}'); }
+    </style>
+
     <x-slot name="header">
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -245,11 +250,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="7" class="py-12 text-center text-sm text-neutral-500 dark:text-neutral-400">
-                                    No storage locations found matching criteria.
-                                </td>
-                            </tr>
+                            <x-ui.table.empty colspan="7" artwork="warehouse" title="No matching storage locations" message="Adjust the filters or register a warehouse location." />
                         @endforelse
                     </tbody>
                 </table>
@@ -377,9 +378,7 @@
 
                     {{-- Empty State --}}
                     <div x-show="!loading && !errorMessage && items.length === 0" class="flex flex-col items-center justify-center py-12 text-center">
-                        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500">
-                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                        </div>
+                        <x-ui.empty-artwork category="warehouse" size="sm" />
                         <template x-if="search.length === 0">
                             <div>
                                 <h4 class="mt-3 text-sm font-semibold text-neutral-900 dark:text-neutral-100">No items are currently stored in this location.</h4>

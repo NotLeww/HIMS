@@ -5,6 +5,7 @@
     <div class="print:hidden">
         <x-ui.page-header
             title="Audit Trail"
+            :image="asset('img/hims-audit-trail-hero.png')"
             :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Audit Trail' => null]" />
     </div>
 
@@ -79,7 +80,8 @@
                 class="border-b border-neutral-200 p-4 dark:border-neutral-800 sm:p-5"
             >
                 <form id="audit-log-filters" method="GET" action="{{ route(\App\Support\AuthenticationContext::auditLogRoute()) }}"
-                      class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:items-end">
+                      class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:items-end"
+                      x-data="{ dateFrom: @js($filters['date_from'] ?? ''), dateTo: @js($filters['date_to'] ?? '') }">
                     <div
                         class="relative space-y-1.5"
                         x-data="auditSearchAutocomplete({
@@ -201,13 +203,18 @@
                         name="date_from"
                         label="From"
                         type="date"
-                        :value="$filters['date_from'] ?? null" />
+                        :value="$filters['date_from'] ?? null"
+                        x-model="dateFrom"
+                        x-bind:max="dateTo || @js(today()->toDateString())" />
 
                     <x-ui.field
                         name="date_to"
                         label="To"
                         type="date"
-                        :value="$filters['date_to'] ?? null" />
+                        :value="$filters['date_to'] ?? null"
+                        x-model="dateTo"
+                        x-bind:min="dateFrom || null"
+                        :max="today()->toDateString()" />
 
                     <x-ui.field
                         name="outcome"
@@ -348,7 +355,7 @@
                         @endif
                     </x-ui.table.row>
                 @empty
-                    <x-ui.table.empty
+                    <x-ui.table.empty artwork="governance"
                         :colspan="$isPrint ? 6 : 7"
                         icon="clipboard-document-list"
                         title="No activity found"

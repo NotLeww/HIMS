@@ -44,6 +44,10 @@ class UserAccountService
      */
     public function assignableRoles(User $actor, ?User $target = null): array
     {
+        if ($target?->role?->isSupplier() && $actor->can(Permission::ApproveSuppliers->value)) {
+            return [UserRole::VendorAdministrator, UserRole::VendorOperations, UserRole::VendorFinance];
+        }
+
         // Keep every existing Super Administrator on that role during ordinary
         // account edits. Additional Super Administrators created by the CLI are
         // intentionally not protected records, so checking only is_protected
@@ -53,6 +57,7 @@ class UserAccountService
         }
 
         return collect(UserRole::cases())
+            ->reject(fn (UserRole $role) => $role->isSupplier())
             ->filter(fn (UserRole $role) => $actor->isSuperAdministrator()
                 ? ! $role->isSuperAdministrator()
                 : ! $role->isAdministrator() && ! $role->grants(Permission::ViewAuditTrail))
@@ -105,15 +110,22 @@ class UserAccountService
     {
         $user = DB::transaction(function () use ($attributes, $actor): User {
             $role = UserRole::from($attributes['role']);
-            $this->assertCanAssignRole($actor, $role);
+            if (($attributes['supplier_id'] ?? null) !== null && $role->isSupplier()) {
+                if (! $actor->can(Permission::ApproveSuppliers->value)) {
+                    throw new AuthorizationException('Only supplier approvers may invite supplier users.');
+                }
+            } else {
+                $this->assertCanAssignRole($actor, $role);
+            }
 
             $user = new User([
                 ...$this->nameAttributes($attributes),
+                'supplier_id' => $attributes['supplier_id'] ?? null,
                 'email' => $attributes['email'],
                 'password' => null,
                 'role' => $role,
                 'status' => UserStatus::PendingActivation,
-                'employee_id' => $this->nextEmployeeId(),
+                'employee_id' => $this->nextAccountIdentifier($role),
                 'department' => $attributes['department'],
                 'phone' => $attributes['phone'] ?? null,
             ]);
@@ -495,11 +507,11 @@ class UserAccountService
     }
 
     /**
-     * Reserve the next ID while holding a database row lock. All creators
-     * serialize through this single row, and users.employee_id has a unique
-     * index as the final database-level duplicate guard.
+     * Reserve the next account identifier while holding a database row lock.
+     * Hospital accounts use EMP and supplier accounts use SUP; the legacy
+     * users.employee_id column remains the unique storage field.
      */
-    private function nextEmployeeId(): string
+    private function nextAccountIdentifier(UserRole $role): string
     {
         $sequence = DB::table('employee_id_sequences')
             ->where('id', 1)
@@ -507,21 +519,22 @@ class UserAccountService
             ->first();
 
         if ($sequence === null) {
-            throw new \RuntimeException('The employee ID sequence has not been initialized.');
+            throw new \RuntimeException('The account ID sequence has not been initialized.');
         }
 
         $number = (int) $sequence->next_value;
+        $prefix = $role->isSupplier() ? 'SUP' : 'EMP';
 
         do {
-            $employeeId = 'EMP-'.str_pad((string) $number, 4, '0', STR_PAD_LEFT);
+            $accountIdentifier = $prefix.'-'.str_pad((string) $number, 4, '0', STR_PAD_LEFT);
             $number++;
-        } while (User::query()->where('employee_id', $employeeId)->exists());
+        } while (User::query()->where('employee_id', $accountIdentifier)->exists());
 
         DB::table('employee_id_sequences')->where('id', 1)->update([
             'next_value' => $number,
         ]);
 
-        return $employeeId;
+        return $accountIdentifier;
     }
 
     /**

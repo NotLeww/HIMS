@@ -1,4 +1,9 @@
 <x-app-layout>
+    <style>
+        :root { --hims-header-image: url('{{ asset('img/hims-receiving-qc-hero-day.png') }}'); --hims-header-position: right center; }
+        .dark { --hims-header-image: url('{{ asset('img/hims-receiving-qc-hero-night.png') }}'); }
+    </style>
+
     <x-slot name="header">
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
@@ -175,15 +180,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="6" class="px-6 py-12 text-center text-sm text-neutral-500">
-                                        <svg class="mx-auto h-10 w-10 text-emerald-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        <p class="font-semibold text-neutral-800">Quarantine queue is clear!</p>
-                                        <p class="text-xs text-neutral-500 mt-1">All received inbound goods have undergone QA assay and disposition.</p>
-                                    </td>
-                                </tr>
+                                <x-ui.table.empty colspan="6" artwork="receiving" title="Quarantine queue is clear" message="All received goods have completed quality inspection and disposition." />
                             @endforelse
                         </tbody>
                     </table>

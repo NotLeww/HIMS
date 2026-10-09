@@ -96,6 +96,7 @@ class PurchaseOrderWorkspaceTest extends TestCase
         $this->actingAs($manager)->get('/inventory/purchases')
             ->assertOk()
             ->assertSee('Procurement &amp; Purchase Orders', false)
+            ->assertSee('x-show="activeTab === \'orders_revisions\'" x-cloak class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4 xl:gap-4"', false)
             ->assertSee('Prepare Purchase Order')
             ->assertSee('Purchase Order Pipeline')
             ->assertSee(route('inventory.purchases', ['po_status' => 'open']).'#purchase-orders', false)
@@ -128,6 +129,7 @@ class PurchaseOrderWorkspaceTest extends TestCase
             ->assertSee('PO-WORKSPACE-DETAIL')
             ->assertSee('purchase-order-details')
             ->assertSee('openPurchaseOrderDetails', false)
+            ->assertSee('picklist-devices.png', false)
             ->assertSee('border-success-300', false)
             ->assertSee('lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.65fr)]', false)
             ->assertDontSee('name="unit_cost"', false)
@@ -733,6 +735,7 @@ class PurchaseOrderWorkspaceTest extends TestCase
             $this->assertNotNull($reminder);
             $this->assertSame('warning', $reminder->data['priority']);
             $this->assertSame($po->po_number, $reminder->data['route_parameters']['po_search']);
+            $this->assertSame($po->id, $reminder->data['route_parameters']['purchase_order']);
         }
 
         foreach ([$issuer, $administrator, $viewer] as $nonRecipient) {

@@ -112,7 +112,7 @@ class SupplierManagementTest extends TestCase
             ->assertSee('No defensible performance score yet');
     }
 
-    public function test_supplier_analytics_renders_database_metrics_and_selected_supplier_summary(): void
+    public function test_supplier_directory_renders_database_metrics_and_selected_supplier_summary(): void
     {
         $manager = $this->manager();
         $supplier = $this->supplier([
@@ -159,8 +159,10 @@ class SupplierManagementTest extends TestCase
             ->assertOk()
             ->assertViewHas('selectedSupplier', fn (?Supplier $selected) => $selected?->is($supplier) === true)
             ->assertViewHas('counts', fn (array $counts) => $counts['open_purchase_orders'] === 1 && $counts['purchase_orders'] === 1)
-            ->assertSee('Supplier Vendor Analytics')
+            ->assertSee('Supplier Directory')
             ->assertSee('Selected supplier')
+            ->assertSee('data-selected-supplier-indicator', false)
+            ->assertSee('data-supplier-summary-change', false)
             ->assertSee('Selected Clinical Vendor')
             ->assertSee('selected.vendor@example.test')
             ->assertSee('PO-SELECTED-001')
@@ -174,7 +176,7 @@ class SupplierManagementTest extends TestCase
             ->assertSee('Other Vendor');
     }
 
-    public function test_supplier_analytics_does_not_expose_sensitive_search_or_create_controls_to_viewer(): void
+    public function test_supplier_directory_does_not_expose_sensitive_search_or_create_controls_to_viewer(): void
     {
         $viewer = User::factory()->viewer()->create();
         $supplier = $this->supplier([

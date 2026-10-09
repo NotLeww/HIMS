@@ -3,6 +3,8 @@
     'title' => null,
     'maxWidth' => 'lg',
     'closeUrl' => null,
+    'flush' => false,
+    'hideHeader' => false,
 ])
 
 @php
@@ -59,7 +61,7 @@
         x-transition
         class="relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden {{ $widths[$maxWidth] ?? $widths['lg'] }} bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-800"
     >
-        @if ($title || isset($header))
+        @if ((! $hideHeader && $title) || isset($header))
             <header class="flex items-start justify-between gap-4 px-5 py-4 border-b border-neutral-200 dark:border-neutral-800">
                 @isset($header)
                     {{ $header }}
@@ -76,7 +78,7 @@
             </header>
         @endif
 
-        <div class="min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-5">
+        <div class="min-h-0 overflow-y-auto overflow-x-hidden {{ $flush ? '' : 'p-4 sm:p-5' }}">
             {{ $slot }}
         </div>
 

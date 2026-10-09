@@ -9,6 +9,8 @@ use App\Enums\NotificationPriority;
 use App\Enums\UserRole;
 use App\Models\AuditLog;
 use App\Models\InventoryItem;
+use App\Models\PurchaseOrder;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Services\HimsNotificationService;
 use App\Services\Import\DataImportExecutor;
@@ -140,7 +142,17 @@ class NotificationSystemTest extends TestCase
             $this->assertSame('Out of Stock', $notification->data['title']);
             $this->assertSame(NotificationPriority::Critical->value, $notification->data['priority']);
             $this->assertSame(NotificationDestination::InventoryAlerts->value, $notification->data['destination']);
+            $this->assertSame($item->id, $notification->data['route_parameters']['item']);
+            $this->assertSame('out_of_stock', $notification->data['route_parameters']['alert_type']);
         }
+
+        $managerNotification = $manager->fresh()->notifications()->sole();
+        $this->actingAs($manager)
+            ->get(route('notifications.open', $managerNotification->id))
+            ->assertRedirect(route('inventory.alerts', [
+                'manage_item' => $item->id,
+                'alert_type' => 'out_of_stock',
+            ]));
 
         foreach ([$admin, $viewer, $inactiveWarehouse] as $nonRecipient) {
             $this->assertSame(0, $nonRecipient->fresh()->notifications()->count());
@@ -248,6 +260,105 @@ class NotificationSystemTest extends TestCase
             ->assertRedirect(route('inventory.alerts'));
 
         $this->assertNotNull($notification->fresh()->read_at);
+    }
+
+    public function test_stock_notification_opens_the_specific_item_management_modal(): void
+    {
+        $user = User::factory()->inventoryManager()->create();
+        $item = InventoryItem::create([
+            'name' => 'Gloves M',
+            'sku' => 'PPE-GLOVES-M',
+            'unit' => 'box',
+            'quantity_on_hand' => 0,
+            'reorder_level' => 50,
+            'status' => 'active',
+        ]);
+
+        app(HimsNotificationService::class)->sendToUser(
+            $user,
+            'test:legacy-stock-alert-modal',
+            'Out of Stock',
+            'Gloves M (PPE-GLOVES-M) is out of stock.',
+            NotificationPriority::Critical,
+            NotificationDestination::InventoryAlerts,
+        );
+        $notification = $user->notifications()->sole();
+        $destination = route('inventory.alerts', [
+            'manage_item' => $item->id,
+            'alert_type' => 'out_of_stock',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('notifications.open', $notification->id))
+            ->assertRedirect($destination);
+
+        $this->assertNotNull($notification->fresh()->read_at);
+
+        $this->actingAs($user)
+            ->get($destination)
+            ->assertOk()
+            ->assertSee('Available Operational Actions')
+            ->assertSee("get('manage_item')", false)
+            ->assertSee('__openItemManageModal', false);
+    }
+
+    public function test_purchase_order_notification_opens_its_specific_details_modal(): void
+    {
+        $user = User::factory()->inventoryManager()->create();
+        $item = InventoryItem::create([
+            'name' => 'Emergency Gloves',
+            'sku' => 'PPE-GLOVE-EMERGENCY',
+            'unit' => 'box',
+            'status' => 'active',
+        ]);
+        $supplier = Supplier::create([
+            'name' => 'Authorized Medical Supplier',
+            'status' => 'active',
+        ]);
+        $purchaseOrder = PurchaseOrder::create([
+            'po_number' => 'PO-NOTIFICATION-DETAIL',
+            'supplier_id' => $supplier->id,
+            'item_id' => $item->id,
+            'quantity' => 10,
+            'unit_cost' => 25,
+            'total_amount' => 250,
+            'status' => 'pending_approval',
+            'requested_at' => now(),
+        ]);
+
+        app(HimsNotificationService::class)->sendToUser(
+            $user,
+            'test:legacy-purchase-order-modal',
+            'Procurement approval required',
+            "Purchase Order (PO) #{$purchaseOrder->id} is awaiting your step 1 approval.",
+            NotificationPriority::Info,
+            NotificationDestination::Procurement,
+        );
+        $notification = $user->notifications()->sole();
+        $destination = route('inventory.purchases', [
+            'tab' => 'orders_revisions',
+            'po_id' => $purchaseOrder->id,
+            'open_po' => $purchaseOrder->id,
+        ]).'#purchase-orders';
+
+        $this->actingAs($user)
+            ->get(route('notifications.open', $notification->id))
+            ->assertRedirect($destination);
+
+        $this->assertNotNull($notification->fresh()->read_at);
+
+        $this->actingAs($user)
+            ->get($destination)
+            ->assertOk()
+            ->assertSee('PO-NOTIFICATION-DETAIL')
+            ->assertSee('data-purchase-order-details="'.$purchaseOrder->id.'"', false)
+            ->assertViewHas('purchaseOrders', fn ($orders): bool => $orders->total() === 1
+                && $orders->first()->is($purchaseOrder));
+
+        $script = file_get_contents(resource_path('js/app.js'));
+        $this->assertIsString($script);
+        $this->assertStringContainsString('data-purchase-order-details', $script);
+        $this->assertStringContainsString('this.$nextTick(() => {', $script);
     }
 
     public function test_procurement_chain_notifies_only_the_current_approval_role(): void

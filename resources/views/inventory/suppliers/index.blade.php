@@ -5,10 +5,23 @@
         $activeFilterCount = collect($filters)->except(['direction'])->filter(fn ($value, $key) => filled($value) && ! ($key === 'sort' && $value === 'name'))->count();
     @endphp
 
-    <x-ui.page-header
-        title="Supplier Vendor Analytics"
-        :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Supplier Management' => null]"
-    />
+    <style>
+        [data-supplier-management-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-supplier-management-hero-day.png') }}');
+            --hims-header-position: right 66%;
+        }
+
+        .dark [data-supplier-management-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-supplier-management-hero-night.png') }}');
+        }
+    </style>
+
+    <div data-supplier-management-header>
+        <x-ui.page-header
+            title="Supplier Directory"
+            :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Supplier Management' => null]"
+        />
+    </div>
 
     @if ($errors->any())
         <x-ui.alert variant="danger" class="mt-4" title="Operation refused">
@@ -151,7 +164,10 @@
                                 ])
                                 :onclick="$rowOnclick"
                             >
-                                <x-ui.table.td class="!pr-2">
+                                <x-ui.table.td class="relative !pr-2">
+                                    @if ($selectedSupplier?->is($supplier))
+                                        <span data-selected-supplier-indicator aria-hidden="true" class="absolute inset-y-2 left-0 w-1 rounded-r-full bg-success-500 dark:bg-success-400"></span>
+                                    @endif
                                     <div class="flex min-w-0 items-center gap-3">
                                         <x-ui.supplier-logo :supplier="$supplier" size="md" />
                                         <div class="min-w-0 flex-1">
@@ -218,7 +234,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty :colspan="6" icon="truck" title="No matching suppliers" message="Adjust the filters or add a supplier record." />
+                            <x-ui.table.empty :colspan="6" artwork="suppliers" icon="truck" title="No matching suppliers" message="Adjust the filters or add a supplier record." />
                         @endforelse
                     </tbody>
                 </x-ui.table>
@@ -231,7 +247,10 @@
                         $scorecard = $supplier->latestApprovedScorecard;
                         $selectUrl = route('inventory.suppliers', array_merge(request()->query(), ['supplier' => $supplier->id])).'#supplier-summary';
                     @endphp
-                    <div @class(['p-4 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50', 'bg-primary-50/70 dark:bg-primary-950/40 ring-1 ring-inset ring-primary-500/20' => $selectedSupplier?->is($supplier)])>
+                    <div @class(['relative overflow-hidden p-4 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800/50', 'bg-primary-50/70 dark:bg-primary-950/40 ring-1 ring-inset ring-primary-500/20' => $selectedSupplier?->is($supplier)])>
+                        @if ($selectedSupplier?->is($supplier))
+                            <span data-selected-supplier-indicator aria-hidden="true" class="absolute inset-y-2 left-0 w-1 rounded-r-full bg-success-500 dark:bg-success-400"></span>
+                        @endif
                         <div class="flex items-start gap-3">
                             <x-ui.supplier-logo :supplier="$supplier" size="lg" />
                             <div class="min-w-0 flex-1">
@@ -292,7 +311,7 @@
                         </div>
                     </div>
                 @empty
-                    <div class="p-8 text-center"><x-ui.icon name="truck" class="mx-auto h-8 w-8 text-neutral-300 dark:text-neutral-600" /><p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No matching suppliers</p><p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Adjust the filters or add a supplier record.</p></div>
+                    <div class="p-8 text-center"><x-ui.empty-artwork category="suppliers" size="sm" /><p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No matching suppliers</p><p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Adjust the filters or add a supplier record.</p></div>
                 @endforelse
             </div>
 
@@ -301,7 +320,10 @@
             @endif
         </x-ui.card>
 
-        <aside id="supplier-summary" class="min-w-0 max-w-xl self-start 2xl:sticky 2xl:top-4 2xl:max-w-none">
+        <aside id="supplier-summary" class="relative min-w-0 max-w-xl self-start 2xl:sticky 2xl:top-4 2xl:max-w-none">
+            @if ($selectedSupplier && request()->integer('supplier') === $selectedSupplier->id)
+                <span data-supplier-summary-change aria-hidden="true" class="supplier-summary-change-indicator pointer-events-none absolute inset-0 z-10 rounded-lg"></span>
+            @endif
             <x-ui.card :padding="false">
                 <x-slot:header>
                     <div>

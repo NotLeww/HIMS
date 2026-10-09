@@ -12,6 +12,9 @@
 
     <x-ui.page-header
         title="User Management"
+        :image="asset('img/hims-user-management-hero.png')"
+        image-position="right center"
+        image-size="auto 100%"
         :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'User Management' => null]">
         <x-slot:actions>
             <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('permissions'))" icon="shield-check">Access Control</x-ui.button>
@@ -37,14 +40,14 @@
                    tone="warning" hint="The system always keeps at least one." />
     </div>
 
-    <x-ui.card title="Find an Account" subtitle="Search by name, email, employee ID or department.">
+    <x-ui.card title="Find an Account" subtitle="Search by name, email, account ID or department.">
         <form method="GET" action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.index')) }}"
               class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
             <x-ui.field
                 name="search"
                 label="Search"
                 :value="$filters['search'] ?? null"
-                placeholder="e.g. Cruz, EMP-014, Pharmacy" />
+                placeholder="e.g. Cruz, EMP-014, SUP-021" />
 
             <x-ui.field
                 name="role"
@@ -213,7 +216,7 @@
                                             @click="$dispatch('open-archive-modal', {
                                                 actionUrl: '{{ route(\App\Support\AuthenticationContext::administrationRoute('users.archive'), $account) }}',
                                                 title: '{{ addslashes($account->name) }}',
-                                                identifier: 'Employee ID: {{ addslashes($account->employee_id ?? 'N/A') }} · {{ addslashes($account->email) }}',
+                                                identifier: '{{ $account->accountIdentifierLabel() }}: {{ addslashes($account->employee_id ?? 'N/A') }} · {{ addslashes($account->email) }}',
                                                 context: 'Role: {{ addslashes($account->role?->label() ?? 'Staff') }}',
                                                 type: 'User Account',
                                                 presets: [
@@ -237,7 +240,7 @@
                 </div>
             @empty
                 <div class="p-8 text-center text-sm text-neutral-500">
-                    <x-ui.icon name="users" class="mx-auto h-8 w-8 text-neutral-400 mb-2" />
+                    <x-ui.empty-artwork category="users" size="sm" />
                     <p class="font-semibold text-neutral-700">No accounts match</p>
                     <p class="text-xs text-neutral-500 mt-1">Adjust the filters, or add the first staff account.</p>
                 </div>
@@ -248,7 +251,7 @@
         <div class="hidden lg:block">
             <x-ui.table :sticky-header="false" aria-label="User accounts">
                 <x-ui.table.head>
-                    <x-ui.table.th class="px-2.5 py-3 xl:px-3 w-20 xl:w-24">Employee ID</x-ui.table.th>
+                    <x-ui.table.th class="px-2.5 py-3 xl:px-3 w-20 xl:w-24">Account ID</x-ui.table.th>
                     <x-ui.table.th class="px-2.5 py-3 xl:px-3">Surname</x-ui.table.th>
                     <x-ui.table.th class="px-2.5 py-3 xl:px-3">First Name</x-ui.table.th>
                     <x-ui.table.th class="px-2.5 py-3 xl:px-3 w-16 xl:w-20">Middle Name</x-ui.table.th>
@@ -398,7 +401,7 @@
                                                         @click="$dispatch('open-archive-modal', {
                                                             actionUrl: '{{ route(\App\Support\AuthenticationContext::administrationRoute('users.archive'), $account) }}',
                                                             title: '{{ addslashes($account->name) }}',
-                                                            identifier: 'Employee ID: {{ addslashes($account->employee_id ?? 'N/A') }} · {{ addslashes($account->email) }}',
+                                                            identifier: '{{ $account->accountIdentifierLabel() }}: {{ addslashes($account->employee_id ?? 'N/A') }} · {{ addslashes($account->email) }}',
                                                             context: 'Role: {{ addslashes($account->role?->label() ?? 'Staff') }}',
                                                             type: 'User Account',
                                                             presets: [
@@ -422,7 +425,7 @@
                             </x-ui.table.td>
                         </x-ui.table.row>
                     @empty
-                        <x-ui.table.empty
+                        <x-ui.table.empty artwork="users"
                             :colspan="10"
                             icon="users"
                             title="No accounts match"
@@ -497,17 +500,15 @@
         @php($editRolePermissionsModalName = 'edit-user-role-permissions-'.$editUser->getKey())
         <x-ui.modal
             name="edit-user-modal"
-            title="Edit User"
+            :title="$editUser->role?->isSupplier() ? 'Edit Supplier User' : 'Edit User'"
             maxWidth="6xl"
             :close-url="route(\App\Support\AuthenticationContext::administrationRoute('users.index'))">
             <x-slot:header>
                 <div class="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex min-w-0 items-center gap-3">
-                        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">
-                            <x-ui.icon name="user-circle" class="h-6 w-6" />
-                        </span>
+                        <x-ui.avatar :user="$editUser" size="lg" class="!h-12 !w-12" />
                         <div class="min-w-0">
-                            <h2 id="edit-user-modal-title" class="text-lg font-semibold text-neutral-950 dark:text-white">Edit User</h2>
+                            <h2 id="edit-user-modal-title" class="text-lg font-semibold text-neutral-950 dark:text-white">{{ $editUser->role?->isSupplier() ? 'Edit Supplier User' : 'Edit User' }}</h2>
                         <p class="mt-0.5 truncate text-sm text-neutral-500 dark:text-neutral-400">
                             {{ $editUser->name }} · {{ $editUser->email }}
                         </p>
@@ -565,7 +566,7 @@
                 <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div class="flex min-w-0 items-start gap-2 rounded-lg bg-primary-50 px-3 py-2.5 text-xs text-primary-800 dark:bg-primary-950/50 dark:text-primary-200">
                         <x-ui.icon name="information-circle" class="mt-0.5 h-4 w-4 shrink-0" />
-                        <p>Changes to employee identity, access, status, or credentials are recorded in the account audit trail.</p>
+                        <p>Changes to account identity, access, status, or credentials are recorded in the account audit trail.</p>
                     </div>
                     <div class="flex shrink-0 flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                         <x-ui.button variant="secondary" :href="route(\App\Support\AuthenticationContext::administrationRoute('users.index'))">Cancel</x-ui.button>

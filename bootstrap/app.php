@@ -10,6 +10,8 @@ use App\Http\Middleware\EnsurePasswordIsCurrent;
 use App\Http\Middleware\EnsurePrivacyConsentIsCurrent;
 use App\Http\Middleware\EnsureSuperAdministrator;
 use App\Http\Middleware\EnsureUserIsActive;
+use App\Http\Middleware\EnsureSupplierUser;
+use App\Http\Middleware\EnsureInternalUser;
 use App\Http\Middleware\PreventBackHistoryCache;
 use App\Support\AuthenticationContext;
 use App\Support\AuthenticationPanel;
@@ -42,18 +44,23 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'administrator' => EnsureAdministrator::class,
             'super-admin' => EnsureSuperAdministrator::class,
+            'supplier-user' => EnsureSupplierUser::class,
+            'internal-user' => EnsureInternalUser::class,
         ]);
 
         $middleware->redirectGuestsTo(fn (Request $request) => match (true) {
             $request->is('super-admin/*') => route('super-admin.login'),
             $request->routeIs('admin.audit-logs.*') => route('super-admin.login'),
             $request->is('admin/*') => route('admin.login'),
+            $request->is('supplier/*') => route('supplier.login'),
             default => route('login'),
         });
 
         $middleware->redirectUsersTo(fn () => Auth::guard(AuthenticationContext::SUPER_ADMIN_GUARD)->check()
             ? route('super-admin.dashboard')
-            : route('dashboard'));
+            : (Auth::guard(AuthenticationContext::WEB_GUARD)->user()?->role?->isSupplier()
+                ? route('supplier.dashboard')
+                : route('dashboard')));
 
         // Runs on every authenticated web request so that deactivating an
         // account takes effect immediately, not at the end of their session.

@@ -19,7 +19,7 @@
         x-ref="trigger"
         type="button"
         @click="activeDropdown = (activeDropdown === '{{ $dropdownId }}' ? null : '{{ $dropdownId }}')"
-        class="w-full group flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors {{ $active ? 'text-primary-800 dark:text-primary-300 bg-primary-50/70 dark:bg-primary-950/60' : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100/70 dark:hover:bg-neutral-800/70' }}"
+        class="w-full group flex min-h-11 items-center justify-between rounded-xl px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 {{ $active ? 'bg-emerald-400/20 text-white shadow-lg ring-1 ring-inset ring-emerald-300/20' : 'text-emerald-50/80 hover:bg-white/10 hover:text-white' }}"
         :aria-expanded="activeDropdown === '{{ $dropdownId }}' ? 'true' : 'false'"
         aria-controls="nav-dropdown-{{ $dropdownId }}"
     >
@@ -27,7 +27,7 @@
             @if ($icon)
                 <x-ui.icon
                     :name="$icon"
-                    class="w-[18px] h-[18px] shrink-0 {{ $active ? 'text-primary-600 dark:text-primary-400' : 'text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300' }}"
+                    class="w-[19px] h-[19px] shrink-0 {{ $active ? 'text-emerald-300' : 'text-emerald-100/65 group-hover:text-emerald-200' }}"
                 />
             @endif
             <span class="truncate">{{ $title }}</span>
@@ -35,13 +35,13 @@
 
         <span class="flex items-center gap-1.5 shrink-0">
             @if ($badge)
-                <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums {{ $active ? 'bg-primary-100 dark:bg-primary-900/60 text-primary-800 dark:text-primary-300' : 'bg-neutral-200/80 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300' }}">
+                <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums {{ $active ? 'bg-emerald-300/20 text-emerald-100' : 'bg-white/10 text-emerald-100/75' }}">
                     {{ $badge }}
                 </span>
             @endif
             <svg
-                class="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-600 dark:group-hover:text-neutral-300 transition-transform duration-300 ease-in-out"
-                :class="activeDropdown === '{{ $dropdownId }}' ? 'rotate-180 text-neutral-700 dark:text-neutral-300' : ''"
+                class="w-3.5 h-3.5 text-emerald-100/55 group-hover:text-emerald-100 transition-transform duration-300 ease-in-out"
+                :class="activeDropdown === '{{ $dropdownId }}' ? 'rotate-180 text-emerald-200' : ''"
                 fill="none" stroke="currentColor" viewBox="0 0 24 24"
                 aria-hidden="true"
             >
@@ -59,7 +59,7 @@
     >
         <div class="overflow-hidden min-h-0">
             <div
-                class="pl-3 pr-1 pt-1 pb-1 space-y-0.5 border-l-2 border-neutral-200 dark:border-neutral-800 ml-4 transition-transform duration-300 ease-in-out"
+                class="ml-4 space-y-0.5 border-l border-emerald-200/15 py-1 pl-3 pr-1 transition-transform duration-300 ease-in-out"
                 :class="activeDropdown === '{{ $dropdownId }}' ? 'translate-y-0' : '-translate-y-1.5'"
             >
                 {{ $slot }}

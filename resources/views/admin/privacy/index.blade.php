@@ -1,6 +1,7 @@
 <x-app-layout>
     <x-ui.page-header
         title="Privacy & Security Governance"
+        :image="asset('img/hims-privacy-security-hero.png')"
         subtitle="Technical controls, data subject rights processing, and security incident management aligned with RA 10173 and ISO/IEC 27001:2022."
         :breadcrumbs="[
             'Home' => route(\App\Support\AuthenticationContext::dashboardRoute()),
@@ -409,8 +410,10 @@
                 </div>
 
                 @if ($recentConsents->isEmpty())
-                    <div class="py-12 text-center text-xs text-neutral-500">
-                        No consent records have been registered yet.
+                    <div class="px-4 py-10 text-center">
+                        <x-ui.empty-artwork category="governance" size="sm" />
+                        <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No consent records</p>
+                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Registered privacy consents will appear here.</p>
                     </div>
                 @else
                     <div class="overflow-x-auto">
@@ -513,8 +516,10 @@
                 </div>
 
                 @if ($privacyRequests->isEmpty())
-                    <div class="py-12 text-center text-xs text-neutral-500">
-                        No Data Subject Requests have been submitted yet.
+                    <div class="px-4 py-10 text-center">
+                        <x-ui.empty-artwork category="governance" size="sm" />
+                        <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No data subject requests</p>
+                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Submitted privacy access, correction, and deletion requests will appear here.</p>
                     </div>
                 @else
                     <div class="overflow-x-auto">
@@ -853,8 +858,10 @@
                 </div>
 
                 @if ($securityIncidents->isEmpty())
-                    <div class="py-12 text-center text-xs text-neutral-500">
-                        No security incidents have been recorded.
+                    <div class="px-4 py-10 text-center">
+                        <x-ui.empty-artwork category="governance" size="sm" />
+                        <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No security incidents</p>
+                        <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Reported privacy and security incidents will appear here.</p>
                     </div>
                 @else
                     <div class="overflow-x-auto">
@@ -970,7 +977,7 @@
                                                     </div>
                                                     <div>
                                                         <label class="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">NPC Notified Date</label>
-                                                        <input type="date" name="npc_notified_at" value="{{ $incident->npc_notified_at?->format('Y-m-d') }}" class="mt-1 block w-full rounded-md border-neutral-300 dark:border-neutral-700 text-xs">
+                                                        <input type="date" name="npc_notified_at" value="{{ $incident->npc_notified_at?->format('Y-m-d') }}" max="{{ today()->toDateString() }}" class="mt-1 block w-full rounded-md border-neutral-300 dark:border-neutral-700 text-xs">
                                                     </div>
                                                 </div>
                                             </div>

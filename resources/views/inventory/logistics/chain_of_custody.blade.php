@@ -1,4 +1,9 @@
 <x-app-layout full-width>
+    <style>
+        :root { --hims-header-image: url('{{ asset('img/hims-chain-of-custody-hero-day.png') }}'); --hims-header-position: right center; }
+        .dark { --hims-header-image: url('{{ asset('img/hims-chain-of-custody-hero-night.png') }}'); }
+    </style>
+
     <x-slot name="header">
         <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
@@ -61,13 +66,19 @@
                     </select>
                 </div>
 
+                <div x-data="{ dateFrom: {{ Js::from(request('date_from', '')) }}, dateTo: {{ Js::from(request('date_to', '')) }} }" class="flex w-full items-center gap-2 sm:w-auto">
+                    <label><span class="sr-only">Custody date from</span><input type="date" name="date_from" x-model="dateFrom" @change="if (dateTo && dateFrom > dateTo) dateTo = dateFrom" max="{{ now()->toDateString() }}" class="w-full rounded-lg border-neutral-300 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800"></label>
+                    <span class="inline-flex min-h-8 shrink-0 items-center text-xs text-neutral-400">to</span>
+                    <label><span class="sr-only">Custody date to</span><input type="date" name="date_to" x-model="dateTo" @change="if (dateFrom && dateTo < dateFrom) dateTo = dateFrom" :min="dateFrom || null" max="{{ now()->toDateString() }}" class="w-full rounded-lg border-neutral-300 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800"></label>
+                </div>
+
                 {{-- Filter Action Buttons --}}
                 <div class="flex items-center gap-1.5 shrink-0">
                     <button type="submit" class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-neutral-900 px-4 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-neutral-800 dark:bg-primary-600 dark:hover:bg-primary-500 transition">
                         <x-ui.icon name="funnel" class="h-3.5 w-3.5 text-neutral-300 dark:text-white" />
                         <span>Filter</span>
                     </button>
-                    @if(request()->hasAny(['search', 'action']))
+                    @if(request()->hasAny(['search', 'action', 'date_from', 'date_to']))
                         <a href="{{ route('inventory.logistics.chain-of-custody') }}" class="inline-flex items-center justify-center rounded-lg border border-neutral-300 bg-white p-1.5 text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-neutral-100 transition" title="Reset Filters">
                             <x-ui.icon name="x-mark" class="h-3.5 w-3.5" />
                         </a>
@@ -198,15 +209,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="6" class="px-6 py-12 text-center text-xs">
-                                    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500">
-                                        <x-ui.icon name="clipboard-document-list" class="h-6 w-6" />
-                                    </div>
-                                    <p class="mt-3 font-semibold text-neutral-700 dark:text-neutral-300">No custody records found</p>
-                                    <p class="mt-1 text-neutral-500 dark:text-neutral-400">No chain of custody logs match the active filter criteria.</p>
-                                </td>
-                            </tr>
+                            <x-ui.table.empty colspan="6" artwork="logistics" title="No custody records found" message="No chain of custody logs match the active filter criteria." />
                         @endforelse
                     </tbody>
                 </table>

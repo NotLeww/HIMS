@@ -269,6 +269,8 @@ class CameraScanWorkflowTest extends TestCase
         $response = $this->actingAs($staff)->get(route('inventory.warehousing.consignment'));
 
         $response->assertOk()
+            ->assertSee('data-legacy-page-header', false)
+            ->assertSee('hims-page-header flex items-center', false)
             ->assertSee('camera-scanner-consignment')
             ->assertSee('Scan Surgical Implant Serial / DataMatrix');
     }

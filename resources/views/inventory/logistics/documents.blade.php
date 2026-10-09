@@ -1,4 +1,9 @@
 <x-app-layout full-width>
+    <style>
+        :root { --hims-header-image: url('{{ asset('img/hims-document-registry-hero-day.png') }}'); --hims-header-position: right center; }
+        .dark { --hims-header-image: url('{{ asset('img/hims-document-registry-hero-night.png') }}'); }
+    </style>
+
     <x-slot name="header">
         <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
@@ -346,15 +351,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="5" class="px-6 py-12 text-center text-xs">
-                                        <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-500">
-                                            <x-ui.icon name="document-text" class="h-6 w-6" />
-                                        </div>
-                                        <div class="mt-3 font-semibold text-neutral-800 dark:text-neutral-200">No documents found</div>
-                                        <p class="mt-1 text-neutral-500 dark:text-neutral-400">No logistics documents match your current filter criteria.</p>
-                                    </td>
-                                </tr>
+                                <x-ui.table.empty colspan="5" artwork="logistics" title="No documents found" message="No logistics documents match the current filter criteria." />
                             @endforelse
                         </tbody>
                     </table>

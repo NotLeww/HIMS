@@ -1058,6 +1058,38 @@ class PostDeliveryReceivingWorkflowTest extends TestCase
         $this->assertEquals(0, ItemStockLevel::where('item_id', $item->id)->sum('quantity'));
     }
 
+    public function test_receiving_rejects_future_receipts_and_impossible_batch_chronology(): void
+    {
+        [$po, $line] = $this->makeOrder(1, 1, true);
+
+        foreach ([
+            ['received_at' => now()->addMinute()->toDateTimeString()],
+            ['lines' => [[
+                'po_line_id' => $line->id,
+                'received_quantity' => 1,
+                'actual_sku' => $line->item->sku,
+                'actual_purchase_unit' => $line->purchase_unit ?: $line->item->unit,
+                'item_condition' => 'good',
+                'batch_number' => 'INVALID-DATES',
+                'manufactured_date' => today()->subMonth()->toDateString(),
+                'expiry_date' => today()->subMonths(2)->toDateString(),
+            ]]],
+        ] as $override) {
+            try {
+                $this->receiptService->receiveOrder(
+                    $po,
+                    array_replace_recursive($this->receiptData($line, 1), $override),
+                    $this->receivingClerk,
+                );
+                $this->fail('Invalid receiving chronology must be rejected.');
+            } catch (ValidationException $exception) {
+                $this->assertNotEmpty($exception->errors());
+            }
+        }
+
+        $this->assertSame(0, GoodsReceiptNote::count());
+    }
+
     public function test_inactive_put_away_destination_rolls_back_qc_decision(): void
     {
         [$po, $line, $item] = $this->makeOrder(1);

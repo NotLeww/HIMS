@@ -86,6 +86,11 @@ class Shipment extends Model
         return $this->hasMany(LogisticsDocument::class, 'purchase_order_id', 'purchase_order_id');
     }
 
+    public function lines(): HasMany
+    {
+        return $this->hasMany(ShipmentLineItem::class);
+    }
+
     public function custodyLogs(): MorphMany
     {
         return $this->morphMany(ChainOfCustodyLog::class, 'trackable');

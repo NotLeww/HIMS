@@ -27,8 +27,8 @@ class UpdatePurchaseOrderRequest extends FormRequest
             // guard recognises: unreceivable, and not closed either.
             'status' => ['sometimes', 'required', Rule::enum(PurchaseOrderStatus::class)],
             'notes' => 'nullable|string',
-            'requested_at' => 'nullable|date',
-            'received_at' => 'nullable|date',
+            'requested_at' => 'prohibited',
+            'received_at' => 'prohibited',
         ];
     }
 }

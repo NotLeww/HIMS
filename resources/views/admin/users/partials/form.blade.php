@@ -10,6 +10,8 @@
 @php
     $user = $user ?? null;
     $isEdit = $user !== null;
+    $isSupplierUser = $user?->role?->isSupplier() ?? false;
+    $accountIdentifierLabel = $user?->accountIdentifierLabel() ?? 'Employee ID';
     $nameComponents = $user?->nameComponents() ?? [
         'surname' => null,
         'first_name' => null,
@@ -80,7 +82,7 @@
                 </span>
                 <div class="min-w-0">
                     <h3 id="{{ $isEdit ? 'edit' : 'create' }}-user-personal-heading" class="text-sm font-semibold text-neutral-950 dark:text-white">Personal Information</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400">Enter the employee's basic details.</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400">Enter the {{ $isSupplierUser ? "supplier user's" : "employee's" }} basic details.</p>
                 </div>
             </div>
 
@@ -165,7 +167,7 @@
                 <div class="min-w-0 xl:col-span-3">
                     <x-ui.field
                         name="employee_id"
-                        label="Employee ID"
+                        :label="$accountIdentifierLabel"
                         :value="$user?->employee_id ?? 'Generated automatically after creation'"
                         disabled />
                 </div>
@@ -358,7 +360,8 @@
                 </template>
 
                 <div class="py-8 text-center text-xs text-neutral-500 dark:text-neutral-400" x-show="visibleGroups().length === 0">
-                    No permissions found matching "<span x-text="permissionSearch" class="font-medium text-neutral-700 dark:text-neutral-300"></span>"
+                    <x-ui.empty-artwork category="users" size="sm" />
+                    <p class="mt-2">No permissions found matching "<span x-text="permissionSearch" class="font-medium text-neutral-700 dark:text-neutral-300"></span>"</p>
                 </div>
             </div>
         </div>

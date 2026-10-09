@@ -99,6 +99,16 @@ class PurchaseOrder extends Model
         return $this->hasMany(PurchaseOrderLine::class);
     }
 
+    public function acknowledgements(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderAcknowledgement::class);
+    }
+
+    public function supplierInvoices(): HasMany
+    {
+        return $this->hasMany(SupplierInvoice::class);
+    }
+
     public function revisions(): HasMany
     {
         return $this->hasMany(PurchaseOrderRevision::class)->orderByDesc('revision_number');

@@ -112,7 +112,10 @@
                                     <a href="{{ route('inventory.logistics.documents.download', $doc) }}" class="text-primary-600 hover:underline" data-hims-download data-loading-text="Preparing document..." data-download-name="{{ $doc->original_name ?: ($doc->file_name ?: 'document') }}">Download</a>
                                 </li>
                             @empty
-                                <li class="text-neutral-400 text-xs italic">No direct file attachments linked to this IAR.</li>
+                                <li class="py-4 text-center">
+                                    <x-ui.empty-artwork category="governance" size="sm" />
+                                    <p class="mt-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">No linked file attachments</p>
+                                </li>
                             @endforelse
                         </ul>
                     </div>
@@ -126,7 +129,10 @@
                                     <div class="text-[10px] text-neutral-500">{{ $log->releasing_party_name }} &rarr; {{ $log->receiving_party_name }} on {{ $log->transferred_at->format('M d, Y h:i A') }}</div>
                                 </li>
                             @empty
-                                <li class="text-neutral-400 text-xs italic">No custody transfers recorded for this IAR yet.</li>
+                                <li class="py-4 text-center">
+                                    <x-ui.empty-artwork category="logistics" size="sm" />
+                                    <p class="mt-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">No custody transfers recorded</p>
+                                </li>
                             @endforelse
                         </ul>
                     </div>
@@ -166,12 +172,6 @@
                                     <option value="inspected">Inspected & Verified (Meets Technical Specs)</option>
                                     <option value="rejected">Rejected (Defective / Non-conforming)</option>
                                 </select>
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-semibold uppercase text-neutral-600">Inspection Date *</label>
-                                <input type="date" name="inspection_date" required value="{{ date('Y-m-d') }}"
-                                       class="mt-1 block w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
                             </div>
 
                             <div>
@@ -219,12 +219,6 @@
                             </div>
 
                             <div>
-                                <label class="block text-xs font-semibold uppercase text-neutral-600">Acceptance Date *</label>
-                                <input type="date" name="acceptance_date" required value="{{ date('Y-m-d') }}"
-                                       class="mt-1 block w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
-                            </div>
-
-                            <div>
                                 <label class="block text-xs font-semibold uppercase text-neutral-600">Custodial Acceptance Remarks</label>
                                 <textarea name="remarks" rows="3" placeholder="Stock posted to storage locations. Stock cards updated..."
                                           class="mt-1 block w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500"></textarea>
@@ -262,12 +256,6 @@
                             <div>
                                 <label class="block text-xs font-semibold uppercase text-neutral-600">COA Auditor / Received By Staff Name *</label>
                                 <input type="text" name="transmittal_reference" required placeholder="e.g. Maria Teresa Gomez, CPA (COA State Auditor IV)"
-                                       class="mt-1 block w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-semibold uppercase text-neutral-600">Transmittal Date *</label>
-                                <input type="date" name="transmittal_date" required value="{{ date('Y-m-d') }}"
                                        class="mt-1 block w-full rounded-lg border-neutral-300 text-sm focus:border-primary-500 focus:ring-primary-500">
                             </div>
 

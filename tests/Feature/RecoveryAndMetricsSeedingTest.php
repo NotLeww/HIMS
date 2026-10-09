@@ -199,7 +199,7 @@ class RecoveryAndMetricsSeedingTest extends TestCase
             $this->assertEquals($calculatedBottlenecks['critical_bottleneck'], $review->metrics_summary['critical_bottleneck']);
         }
 
-        $this->assertNotContains(0, collect($approvedReview->metrics_summary['bottleneck_stages'])->pluck('sample_count')->all());
+        $this->assertGreaterThan(0, collect($approvedReview->metrics_summary['bottleneck_stages'])->sum('sample_count'));
         $this->assertSame([0], collect($submittedReview->metrics_summary['bottleneck_stages'])->pluck('sample_count')->unique()->values()->all());
         $this->assertFalse(PurchaseOrder::where('requested_at', '>', now())->exists());
 

@@ -26,6 +26,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -361,13 +362,22 @@ class LogisticsController extends Controller implements HasMiddleware
     public function recordDockArrival(Shipment $shipment, Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'actual_delivery_date' => ['required', 'date'],
+            'actual_delivery_date' => ['required', 'date', 'before_or_equal:today'],
             'temp_min' => ['nullable', 'numeric'],
             'temp_max' => ['nullable', 'numeric'],
             'temp_logger_serial' => ['nullable', 'string', 'max:100'],
             'package_condition' => ['required', 'in:good_order,damaged_packaging,tampered_seal,seal_intact'],
             'notes' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'actual_delivery_date.before_or_equal' => 'The actual delivery date cannot be in the future.',
         ]);
+
+        if ($shipment->dispatch_date
+            && Carbon::parse($validated['actual_delivery_date'])->startOfDay()->lt($shipment->dispatch_date->copy()->startOfDay())) {
+            throw ValidationException::withMessages([
+                'actual_delivery_date' => ['The actual delivery date must be on or after the shipment date.'],
+            ]);
+        }
 
         try {
             $this->shipmentService->recordDockArrival($shipment, $validated, $request->user());
@@ -540,7 +550,6 @@ class LogisticsController extends Controller implements HasMiddleware
     {
         $validated = $request->validate([
             'status' => ['required', 'in:inspected,rejected'],
-            'inspection_date' => ['required', 'date'],
             'remarks' => ['required', 'string', 'max:1000'],
         ]);
 
@@ -575,7 +584,6 @@ class LogisticsController extends Controller implements HasMiddleware
     {
         $validated = $request->validate([
             'acceptance_type' => ['required', 'in:complete,partial'],
-            'acceptance_date' => ['required', 'date'],
             'remarks' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -611,7 +619,6 @@ class LogisticsController extends Controller implements HasMiddleware
     {
         $validated = $request->validate([
             'transmittal_reference' => ['required', 'string', 'max:100'],
-            'transmittal_date' => ['required', 'date'],
         ]);
 
         try {
@@ -638,13 +645,21 @@ class LogisticsController extends Controller implements HasMiddleware
      */
     public function chainOfCustody(Request $request): View
     {
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'action' => ['nullable', 'string', 'max:100'],
+            'date_from' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from', 'before_or_equal:today'],
+        ]);
+        $dateFrom = filled($filters['date_from'] ?? null) ? Carbon::parse($filters['date_from'], config('app.timezone'))->startOfDay() : null;
+        $dateTo = filled($filters['date_to'] ?? null) ? Carbon::parse($filters['date_to'], config('app.timezone'))->endOfDay() : null;
         $query = ChainOfCustodyLog::with(['releasingUser', 'receivingUser', 'trackable']);
 
-        if ($action = $request->input('action')) {
+        if ($action = ($filters['action'] ?? null)) {
             $query->where('event_type', $action);
         }
 
-        if ($search = $request->input('search')) {
+        if ($search = ($filters['search'] ?? null)) {
             $query->where(function ($q) use ($search) {
                 $q->where('releasing_party_name', 'like', "%{$search}%")
                     ->orWhere('receiving_party_name', 'like', "%{$search}%")
@@ -653,6 +668,9 @@ class LogisticsController extends Controller implements HasMiddleware
                     ->orWhere('notes', 'like', "%{$search}%");
             });
         }
+
+        $query->when($dateFrom, fn ($builder) => $builder->where('transferred_at', '>=', $dateFrom))
+            ->when($dateTo, fn ($builder) => $builder->where('transferred_at', '<=', $dateTo));
 
         $logs = $query->latest('transferred_at')->paginate(25)->withQueryString();
 

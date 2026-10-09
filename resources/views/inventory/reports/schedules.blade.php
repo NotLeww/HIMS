@@ -217,7 +217,7 @@
                                 </x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty colspan="6" icon="calendar" title="No scheduled reports" message="Use Create Schedule to add the first automated report." />
+                            <x-ui.table.empty colspan="6" artwork="reports" icon="calendar" title="No scheduled reports" message="Use Create Schedule to add the first automated report." />
                         @endforelse
                     </tbody>
                 </x-ui.table>
@@ -258,7 +258,7 @@
                                 <x-ui.table.td class="hidden lg:table-cell">{{ $execution->completed_at?->format('M d, Y h:i A') ?? 'In progress' }}</x-ui.table.td>
                             </x-ui.table.row>
                         @empty
-                            <x-ui.table.empty colspan="5" icon="envelope" title="No executions yet" message="History appears after the server scheduler reaches a configured run time." />
+                            <x-ui.table.empty colspan="5" artwork="reports" icon="envelope" title="No executions yet" message="History appears after the server scheduler reaches a configured run time." />
                         @endforelse
                     </tbody>
                 </x-ui.table>

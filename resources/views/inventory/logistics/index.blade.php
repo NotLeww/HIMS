@@ -1,5 +1,16 @@
 <x-app-layout full-width>
-    <x-slot name="header">
+    <style>
+        [data-dtrs-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-dtrs-hero-day.png') }}');
+            --hims-header-position: right 63%;
+        }
+
+        .dark [data-dtrs-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-dtrs-hero-night.png') }}');
+        }
+    </style>
+
+    <div data-dtrs-header>
         <x-ui.page-header
             :title="new \Illuminate\Support\HtmlString('Document Tracking & Logistics Records (DTRS)')"
             subtitle="COA GAM App. 50 statutory acceptance, WHO GDP cold chain custody, and BIR RA 11976 digital document vault"
@@ -8,7 +19,7 @@
                 'Logistics & DTRS' => '',
             ]"
         />
-    </x-slot>
+    </div>
 
     <div class="w-full space-y-6">
         {{-- Flash Notification Messages (Persistent Operational Warnings / Errors) --}}
@@ -200,11 +211,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="6" class="px-4 py-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
-                                            No active inbound shipments recorded. Register a new shipment above.
-                                        </td>
-                                    </tr>
+                                    <x-ui.table.empty colspan="6" artwork="logistics" title="No active inbound shipments" message="Register a shipment to begin tracking its delivery journey." />
                                 @endforelse
                             </tbody>
                         </table>
@@ -342,11 +349,7 @@
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr>
-                                        <td colspan="6" class="px-4 py-8 text-center text-sm text-neutral-500 dark:text-neutral-400">
-                                            No Inspection and Acceptance Reports recorded. Receipts can be converted to IAR in the IAR Processing tab.
-                                        </td>
-                                    </tr>
+                                    <x-ui.table.empty colspan="6" artwork="receiving" title="No inspection and acceptance reports" message="Convert completed receipts from the IAR Processing tab." />
                                 @endforelse
                             </tbody>
                         </table>
@@ -435,8 +438,9 @@
                                     </div>
                                 </li>
                             @empty
-                                <li class="text-center py-6 text-xs text-neutral-400 dark:text-neutral-500">
-                                    No custody transfers logged yet.
+                                <li class="px-4 py-6 text-center">
+                                    <x-ui.empty-artwork category="logistics" size="sm" />
+                                    <p class="mt-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">No custody transfers logged</p>
                                 </li>
                             @endforelse
                         </ul>
@@ -516,8 +520,9 @@
                                 </a>
                             </div>
                         @empty
-                            <div class="text-center py-6 text-xs text-neutral-400 dark:text-neutral-500">
-                                No documents uploaded yet.
+                            <div class="px-4 py-6 text-center">
+                                <x-ui.empty-artwork category="governance" size="sm" />
+                                <p class="mt-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">No logistics documents uploaded</p>
                             </div>
                         @endforelse
                     </div>

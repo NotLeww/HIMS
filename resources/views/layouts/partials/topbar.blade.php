@@ -1,9 +1,11 @@
-<header class="sticky top-0 z-30 flex min-h-16 min-w-0 max-w-full flex-wrap items-center gap-2 px-4 py-2 sm:px-6 lg:h-16 lg:flex-nowrap lg:gap-3 lg:px-8 lg:py-0
-               bg-white/95 backdrop-blur border-b border-neutral-200
-               dark:bg-neutral-900/95 dark:border-neutral-800">
+@php($isSupplierPortalUser = auth()->user()?->role?->isSupplier())
+
+<header class="hims-topbar sticky top-0 z-30 flex min-h-16 min-w-0 max-w-full flex-wrap items-center gap-2 border-b px-4 py-2 backdrop-blur-xl sm:px-6 lg:h-16 lg:flex-nowrap lg:gap-3 lg:px-8 lg:py-0">
     {{-- Sidebar toggle --}}
     <button
         type="button"
+        x-show="!sidebarOpen"
+        x-cloak
         x-on:click="sidebarOpen = !sidebarOpen"
         class="-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 lg:h-9 lg:w-9
                dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100
@@ -22,12 +24,18 @@
         </div>
     @endisset
 
+    @if ($isSupplierPortalUser)
+        <div class="min-w-0 flex-1">
+            <p class="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">Supplier workspace</p>
+            <p class="truncate text-xs text-neutral-500 dark:text-neutral-400">{{ auth()->user()?->supplier?->name }}</p>
+        </div>
+    @else
     {{-- Global HIMS Multi-Entity Live Search & Autocomplete --}}
     <div
         class="relative order-last w-full min-w-0 basis-full lg:order-none lg:w-auto lg:max-w-lg lg:flex-1 lg:basis-auto"
         x-data="himsGlobalSearch({
             endpoint: @js(route('global-search')),
-            initialQuery: @js(request()->routeIs('inventory.items') ? request('search', '') : '')
+            initialQuery: ''
         })"
         x-on:click.outside="close()"
         x-on:keydown.escape.stop="close()"
@@ -111,9 +119,7 @@
                 x-cloak
                 class="p-6 text-center"
             >
-                <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 mb-2">
-                    <x-ui.icon name="magnifying-glass" class="w-5 h-5" />
-                </div>
+                <x-ui.empty-artwork category="reports" size="sm" />
                 <p class="text-sm font-medium text-neutral-900 dark:text-neutral-100">No records found</p>
                 <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
                     No matching items, suppliers, documents, or POs found for <span class="font-semibold text-neutral-700 dark:text-neutral-300" x-text="`&ldquo;${query}&rdquo;`"></span>
@@ -242,6 +248,8 @@
         </div>
     </div>
 
+    @endif
+
     {{-- Spacer to push controls to the right --}}
     <div class="flex-1 min-w-0"></div>
 
@@ -350,9 +358,7 @@
 
                 @if($topbarNotifications->isEmpty())
                     <div class="flex flex-col items-center px-6 py-10 text-center">
-                        <span class="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500">
-                            <x-ui.icon name="bell-alert" class="h-5 w-5" />
-                        </span>
+                        <x-ui.empty-artwork category="governance" size="sm" />
                         <p class="mt-3 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No notifications</p>
                         <p class="mt-1 max-w-xs text-xs leading-5 text-neutral-500 dark:text-neutral-400">
                             Important updates that need your attention will appear here.

@@ -8,6 +8,7 @@ use App\Enums\UserRole;
 use App\Enums\WarehouseTaskType;
 use App\Models\CostCenter;
 use App\Models\InventoryItem;
+use App\Models\ItemCategory;
 use App\Models\ItemStockLevel;
 use App\Models\MaterialRequisition;
 use App\Models\StorageLocation;
@@ -138,6 +139,41 @@ class MaterialRequisitionWorkflowTest extends TestCase
         ]);
 
         $response->assertSessionHasErrors(['lines.0.requested_quantity']);
+    }
+
+    public function test_required_date_cannot_be_in_the_past(): void
+    {
+        $requester = $this->createPharmacyUser();
+        $item = $this->createItem();
+        $payload = [
+            'department' => 'Pharmacy',
+            'required_date' => today()->subDay()->toDateString(),
+            'lines' => [
+                ['item_id' => $item->id, 'requested_quantity' => 5],
+            ],
+        ];
+
+        $this->actingAs($requester)
+            ->post(route('inventory.requisitions.store'), $payload)
+            ->assertSessionHasErrors(['required_date']);
+
+        Sanctum::actingAs($requester, ['*']);
+
+        $this->postJson('/api/v1/inventory/requisitions', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['required_date']);
+
+        $this->assertDatabaseCount('material_requisitions', 0);
+    }
+
+    public function test_requisition_form_prevents_selecting_a_past_required_date(): void
+    {
+        $response = $this->actingAs($this->createPharmacyUser())
+            ->get(route('inventory.requisitions.index'));
+
+        $response->assertOk();
+        $response->assertSee('name="required_date"', false);
+        $response->assertSee('min="'.today()->toDateString().'"', false);
     }
 
     public function test_creating_requisition_auto_generates_reference_number_and_records_audit(): void
@@ -451,7 +487,12 @@ class MaterialRequisitionWorkflowTest extends TestCase
     {
         $requester = $this->createPharmacyUser();
         $manager = $this->createInventoryManager();
-        $item = $this->createItem(['quantity_on_hand' => 50]);
+        $category = ItemCategory::create([
+            'name' => 'Clinical Pharmaceuticals',
+            'code' => 'PHARMA-WH',
+            'is_active' => true,
+        ]);
+        $item = $this->createItem(['quantity_on_hand' => 50, 'category_id' => $category->id]);
         $location = $this->createLocation();
 
         ItemStockLevel::create([
@@ -487,6 +528,7 @@ class MaterialRequisitionWorkflowTest extends TestCase
         $response->assertSeeText('Outpatient Department');
         $response->assertSeeText('Weekly clinic supply');
         $response->assertSeeText($item->name);
+        $response->assertSee('picklist-pharmaceuticals.png', false);
     }
 
     public function test_registry_explains_exact_approver_roles_and_shows_the_action_only_to_an_independent_approver(): void
@@ -692,6 +734,32 @@ class MaterialRequisitionWorkflowTest extends TestCase
                 'reorder_point',
                 'quantity_on_hand',
             ]);
+    }
+
+    public function test_item_without_forecast_inputs_returns_an_explained_manual_fallback(): void
+    {
+        $user = $this->createPharmacyUser();
+        $item = $this->createItem([
+            'reorder_level' => 0,
+            'reorder_point' => 0,
+            'economic_order_quantity' => 0,
+            'annual_demand' => 0,
+        ]);
+
+        $response = $this->actingAs($user)
+            ->getJson(route('inventory.requisitions.item-ai-recommendation', $item));
+
+        $response->assertOk()
+            ->assertJson([
+                'available' => false,
+                'suggested_quantity' => null,
+            ]);
+        $this->assertStringContainsString('No recorded consumption was found', $response->json('explanation'));
+
+        $this->actingAs($user)
+            ->get(route('inventory.requisitions.index'))
+            ->assertOk()
+            ->assertSeeText('Not enough usage data yet');
     }
 
     public function test_requisition_stores_ai_suggested_quantity_for_multiple_lines(): void

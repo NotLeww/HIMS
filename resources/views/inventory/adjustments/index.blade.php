@@ -177,13 +177,16 @@
                     </p>
                 </div>
             </x-slot:header>
-            @if ($activeStatusLabel)
-                <x-slot:actions>
-                    <a href="{{ route('inventory.adjustments').'#adjustment-registry' }}" class="inline-flex min-h-9 items-center rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-2xs transition hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700 dark:focus-visible:ring-offset-neutral-900">
-                        Show all adjustments
-                    </a>
-                </x-slot:actions>
-            @endif
+            <x-slot:actions>
+                <form method="GET" action="{{ route('inventory.adjustments') }}" x-data="{ dateFrom: {{ Js::from(request('date_from', '')) }}, dateTo: {{ Js::from(request('date_to', '')) }} }" class="flex flex-wrap items-center gap-2">
+                    @if(request('status'))<input type="hidden" name="status" value="{{ request('status') }}">@endif
+                    <label><span class="sr-only">Adjustment date from</span><input type="date" name="date_from" x-model="dateFrom" @change="if (dateTo && dateFrom > dateTo) dateTo = dateFrom" max="{{ now()->toDateString() }}" class="rounded-lg border-neutral-300 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800"></label>
+                    <span class="inline-flex min-h-8 shrink-0 items-center text-xs text-neutral-400">to</span>
+                    <label><span class="sr-only">Adjustment date to</span><input type="date" name="date_to" x-model="dateTo" @change="if (dateFrom && dateTo < dateFrom) dateTo = dateFrom" :min="dateFrom || null" max="{{ now()->toDateString() }}" class="rounded-lg border-neutral-300 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-800"></label>
+                    <x-ui.button type="submit" size="sm" icon="funnel">Apply</x-ui.button>
+                    @if(request()->hasAny(['status', 'date_from', 'date_to']))<x-ui.button size="sm" variant="secondary" :href="route('inventory.adjustments').'#adjustment-registry'">Clear</x-ui.button>@endif
+                </form>
+            </x-slot:actions>
 
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-xs text-neutral-600 dark:text-neutral-300 divide-y divide-neutral-200 dark:divide-neutral-800">
@@ -261,11 +264,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="7" class="px-6 py-8 text-center text-xs text-neutral-500 dark:text-neutral-400">
-                                    No inventory adjustments recorded.
-                                </td>
-                            </tr>
+                            <x-ui.table.empty colspan="7" artwork="inventory" title="No inventory adjustments" message="Approved quantity corrections and their reasons will appear here." />
                         @endforelse
                     </tbody>
                 </table>

@@ -10,6 +10,115 @@ window.himsTheme = himsTheme;
 himsTheme.init();
 registerThemeWithAlpine(Alpine);
 
+Alpine.data('himsCountUp', ({ value, decimals = 0, duration = 1000 }) => ({
+    display: new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+    }).format(0),
+
+    animationFrame: null,
+
+    init() {
+        this.animate();
+    },
+
+    animate() {
+        const target = Number(value);
+        const formatter = new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
+        });
+
+        if (!Number.isFinite(target)
+            || target === 0
+            || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            this.display = formatter.format(Number.isFinite(target) ? target : 0);
+            return;
+        }
+
+        if (this.$el.offsetParent === null) return;
+        if (this.animationFrame) cancelAnimationFrame(this.animationFrame);
+
+        this.display = formatter.format(0);
+        this.animationFrame = requestAnimationFrame((startedAt) => {
+            const animate = (now) => {
+                const progress = Math.min(1, (now - startedAt) / duration);
+                const eased = 1 - ((1 - progress) ** 3);
+                this.display = formatter.format(target * eased);
+
+                if (progress < 1) {
+                    this.animationFrame = requestAnimationFrame(animate);
+                } else {
+                    this.animationFrame = null;
+                }
+            };
+
+            this.animationFrame = requestAnimationFrame(animate);
+        });
+    },
+}));
+
+Alpine.data('inventoryReportTabs', ({ canViewFinancialData = false } = {}) => ({
+    activeTab: 'overview',
+    tabs: [
+        'overview',
+        'valuation',
+        ...(canViewFinancialData ? ['procurement'] : []),
+        'movements',
+        'expiry',
+    ],
+
+    init() {
+        const requestedTab = new URLSearchParams(window.location.search).get('section')
+            || window.location.hash.replace(/^#report-/, '');
+        if (this.tabs.includes(requestedTab)) this.activeTab = requestedTab;
+        this.syncFilterTab();
+        this.$nextTick(() => this.animateActiveTab());
+    },
+
+    selectTab(tab) {
+        if (!this.tabs.includes(tab)) return;
+
+        this.activeTab = tab;
+        const url = new URL(window.location.href);
+        url.hash = tab === 'overview' ? '' : `report-${tab}`;
+        window.history.replaceState({}, '', url);
+        this.syncFilterTab();
+        this.$nextTick(() => this.animateActiveTab());
+    },
+
+    syncFilterTab() {
+        const input = document.querySelector('[data-inventory-report-active-tab]');
+        if (input instanceof HTMLInputElement) input.value = this.activeTab;
+
+        const clearLink = document.querySelector('[data-inventory-report-clear]');
+        if (clearLink instanceof HTMLAnchorElement) {
+            const clearUrl = new URL(clearLink.href);
+            if (this.activeTab === 'overview') {
+                clearUrl.searchParams.delete('section');
+            } else {
+                clearUrl.searchParams.set('section', this.activeTab);
+            }
+            clearLink.href = clearUrl.toString();
+        }
+    },
+
+    animateActiveTab() {
+        const panel = document.getElementById(`report-panel-${this.activeTab}`);
+        if (!panel) return;
+
+        panel.querySelectorAll('.hims-metric-bar-x, .hims-metric-bar-y').forEach((bar) => {
+            bar.style.animation = 'none';
+            void bar.offsetWidth;
+            bar.style.animation = '';
+        });
+
+        window.dispatchEvent(new CustomEvent('animate-report-metrics', {
+            detail: { panelId: panel.id },
+        }));
+    },
+}));
+
 const loadingButtons = new WeakMap();
 
 const loadingLabelFor = (button, form) => {
@@ -378,6 +487,93 @@ const focusFirstInvalidField = () => {
     if (!(invalid instanceof HTMLElement)) return;
 
     window.requestAnimationFrame(() => invalid.focus());
+};
+
+const requiredSubmitGuardOwnedButtons = new WeakSet();
+
+const requiredSubmitButtons = (form) => Array.from(form.querySelectorAll(
+    'button:not([type]), button[type="submit"], input[type="submit"], input[type="image"]',
+)).filter((button) => !button.formNoValidate
+    && !button.hasAttribute('x-bind:disabled')
+    && !button.hasAttribute(':disabled'));
+
+const syncRequiredSubmitGuard = (form) => {
+    if (!(form instanceof HTMLFormElement)
+        || form.method.toLowerCase() === 'get'
+        || form.method.toLowerCase() === 'dialog'
+        || form.dataset.requiredSubmitGuard === 'off') {
+        return;
+    }
+
+    const hasRequiredControl = Array.from(form.elements).some(
+        (control) => 'required' in control && control.required && control.willValidate,
+    );
+    const buttons = requiredSubmitButtons(form);
+
+    if (!hasRequiredControl) {
+        buttons.forEach((button) => {
+            if (!requiredSubmitGuardOwnedButtons.has(button)) return;
+            button.disabled = false;
+            requiredSubmitGuardOwnedButtons.delete(button);
+        });
+        form.removeAttribute('data-required-submit-guard');
+        return;
+    }
+
+    form.setAttribute('data-required-submit-guard', '');
+    const valid = form.matches(':valid');
+
+    buttons.forEach((button) => {
+        if (!valid && !button.disabled) {
+            button.disabled = true;
+            requiredSubmitGuardOwnedButtons.add(button);
+            return;
+        }
+
+        if (valid
+            && requiredSubmitGuardOwnedButtons.has(button)
+            && !button.hasAttribute('data-hims-loading-active')) {
+            button.disabled = false;
+            requiredSubmitGuardOwnedButtons.delete(button);
+        }
+    });
+};
+
+const startRequiredSubmitGuards = () => {
+    const register = (root = document) => {
+        if (root instanceof HTMLFormElement) syncRequiredSubmitGuard(root);
+        root.querySelectorAll?.('form').forEach(syncRequiredSubmitGuard);
+    };
+
+    document.addEventListener('input', (event) => syncRequiredSubmitGuard(event.target?.form), true);
+    document.addEventListener('change', (event) => syncRequiredSubmitGuard(event.target?.form), true);
+    document.addEventListener('reset', (event) => {
+        if (event.target instanceof HTMLFormElement) queueMicrotask(() => syncRequiredSubmitGuard(event.target));
+    }, true);
+
+    new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.type === 'childList') {
+                mutation.addedNodes.forEach((node) => {
+                    if (node instanceof Element) register(node);
+                });
+                if (mutation.target instanceof Element) syncRequiredSubmitGuard(mutation.target.closest('form'));
+                return;
+            }
+
+            if (mutation.target instanceof Element
+                && !mutation.target.matches('button[type="submit"], input[type="submit"], input[type="image"]')) {
+                syncRequiredSubmitGuard(mutation.target.closest('form'));
+            }
+        });
+    }).observe(document.body, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ['required', 'disabled', 'type', 'name'],
+    });
+
+    register();
 };
 
 /**
@@ -4893,6 +5089,7 @@ Alpine.data('shipmentTracking', () => ({
     selectedShipmentNumber: '',
     selectedPickup: '',
     selectedDestination: '',
+    selectedDispatchDate: '',
     isColdChain: false,
 
     openDockArrival(shipment) {
@@ -4900,10 +5097,13 @@ Alpine.data('shipmentTracking', () => ({
         this.selectedShipmentNumber = shipment.number;
         this.selectedPickup = shipment.pickup;
         this.selectedDestination = shipment.destination;
+        this.selectedDispatchDate = shipment.dispatch_date || '';
         this.isColdChain = Boolean(shipment.cold_chain);
         this.dockModalOpen = true;
     },
 }));
+
+const procurementWorkspaceTabs = ['enterprise_s2p', 'orders_revisions', 'legacy_canvass', 'sourcing_rfqs', 'evaluations', 'doa_approvals', 'audit_trail'];
 
 Alpine.data('procurementWorkspace', ({
     activeTab = 'orders_revisions',
@@ -4912,6 +5112,7 @@ Alpine.data('procurementWorkspace', ({
     supplierTerms = {},
     initial = {},
     approvalCorrection = null,
+    openPurchaseOrderId = null,
 } = {}) => ({
     activeTab,
     items,
@@ -4926,28 +5127,35 @@ Alpine.data('procurementWorkspace', ({
     selectedPoNumber: '',
     showCxmlModal: false,
     approvalCorrection,
+    openPurchaseOrderId,
     revisedDeliveryDate: String(approvalCorrection?.revised_delivery_date || ''),
     deliveryDateChangeReason: String(approvalCorrection?.reason || ''),
 
     init() {
-        const validTabs = ['enterprise_s2p', 'orders_revisions', 'legacy_canvass', 'sourcing_rfqs', 'evaluations', 'doa_approvals', 'audit_trail'];
         const requestedTab = new URLSearchParams(window.location.search).get('tab');
 
-        if (validTabs.includes(requestedTab)) this.activeTab = requestedTab;
-
-        this.$watch('activeTab', (tab) => {
-            if (!validTabs.includes(tab)) return;
-
-            const url = new URL(window.location.href);
-            url.searchParams.set('tab', tab);
-            if (tab !== 'sourcing_rfqs') url.searchParams.delete('purchase_request_id');
-            url.hash = '';
-            window.history.replaceState(window.history.state, '', url);
-        });
+        if (procurementWorkspaceTabs.includes(requestedTab)) this.activeTab = requestedTab;
 
         if (this.approvalCorrection) {
             this.$nextTick(() => this.$dispatch('open-modal', 'reschedule-po-delivery'));
+        } else if (this.openPurchaseOrderId) {
+            this.$nextTick(() => {
+                document.querySelector(`[data-purchase-order-details="${Number(this.openPurchaseOrderId)}"]`)?.click();
+            });
         }
+    },
+
+    navigateToTab(tab) {
+        if (!procurementWorkspaceTabs.includes(tab)) return;
+
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', tab);
+        if (tab !== 'sourcing_rfqs') url.searchParams.delete('purchase_request_id');
+        url.hash = '';
+        window.himsNavigate(url.toString(), {
+            message: 'Loading latest procurement data...',
+            replace: true,
+        });
     },
 
     selectedItem() {
@@ -5186,6 +5394,7 @@ if (document.querySelector('[data-hims-camera-scanner]')) {
 }
 
 Alpine.start();
+startRequiredSubmitGuards();
 startMetricSummaryTooltips();
 startAccessibleDialogs();
 focusFirstInvalidField();

@@ -400,5 +400,17 @@ class ProfilePictureTest extends TestCase
         $this->get(route('admin.users.index'))
             ->assertOk()
             ->assertSee($admin->avatarUrl(), false);
+
+        $managedUser = User::factory()->viewer()->create();
+        $this->actingAs($managedUser)
+            ->post(route('profile.avatar.update'), ['avatar' => $this->createFakePng('managed_user_avatar.png')]);
+
+        $managedUser->refresh();
+
+        // Admin User Edit modal shows the managed user's avatar URL
+        $this->actingAs($admin, AuthenticationContext::ADMIN_GUARD)
+            ->get(route('admin.users.edit', $managedUser))
+            ->assertOk()
+            ->assertSee($managedUser->avatarUrl(), false);
     }
 }

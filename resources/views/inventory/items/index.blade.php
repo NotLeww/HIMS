@@ -2,17 +2,30 @@
     $activeFilterCount = collect($filters)->filter(fn ($value) => filled($value))->count();
     $canViewFinancialData = auth()->user()->can(\App\Enums\Permission::ViewProcurementSensitiveData->value);
     $canViewSuppliers = auth()->user()->can(\App\Enums\Permission::ViewSuppliers->value);
-    $tableColumnCount = 6 + ($canViewFinancialData ? 1 : 0) + ($canViewSuppliers ? 1 : 0);
+    $tableColumnCount = 7 + ($canViewFinancialData ? 1 : 0) + ($canViewSuppliers ? 1 : 0);
 @endphp
 
 <x-app-layout full-width>
-    <div x-data="{ createItemModal: {{ ($errors->any() && ! $errors->has('archive') && ! $errors->has('unarchive')) ? 'true' : 'false' }}, openDropdown: null }"
+    <style>
+        [data-inventory-items-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-inventory-items-hero-day.png') }}');
+            --hims-header-position: right 60%;
+        }
+
+        .dark [data-inventory-items-header] .hims-page-header {
+            --hims-header-image: url('{{ asset('img/hims-inventory-items-hero-night.png') }}');
+        }
+    </style>
+
+    <div x-data="{ createItemModal: {{ ($errors->any() && ! $errors->has('archive') && ! $errors->has('unarchive')) ? 'true' : 'false' }} }"
          @keydown.escape.window="createItemModal = false"
          class="space-y-6">
 
-        <x-ui.page-header
-            title="Inventory Items"
-            :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Inventory Items' => null]" />
+        <div data-inventory-items-header>
+            <x-ui.page-header
+                title="Inventory Items"
+                :breadcrumbs="['Home' => route(\App\Support\AuthenticationContext::dashboardRoute()), 'Inventory Items' => null]" />
+        </div>
 
         @if ($errors->any())
             <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
@@ -81,6 +94,15 @@
                             @endforeach
                         </select>
                     </div>
+                    <div class="w-full sm:w-56 shrink-0">
+                        <label class="sr-only" for="item-rotation">Stock rotation order</label>
+                        <select id="item-rotation" name="rotation" class="block w-full rounded-lg border border-neutral-300 bg-white py-2 pl-3 pr-8 text-xs text-neutral-900 shadow-2xs focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                            <option value="">Default item order</option>
+                            @foreach ($rotationModes as $value => $label)
+                                <option value="{{ $value }}" @selected(($filters['rotation'] ?? '') === $value)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                     <div class="flex items-center gap-1.5 shrink-0">
                         <x-ui.button type="submit" size="sm" class="px-4 py-2 text-xs">Apply</x-ui.button>
                         @if ($activeFilterCount > 0)
@@ -102,10 +124,11 @@
                             @endif
                             <th scope="col" class="w-40 min-w-[140px] px-3 py-2.5 text-left font-semibold text-neutral-600 dark:text-neutral-300 whitespace-nowrap">Qty</th>
                             <th scope="col" class="w-24 min-w-[80px] px-3 py-2.5 text-left font-semibold text-neutral-600 dark:text-neutral-300 whitespace-nowrap">Reorder</th>
+                            <th scope="col" class="w-32 min-w-[120px] px-3 py-2.5 text-left font-semibold text-neutral-600 dark:text-neutral-300 whitespace-nowrap" title="Earliest expiration among active batches with stock on hand">Next Expiry</th>
                             @can(\App\Enums\Permission::ViewSuppliers->value)
                                 <th scope="col" class="w-56 min-w-[180px] px-3.5 py-2.5 text-left font-semibold text-neutral-600 dark:text-neutral-300 whitespace-nowrap">Supplier</th>
                             @endcan
-                            <th scope="col" class="w-44 min-w-[140px] px-3.5 py-2.5 text-right font-semibold text-neutral-600 dark:text-neutral-300 whitespace-nowrap hims-sticky-actions">Actions</th>
+                            <th scope="col" class="w-20 min-w-[76px] px-3.5 py-2.5 text-right font-semibold text-neutral-600 dark:text-neutral-300 whitespace-nowrap hims-sticky-actions">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="inventory-items-table-body" class="divide-y divide-neutral-200 dark:divide-neutral-800">
@@ -135,40 +158,131 @@
                                         <span class="font-semibold text-neutral-800 dark:text-neutral-200">{{ $item->quantity_on_hand }}</span>
                                         {{-- Derived from the quantity against the reorder level, so the
                                              badge cannot drift from the figures in the same row. --}}
-                                        @php($stockStatus = $item->stockStatus())
+                                        @php
+                                            $stockStatus = $item->stockStatus();
+                                        @endphp
                                         @if (in_array($stockStatus, ['low_stock', 'out_of_stock'], true))
                                             <x-ui.badge :status="$stockStatus" dot />
                                         @endif
                                     </div>
                                 </td>
                                 <td class="px-3 py-2.5 text-neutral-600 dark:text-neutral-400 whitespace-nowrap">{{ $item->reorder_level }}</td>
+                                @php
+                                    $nextExpiry = $item->next_expiry_date
+                                        ? \Illuminate\Support\Carbon::parse($item->next_expiry_date)
+                                        : null;
+                                    $expiryStatus = \App\Models\ItemBatch::classifyExpiryDate($nextExpiry);
+                                    $expiryLabel = match ($expiryStatus) {
+                                        \App\Models\ItemBatch::EXPIRY_EXPIRED => 'Expired',
+                                        \App\Models\ItemBatch::EXPIRY_CRITICAL => 'Critical',
+                                        \App\Models\ItemBatch::EXPIRY_SOON => 'Expiring soon',
+                                        default => null,
+                                    };
+                                    $expiryTone = match ($expiryStatus) {
+                                        \App\Models\ItemBatch::EXPIRY_EXPIRED => 'text-rose-600 dark:text-rose-400',
+                                        \App\Models\ItemBatch::EXPIRY_CRITICAL => 'text-amber-700 dark:text-amber-300',
+                                        \App\Models\ItemBatch::EXPIRY_SOON => 'text-indigo-600 dark:text-indigo-400',
+                                        default => 'text-neutral-800 dark:text-neutral-200',
+                                    };
+                                @endphp
+                                <td class="px-3 py-2.5 whitespace-nowrap">
+                                    @if ($nextExpiry)
+                                        <time datetime="{{ $nextExpiry->toDateString() }}" class="font-medium tabular-nums {{ $expiryTone }}">
+                                            {{ $nextExpiry->format('M j, Y') }}
+                                        </time>
+                                        @if ($expiryLabel)
+                                            <span class="mt-0.5 block text-[10px] font-semibold {{ $expiryTone }}">{{ $expiryLabel }}</span>
+                                        @endif
+                                    @else
+                                        <span class="text-neutral-500 dark:text-neutral-400">
+                                            {{ $item->is_expiry_tracked ? 'No dated stock' : 'Not tracked' }}
+                                        </span>
+                                    @endif
+                                </td>
                                 @can(\App\Enums\Permission::ViewSuppliers->value)
                                     <td class="px-3.5 py-2.5 text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate max-w-[220px]" title="{{ $item->supplier?->name ?? '—' }}">
                                         {{ $item->supplier?->name ?? '—' }}
                                     </td>
                                 @endcan
                                 <td class="px-3.5 py-2.5 text-right whitespace-nowrap hims-sticky-actions">
-                                    <div class="inline-flex items-center justify-end gap-1.5">
+                                    @canany([\App\Enums\Permission::CreateRequisition->value, \App\Enums\Permission::AdjustStock->value, \App\Enums\Permission::ManageArchive->value])
+                                    <div
+                                        class="inline-flex"
+                                        x-data="{
+                                            open: false,
+                                            menuStyle: '',
+                                            toggle() {
+                                                if (this.open) {
+                                                    this.open = false;
+                                                    return;
+                                                }
+
+                                                const trigger = this.$refs.trigger.getBoundingClientRect();
+                                                const menuWidth = 192;
+                                                const menuHeight = 128;
+                                                const gutter = 8;
+                                                const gap = 6;
+                                                const left = Math.min(window.innerWidth - menuWidth - gutter, Math.max(gutter, trigger.right - menuWidth));
+                                                const top = window.innerHeight - trigger.bottom >= menuHeight + gap
+                                                    ? trigger.bottom + gap
+                                                    : Math.max(gutter, trigger.top - menuHeight - gap);
+
+                                                this.menuStyle = `left: ${left}px; top: ${top}px`;
+                                                this.open = true;
+                                                this.$nextTick(() => this.$refs.menu.querySelector('a, button')?.focus());
+                                            }
+                                        }"
+                                        @scroll.window="open = false"
+                                        @resize.window="open = false"
+                                    >
+                                        <button
+                                            type="button"
+                                            x-ref="trigger"
+                                            @click="toggle()"
+                                            @keydown.escape.stop.prevent="open = false"
+                                            :aria-expanded="open.toString()"
+                                            aria-haspopup="true"
+                                            aria-controls="item-actions-{{ $item->id }}"
+                                            aria-label="Open actions for {{ $item->name }}"
+                                            title="Actions for {{ $item->name }}"
+                                            class="inline-flex size-9 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-500 shadow-2xs transition-colors hover:bg-neutral-50 hover:text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700 dark:hover:text-neutral-100 dark:focus-visible:ring-offset-neutral-900"
+                                        >
+                                            <x-ui.icon name="ellipsis-vertical" class="size-4" />
+                                        </button>
+
+                                        <template x-teleport="body">
+                                            <div
+                                                x-ref="menu"
+                                                x-show="open"
+                                                x-cloak
+                                                :style="menuStyle"
+                                                id="item-actions-{{ $item->id }}"
+                                                role="group"
+                                                aria-label="Actions for {{ $item->name }}"
+                                                @click.outside="if (!$refs.trigger.contains($event.target)) open = false"
+                                                @keydown.escape.stop.prevent="open = false; $refs.trigger.focus()"
+                                                @focusout="$nextTick(() => { if (!$refs.menu.contains(document.activeElement) && !$refs.trigger.contains(document.activeElement)) open = false })"
+                                                class="fixed z-[70] w-48 overflow-hidden rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+                                            >
                                         @can(\App\Enums\Permission::CreateRequisition->value)
                                             <a href="{{ route('inventory.requisitions.index', ['item_id' => $item->id]) }}"
-                                               class="inline-flex items-center gap-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2 py-1 text-[11px] font-semibold text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950/30 transition shadow-2xs"
+                                               class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 dark:text-neutral-200 dark:hover:bg-neutral-800"
                                                title="Create store requisition for {{ $item->name }}">
-                                                <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                </svg>
+                                                <x-ui.icon name="clipboard-document-list" class="size-4 text-primary-600 dark:text-primary-400" />
                                                 Requisition
                                             </a>
                                         @endcan
                                         @can(\App\Enums\Permission::AdjustStock->value)
                                             <a href="{{ route('inventory.adjustments', ['item_id' => $item->id]) }}"
-                                               class="inline-flex items-center gap-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2 py-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition shadow-2xs"
+                                               class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 dark:text-neutral-200 dark:hover:bg-neutral-800"
                                                title="Adjust stock balance for {{ $item->name }}">
+                                                <x-ui.icon name="adjustments-horizontal" class="size-4 text-amber-600 dark:text-amber-400" />
                                                 Adjust
                                             </a>
                                         @endcan
                                         @can(\App\Enums\Permission::ManageArchive->value)
                                             <button type="button"
-                                                    @click="$dispatch('open-archive-modal', {
+                                                    @click="open = false; $dispatch('open-archive-modal', {
                                                         actionUrl: '{{ route('inventory.items.archive', $item) }}',
                                                         title: '{{ addslashes($item->name) }}',
                                                         identifier: 'SKU: {{ addslashes($item->sku) }}',
@@ -181,20 +295,20 @@
                                                             'Duplicate inventory item listing'
                                                         ]
                                                     })"
-                                                    class="inline-flex items-center gap-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-2 py-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition shadow-2xs"
+                                                    class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-medium text-rose-600 transition-colors hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500 dark:text-rose-400 dark:hover:bg-rose-950/40"
                                                     title="Archive {{ $item->name }}">
+                                                <x-ui.icon name="archive-box" class="size-4" />
                                                 Archive
                                             </button>
                                         @endcan
+                                            </div>
+                                        </template>
                                     </div>
+                                    @endcanany
                                 </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="{{ $tableColumnCount }}" class="px-3 py-8 text-center text-xs text-neutral-500 dark:text-neutral-400">
-                                    {{ $activeFilterCount > 0 ? 'No items match these filters.' : 'No inventory items yet.' }}
-                                </td>
-                            </tr>
+                            <x-ui.table.empty :colspan="$tableColumnCount" artwork="inventory" :title="$activeFilterCount > 0 ? 'No items match these filters' : 'No inventory items yet'" :message="$activeFilterCount > 0 ? 'Adjust or clear the filters to see more inventory records.' : 'Created inventory items will appear here.'" />
                         @endforelse
                     </tbody>
                 </table>

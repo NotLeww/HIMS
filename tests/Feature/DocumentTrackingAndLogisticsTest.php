@@ -1398,6 +1398,8 @@ class DocumentTrackingAndLogisticsTest extends TestCase
         // Check header title & badge
         $response->assertSee('Chain of Custody Ledger', false);
         $response->assertSee('Append-Only Immutability Guarded', false);
+        $response->assertSee('name="date_from"', false);
+        $response->assertSee('name="date_to"', false);
 
         // Check table headers
         $response->assertSee('Timestamp', false);

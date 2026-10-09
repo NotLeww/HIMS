@@ -34,6 +34,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     protected $fillable = [
         'name',
+        'supplier_id',
         'surname',
         'first_name',
         'middle_name',
@@ -54,6 +55,16 @@ class User extends Authenticatable implements MustVerifyEmail
         'archived_by',
         'archive_reason',
     ];
+
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
+    public function accountIdentifierLabel(): string
+    {
+        return $this->role?->isSupplier() ? 'Supplier User ID' : 'Employee ID';
+    }
 
     /**
      * The attributes that should be hidden for serialization.

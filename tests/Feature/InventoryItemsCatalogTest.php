@@ -3,7 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\InventoryItem;
+use App\Models\ItemBatch;
 use App\Models\ItemCategory;
+use App\Models\ItemStockLevel;
+use App\Models\StorageLocation;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -108,6 +111,152 @@ class InventoryItemsCatalogTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('bottle');
+    }
+
+    public function test_catalog_shows_the_earliest_expiry_for_active_stocked_batches(): void
+    {
+        $manager = User::factory()->inventoryManager()->create();
+        $location = StorageLocation::create([
+            'name' => 'Main Pharmacy',
+            'code' => 'PHARM-01',
+            'type' => 'pharmacy',
+            'status' => 'active',
+        ]);
+        $item = InventoryItem::create([
+            'name' => 'Temperature Controlled Vaccine',
+            'sku' => 'CAT-VACCINE',
+            'quantity_on_hand' => 15,
+            'reorder_level' => 5,
+            'unit_cost' => 1,
+            'total_value' => 15,
+            'is_batch_tracked' => true,
+            'is_expiry_tracked' => true,
+        ]);
+
+        $depleted = ItemBatch::create([
+            'item_id' => $item->id,
+            'batch_number' => 'LOT-DEPLETED',
+            'expiry_date' => '2027-01-10',
+            'status' => 'active',
+        ]);
+        $next = ItemBatch::create([
+            'item_id' => $item->id,
+            'batch_number' => 'LOT-NEXT',
+            'expiry_date' => '2027-01-20',
+            'status' => 'active',
+        ]);
+        $later = ItemBatch::create([
+            'item_id' => $item->id,
+            'batch_number' => 'LOT-LATER',
+            'expiry_date' => '2027-02-15',
+            'status' => 'active',
+        ]);
+
+        ItemStockLevel::create(['item_id' => $item->id, 'storage_location_id' => $location->id, 'item_batch_id' => $depleted->id, 'quantity' => 0]);
+        ItemStockLevel::create(['item_id' => $item->id, 'storage_location_id' => $location->id, 'item_batch_id' => $next->id, 'quantity' => 5]);
+        ItemStockLevel::create(['item_id' => $item->id, 'storage_location_id' => $location->id, 'item_batch_id' => $later->id, 'quantity' => 10]);
+
+        $response = $this->actingAs($manager)->get(route('inventory.items'));
+
+        $response->assertOk();
+        $response->assertSee('Next Expiry');
+        $response->assertSee('Jan 20, 2027');
+        $response->assertDontSee('Jan 10, 2027');
+        $response->assertDontSee('Feb 15, 2027');
+    }
+
+    public function test_catalog_places_contextual_actions_in_an_accessible_overflow_menu(): void
+    {
+        $manager = User::factory()->superAdministrator()->create();
+        $item = InventoryItem::create([
+            'name' => 'Sterile Gloves',
+            'sku' => 'CAT-ACTIONS',
+            'quantity_on_hand' => 20,
+            'reorder_level' => 5,
+            'unit_cost' => 1,
+            'total_value' => 20,
+        ]);
+
+        $response = $this->actingAs($manager)->get(route('inventory.items'));
+
+        $response->assertOk();
+        $response->assertSee('aria-label="Open actions for Sterile Gloves"', false);
+        $response->assertSee('aria-controls="item-actions-'.$item->id.'"', false);
+        $response->assertSee(route('inventory.requisitions.index', ['item_id' => $item->id]));
+        $response->assertSee(route('inventory.adjustments', ['item_id' => $item->id]));
+        $response->assertSee('Archive');
+    }
+
+    public function test_catalog_can_order_stocked_items_by_fefo_or_fifo(): void
+    {
+        $manager = User::factory()->inventoryManager()->create();
+        $location = StorageLocation::create([
+            'name' => 'Rotation Bay',
+            'code' => 'ROT-01',
+            'type' => 'shelf',
+            'status' => 'active',
+        ]);
+
+        $earlyExpiry = InventoryItem::create([
+            'name' => 'Rotation Alpha',
+            'sku' => 'ROT-ALPHA',
+            'quantity_on_hand' => 10,
+            'reorder_level' => 2,
+            'unit_cost' => 1,
+            'total_value' => 10,
+        ]);
+        $oldestReceipt = InventoryItem::create([
+            'name' => 'Rotation Bravo',
+            'sku' => 'ROT-BRAVO',
+            'quantity_on_hand' => 10,
+            'reorder_level' => 2,
+            'unit_cost' => 1,
+            'total_value' => 10,
+        ]);
+        InventoryItem::create([
+            'name' => 'Rotation Without Batch',
+            'sku' => 'ROT-NONE',
+            'quantity_on_hand' => 0,
+            'reorder_level' => 2,
+            'unit_cost' => 1,
+            'total_value' => 0,
+        ]);
+
+        $alphaBatch = ItemBatch::create([
+            'item_id' => $earlyExpiry->id,
+            'batch_number' => 'ROT-A',
+            'received_at' => '2026-02-01',
+            'expiry_date' => '2027-01-15',
+            'status' => 'active',
+        ]);
+        $bravoBatch = ItemBatch::create([
+            'item_id' => $oldestReceipt->id,
+            'batch_number' => 'ROT-B',
+            'received_at' => '2026-01-01',
+            'expiry_date' => '2027-02-15',
+            'status' => 'active',
+        ]);
+
+        ItemStockLevel::create(['item_id' => $earlyExpiry->id, 'storage_location_id' => $location->id, 'item_batch_id' => $alphaBatch->id, 'quantity' => 10]);
+        ItemStockLevel::create(['item_id' => $oldestReceipt->id, 'storage_location_id' => $location->id, 'item_batch_id' => $bravoBatch->id, 'quantity' => 10]);
+
+        $fefoRows = str($this->actingAs($manager)
+            ->get(route('inventory.items', ['rotation' => 'fefo']))
+            ->assertOk()
+            ->getContent())
+            ->after('id="inventory-items-table-body"')
+            ->before('</tbody>')
+            ->toString();
+        $this->assertMatchesRegularExpression('/ROT-ALPHA.*ROT-BRAVO.*ROT-NONE/s', $fefoRows);
+
+        $fifoRows = str($this->actingAs($manager)
+            ->get(route('inventory.items', ['rotation' => 'fifo']))
+            ->assertOk()
+            ->getContent())
+            ->after('id="inventory-items-table-body"')
+            ->before('</tbody>')
+            ->toString();
+        $this->assertMatchesRegularExpression('/ROT-BRAVO.*ROT-ALPHA.*ROT-NONE/s', $fifoRows);
     }
 
     public function test_catalog_shows_price_per_piece_only_to_financially_authorized_users(): void

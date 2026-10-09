@@ -49,13 +49,18 @@ class IssuanceEngine
                 throw new DomainException('A requesting department is required for a material requisition.');
             }
             $costCenterId = $data['cost_center_id'] ?? CostCenter::resolveForDepartment($department)?->id;
+            $requiredDate = isset($data['required_date']) ? Carbon::parse($data['required_date'])->startOfDay() : now()->addDays(2)->startOfDay();
+
+            if ($requiredDate->isBefore(today())) {
+                throw new DomainException('The required date must be today or a future date.');
+            }
 
             $requisition = MaterialRequisition::create([
                 'requisition_number' => $reqNumber,
                 'requesting_user_id' => $requester->id,
                 'department' => $department,
                 'cost_center_id' => $costCenterId,
-                'required_date' => isset($data['required_date']) ? Carbon::parse($data['required_date']) : now()->addDays(2),
+                'required_date' => $requiredDate,
                 'status' => 'pending_approval',
                 'urgency' => $data['urgency'] ?? 'routine',
                 'justification' => $data['justification'] ?? null,

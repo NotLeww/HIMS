@@ -62,6 +62,300 @@
         </x-ui.alert>
     @endif
 
+    @if ($canApprove && $supplier->isProcurementEligible())
+        <x-ui.card id="supplier-portal-access" title="Supplier Portal Access" subtitle="Hospital invitation-only accounts for this approved supplier." class="mt-5 scroll-mt-24">
+            <x-slot:actions>
+                <x-ui.button
+                    type="button"
+                    size="sm"
+                    icon="plus"
+                    x-data
+                    x-on:click="$dispatch('open-modal', 'invite-supplier-user')"
+                >Invite supplier user</x-ui.button>
+            </x-slot:actions>
+
+            @if($portalUsers->isNotEmpty())
+                <ul class="divide-y divide-neutral-200 text-sm dark:divide-neutral-800">
+                    @foreach($portalUsers as $portalUser)
+                        <li class="grid gap-3 py-4 md:grid-cols-2 md:items-center xl:grid-cols-5">
+                            <div class="min-w-0 xl:col-span-2">
+                                <p class="font-medium text-neutral-900 dark:text-neutral-100">{{ $portalUser->name }}</p>
+                                <p class="break-all text-xs text-neutral-500 dark:text-neutral-400">{{ $portalUser->email }}</p>
+                            </div>
+                            <div class="flex min-w-0 flex-col gap-2 md:items-end xl:col-span-3 xl:grid xl:grid-cols-3 xl:items-center xl:gap-4">
+                                <p class="whitespace-nowrap text-xs font-medium text-neutral-600 dark:text-neutral-300">{{ $portalUser->role->label() }} · {{ $portalUser->status->label() }}</p>
+                                <div class="flex flex-wrap items-center gap-2 md:justify-end xl:col-span-2">
+                                    @if($portalUser->isPendingActivation())
+                                        <form
+                                            method="POST"
+                                            action="{{ route(\App\Support\AuthenticationContext::administrationRoute('users.verification.send'), $portalUser) }}"
+                                            data-confirm-title="Resend activation email?"
+                                            data-confirm-message="Send a new activation link to {{ $portalUser->email }}?"
+                                            data-confirm-label="Resend Activation"
+                                        >
+                                            @csrf
+                                            <input type="hidden" name="return_to_supplier" value="1">
+                                            <x-ui.button type="submit" variant="secondary" size="sm" data-loading-text="Sending...">Resend Activation</x-ui.button>
+                                        </form>
+                                    @endif
+                                    <x-ui.button
+                                        type="button"
+                                        variant="secondary"
+                                        size="sm"
+                                        x-data
+                                        x-on:click="$dispatch('manage-supplier-account', {{ \Illuminate\Support\Js::from([
+                                            'actionUrl' => route('inventory.suppliers.portal-users.update', [$supplier, $portalUser]),
+                                            'advancedUrl' => route(\App\Support\AuthenticationContext::administrationRoute('users.edit'), $portalUser),
+                                            'userId' => $portalUser->id,
+                                            'accountName' => $portalUser->name,
+                                            'firstName' => $portalUser->first_name,
+                                            'surname' => $portalUser->surname,
+                                            'email' => $portalUser->email,
+                                            'role' => $portalUser->role->value,
+                                            'status' => $portalUser->status->value,
+                                            'original' => [
+                                                'firstName' => $portalUser->first_name,
+                                                'surname' => $portalUser->surname,
+                                                'email' => $portalUser->email,
+                                                'role' => $portalUser->role->value,
+                                                'status' => $portalUser->status->value,
+                                            ],
+                                            'statusLabel' => $portalUser->status->label(),
+                                            'statusEditable' => in_array($portalUser->status, [\App\Enums\UserStatus::Active, \App\Enums\UserStatus::Inactive], true),
+                                        ]) }})"
+                                    >{{ $portalUser->isPendingActivation() ? 'Edit Invitation' : 'Manage Account' }}</x-ui.button>
+                                </div>
+                            </div>
+                        </li>
+                    @endforeach
+                </ul>
+            @else
+                <p class="text-sm text-neutral-500 dark:text-neutral-400">No supplier portal users yet.</p>
+            @endif
+        </x-ui.card>
+
+        <div
+            x-data="{
+                actionUrl: '',
+                advancedUrl: '#',
+                userId: '',
+                accountName: '',
+                firstName: '',
+                surname: '',
+                email: '',
+                role: '',
+                status: '',
+                original: {},
+                statusLabel: '',
+                statusEditable: false,
+                hasAccountChanges() {
+                    return ['firstName', 'surname', 'email', 'role', 'status']
+                        .some((field) => String(this[field] ?? '') !== String(this.original[field] ?? ''));
+                },
+                openAccount(account) {
+                    Object.assign(this, account);
+                    this.$dispatch('open-modal', 'manage-supplier-account');
+                },
+            }"
+            x-on:manage-supplier-account.window="openAccount($event.detail)"
+        >
+            <x-ui.modal name="manage-supplier-account" title="Manage supplier account" maxWidth="4xl">
+                <x-slot:header>
+                    <div class="flex min-w-0 items-center gap-3">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700 dark:bg-primary-950 dark:text-primary-300">
+                            <x-ui.icon name="user-circle" class="h-6 w-6" />
+                        </span>
+                        <h2 id="manage-supplier-account-title" class="text-xl font-semibold tracking-tight text-neutral-950 dark:text-white">
+                            Manage supplier account
+                        </h2>
+                    </div>
+                </x-slot:header>
+
+                <p class="mb-6 text-sm leading-6 text-neutral-600 sm:text-base dark:text-neutral-300">
+                    Update the representative's identity and supplier portal access for <span class="font-medium text-neutral-900 dark:text-neutral-100" x-text="accountName"></span>.
+                </p>
+
+                <form
+                    id="manage-supplier-account-form"
+                    method="POST"
+                    x-bind:action="actionUrl"
+                    class="grid gap-x-6 gap-y-5 sm:grid-cols-2 [&_input]:min-h-12 [&_input]:text-base [&_select]:min-h-12 [&_select]:text-base"
+                    autocomplete="off"
+                    @if(auth()->user()?->isSuperAdministrator())
+                        data-super-admin-password="edit"
+                    @else
+                        data-confirm-title="Confirm supplier account changes"
+                        data-confirm-message="Save these identity, role, and account status changes?"
+                        data-confirm-label="Save Changes"
+                    @endif
+                >
+                    @csrf
+                    @method('PATCH')
+                    <input type="hidden" name="form_context" value="supplier_account">
+                    <input type="hidden" name="portal_user_id" x-model="userId">
+
+                    <x-ui.field name="account_first_name" label="First name" x-model="firstName" required />
+                    <x-ui.field name="account_surname" label="Surname" x-model="surname" required />
+                    <div class="sm:col-span-2">
+                        <x-ui.field name="account_email" label="Email" type="email" x-model="email" required />
+                    </div>
+                    <x-ui.field name="account_role" label="Supplier role" type="select" x-model="role" :options="[
+                        'vendor_administrator' => 'Vendor Administrator',
+                        'vendor_operations' => 'Vendor Operations',
+                        'vendor_finance' => 'Vendor Finance',
+                    ]" required />
+                    <div>
+                        <div x-show="statusEditable">
+                            <x-ui.field
+                                name="account_status"
+                                label="Account status"
+                                type="select"
+                                x-model="status"
+                                x-bind:disabled="!statusEditable"
+                                :options="[
+                                    'active' => 'Active',
+                                    'inactive' => 'Inactive',
+                                ]"
+                                required
+                            />
+                        </div>
+                        <div x-show="!statusEditable">
+                            <x-ui.field name="account_status_display" label="Account status" x-model="statusLabel" disabled />
+                            <input type="hidden" name="account_status" x-model="status" x-bind:disabled="statusEditable">
+                        </div>
+                    </div>
+                </form>
+
+                <x-slot:footer>
+                    <div class="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+                        <x-ui.button href="#" x-bind:href="advancedUrl" variant="ghost" icon="adjustments-horizontal">Advanced settings</x-ui.button>
+                        <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'manage-supplier-account')">Cancel</x-ui.button>
+                        <x-ui.button
+                            type="submit"
+                            form="manage-supplier-account-form"
+                            data-loading-text="Saving changes..."
+                            disabled
+                            x-bind:disabled="!hasAccountChanges()"
+                        >Save changes</x-ui.button>
+                    </div>
+                </x-slot:footer>
+            </x-ui.modal>
+        </div>
+
+        @php
+            $editingPortalUser = old('form_context') === 'supplier_account'
+                ? $portalUsers->firstWhere('id', (int) old('portal_user_id'))
+                : null;
+        @endphp
+        @if($editingPortalUser && $errors->any())
+            <div
+                x-data
+                x-init="$nextTick(() => $dispatch('manage-supplier-account', {{ \Illuminate\Support\Js::from([
+                    'actionUrl' => route('inventory.suppliers.portal-users.update', [$supplier, $editingPortalUser]),
+                    'advancedUrl' => route(\App\Support\AuthenticationContext::administrationRoute('users.edit'), $editingPortalUser),
+                    'userId' => $editingPortalUser->id,
+                    'accountName' => $editingPortalUser->name,
+                    'firstName' => old('account_first_name', $editingPortalUser->first_name),
+                    'surname' => old('account_surname', $editingPortalUser->surname),
+                    'email' => old('account_email', $editingPortalUser->email),
+                    'role' => old('account_role', $editingPortalUser->role->value),
+                    'status' => old('account_status', $editingPortalUser->status->value),
+                    'original' => [
+                        'firstName' => $editingPortalUser->first_name,
+                        'surname' => $editingPortalUser->surname,
+                        'email' => $editingPortalUser->email,
+                        'role' => $editingPortalUser->role->value,
+                        'status' => $editingPortalUser->status->value,
+                    ],
+                    'statusLabel' => $editingPortalUser->status->label(),
+                    'statusEditable' => in_array($editingPortalUser->status, [\App\Enums\UserStatus::Active, \App\Enums\UserStatus::Inactive], true),
+                ]) }}))"
+            ></div>
+        @endif
+
+        <x-ui.modal name="invite-supplier-user" title="Invite supplier user" maxWidth="2xl">
+            <p class="mb-5 text-sm text-neutral-600 dark:text-neutral-300">
+                Create an invitation-only account for this supplier. The activation link will be sent to the representative's email address.
+            </p>
+
+            <form
+                id="supplier-invitation-form"
+                method="POST"
+                action="{{ route('inventory.suppliers.portal-users.store', $supplier) }}"
+                class="grid gap-4 sm:grid-cols-2"
+                data-confirm-title="Send supplier invitation?"
+                data-confirm-message="Confirm the representative's name, email address, and supplier role. An account activation link will be sent to the entered email address."
+                data-confirm-label="Send Invitation"
+            >
+                @csrf
+                <input type="hidden" name="form_context" value="supplier_invitation">
+                <x-ui.field name="first_name" label="First name" required />
+                <x-ui.field name="surname" label="Surname" required />
+                <div class="sm:col-span-2">
+                    <x-ui.field name="email" label="Email" type="email" hint="The activation link will be sent here." required />
+                </div>
+                <div class="sm:col-span-2">
+                    <x-ui.field name="role" label="Supplier role" type="select" :options="[
+                        'vendor_administrator' => 'Vendor Administrator',
+                        'vendor_operations' => 'Vendor Operations',
+                        'vendor_finance' => 'Vendor Finance',
+                    ]" required />
+                </div>
+            </form>
+
+            <x-slot:footer>
+                <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'invite-supplier-user')">Cancel</x-ui.button>
+                <x-ui.button type="submit" form="supplier-invitation-form" data-loading-text="Sending invitation...">Send invitation</x-ui.button>
+            </x-slot:footer>
+        </x-ui.modal>
+
+        @if(old('form_context') === 'supplier_invitation' && $errors->any())
+            <div x-data x-init="$nextTick(() => $dispatch('open-modal', 'invite-supplier-user'))"></div>
+        @endif
+    @endif
+
+    @if(auth()->user()?->can(\App\Enums\Permission::ViewSupplierSensitiveData->value) && ($supplier->discrepancies->isNotEmpty() || $supplier->invoices->isNotEmpty()))
+        <div class="mt-5 grid gap-5 xl:grid-cols-2">
+            <x-ui.card title="Portal Discrepancies" subtitle="Supplier responses require a hospital resolution before closure.">
+                <div class="space-y-4">
+                    @forelse($supplier->discrepancies->take(10) as $discrepancy)
+                        <div class="border-b border-neutral-200 pb-4 last:border-0 dark:border-neutral-800">
+                            <p class="text-sm font-semibold">{{ $discrepancy->receiptLine->goodsReceiptNote->purchaseOrder->po_number }} · {{ $discrepancy->receiptLine->item->name }}</p>
+                            <p class="text-xs text-neutral-500">{{ str($discrepancy->status)->headline() }} · {{ str($discrepancy->receiptLine->discrepancy_type)->headline() }}</p>
+                            @if($discrepancy->supplier_response)<p class="mt-2 text-sm">Supplier: {{ $discrepancy->supplier_response }}</p>@endif
+                            @if($discrepancy->status !== 'closed' && auth()->user()?->can(\App\Enums\Permission::ManageSuppliers->value))
+                                <form method="POST" action="{{ route('inventory.suppliers.discrepancies.resolve', [$supplier, $discrepancy]) }}" class="mt-3 flex gap-2">@csrf @method('PATCH')<input name="resolution" required maxlength="2000" class="w-full rounded-md border-neutral-300 text-sm dark:border-neutral-700 dark:bg-neutral-900" placeholder="Hospital resolution"><x-ui.button type="submit" size="sm">Close</x-ui.button></form>
+                            @endif
+                        </div>
+                    @empty
+                        <div class="py-4 text-center">
+                            <x-ui.empty-artwork category="receiving-discrepancies" size="sm" />
+                            <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No supplier discrepancies</p>
+                        </div>
+                    @endforelse
+                </div>
+            </x-ui.card>
+            <x-ui.card title="Supplier Invoices" subtitle="Three-way match results; payment is not processed by HIMS.">
+                <x-ui.table>
+                    <x-slot:head>
+                        <x-ui.table.th>Invoice</x-ui.table.th>
+                        <x-ui.table.th>PO</x-ui.table.th>
+                        <x-ui.table.th>Status</x-ui.table.th>
+                    </x-slot:head>
+                    @forelse($supplier->invoices->take(10) as $invoice)
+                        <x-ui.table.row>
+                            <x-ui.table.td>{{ $invoice->invoice_number }}</x-ui.table.td>
+                            <x-ui.table.td>{{ $invoice->purchaseOrder->po_number }}</x-ui.table.td>
+                            <x-ui.table.td><x-ui.badge :status="$invoice->status" /></x-ui.table.td>
+                        </x-ui.table.row>
+                    @empty
+                        <x-ui.table.empty colspan="3" artwork="finance" title="No invoices" message="Invoices associated with this supplier will appear here." />
+                    @endforelse
+                </x-ui.table>
+            </x-ui.card>
+        </div>
+    @endif
+
     {{-- Page-level, so it stays visible whichever tab is open. --}}
     @if ($supplier->isArchived())
         <x-ui.alert variant="neutral" title="Archived Supplier Record" class="mt-5">
@@ -186,7 +480,7 @@
                             <x-ui.table.td>{{ $contact->mobile ?: ($contact->phone ?: '—') }}</x-ui.table.td>
                         </x-ui.table.row>
                     @empty
-                        <x-ui.table.empty :colspan="4" icon="users" title="No supplier contacts" message="Add only contacts needed for procurement, delivery, or billing." />
+                        <x-ui.table.empty :colspan="4" artwork="users" icon="users" title="No supplier contacts" message="Add only contacts needed for procurement, delivery, or billing." />
                     @endforelse
                     </tbody>
                 </x-ui.table>
@@ -200,8 +494,12 @@
                         <div><p class="text-sm font-medium text-neutral-900">{{ $alert->message }}</p><p class="text-xs text-neutral-500">Due {{ $alert->due_date->format('M d, Y') }}</p></div>
                         <x-ui.badge :status="$alert->severity->value">{{ $alert->severity->label() }}</x-ui.badge>
                     </div>
-                @empty
-                    <p class="text-sm text-neutral-500">No open expiry alerts. The daily compliance check warns 30 days before recorded dates.</p>
+            @empty
+                <div class="py-4 text-center">
+                    <x-ui.empty-artwork category="compliance" size="sm" />
+                    <p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No open expiry alerts</p>
+                    <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">The daily compliance check warns 30 days before recorded dates.</p>
+                </div>
                 @endforelse
             </x-ui.card>
 
@@ -237,7 +535,7 @@
                             </x-ui.table.td>
                         </x-ui.table.row>
                     @empty
-                        <x-ui.table.empty :colspan="5" icon="document-text" title="No compliance evidence" message="Add only documents applicable to this supplier, product, and organization." />
+                        <x-ui.table.empty :colspan="5" artwork="compliance" icon="document-text" title="No compliance evidence" message="Add only documents applicable to this supplier, product, and organization." />
                     @endforelse
                     </tbody>
                 </x-ui.table>
@@ -289,7 +587,7 @@
                             </x-ui.table.td>
                         </x-ui.table.row>
                     @empty
-                        <x-ui.table.empty :colspan="5" icon="cube" title="No products linked" message="Associate existing inventory items before recording supplier-specific prices." />
+                        <x-ui.table.empty :colspan="5" artwork="inventory" icon="cube" title="No products linked" message="Associate existing inventory items before recording supplier-specific prices." />
                     @endforelse
                     </tbody>
                 </x-ui.table>
@@ -308,7 +606,7 @@
                     <tbody>
                     @forelse($supplier->contracts as $contract)
                         <x-ui.table.row><x-ui.table.td><span class="font-medium">{{ $contract->contract_number }}</span><span class="block text-xs text-neutral-500">{{ $contract->contract_type ?: 'Type not specified' }}</span></x-ui.table.td><x-ui.table.td>{{ $contract->starts_at->format('M d, Y') }} — {{ $contract->ends_at?->format('M d, Y') ?? 'open-ended' }}</x-ui.table.td><x-ui.table.td><span class="block text-xs">Payment: {{ $contract->payment_terms ?: '—' }}</span><span class="block text-xs">Delivery: {{ $contract->delivery_terms ?: '—' }}</span></x-ui.table.td><x-ui.table.td><x-ui.badge :status="$contract->effectiveStatus()">{{ str($contract->effectiveStatus())->headline() }}</x-ui.badge>@can(\App\Enums\Permission::ManageSuppliers->value)<form method="POST" action="{{ route('inventory.suppliers.contracts.update', [$supplier, $contract]) }}" class="mt-2" data-confirm-title="Change contract status" data-confirm-message="Are you sure you want to change the status of Contract {{ $contract->contract_number }} to {{ $contract->status === 'active' ? 'inactive' : 'active' }}?" data-confirm-label="Update Status">@csrf @method('PATCH')<input type="hidden" name="status" value="{{ $contract->status === 'active' ? 'inactive' : 'active' }}"><button class="text-xs text-primary-700 hover:underline">Mark {{ $contract->status === 'active' ? 'inactive' : 'active' }}</button></form>@endcan</x-ui.table.td></x-ui.table.row>
-                    @empty <x-ui.table.empty :colspan="4" icon="document-text" title="No contracts recorded" message="Add a reference when a supplier agreement actually exists." /> @endforelse
+                    @empty <x-ui.table.empty :colspan="4" artwork="compliance" icon="document-text" title="No contracts recorded" message="Add a reference when a supplier agreement actually exists." /> @endforelse
                     </tbody>
                 </x-ui.table>
             </x-ui.card>
@@ -332,7 +630,9 @@
                 <ol class="space-y-4">
                     @forelse($supplier->accreditations as $review)
                         <li class="border-l-2 border-neutral-200 pl-4 text-sm"><div class="flex items-center gap-2"><span class="font-medium">Cycle {{ $review->cycle_number }}</span><x-ui.badge :status="$review->status->value">{{ $review->status->label() }}</x-ui.badge></div><p class="mt-1 text-xs text-neutral-500">Submitted {{ $review->submitted_at->format('M d, Y g:i A') }} by {{ $review->submitter?->name ?? 'Former/system user' }}@if($review->decided_at) · Decided {{ $review->decided_at->format('M d, Y g:i A') }} by {{ $review->decisionMaker?->name ?? 'Former/system user' }}@endif</p>@if($review->decision_notes)<p class="mt-1 text-neutral-700">{{ $review->decision_notes }}</p>@endif</li>
-                    @empty <li class="text-sm text-neutral-500">No accreditation cycle has been submitted.</li> @endforelse
+                    @empty
+                        <li class="py-4 text-center"><x-ui.empty-artwork category="compliance" size="sm" /><p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No accreditation cycle submitted</p></li>
+                    @endforelse
                 </ol>
             </x-ui.card>
             <x-ui.card title="Audit activity" subtitle="Restricted audit details are shown only to users with audit-trail permission.">
@@ -340,7 +640,9 @@
                     <ol class="space-y-3">
                         @forelse($recentAudit as $log)
                             <li class="text-sm"><p class="font-medium text-neutral-800">{{ $log->action->label() }}</p><p class="text-xs text-neutral-500">{{ $log->created_at->timezone(config('app.timezone'))->format('M d, Y g:i A') }} · {{ $log->actor_name }}</p><p class="mt-1 text-neutral-600">{{ $log->description }}</p></li>
-                        @empty <li class="text-sm text-neutral-500">No supplier audit events recorded.</li> @endforelse
+                        @empty
+                            <li class="py-4 text-center"><x-ui.empty-artwork category="governance" size="sm" /><p class="mt-2 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No supplier audit events</p></li>
+                        @endforelse
                     </ol>
                 @else
                     <p class="text-sm text-neutral-500">Detailed append-only audit records are available through the restricted Audit Trail. Accreditation decisions above remain visible for operational continuity.</p>
@@ -555,7 +857,7 @@
                 <x-ui.alert variant="danger" title="Evidence could not be uploaded" class="mb-4">Review the highlighted fields and try again. A file must be re-selected after a failed upload.</x-ui.alert>
             @endif
             <p class="mb-3 text-xs text-neutral-500">Private PDF/JPG/PNG, up to 10 MB.</p>
-            <form method="POST" enctype="multipart/form-data" action="{{ route('inventory.suppliers.documents.store', $supplier) }}" class="space-y-3">
+            <form method="POST" enctype="multipart/form-data" action="{{ route('inventory.suppliers.documents.store', $supplier) }}" class="space-y-3" x-data="{ issuedAt: @js(old('issued_at', '')) }">
                 @csrf
                 <input type="hidden" name="_supplier_form" value="upload-evidence">
                 @if ($supplier->provides_regulated_health_products)
@@ -564,7 +866,7 @@
                 <x-ui.field name="document_type" label="Document type" placeholder="e.g. FDA License to Operate" required />
                 <x-ui.field name="document_number" label="Reference number" />
                 <x-ui.field name="issuing_authority" label="Issuing authority" />
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><x-ui.field name="issued_at" label="Issue date" type="date" /><x-ui.field name="expires_at" label="Expiry date" type="date" /></div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><x-ui.field name="issued_at" label="Issue date" type="date" x-model="issuedAt" :max="today()->toDateString()" /><x-ui.field name="expires_at" label="Expiry date" type="date" x-bind:min="issuedAt || null" hint="Expired evidence may be retained for historical verification." /></div>
                 <x-ui.field name="file" label="File" type="file" accept=".pdf,.jpg,.jpeg,.png" required />
                 <x-ui.field name="replaces_document_id" label="Replaces / renews" type="select" :options="$supplier->documents->where('is_current', true)->mapWithKeys(fn($document) => [$document->id => $document->document_type.' — '.($document->document_number ?: $document->original_name)])->all()" placeholder="New evidence (not a replacement)" hint="Selecting a document preserves it as history and carries forward its required/blocking controls." />
                 <label class="flex gap-2 text-sm"><input type="checkbox" name="required_for_accreditation" value="1" @checked(old('required_for_accreditation')) class="rounded border-neutral-300 text-primary-600"> Required for this accreditation</label>
@@ -621,14 +923,14 @@
                       data-confirm-title="Record product price"
                       data-confirm-message="Are you sure you want to commit this price schedule for this supplier product?"
                       data-confirm-label="Record price"
-                      class="space-y-3">
+                      class="space-y-3" x-data="{ effectiveFrom: @js(old('effective_from', '')) }">
                     @csrf
                     <input type="hidden" name="_supplier_form" value="record-price">
                     <x-ui.field name="supplier_product_id" label="Supplier product" type="select" :options="$activeProducts->mapWithKeys(fn($p) => [$p->id => $p->item->name])->all()" required />
                     <x-ui.field name="supplier_contract_id" label="Contract reference" type="select" :options="$supplier->contracts->filter(fn($c) => $c->effectiveStatus() === 'active')->mapWithKeys(fn($c) => [$c->id => $c->contract_number])->all()" placeholder="No contract" />
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><x-ui.field name="currency" label="Currency" value="PHP" required /><x-ui.field name="unit_price" label="Unit price" type="number" step="0.01" min="0.01" required /></div>
                     <x-ui.field name="minimum_order_quantity" label="Minimum quantity for price" type="number" min="1" value="1" required />
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><x-ui.field name="effective_from" label="Effective from" type="date" required /><x-ui.field name="effective_until" label="Effective until" type="date" /></div>
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><x-ui.field name="effective_from" label="Effective from" type="date" x-model="effectiveFrom" required /><x-ui.field name="effective_until" label="Effective until" type="date" x-bind:min="effectiveFrom || null" /></div>
                     <div class="flex flex-wrap justify-end gap-2 border-t border-neutral-200 pt-4">
                         <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'record-price')">Cancel</x-ui.button>
                         <x-ui.button type="submit" data-loading-text="Recording price...">Record Price</x-ui.button>
@@ -649,12 +951,12 @@
                   data-confirm-title="Register contract"
                   data-confirm-message="Are you sure you want to register this procurement contract reference?"
                   data-confirm-label="Register contract"
-                  class="space-y-3">
+                  class="space-y-3" x-data="{ startsAt: @js(old('starts_at', '')) }">
                 @csrf
                 <input type="hidden" name="_supplier_form" value="add-contract">
                 <x-ui.field name="contract_number" label="Contract number" required />
                 <x-ui.field name="contract_type" label="Contract type" />
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><x-ui.field name="starts_at" label="Start date" type="date" required /><x-ui.field name="ends_at" label="End date" type="date" /></div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2"><x-ui.field name="starts_at" label="Start date" type="date" x-model="startsAt" required /><x-ui.field name="ends_at" label="End date" type="date" x-bind:min="startsAt || null" /></div>
                 <x-ui.field name="status" label="Record status" type="select" :options="['active'=>'Active','inactive'=>'Inactive']" required />
                 <x-ui.field name="payment_terms" label="Payment terms" type="textarea" rows="2" />
                 <x-ui.field name="delivery_terms" label="Delivery terms" type="textarea" rows="2" />
@@ -694,7 +996,7 @@
                           data-confirm-label="Approve Supplier">
                         @csrf
                         <input type="hidden" name="_supplier_form" value="lifecycle">
-                        <x-ui.field name="expires_at" label="Accreditation valid until" type="date" hint="Leave blank only when the approving policy has no fixed renewal date." />
+                        <x-ui.field name="expires_at" label="Accreditation valid until" type="date" :min="today()->toDateString()" hint="Leave blank only when the approving policy has no fixed renewal date." />
                         <x-ui.field name="decision_notes" label="Approval notes" type="textarea" rows="2" />
                         <label class="flex items-start gap-2 text-xs text-neutral-700">
                             <input type="checkbox" name="compliance_attested" value="1" required class="mt-0.5 rounded border-neutral-300 text-primary-600 focus:ring-primary-500">

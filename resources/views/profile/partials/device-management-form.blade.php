@@ -57,8 +57,9 @@
                 </p>
 
                 @if ($trustedDevices->isEmpty())
-                    <div class="mt-3 rounded-lg border border-dashed border-neutral-300 p-6 text-center text-xs text-neutral-500 dark:border-neutral-700">
-                        {{ __('No trusted browsers registered yet.') }}
+                    <div class="mt-3 rounded-lg border border-dashed border-neutral-300 p-6 text-center dark:border-neutral-700">
+                        <x-ui.empty-artwork category="users" size="sm" />
+                        <p class="mt-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300">{{ __('No trusted browsers registered yet') }}</p>
                     </div>
                 @else
                     <ul class="mt-3 divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">

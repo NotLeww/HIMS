@@ -322,6 +322,14 @@ class ApprovalRoutingEngine
             return;
         }
 
+        $routeParameters = match ($chain->chain_type) {
+            ApprovalChainType::PurchaseOrder => ['purchase_order' => $chain->target_id],
+            default => [
+                'tab' => 'doa_approvals',
+                'approval_search' => (string) $chain->id,
+            ],
+        };
+
         $this->notifications->sendToRoles(
             [$role],
             "approval-chain:{$chain->id}:step:{$step->id}",
@@ -334,6 +342,7 @@ class ApprovalRoutingEngine
             ),
             NotificationPriority::Info,
             NotificationDestination::Procurement,
+            $routeParameters,
             except: $except,
         );
     }
