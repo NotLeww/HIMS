@@ -920,16 +920,24 @@ class StorageLocationLifecycleTest extends TestCase
         $activeShelf = $this->createLocation('North Supply Shelf', 'FILTER-SHELF', 'active', 'shelf');
         $inactivePharmacy = $this->createLocation('Closed Pharmacy Room', 'FILTER-PHARM', 'inactive', 'pharmacy');
 
-        $this->actingAs($this->superAdmin)
+        $searchResponse = $this->actingAs($this->superAdmin)
             ->get(route('inventory.storage-locations', ['search' => 'Closed Pharmacy']))
             ->assertOk()
-            ->assertSee($inactivePharmacy->code)
-            ->assertDontSee($activeShelf->code);
+            ->assertSee($inactivePharmacy->code);
+        $searchResponse->assertViewHas('locations', function ($locations) use ($activeShelf, $inactivePharmacy): bool {
+            $codes = $locations->getCollection()->pluck('code');
 
-        $this->actingAs($this->superAdmin)
+            return $codes->contains($inactivePharmacy->code) && ! $codes->contains($activeShelf->code);
+        });
+
+        $typeAndStatusResponse = $this->actingAs($this->superAdmin)
             ->get(route('inventory.storage-locations', ['type' => 'pharmacy', 'status' => 'inactive']))
             ->assertOk()
-            ->assertSee($inactivePharmacy->code)
-            ->assertDontSee($activeShelf->code);
+            ->assertSee($inactivePharmacy->code);
+        $typeAndStatusResponse->assertViewHas('locations', function ($locations) use ($activeShelf, $inactivePharmacy): bool {
+            $codes = $locations->getCollection()->pluck('code');
+
+            return $codes->contains($inactivePharmacy->code) && ! $codes->contains($activeShelf->code);
+        });
     }
 }

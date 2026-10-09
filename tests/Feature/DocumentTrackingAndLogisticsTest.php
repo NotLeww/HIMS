@@ -952,7 +952,7 @@ class DocumentTrackingAndLogisticsTest extends TestCase
             ->get(route('inventory.logistics.iar.index', ['search' => 'no-such-record']))
             ->assertOk()
             ->assertDontSee('IAR-SEARCHABLE-01')
-            ->assertSee('No matching IAR records found.');
+            ->assertSee('No matching IAR records');
     }
 
     public function test_logistics_document_supersede_creates_new_revision_and_archives_original(): void

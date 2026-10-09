@@ -334,7 +334,7 @@ class InventoryItemsCatalogTest extends TestCase
         $this->actingAs($manager)
             ->get(route('inventory.items', ['search' => 'Nothing Matches This']))
             ->assertOk()
-            ->assertSee('No items match these filters.')
+            ->assertSee('No items match these filters')
             ->assertDontSee('No inventory items yet.');
     }
 

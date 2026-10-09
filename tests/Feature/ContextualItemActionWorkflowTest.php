@@ -349,7 +349,7 @@ class ContextualItemActionWorkflowTest extends TestCase
         });
 
         $response->assertSee('AI Forecast: Insufficient Data');
-        $response->assertSee('No forecast or configured planning quantity is available.');
+        $response->assertSee('No recorded consumption was found for this item. Enter the required quantity manually. Future recommendations will improve after issuances are recorded.');
     }
 
     public function test_material_requisitions_store_records_ai_suggestion_and_user_quantity_in_audit_log(): void

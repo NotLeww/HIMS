@@ -1477,11 +1477,11 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('PO-DOA-AUTH-001');
-        $response->assertSee('Item Pricing &amp; Commitment Breakdown', false);
+        $response->assertSee('Commitment amount');
         $response->assertSee('Sterile Gauze Sponge DOA');
         $response->assertSee('₱500.00/pack');
         $response->assertSee('₱2,000.00');
-        $response->assertSee('Purchase Order Commitment Total:');
+        $response->assertSee('Purchase Order Total:');
     }
 
     /**

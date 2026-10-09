@@ -235,14 +235,14 @@ class SmartWarehousingWorkflowTest extends TestCase
     {
         User::factory()->inventoryManager()->create();
         $this->seed(SmartWarehousingDemoSeeder::class);
-        $task = \App\Models\WarehouseTask::where('idempotency_key', 'smart-warehousing-demo-replenishment-v1')->firstOrFail();
+        $task = \App\Models\WarehouseTask::where('idempotency_key', 'central-warehouse-replenishment-2026-01')->firstOrFail();
         $task->update(['status' => WarehouseTaskStatus::Completed, 'completed_quantity' => 24, 'completed_at' => now()]);
 
         $this->seed(SmartWarehousingDemoSeeder::class);
 
-        $this->assertSame(1, StorageLocation::where('code', 'SWS-DEMO-WH')->count());
-        $this->assertSame(1, InventoryItem::where('sku', 'SWS-DEMO-SYRINGE-5ML')->count());
-        $this->assertSame(1, \App\Models\WarehouseTask::where('idempotency_key', 'smart-warehousing-demo-replenishment-v1')->count());
+        $this->assertSame(1, StorageLocation::where('code', 'CWH-MAIN')->count());
+        $this->assertSame(1, InventoryItem::where('sku', 'MED-SYR-005ML')->count());
+        $this->assertSame(1, \App\Models\WarehouseTask::where('idempotency_key', 'central-warehouse-replenishment-2026-01')->count());
         $this->assertSame(WarehouseTaskStatus::Completed, $task->refresh()->status);
     }
 
