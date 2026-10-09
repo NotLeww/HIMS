@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\UserStatus;
 use App\Models\AccountActivationChallenge;
+use App\Models\SupplierInvitation;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -217,6 +218,25 @@ class AccountActivationService
             );
 
             $challenge->forceFill(['consumed_at' => now()])->save();
+
+            $invitation = SupplierInvitation::query()
+                ->where('user_id', $lockedUser->getKey())
+                ->where('status', SupplierInvitation::STATUS_PENDING)
+                ->with('supplier')
+                ->first();
+
+            if ($invitation) {
+                $invitation->update([
+                    'status' => SupplierInvitation::STATUS_ACCEPTED,
+                    'accepted_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                app(\App\Services\HimsNotificationWorkflowService::class)->supplierInvitationAccepted(
+                    $invitation,
+                    $activated,
+                );
+            }
 
             return $activated;
         }, 3);

@@ -6,6 +6,9 @@ use App\Enums\AuditAction;
 use App\Enums\Permission;
 use App\Enums\PurchaseOrderStatus;
 use App\Enums\QuoteStatus;
+use App\Enums\SupplierCompanyProfileStatus;
+use App\Enums\SupplierDocumentStatus;
+use App\Http\Requests\UpdateSupplierCompanyProfileRequest;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderAcknowledgement;
 use App\Models\InventoryItem;
@@ -17,8 +20,10 @@ use App\Models\SupplierDocument;
 use App\Models\SupplierInvoice;
 use App\Models\SupplierProduct;
 use App\Models\SupplierQuote;
+use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\FileContentValidator;
+use App\Services\SupplierManagementService;
 use App\Support\ItemFamilyArtwork;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,9 +38,17 @@ use Throwable;
 
 class SupplierPortalController extends Controller
 {
-    public function dashboard(Request $request): View
+    public function dashboard(Request $request): View|RedirectResponse
     {
         $supplier = $request->user()->supplier;
+        if ($request->user()->can(Permission::SupplierManageProfile->value)
+            && in_array($supplier->company_profile_status, [
+                SupplierCompanyProfileStatus::Draft,
+                SupplierCompanyProfileStatus::ChangesRequested,
+                SupplierCompanyProfileStatus::Rejected,
+            ], true)) {
+            return redirect()->route('supplier.company-profile.edit');
+        }
 
         return view('supplier-portal.dashboard', [
             'supplier' => $supplier,
@@ -47,6 +60,82 @@ class SupplierPortalController extends Controller
             'recentOrders' => $supplier->purchaseOrders()->with('lines.item')->latest('requested_at')->limit(5)->get(),
             'scorecard' => $supplier->latestApprovedScorecard,
         ]);
+    }
+
+    public function companyProfile(Request $request): View
+    {
+        abort_unless($request->user()->can(Permission::SupplierManageProfile->value), 403);
+        $supplier = $request->user()->supplier->load([
+            'contacts' => fn ($query) => $query->where('is_active', true)->orderByDesc('is_primary')->orderBy('name'),
+            'documents' => fn ($query) => $query->where('is_current', true)->latest(),
+            'companyProfileReviewer',
+        ]);
+        $primaryContact = $supplier->contacts->firstWhere('is_primary', true) ?? $supplier->contacts->first();
+        [$contactFirstName, $contactMiddleName, $contactSurname] = User::splitName(
+            $supplier->contact_person ?: $primaryContact?->name
+        );
+        $official = [
+            'name' => $supplier->name,
+            'trade_name' => $supplier->trade_name,
+            'business_structure' => $supplier->business_structure,
+            'provides_regulated_health_products' => $supplier->provides_regulated_health_products,
+            'tax_number' => $supplier->tax_number,
+            'address' => $supplier->address,
+            'billing_address' => $supplier->billing_address,
+            'delivery_address' => $supplier->delivery_address,
+            'contact_person' => $supplier->contact_person ?: $primaryContact?->name,
+            'contact_first_name' => $contactFirstName,
+            'contact_middle_name' => $contactMiddleName,
+            'contact_surname' => $contactSurname,
+            'contact_position' => $primaryContact?->position,
+            'email' => $supplier->email ?: $primaryContact?->email,
+            'phone' => $supplier->phone ?: ($primaryContact?->mobile ?: $primaryContact?->phone),
+            'standard_lead_time_days' => $supplier->standard_lead_time_days,
+            'payment_terms' => $supplier->payment_terms,
+        ];
+        $profile = array_replace($official, $supplier->company_profile_draft ?? []);
+        if (blank($profile['contact_first_name'] ?? null) && filled($profile['contact_person'] ?? null)) {
+            [$profile['contact_first_name'], $profile['contact_middle_name'], $profile['contact_surname']] = User::splitName($profile['contact_person']);
+        }
+        $requiredFields = ['name', 'business_structure', 'tax_number', 'address', 'billing_address', 'delivery_address', 'contact_first_name', 'contact_surname', 'contact_position', 'email', 'phone'];
+        $acceptableDocumentExists = $supplier->documents->contains(
+            fn (SupplierDocument $document): bool => $document->verification_status !== SupplierDocumentStatus::Rejected
+        );
+        $completed = collect($requiredFields)->filter(fn (string $field) => filled($profile[$field] ?? null))->count()
+            + ($acceptableDocumentExists ? 1 : 0);
+
+        return view('supplier-portal.company-profile', [
+            'supplier' => $supplier,
+            'profile' => $profile,
+            'completion' => $supplier->company_profile_status === SupplierCompanyProfileStatus::Approved
+                ? 100
+                : (int) round(($completed / (count($requiredFields) + 1)) * 100),
+            'editable' => $supplier->company_profile_status !== SupplierCompanyProfileStatus::PendingReview,
+            'acceptableDocumentExists' => $acceptableDocumentExists,
+            'businessStructures' => [
+                'sole_proprietorship' => 'Sole Proprietorship',
+                'partnership' => 'Partnership',
+                'corporation' => 'Corporation',
+                'cooperative' => 'Cooperative',
+                'government_entity' => 'Government Entity',
+                'foreign_entity' => 'Foreign Entity',
+                'other' => 'Other',
+            ],
+        ]);
+    }
+
+    public function saveCompanyProfile(UpdateSupplierCompanyProfileRequest $request, SupplierManagementService $suppliers): RedirectResponse
+    {
+        $suppliers->saveCompanyProfileDraft($request->user()->supplier, $request->validated(), $request->user());
+
+        return back()->with('success', 'Company profile draft saved.');
+    }
+
+    public function submitCompanyProfile(UpdateSupplierCompanyProfileRequest $request, SupplierManagementService $suppliers): RedirectResponse
+    {
+        $suppliers->submitCompanyProfile($request->user()->supplier, $request->validated(), $request->user());
+
+        return back()->with('success', 'Company profile submitted for hospital review.');
     }
 
     public function orders(Request $request): View
@@ -83,6 +172,11 @@ class SupplierPortalController extends Controller
             return $ack;
         });
         $audit->log(AuditAction::AcknowledgedPurchaseOrder, $request->user(), "Supplier responded {$data['response']} to {$purchaseOrder->po_number}.", $ack, $purchaseOrder->po_number, newValues: ['response' => $data['response']]);
+        app(\App\Services\HimsNotificationWorkflowService::class)->purchaseOrderAcknowledged(
+            $purchaseOrder,
+            $data['response'],
+            $data['message'] ?? null,
+        );
         return back()->with('success', 'Purchase order response recorded.');
     }
 
@@ -108,6 +202,10 @@ class SupplierPortalController extends Controller
             return $shipment;
         });
         $audit->log(AuditAction::SubmittedAdvanceShipNotice, $request->user(), "Submitted ASN {$shipment->shipment_number} for {$purchaseOrder->po_number}.", $shipment, $shipment->shipment_number);
+        app(\App\Services\HimsNotificationWorkflowService::class)->purchaseOrderShipmentDispatched(
+            $purchaseOrder,
+            $shipment->shipment_number,
+        );
         return back()->with('success', 'Advance Ship Notice submitted.');
     }
 
@@ -123,6 +221,7 @@ class SupplierPortalController extends Controller
         $data = $request->validate(['supplier_response_type' => ['required', Rule::in(['replacement_scheduled', 'supplemental_delivery', 'credit_requested', 'dispute', 'explanation', 'other'])], 'supplier_response' => ['required', 'string', 'max:2000']]);
         $discrepancy->update([...$data, 'status' => 'supplier_responded', 'responded_by' => $request->user()->id, 'responded_at' => now()]);
         $audit->log(AuditAction::RespondedToSupplierDiscrepancy, $request->user(), 'Supplier responded to a receiving discrepancy.', $discrepancy, "Discrepancy {$discrepancy->id}", newValues: ['status' => 'supplier_responded', 'response_type' => $data['supplier_response_type']]);
+        app(\App\Services\HimsNotificationWorkflowService::class)->discrepancyResponded($discrepancy);
         return back()->with('success', 'Discrepancy response submitted for hospital review.');
     }
 
@@ -147,6 +246,7 @@ class SupplierPortalController extends Controller
             $invitation->update(['status' => 'submitted', 'acknowledged_at' => now()]); return $quote;
         });
         $audit->log(AuditAction::SubmittedSupplierQuote, $request->user(), "Submitted bid for {$rfq->rfq_number}.", $quote, $data['quote_number']);
+        app(\App\Services\HimsNotificationWorkflowService::class)->rfqBidSubmitted($rfq, $quote, $invitation->supplier);
         return back()->with('success', 'Bid submitted securely. Competitor bids remain inaccessible.');
     }
 
@@ -167,6 +267,7 @@ class SupplierPortalController extends Controller
             $invoice->lines()->createMany($rows); return $invoice;
         });
         $audit->log(AuditAction::SubmittedSupplierInvoice, $request->user(), "Submitted invoice {$invoice->invoice_number}.", $invoice, $invoice->invoice_number, newValues: ['status' => $invoice->status]);
+        app(\App\Services\HimsNotificationWorkflowService::class)->invoiceSubmitted($po, $invoice->invoice_number);
         return back()->with('success', "Invoice submitted with status: {$invoice->status}.");
     }
 
@@ -192,6 +293,7 @@ class SupplierPortalController extends Controller
     {
         abort_unless($request->user()->can(Permission::SupplierManageProfile->value), 403);
         $supplier = $request->user()->supplier;
+        abort_if($supplier->company_profile_status === SupplierCompanyProfileStatus::PendingReview, 422, 'Documents cannot be changed while the company profile is under review.');
         $data = $request->validate([
             'document_type' => ['required', 'string', 'max:255'],
             'document_number' => ['nullable', 'string', 'max:255'],
@@ -199,6 +301,14 @@ class SupplierPortalController extends Controller
             'expires_at' => ['nullable', 'date', 'after_or_equal:issued_at'],
             'issuing_authority' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            'replaces_document_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('supplier_documents', 'id')->where(fn ($query) => $query
+                    ->where('supplier_id', $supplier->id)
+                    ->where('is_current', true)
+                    ->where('verification_status', SupplierDocumentStatus::Pending->value)),
+            ],
             'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'min:1', 'max:10240'],
         ]);
         $file = $request->file('file');
@@ -211,22 +321,56 @@ class SupplierPortalController extends Controller
         $path = $file->store('supplier-documents/'.$supplier->id, 'local');
         abort_if($path === false, 500, 'The supplier document could not be stored.');
         try {
-            $document = $supplier->documents()->create([
-                ...collect($data)->except('file')->all(),
-                'disk' => 'local',
-                'path' => $path,
-                'original_name' => $file->getClientOriginalName(),
-                'mime_type' => $file->getMimeType() ?? 'application/octet-stream',
-                'size_bytes' => $file->getSize(),
-                'uploaded_by' => $request->user()->id,
-            ]);
-            $audit->log(AuditAction::UploadedSupplierDocument, $request->user(), 'Supplier uploaded compliance evidence for hospital review.', $document, $document->original_name, newValues: ['supplier_id' => $supplier->id, 'document_type' => $document->document_type]);
+            $createdDoc = DB::transaction(function () use ($supplier, $data, $file, $path, $request, $audit): SupplierDocument {
+                $replacement = isset($data['replaces_document_id'])
+                    ? $supplier->documents()->whereKey($data['replaces_document_id'])->where('is_current', true)->where('verification_status', SupplierDocumentStatus::Pending->value)->lockForUpdate()->firstOrFail()
+                    : null;
+                $document = $supplier->documents()->create([
+                    ...collect($data)->except(['file', 'replaces_document_id'])->all(),
+                    'document_type' => $replacement?->document_type ?? $data['document_type'],
+                    'disk' => 'local',
+                    'path' => $path,
+                    'original_name' => $file->getClientOriginalName(),
+                    'mime_type' => $file->getMimeType() ?? 'application/octet-stream',
+                    'size_bytes' => $file->getSize(),
+                    'uploaded_by' => $request->user()->id,
+                ]);
+                $replacement?->update(['is_current' => false, 'superseded_by_id' => $document->id]);
+                $audit->log(AuditAction::UploadedSupplierDocument, $request->user(), 'Supplier uploaded compliance evidence for hospital review.', $document, $document->original_name, newValues: ['supplier_id' => $supplier->id, 'document_type' => $document->document_type, 'replaces_document_id' => $replacement?->id]);
+
+                return $document;
+            });
+
+            app(\App\Services\HimsNotificationWorkflowService::class)->supplierComplianceUploaded(
+                $supplier,
+                $createdDoc,
+                $request->user(),
+            );
         } catch (Throwable $exception) {
             Storage::disk('local')->delete($path);
             throw $exception;
         }
 
         return back()->with('success', 'Compliance document uploaded for hospital review.');
+    }
+
+    public function removeCompanyProfileDocument(Request $request, SupplierDocument $document, AuditLogger $audit): RedirectResponse
+    {
+        abort_unless($request->user()->can(Permission::SupplierManageProfile->value), 403);
+        $supplier = $request->user()->supplier;
+        $this->own($request, $document->supplier_id);
+        abort_if($supplier->company_profile_status === SupplierCompanyProfileStatus::PendingReview, 422, 'Documents cannot be removed while the company profile is under review.');
+        abort_unless($document->is_current && $document->verification_status === SupplierDocumentStatus::Pending, 422, 'Only current documents awaiting review can be removed.');
+
+        DB::transaction(function () use ($document, $request, $audit): void {
+            $predecessor = SupplierDocument::where('superseded_by_id', $document->id)->lockForUpdate()->first();
+            $audit->log(AuditAction::RemovedSupplierDocument, $request->user(), 'Removed a pending supplier document before profile submission.', $document, $document->original_name, newValues: ['supplier_id' => $document->supplier_id, 'document_type' => $document->document_type]);
+            $document->delete();
+            $predecessor?->update(['is_current' => true, 'superseded_by_id' => null]);
+        });
+        Storage::disk($document->disk)->delete($document->path);
+
+        return back()->with('success', 'Pending document removed.');
     }
 
     public function downloadComplianceDocument(Request $request, SupplierDocument $document, AuditLogger $audit): StreamedResponse
@@ -255,6 +399,10 @@ class SupplierPortalController extends Controller
         ]);
         $product = SupplierProduct::create([...$data, 'supplier_id' => $request->user()->supplier_id, 'approval_status' => 'pending_review', 'is_active' => false]);
         $audit->log(AuditAction::AddedSupplierProduct, $request->user(), 'Submitted a supplier catalogue product for hospital review.', $product, $product->supplier_product_name, newValues: ['approval_status' => 'pending_review']);
+        app(\App\Services\HimsNotificationWorkflowService::class)->catalogProductSubmitted(
+            $request->user()->supplier,
+            $product,
+        );
 
         return back()->with('success', 'Catalog product submitted for hospital approval. The item master was not changed.');
     }

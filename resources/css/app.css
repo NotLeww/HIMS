@@ -398,6 +398,12 @@
         background-image: linear-gradient(to bottom, #fff 0%, #fff 48%, rgb(236 254 255 / 0.72) 100%);
     }
 
+    :where(div, li, td):has(> img[data-empty-surface-artwork]) > img[data-empty-surface-artwork] {
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
     :where(div, li, td):has(> img[data-empty-surface-artwork]) > img[data-empty-surface-artwork] + :is(p, div, h2, h3, h4) {
         margin-top: 0.75rem;
         color: theme('colors.neutral.950');
@@ -657,12 +663,7 @@
         }
     }
 
-    /*
-     * The supplier directory fits six columns into a card that narrows to about
-     * 700px once the app sidebar and the decision-summary aside are both in
-     * place. Trimming the shared cell padding here gives every column enough
-     * room to clear its own header, so the table never overflows the card.
-     */
+    /* Keep the six-column supplier directory compact beside its summary panel. */
     .supplier-directory-table th,
     .supplier-directory-table td {
         padding-right: 0.75rem;

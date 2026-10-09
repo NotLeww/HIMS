@@ -77,9 +77,7 @@ Route::get('/dashboard/ai-assistant/attachment/{message}', [DashboardAiAssistant
  * by being forgotten in this file. See App\Enums\UserRole::permissions() for
  * who holds what, and /admin/permissions for the matrix that renders it.
  */
-Route::middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])->group(function () {
-    Route::get('/global-search', [GlobalSearchController::class, 'search'])->name('global-search');
-
+Route::middleware(['auth:web,admin,super_admin', 'verified'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead'])
@@ -88,6 +86,10 @@ Route::middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])->
     Route::get('/notifications/{notification}', [NotificationController::class, 'open'])
         ->whereUuid('notification')
         ->name('notifications.open');
+});
+
+Route::middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])->group(function () {
+    Route::get('/global-search', [GlobalSearchController::class, 'search'])->name('global-search');
 
     Route::get('/inventory', function () {
         return redirect()->route('dashboard');
@@ -108,8 +110,11 @@ Route::middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])->
     Route::post('/inventory/suppliers/{supplier}/submit', [SupplierController::class, 'submitForReview'])->name('inventory.suppliers.submit');
     Route::post('/inventory/suppliers/{supplier}/approve', [SupplierController::class, 'approve'])->name('inventory.suppliers.approve');
     Route::post('/inventory/suppliers/{supplier}/portal-users', [SupplierController::class, 'inviteUser'])->name('inventory.suppliers.portal-users.store');
+    Route::post('/inventory/suppliers/{supplier}/invitations/{invitation}/resend', [SupplierController::class, 'resendInvitation'])->name('inventory.suppliers.invitations.resend');
+    Route::post('/inventory/suppliers/{supplier}/invitations/{invitation}/revoke', [SupplierController::class, 'revokeInvitation'])->name('inventory.suppliers.invitations.revoke');
     Route::patch('/inventory/suppliers/{supplier}/portal-users/{portalUser}', [SupplierController::class, 'updatePortalUser'])->name('inventory.suppliers.portal-users.update');
     Route::post('/inventory/suppliers/{supplier}/reject', [SupplierController::class, 'reject'])->name('inventory.suppliers.reject');
+    Route::post('/inventory/suppliers/{supplier}/request-profile-changes', [SupplierController::class, 'requestProfileChanges'])->name('inventory.suppliers.request-profile-changes');
     Route::post('/inventory/suppliers/{supplier}/suspend', [SupplierController::class, 'suspend'])->name('inventory.suppliers.suspend');
     Route::post('/inventory/suppliers/{supplier}/archive', [ArchiveController::class, 'archiveSupplier'])->name('inventory.suppliers.archive');
     Route::post('/inventory/suppliers/{supplier}/unarchive', [ArchiveController::class, 'unarchiveSupplier'])->name('inventory.suppliers.unarchive');
@@ -290,6 +295,10 @@ Route::prefix('supplier')->name('supplier.')->group(function () {
 
     Route::middleware(['auth:web', 'verified', 'supplier-user'])->group(function () {
         Route::get('/dashboard', [SupplierPortalController::class, 'dashboard'])->name('dashboard');
+        Route::get('/company-profile', [SupplierPortalController::class, 'companyProfile'])->name('company-profile.edit');
+        Route::patch('/company-profile', [SupplierPortalController::class, 'saveCompanyProfile'])->name('company-profile.update');
+        Route::patch('/company-profile/submit', [SupplierPortalController::class, 'submitCompanyProfile'])->name('company-profile.submit');
+        Route::delete('/company-profile/documents/{document}', [SupplierPortalController::class, 'removeCompanyProfileDocument'])->name('company-profile.documents.destroy');
         Route::get('/purchase-orders', [SupplierPortalController::class, 'orders'])->name('orders.index');
         Route::get('/purchase-orders/{purchaseOrder}', [SupplierPortalController::class, 'order'])->name('orders.show');
         Route::post('/purchase-orders/{purchaseOrder}/acknowledgements', [SupplierPortalController::class, 'acknowledge'])->name('orders.acknowledge');

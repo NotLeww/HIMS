@@ -14,13 +14,14 @@
         'resolved' => 'success', 'delivered' => 'success', 'healthy' => 'success',
         'accepted' => 'success', 'arrived_at_dock' => 'success',
         'posted' => 'success', 'stored' => 'success', 'complete' => 'success',
+        'verified' => 'success',
         'good' => 'success', 'sent' => 'success',
 
         // amber — needs attention, in flight
         'low_stock' => 'warning', 'pending' => 'warning', 'pending_activation' => 'warning', 'pending_approval' => 'warning', 'submitted' => 'warning',
         'expiring_soon' => 'warning', 'partially_fulfilled' => 'warning',
         'acknowledged' => 'warning', 'under_review' => 'warning',
-        'pending_review' => 'warning', 'action_required' => 'danger',
+        'pending_review' => 'warning', 'changes_requested' => 'warning', 'action_required' => 'danger',
         'warning' => 'warning', 'degraded' => 'warning',
         'pending_inspection' => 'warning', 'customs_hold' => 'warning', 'processing' => 'warning',
         'quarantined' => 'warning', 'under_qc' => 'warning', 'under_inspection' => 'warning',
@@ -30,7 +31,7 @@
         // red — blocked, failed, critical
         'out_of_stock' => 'danger', 'expired' => 'danger', 'rejected' => 'danger',
         'cancelled' => 'danger', 'critical' => 'danger', 'open' => 'danger',
-        'unhealthy' => 'danger', 'inspected_failed' => 'danger',
+        'unhealthy' => 'danger', 'inspected_failed' => 'danger', 'revoked' => 'danger',
 
         // recovery incidents — a failure is red, work in flight is amber, a
         // verified recovery is green, and "no retry exists" is simply inert
@@ -77,7 +78,7 @@
 @endphp
 
 <span {{ $attributes->merge([
-    'class' => 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium '
+    'class' => 'inline-flex shrink-0 items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium '
         .'ring-1 ring-inset whitespace-nowrap '.$styles[$key],
 ]) }}>
     @if ($dot || strtolower((string) $status) === 'approved')

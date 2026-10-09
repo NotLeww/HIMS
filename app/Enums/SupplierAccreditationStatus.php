@@ -6,6 +6,7 @@ enum SupplierAccreditationStatus: string
 {
     case Draft = 'draft';
     case PendingReview = 'pending_review';
+    case ChangesRequested = 'changes_requested';
     case Approved = 'approved';
     case Rejected = 'rejected';
     case Expired = 'expired';
@@ -15,6 +16,7 @@ enum SupplierAccreditationStatus: string
         return match ($this) {
             self::Draft => 'Draft',
             self::PendingReview => 'Pending Review',
+            self::ChangesRequested => 'Changes Requested',
             self::Approved => 'Approved',
             self::Rejected => 'Rejected',
             self::Expired => 'Expired',
