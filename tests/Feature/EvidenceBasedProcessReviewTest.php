@@ -375,6 +375,28 @@ class EvidenceBasedProcessReviewTest extends TestCase
                         'sla_breach_rate' => 25.0,
                         'status' => 'elevated',
                     ],
+                    'stage_2' => [
+                        'name' => 'Sourcing RFQ to Award',
+                        'sample_count' => 1,
+                        'mean_tat_days' => 2.0,
+                        'min_tat_days' => 2.0,
+                        'max_tat_days' => 2.0,
+                        'variance_sigma' => 0.0,
+                        'sla_target_days' => 7.0,
+                        'sla_breach_rate' => 0.0,
+                        'status' => 'healthy',
+                    ],
+                    'stage_3' => [
+                        'name' => 'PO Issuance to Conforme',
+                        'sample_count' => 0,
+                        'mean_tat_days' => 0.0,
+                        'min_tat_days' => 0.0,
+                        'max_tat_days' => 0.0,
+                        'variance_sigma' => 0.0,
+                        'sla_target_days' => 2.0,
+                        'sla_breach_rate' => 0.0,
+                        'status' => 'insufficient_data',
+                    ],
                 ],
             ],
         ]);
@@ -392,7 +414,15 @@ class EvidenceBasedProcessReviewTest extends TestCase
         $this->assertStringNotContainsString('Validation Exception:', $createView);
 
         // Show page
-        $this->actingAs($this->evaluator)->get(route('reviews.show', $review))->assertOk();
+        $this->actingAs($this->evaluator)->get(route('reviews.show', $review))
+            ->assertOk()
+            ->assertSee('End-to-End Supply Chain Turnaround Time &amp; Lead Time Variability', false)
+            ->assertSee('Population standard deviation (σ), available from 2 transactions')
+            ->assertSee('Lead Time Standard Deviation (σ)')
+            ->assertSee('Not available; at least two transactions are required')
+            ->assertSee('Not available; no transactions were recorded')
+            ->assertDontSee('($\sigma$)')
+            ->assertDontSee('Lead Time Variance');
 
         // DPRI Index page
         $this->actingAs($this->evaluator)->get(route('reviews.dpri'))->assertOk();

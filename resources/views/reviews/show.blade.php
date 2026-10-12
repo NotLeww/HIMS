@@ -348,8 +348,8 @@
                 <div class="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
                     <div class="flex items-center justify-between border-b border-neutral-200 pb-4">
                         <div>
-                            <h3 class="text-base font-semibold text-neutral-900">End-to-End Supply Chain Turnaround Time &amp; Lead Time Variance</h3>
-                            <p class="text-xs text-neutral-500">Mathematical standard deviation ($\sigma$) and SLA compliance across 6 hospital logistics lifecycle phases.</p>
+                            <h3 class="text-base font-semibold text-neutral-900">End-to-End Supply Chain Turnaround Time &amp; Lead Time Variability</h3>
+                            <p class="text-xs text-neutral-500">Population standard deviation (σ), available from 2 transactions, and SLA compliance across 6 hospital logistics lifecycle phases.</p>
                         </div>
                     </div>
 
@@ -361,7 +361,7 @@
                                     <th scope="col" class="px-4 py-3">Sample Count</th>
                                     <th scope="col" class="px-4 py-3">Mean TAT</th>
                                     <th scope="col" class="px-4 py-3">Min / Max</th>
-                                    <th scope="col" class="px-4 py-3">Lead Time Variance ($\sigma$)</th>
+                                    <th scope="col" class="px-4 py-3 text-center">Lead Time Standard Deviation (σ)</th>
                                     <th scope="col" class="px-4 py-3">SLA Threshold</th>
                                     <th scope="col" class="px-4 py-3">Breach Rate</th>
                                     <th scope="col" class="px-4 py-3">Status</th>
@@ -374,16 +374,28 @@
                                         <td class="px-4 py-3 text-neutral-600">{{ $stage['sample_count'] }} transactions</td>
                                         <td class="px-4 py-3 font-mono font-medium text-neutral-900">{{ $stage['mean_tat_days'] }} days</td>
                                         <td class="px-4 py-3 font-mono text-xs text-neutral-500">{{ $stage['min_tat_days'] }}d / {{ $stage['max_tat_days'] }}d</td>
-                                        <td class="px-4 py-3 font-mono">
-                                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs {{ $stage['variance_sigma'] > 3.0 ? 'bg-amber-100 text-amber-800' : 'bg-neutral-100 text-neutral-700' }}">
-                                                 &sigma; = {{ $stage['variance_sigma'] }}d
-                                             </span>
+                                        <td class="px-4 py-3 text-center font-mono">
+                                             @if($stage['sample_count'] >= 2)
+                                                 <span @class([
+                                                     'inline-flex items-center rounded px-2 py-0.5 text-xs',
+                                                     'bg-amber-100 text-amber-800' => $stage['variance_sigma'] > 3.0,
+                                                     'bg-neutral-100 text-neutral-700' => $stage['variance_sigma'] <= 3.0,
+                                                 ])>
+                                                     &sigma; = {{ $stage['variance_sigma'] }}d
+                                                 </span>
+                                             @else
+                                                 <span class="text-xs text-neutral-500" aria-label="Not available; at least two transactions are required">N/A</span>
+                                             @endif
                                         </td>
                                         <td class="px-4 py-3 font-mono text-xs text-neutral-600">{{ $stage['sla_target_days'] }} days</td>
                                         <td class="px-4 py-3">
-                                             <span class="text-xs font-semibold {{ $stage['sla_breach_rate'] > 20 ? 'text-rose-600' : 'text-neutral-700' }}">
-                                                 {{ $stage['sla_breach_rate'] }}%
-                                             </span>
+                                             @if($stage['sample_count'] > 0)
+                                                 <span class="text-xs font-semibold {{ $stage['sla_breach_rate'] > 20 ? 'text-rose-600' : 'text-neutral-700' }}">
+                                                     {{ $stage['sla_breach_rate'] }}%
+                                                 </span>
+                                             @else
+                                                 <span class="text-xs text-neutral-500" aria-label="Not available; no transactions were recorded">N/A</span>
+                                             @endif
                                         </td>
                                         <td class="px-4 py-3">
                                              @if($stage['status'] === 'critical')
