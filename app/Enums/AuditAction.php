@@ -129,6 +129,7 @@ enum AuditAction: string
     case ShipmentDispatched = 'shipment_dispatched';
     case ShipmentArrivedDock = 'shipment_arrived_dock';
     case CreatedProcessReview = 'created_process_review';
+    case RefreshedProcessReview = 'refreshed_process_review';
     case UpdatedProcessReview = 'updated_process_review';
     case SubmittedProcessReview = 'submitted_process_review';
     case ApprovedProcessReview = 'approved_process_review';
@@ -300,6 +301,7 @@ enum AuditAction: string
             self::ShipmentDispatched => 'Shipment Dispatched',
             self::ShipmentArrivedDock => 'Shipment Arrived at Dock',
             self::CreatedProcessReview => 'Created Process Review',
+            self::RefreshedProcessReview => 'Refreshed Process Review',
             self::UpdatedProcessReview => 'Updated Process Review',
             self::SubmittedProcessReview => 'Submitted Process Review',
             self::ApprovedProcessReview => 'Approved Process Review',

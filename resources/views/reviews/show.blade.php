@@ -1,3 +1,8 @@
+@php
+    $canAutoRefreshAnalysis = $review->isDraft()
+        && auth()->user()?->can(\App\Enums\Permission::CreateProcessReview->value);
+@endphp
+
 <x-app-layout>
     <div x-data="{
         activeTab: 'velocity',
@@ -7,8 +12,117 @@
         implementUrl: '',
         implementTitle: '',
         rejectionReason: '',
-        implementationNotes: ''
-    }" @keydown.escape.window="openDropdown = null; rejectModal = false; implementModal = false" class="space-y-6">
+        implementationNotes: '',
+        freshnessEndpoint: {{ Illuminate\Support\Js::from($canAutoRefreshAnalysis ? route('reviews.freshness', $review) : null) }},
+        refreshEndpoint: {{ Illuminate\Support\Js::from($canAutoRefreshAnalysis ? route('reviews.refresh-analysis', $review) : null) }},
+        analysisVersion: {{ Illuminate\Support\Js::from($review->metrics_summary['source_data_version'] ?? null) }},
+        refreshState: 'idle',
+        refreshStatus: 'Draft analysis auto-refresh is on',
+        refreshBusy: false,
+        refreshTimer: null,
+        init() {
+            const tabKey = `process-review-${{{ Illuminate\Support\Js::from($review->id) }}}-active-tab`;
+            const validTabs = ['velocity', 'scorecards', 'savings', 'shrinkage', 'recommendations', 'context'];
+            try {
+                const storedTab = window.sessionStorage.getItem(tabKey);
+                if (validTabs.includes(storedTab)) this.activeTab = storedTab;
+                this.$watch('activeTab', (tab) => window.sessionStorage.setItem(tabKey, tab));
+            } catch (error) {
+                // Tabs and auto-refresh still work when browser storage is restricted.
+            }
+
+            if (!this.freshnessEndpoint || !this.refreshEndpoint) return;
+            this.$nextTick(() => this.checkForAnalysisUpdates());
+            this.refreshTimer = window.setInterval(() => this.checkForAnalysisUpdates(), 30000);
+        },
+        async checkForAnalysisUpdates() {
+            if (this.refreshBusy || document.hidden || !this.freshnessEndpoint) return;
+
+            try {
+                const response = await fetch(this.freshnessEndpoint, {
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-cache',
+                        'X-Session-Activity': 'passive'
+                    }
+                });
+                if (!response.ok) throw new Error(`Freshness check failed (${response.status})`);
+
+                const freshness = await response.json();
+                if (!freshness.refreshable) {
+                    window.location.reload();
+                    return;
+                }
+
+                if (freshness.stale) {
+                    await this.refreshAnalysis();
+                    return;
+                }
+
+                this.analysisVersion = freshness.version;
+                this.refreshState = 'idle';
+                this.refreshStatus = 'Draft analysis is up to date';
+            } catch (error) {
+                this.refreshState = 'error';
+                this.refreshStatus = 'Auto-refresh unavailable; reload to retry';
+            }
+        },
+        async refreshAnalysis() {
+            if (this.refreshBusy || !this.refreshEndpoint) return;
+
+            this.refreshBusy = true;
+            this.refreshState = 'refreshing';
+            this.refreshStatus = 'Refreshing draft analysis…';
+
+            try {
+                const csrfToken = document.querySelector('meta[name=\'csrf-token\']')?.content;
+                if (!csrfToken) throw new Error('Missing CSRF token');
+
+                const response = await fetch(this.refreshEndpoint, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Session-Activity': 'passive'
+                    },
+                    body: '{}'
+                });
+
+                if (response.status === 422) {
+                    window.location.reload();
+                    return;
+                }
+                if (!response.ok) throw new Error(`Analysis refresh failed (${response.status})`);
+
+                window.location.reload();
+            } catch (error) {
+                this.refreshState = 'error';
+                this.refreshStatus = 'Auto-refresh unavailable; reload to retry';
+            } finally {
+                this.refreshBusy = false;
+            }
+        },
+        openMetricTab(tab) {
+            this.activeTab = tab;
+            this.openDropdown = null;
+            this.$nextTick(() => {
+                const panel = document.getElementById(`review-panel-${tab}`);
+                if (!panel) return;
+
+                const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                panel.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+                panel.focus({ preventScroll: true });
+            });
+        }
+    }"
+    @visibilitychange.window="if (!document.hidden) checkForAnalysisUpdates()"
+    @keydown.escape.window="openDropdown = null; rejectModal = false; implementModal = false"
+    class="space-y-6">
         <x-ui.validation-summary />
 
         {{-- Breadcrumbs & Header --}}
@@ -52,6 +166,16 @@
                             • Approved by: <span class="text-emerald-700 font-semibold">{{ $review->approver->name }}</span> ({{ $review->approved_at->format('M d, Y H:i') }})
                         @endif
                     </p>
+                    @if($canAutoRefreshAnalysis)
+                        <p class="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-neutral-600" role="status" aria-live="polite">
+                            <span
+                                class="h-1.5 w-1.5 shrink-0 rounded-full"
+                                :class="refreshState === 'error' ? 'bg-amber-500' : (refreshState === 'refreshing' ? 'bg-indigo-500 motion-safe:animate-pulse' : 'bg-emerald-500')"
+                                aria-hidden="true"
+                            ></span>
+                            <span x-text="refreshStatus">Draft analysis auto-refresh is on</span>
+                        </p>
+                    @endif
                 </div>
 
                 {{-- Governance Action Bar --}}
@@ -118,15 +242,66 @@
             @endif
 
             {{-- Key Metrics KPI Summary Cards --}}
+            @php
+                $hasSavingsDetails = $review->procurementSavingsLogs->isNotEmpty();
+                $hasSupplierDetails = $review->supplierScorecards->isNotEmpty();
+                $hasStockAccuracyDetails = $review->inventoryShrinkageReports->isNotEmpty();
+                $critBottleneck = $review->critical_bottleneck;
+                $hasBottleneckDetails = ! empty($critBottleneck);
+
+                $spendCardTag = $hasSavingsDetails ? 'button' : 'div';
+                $savingsCardTag = $hasSavingsDetails ? 'button' : 'div';
+                $supplierCardTag = $hasSupplierDetails ? 'button' : 'div';
+                $stockCardTag = $hasStockAccuracyDetails ? 'button' : 'div';
+                $bottleneckCardTag = $hasBottleneckDetails ? 'button' : 'div';
+            @endphp
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-                    <div class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">Total Spend Evaluated</div>
+                <{{ $spendCardTag }}
+                    @if($hasSavingsDetails)
+                        type="button"
+                        aria-label="View evaluated procurement spend details"
+                        data-metric-target="savings"
+                        @click="openMetricTab('savings')"
+                    @else
+                        tabindex="0"
+                    @endif
+                    data-metric-title="Total Spend Evaluated"
+                    data-metric-summary="Actual spend for procurement line items matched to active DOH DPRI references during this review period."
+                    @class([
+                        'w-full rounded-xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition-[border-color,box-shadow,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2',
+                        'cursor-pointer hover:border-indigo-300 hover:shadow-md active:bg-neutral-50' => $hasSavingsDetails,
+                        'cursor-help hover:border-neutral-300' => ! $hasSavingsDetails,
+                    ])
+                >
+                    <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+                        <span>Total Spend Evaluated</span>
+                        <x-ui.icon name="information-circle" class="h-3.5 w-3.5 shrink-0" />
+                    </div>
                     <div class="mt-1.5 text-xl font-bold text-neutral-900">₱ {{ number_format($review->metrics_summary['total_spend'] ?? ($review->metrics_summary['total_spend_evaluated'] ?? 0), 2) }}</div>
                     <div class="mt-0.5 text-[11px] text-neutral-500">{{ $review->procurementSavingsLogs->count() }} line items audited</div>
-                </div>
+                </{{ $spendCardTag }}>
 
-                <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-                    <div class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">DPRI Net Price Savings</div>
+                <{{ $savingsCardTag }}
+                    @if($hasSavingsDetails)
+                        type="button"
+                        aria-label="View DPRI price savings details"
+                        data-metric-target="savings"
+                        @click="openMetricTab('savings')"
+                    @else
+                        tabindex="0"
+                    @endif
+                    data-metric-title="DPRI Net Price Savings"
+                    data-metric-summary="DPRI benchmark value minus actual procurement spend. A positive amount means the hospital purchased below the reference ceiling."
+                    @class([
+                        'w-full rounded-xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition-[border-color,box-shadow,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2',
+                        'cursor-pointer hover:border-indigo-300 hover:shadow-md active:bg-neutral-50' => $hasSavingsDetails,
+                        'cursor-help hover:border-neutral-300' => ! $hasSavingsDetails,
+                    ])
+                >
+                    <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+                        <span>DPRI Net Price Savings</span>
+                        <x-ui.icon name="information-circle" class="h-3.5 w-3.5 shrink-0" />
+                    </div>
                     @php
                         $netSavings = $review->net_savings_amount;
                         $savingsPct = $review->aggregate_savings_pct;
@@ -137,10 +312,29 @@
                     <div class="mt-0.5 text-[11px] text-neutral-500">
                         {{ $savingsPct }}% vs DOH ceiling
                     </div>
-                </div>
+                </{{ $savingsCardTag }}>
 
-                <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-                    <div class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">Average Supplier Score</div>
+                <{{ $supplierCardTag }}
+                    @if($hasSupplierDetails)
+                        type="button"
+                        aria-label="View supplier scorecard details"
+                        data-metric-target="scorecards"
+                        @click="openMetricTab('scorecards')"
+                    @else
+                        tabindex="0"
+                    @endif
+                    data-metric-title="Average Supplier Score"
+                    data-metric-summary="Average supplier performance across delivery (40%), quality and regulatory compliance (40%), and fill rate (20%)."
+                    @class([
+                        'w-full rounded-xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition-[border-color,box-shadow,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2',
+                        'cursor-pointer hover:border-indigo-300 hover:shadow-md active:bg-neutral-50' => $hasSupplierDetails,
+                        'cursor-help hover:border-neutral-300' => ! $hasSupplierDetails,
+                    ])
+                >
+                    <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+                        <span>Average Supplier Score</span>
+                        <x-ui.icon name="information-circle" class="h-3.5 w-3.5 shrink-0" />
+                    </div>
                     <div class="mt-1.5 text-xl font-bold text-indigo-600">
                         @php
                             $avgSupplierScore = $review->avg_supplier_score;
@@ -148,21 +342,56 @@
                         {{ $avgSupplierScore !== null ? $avgSupplierScore.'%' : 'N/A' }}
                     </div>
                     <div class="mt-0.5 text-[11px] text-neutral-500">{{ $review->supplierScorecards->count() }} active suppliers</div>
-                </div>
+                </{{ $supplierCardTag }}>
 
-                <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-                    <div class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">Physical Stock Accuracy</div>
+                <{{ $stockCardTag }}
+                    @if($hasStockAccuracyDetails)
+                        type="button"
+                        aria-label="View physical stock accuracy details"
+                        data-metric-target="shrinkage"
+                        @click="openMetricTab('shrinkage')"
+                    @else
+                        tabindex="0"
+                    @endif
+                    data-metric-title="Physical Stock Accuracy"
+                    data-metric-summary="Quantity reconciliation between ledger balances and completed physical cycle counts during the review period."
+                    @class([
+                        'w-full rounded-xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition-[border-color,box-shadow,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2',
+                        'cursor-pointer hover:border-indigo-300 hover:shadow-md active:bg-neutral-50' => $hasStockAccuracyDetails,
+                        'cursor-help hover:border-neutral-300' => ! $hasStockAccuracyDetails,
+                    ])
+                >
+                    <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+                        <span>Physical Stock Accuracy</span>
+                        <x-ui.icon name="information-circle" class="h-3.5 w-3.5 shrink-0" />
+                    </div>
                     <div class="mt-1.5 text-xl font-bold text-neutral-900">
                         {{ $review->metrics_summary['overall_stock_accuracy'] ?? 100 }}%
                     </div>
                     <div class="mt-0.5 text-[11px] text-neutral-500">COA Circular 2020-006</div>
-                </div>
+                </{{ $stockCardTag }}>
 
-                <div class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm col-span-2 lg:col-span-1">
-                    <div class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">Critical Bottleneck</div>
-                    @php
-                        $critBottleneck = $review->critical_bottleneck;
-                    @endphp
+                <{{ $bottleneckCardTag }}
+                    @if($hasBottleneckDetails)
+                        type="button"
+                        aria-label="View supply chain bottleneck details"
+                        data-metric-target="velocity"
+                        @click="openMetricTab('velocity')"
+                    @else
+                        tabindex="0"
+                    @endif
+                    data-metric-title="Critical Bottleneck"
+                    data-metric-summary="The lifecycle stage with the highest mean turnaround-to-SLA ratio. It may still be within SLA when no stage has breached its threshold."
+                    @class([
+                        'col-span-2 w-full rounded-xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition-[border-color,box-shadow,background-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 lg:col-span-1',
+                        'cursor-pointer hover:border-indigo-300 hover:shadow-md active:bg-neutral-50' => $hasBottleneckDetails,
+                        'cursor-help hover:border-neutral-300' => ! $hasBottleneckDetails,
+                    ])
+                >
+                    <div class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+                        <span>Critical Bottleneck</span>
+                        <x-ui.icon name="information-circle" class="h-3.5 w-3.5 shrink-0" />
+                    </div>
                     <div class="mt-1.5 text-sm font-bold text-amber-600 truncate">
                         {{ $critBottleneck['name'] ?? 'None Detected' }}
                     </div>
@@ -173,7 +402,7 @@
                             Operations within SLA
                         @endif
                     </div>
-                </div>
+                </{{ $bottleneckCardTag }}>
             </div>
 
             {{-- Navigation: Major Dropdown Tabs --}}
@@ -344,7 +573,7 @@
             </div>
 
             {{-- TAB 1: PROCESS VELOCITY & BOTTLENECKS --}}
-            <div x-show="activeTab === 'velocity'" class="space-y-6">
+            <div id="review-panel-velocity" tabindex="-1" x-show="activeTab === 'velocity'" class="scroll-mt-4 space-y-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
                 <div class="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
                     <div class="flex items-center justify-between border-b border-neutral-200 pb-4">
                         <div>
@@ -419,7 +648,7 @@
             </div>
 
             {{-- TAB 2: SUPPLIER SCORECARDS --}}
-            <div x-show="activeTab === 'scorecards'" class="space-y-6">
+            <div id="review-panel-scorecards" tabindex="-1" x-show="activeTab === 'scorecards'" class="scroll-mt-4 space-y-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
                 <div class="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
                     <div class="flex items-center justify-between border-b border-neutral-200 pb-4">
                         <div>
@@ -489,7 +718,7 @@
             </div>
 
             {{-- TAB 3: DPRI PRICE SAVINGS --}}
-            <div x-show="activeTab === 'savings'" class="space-y-6">
+            <div id="review-panel-savings" tabindex="-1" x-show="activeTab === 'savings'" class="scroll-mt-4 space-y-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
                 <div class="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
                     <div class="flex items-center justify-between border-b border-neutral-200 pb-4">
                         <div>
@@ -552,7 +781,7 @@
             </div>
 
             {{-- TAB 4: COA SHRINKAGE & AUDITS --}}
-            <div x-show="activeTab === 'shrinkage'" class="space-y-6">
+            <div id="review-panel-shrinkage" tabindex="-1" x-show="activeTab === 'shrinkage'" class="scroll-mt-4 space-y-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
                 <div class="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
                     <div class="flex items-center justify-between border-b border-neutral-200 pb-4">
                         <div>

@@ -274,6 +274,8 @@ Route::middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])->
     Route::post('/reviews/check-availability', [ProcessReviewController::class, 'checkAvailability'])->name('reviews.check-availability');
     Route::get('/reviews/dpri', [ProcessReviewController::class, 'dpriIndex'])->name('reviews.dpri');
     Route::post('/reviews/dpri', [ProcessReviewController::class, 'storeDpri'])->name('reviews.dpri.store');
+    Route::get('/reviews/{review}/freshness', [ProcessReviewController::class, 'freshness'])->name('reviews.freshness');
+    Route::post('/reviews/{review}/refresh-analysis', [ProcessReviewController::class, 'refreshAnalysis'])->name('reviews.refresh-analysis');
     Route::get('/reviews/{review}', [ProcessReviewController::class, 'show'])->name('reviews.show');
     Route::put('/reviews/{review}', [ProcessReviewController::class, 'update'])->name('reviews.update');
     Route::post('/reviews/{review}/submit', [ProcessReviewController::class, 'submit'])->name('reviews.submit');
