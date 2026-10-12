@@ -44,6 +44,21 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class InventoryReportService
 {
+    /** Tables that feed the interactive report dashboard. */
+    private const FRESHNESS_TABLES = [
+        'inventory_items',
+        'item_categories',
+        'item_stock_levels',
+        'item_batches',
+        'storage_locations',
+        'suppliers',
+        'purchase_orders',
+        'goods_receipt_notes',
+        'grn_line_items',
+        'quality_inspections',
+        'stock_movements',
+    ];
+
     /** Window the movement and spend sections cover unless asked otherwise. */
     public const DEFAULT_PERIOD_DAYS = 30;
 
@@ -79,6 +94,30 @@ class InventoryReportService
         'csv' => 'Comma-Separated Values (.csv)',
         'json' => 'JavaScript Object Notation (.json)',
     ];
+
+    /**
+     * Return a stable token that changes when any report source changes.
+     */
+    public function dataVersion(): string
+    {
+        $queries = collect(self::FRESHNESS_TABLES)
+            ->map(fn (string $table) => DB::table($table)->selectRaw(
+                '? as source, COUNT(*) as row_count, MAX(updated_at) as last_updated_at',
+                [$table],
+            ));
+
+        $combined = $queries->shift();
+        foreach ($queries as $query) {
+            $combined->unionAll($query);
+        }
+
+        $versions = DB::query()
+            ->fromSub($combined, 'report_source_versions')
+            ->orderBy('source')
+            ->get();
+
+        return hash('sha256', json_encode($versions, JSON_THROW_ON_ERROR));
+    }
 
     /**
      * Every figure the screen needs, in one call.

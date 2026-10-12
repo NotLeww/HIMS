@@ -58,8 +58,16 @@ Alpine.data('himsCountUp', ({ value, decimals = 0, duration = 1000 }) => ({
     },
 }));
 
-Alpine.data('inventoryReportTabs', ({ canViewFinancialData = false } = {}) => ({
+Alpine.data('inventoryReportTabs', ({ canViewFinancialData = false, freshnessEndpoint = null, initialVersion = '' } = {}) => ({
     activeTab: 'overview',
+    currentVersion: initialVersion,
+    pendingVersion: null,
+    freshnessEndpoint,
+    freshnessInterval: null,
+    freshnessRequest: null,
+    freshnessPolling: false,
+    visibilityHandler: null,
+    liveStatus: 'Live updates on',
     tabs: [
         'overview',
         'valuation',
@@ -74,6 +82,111 @@ Alpine.data('inventoryReportTabs', ({ canViewFinancialData = false } = {}) => ({
         if (this.tabs.includes(requestedTab)) this.activeTab = requestedTab;
         this.syncFilterTab();
         this.$nextTick(() => this.animateActiveTab());
+        this.restoreScrollPosition();
+        this.startLiveRefresh();
+    },
+
+    destroy() {
+        this.pauseLiveRefresh();
+        this.freshnessRequest?.abort();
+        if (this.visibilityHandler) document.removeEventListener('visibilitychange', this.visibilityHandler);
+    },
+
+    startLiveRefresh() {
+        if (!this.freshnessEndpoint) return;
+
+        this.visibilityHandler = () => {
+            if (document.hidden) {
+                this.pauseLiveRefresh();
+            } else {
+                this.resumeLiveRefresh();
+            }
+        };
+        document.addEventListener('visibilitychange', this.visibilityHandler);
+        if (!document.hidden) this.freshnessInterval = window.setInterval(() => this.pollFreshness(), 30000);
+    },
+
+    pauseLiveRefresh() {
+        if (this.freshnessInterval !== null) {
+            window.clearInterval(this.freshnessInterval);
+            this.freshnessInterval = null;
+        }
+    },
+
+    resumeLiveRefresh() {
+        if (this.freshnessInterval !== null) return;
+        this.pollFreshness();
+        this.freshnessInterval = window.setInterval(() => this.pollFreshness(), 30000);
+    },
+
+    canReloadSafely() {
+        const active = document.activeElement;
+        const editing = active instanceof HTMLElement
+            && active.matches('input, select, textarea, [contenteditable="true"]');
+        const dialogOpen = Array.from(document.querySelectorAll('[role="dialog"]'))
+            .some((dialog) => window.getComputedStyle(dialog).display !== 'none');
+
+        return !editing && !dialogOpen;
+    },
+
+    async pollFreshness() {
+        if (this.freshnessPolling || document.hidden || !this.freshnessEndpoint) return;
+        this.freshnessPolling = true;
+        this.freshnessRequest = new AbortController();
+
+        try {
+            const response = await fetch(this.freshnessEndpoint, {
+                signal: this.freshnessRequest.signal,
+                cache: 'no-store',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Session-Activity': 'passive',
+                },
+            });
+            if (!response.ok) {
+                this.liveStatus = 'Live update unavailable';
+                return;
+            }
+
+            const data = await response.json();
+            if (!data.version || data.version === this.currentVersion) {
+                this.liveStatus = 'Live updates on';
+                return;
+            }
+
+            this.pendingVersion = data.version;
+            this.liveStatus = 'New data available';
+            if (this.canReloadSafely()) this.reloadWithFreshData();
+        } catch (error) {
+            if (error.name !== 'AbortError') this.liveStatus = 'Live update unavailable';
+        } finally {
+            this.freshnessRequest = null;
+            this.freshnessPolling = false;
+        }
+    },
+
+    reloadWithFreshData() {
+        try {
+            window.sessionStorage.setItem('hims:inventory-reports-scroll', String(window.scrollY));
+        } catch {
+            // Reloading still preserves the active tab through the URL hash.
+        }
+        window.location.reload();
+    },
+
+    restoreScrollPosition() {
+        let savedPosition = null;
+        try {
+            savedPosition = window.sessionStorage.getItem('hims:inventory-reports-scroll');
+            window.sessionStorage.removeItem('hims:inventory-reports-scroll');
+        } catch {
+            return;
+        }
+        if (savedPosition === null) return;
+
+        this.$nextTick(() => window.requestAnimationFrame(() => {
+            window.scrollTo({ top: Number(savedPosition), behavior: 'auto' });
+        }));
     },
 
     selectTab(tab) {

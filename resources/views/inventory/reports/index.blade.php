@@ -729,12 +729,17 @@
 
     <div
         id="report-sections"
-        x-data="inventoryReportTabs({ canViewFinancialData: {{ $canViewFinancialData ? 'true' : 'false' }} })"
+        x-data="inventoryReportTabs({
+            canViewFinancialData: {{ $canViewFinancialData ? 'true' : 'false' }},
+            freshnessEndpoint: @js(route('inventory.reports.freshness')),
+            initialVersion: @js($reportDataVersion),
+        })"
         x-on:open-report-tab.window="selectTab($event.detail.tab); $nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'start' }))"
         class="space-y-4"
     >
         <div class="rounded-xl border border-neutral-200 bg-white p-2 shadow-xs dark:border-neutral-800 dark:bg-neutral-900 print:hidden">
-            <nav class="overflow-x-auto" aria-label="Report sections">
+            <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <nav class="min-w-0 overflow-x-auto" aria-label="Report sections">
                 <div class="flex min-w-max items-center gap-1.5">
                     <button
                         type="button"
@@ -814,6 +819,11 @@
                     </button>
                 </div>
             </nav>
+                <div class="flex shrink-0 items-center gap-1.5 px-2 text-[11px] font-medium text-neutral-500 dark:text-neutral-400" aria-live="polite">
+                    <span class="h-1.5 w-1.5 rounded-full" :class="pendingVersion ? 'bg-warning-500' : 'bg-success-500'"></span>
+                    <span x-text="liveStatus"></span>
+                </div>
+            </div>
         </div>
 
         <div id="report-panel-overview" x-show="activeTab === 'overview'" x-cloak class="space-y-4 print:!block">

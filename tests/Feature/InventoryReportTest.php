@@ -151,7 +151,8 @@ class InventoryReportTest extends TestCase
             ->assertSee('Date range:')
             ->assertSee('As of today:')
             ->assertSee('report-panel-overview', false)
-            ->assertSee('inventoryReportTabs({ canViewFinancialData: true })', false)
+            ->assertSee('inventoryReportTabs({', false)
+            ->assertSee('canViewFinancialData: true', false)
             ->assertSee("selectTab('procurement')", false)
             ->assertSee('animate-report-metrics', false)
             ->assertSee('data-inventory-report-active-tab', false)
@@ -162,12 +163,38 @@ class InventoryReportTest extends TestCase
             ->assertSee('Procurement &amp; Spending', false)
             ->assertSee('Movements &amp; Consumption', false)
             ->assertSee('Expiry Risk Batches', false)
+            ->assertSee('freshnessEndpoint:', false)
+            ->assertSee('x-text="liveStatus"', false)
             ->assertSee('print:!block', false);
 
         // A viewer without ViewProcurementSensitiveData does not see the procurement spending tab
         $this->actingAs($nonFinancialReader)->get('/inventory/reports')
             ->assertStatus(200)
             ->assertDontSee('Procurement &amp; Spending', false);
+    }
+
+    public function test_report_freshness_token_changes_when_report_source_data_changes(): void
+    {
+        $reader = $this->reader();
+
+        $initialResponse = $this->actingAs($reader)
+            ->getJson(route('inventory.reports.freshness'))
+            ->assertOk();
+        $this->assertStringContainsString('no-store', (string) $initialResponse->headers->get('Cache-Control'));
+        $initialVersion = $initialResponse->json('version');
+
+        InventoryItem::create([
+            'name' => 'Freshness Probe Item',
+            'sku' => 'REPORT-FRESHNESS-001',
+            'quantity_on_hand' => 1,
+            'unit_cost' => 10,
+        ]);
+
+        $updatedVersion = $this->getJson(route('inventory.reports.freshness'))
+            ->assertOk()
+            ->json('version');
+
+        $this->assertNotSame($initialVersion, $updatedVersion);
     }
 
     /**

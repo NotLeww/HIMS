@@ -116,7 +116,18 @@ class ReportController extends Controller implements HasMiddleware
             'currentPeriod' => $periodParam ?? ($request->has('days') ? (string) $days : '30'),
             'currentFrom' => $fromParam,
             'currentTo' => $toParam,
+            'reportDataVersion' => $this->reports->dataVersion(),
         ]);
+    }
+
+    /**
+     * Lightweight version probe used by the visible reports page.
+     */
+    public function freshness(): JsonResponse
+    {
+        return response()->json([
+            'version' => $this->reports->dataVersion(),
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     /**

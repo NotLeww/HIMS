@@ -246,6 +246,7 @@ Route::middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])->
     Route::get('/inventory/stock', [InventoryController::class, 'stock'])->name('inventory.stock');
     Route::get('/inventory/alerts', [InventoryController::class, 'alerts'])->name('inventory.alerts');
     Route::get('/inventory/reports', [ReportController::class, 'index'])->name('inventory.reports');
+    Route::get('/inventory/reports/freshness', [ReportController::class, 'freshness'])->name('inventory.reports.freshness');
     Route::get('/inventory/reports/generate', [ReportController::class, 'generate'])->name('inventory.reports.generate');
     Route::get('/inventory/reports/schedules', [ScheduledReportController::class, 'index'])->name('inventory.reports.schedules');
     Route::post('/inventory/reports/schedules', [ScheduledReportController::class, 'store'])->name('inventory.reports.schedules.store');
