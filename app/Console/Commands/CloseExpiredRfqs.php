@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\AuditAction;
 use App\Enums\RfqStatus;
 use App\Models\SourcingRfq;
 use App\Services\Procurement\ProcurementAuditService;
@@ -29,7 +30,7 @@ class CloseExpiredRfqs extends Command
                 null,
                 'SourcingRfq',
                 $rfq->id,
-                'closed_bidding_sourcing_rfq',
+                AuditAction::ClosedBiddingSourcingRfq->value,
                 null,
                 [
                     'rfq_number' => $rfq->rfq_number,

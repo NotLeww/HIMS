@@ -74,10 +74,8 @@ class SupplierCompanyProfileTest extends TestCase
         $this->assertSame('Invited Supplier', $supplier->name);
         $this->assertSame('Proposed Legal Name', $supplier->company_profile_draft['name']);
         $this->assertSame(SupplierCompanyProfileStatus::Draft, $supplier->company_profile_status);
-        $this->assertDatabaseHas('audit_logs', [
+        $this->assertDatabaseMissing('audit_logs', [
             'action' => AuditAction::SavedSupplierProfileDraft->value,
-            'user_id' => $administrator->id,
-            'target_id' => (string) $supplier->id,
         ]);
     }
 

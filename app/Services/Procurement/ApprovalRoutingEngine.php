@@ -4,9 +4,11 @@ namespace App\Services\Procurement;
 
 use App\Enums\ApprovalChainType;
 use App\Enums\ApprovalStepStatus;
+use App\Enums\AuditAction;
 use App\Enums\NotificationDestination;
 use App\Enums\NotificationPriority;
 use App\Enums\PurchaseOrderStatus;
+use App\Enums\RequisitionStatus;
 use App\Enums\UserRole;
 use App\Models\ApprovalChain;
 use App\Models\ApprovalStep;
@@ -14,6 +16,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
 use App\Models\User;
 use App\Services\HimsNotificationService;
+use App\Services\HimsNotificationWorkflowService;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
@@ -213,7 +216,7 @@ class ApprovalRoutingEngine
 
         $freshChain = $chain->fresh();
         if ($freshChain->status === 'approved') {
-            app(\App\Services\HimsNotificationWorkflowService::class)->approvalChainDecided(
+            app(HimsNotificationWorkflowService::class)->approvalChainDecided(
                 $freshChain,
                 'approved',
                 $approver,
@@ -280,10 +283,21 @@ class ApprovalRoutingEngine
                 );
             }
 
+            if ($chain->chain_type === ApprovalChainType::PurchaseRequest) {
+                $this->auditService->record(
+                    $approver,
+                    'PurchaseRequest',
+                    $chain->target_id,
+                    AuditAction::RejectedPurchaseRequest->value,
+                    ['status' => RequisitionStatus::PendingApproval->value],
+                    ['status' => RequisitionStatus::Rejected->value, 'reason' => $rejectionReason],
+                );
+            }
+
             return $step;
         });
 
-        app(\App\Services\HimsNotificationWorkflowService::class)->approvalChainDecided(
+        app(HimsNotificationWorkflowService::class)->approvalChainDecided(
             $chain->fresh(),
             'rejected',
             $approver,

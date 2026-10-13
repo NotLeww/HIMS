@@ -998,6 +998,9 @@ class AuditTrailTest extends TestCase
         $adjustmentLog = AuditLog::where('action', AuditAction::PostedInventoryAdjustment->value)->firstOrFail();
         $this->assertSame($user->id, $adjustmentLog->user_id);
         $this->assertSame(20, $adjustmentLog->new_values['delta']);
+        $this->assertSame(1, AuditLog::count());
+        $this->assertSame(40, $adjustmentLog->old_values['quantity']);
+        $this->assertSame(60, $adjustmentLog->new_values['resulting_quantity']);
     }
 
     public function test_place_name_resolves_human_readable_location_from_coordinates_or_stored_values(): void

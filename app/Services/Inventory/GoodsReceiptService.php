@@ -402,7 +402,7 @@ class GoodsReceiptService
             $grn->save();
 
             $this->auditLogger->record(
-                AuditAction::CreatedGoodsReceipt,
+                AuditAction::PostedGoodsReceipt,
                 actor: $actor,
                 target: $grn,
                 description: "Created and posted Goods Receipt Note {$grn->grn_number} into Quarantine for PO {$po->po_number}",

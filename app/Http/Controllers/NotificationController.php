@@ -2,24 +2,20 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\AuditAction;
 use App\Enums\NotificationDestination;
 use App\Models\InventoryItem;
 use App\Models\PurchaseOrder;
 use App\Models\User;
-use App\Services\AuditLogger;
 use App\Services\HimsNotificationService;
 use App\Support\AuthenticationPanel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
-use Illuminate\Support\Facades\DB;
 
 class NotificationController extends Controller
 {
     public function __construct(
-        private readonly AuditLogger $auditLogger,
         private readonly HimsNotificationService $notifications,
     ) {}
 
@@ -55,22 +51,9 @@ class NotificationController extends Controller
     {
         $user = $this->user($request);
 
-        DB::transaction(function () use ($user): void {
-            $count = $this->notifications->feedFor($user)
-                ->whereNull('read_at')
-                ->update(['read_at' => now()]);
-
-            if ($count > 0) {
-                $this->auditLogger->record(
-                    AuditAction::AcknowledgedNotification,
-                    $user,
-                    $user,
-                    "Marked {$count} notifications as read.",
-                    $user->name,
-                    newValues: ['notifications_marked_read' => $count],
-                );
-            }
-        });
+        $this->notifications->feedFor($user)
+            ->whereNull('read_at')
+            ->update(['read_at' => now()]);
 
         return back();
     }
@@ -171,24 +154,7 @@ class NotificationController extends Controller
             return;
         }
 
-        DB::transaction(function () use ($user, $notification): void {
-            $notification->markAsRead();
-            $title = (string) ($notification->data['title'] ?? 'HIMS notification');
-
-            $this->auditLogger->record(
-                AuditAction::AcknowledgedNotification,
-                $user,
-                description: "Marked notification '{$title}' as read.",
-                targetName: $title,
-                newValues: [
-                    'notification_id' => $notification->id,
-                    'destination' => $notification->data['destination'] ?? null,
-                ],
-                targetType: 'Notification',
-                targetId: $notification->id,
-                targetReference: $title,
-            );
-        });
+        $notification->markAsRead();
     }
 
     private function user(Request $request): User

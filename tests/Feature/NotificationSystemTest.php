@@ -208,18 +208,12 @@ class NotificationSystemTest extends TestCase
         $this->actingAs($user)->patch(route('notifications.read', $own->id))->assertRedirect();
         $this->assertNotNull($own->fresh()->read_at);
         $this->assertSame(1, $user->fresh()->unreadNotifications()->count());
-        $this->assertDatabaseHas('audit_logs', [
-            'action' => AuditAction::AcknowledgedNotification->value,
-            'user_id' => $user->id,
-            'target_id' => $own->id,
-        ]);
+        $this->assertSame(0, AuditLog::where('action', AuditAction::AcknowledgedNotification)->count());
 
         $this->actingAs($user)->patch(route('notifications.read-all'))->assertRedirect();
         $this->assertSame(0, $user->fresh()->unreadNotifications()->count());
         $this->assertNull($others->fresh()->read_at);
-        $this->assertSame(2, AuditLog::where('action', AuditAction::AcknowledgedNotification)
-            ->where('user_id', $user->id)
-            ->count());
+        $this->assertSame(0, AuditLog::where('action', AuditAction::AcknowledgedNotification)->count());
     }
 
     public function test_notification_link_rechecks_current_authorization_before_redirecting(): void

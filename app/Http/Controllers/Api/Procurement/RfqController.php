@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Procurement;
 
+use App\Enums\AuditAction;
 use App\Enums\Permission;
 use App\Enums\ProcurementMethod;
 use App\Enums\RfqBiddingType;
@@ -11,6 +12,7 @@ use App\Models\InventoryItem;
 use App\Models\PurchaseRequest;
 use App\Models\SourcingRfq;
 use App\Models\Supplier;
+use App\Services\HimsNotificationWorkflowService;
 use App\Services\Procurement\ProcurementAuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -187,12 +189,12 @@ class RfqController extends Controller implements HasMiddleware
                 $user,
                 'SourcingRfq',
                 $rfq->id,
-                'created_sourcing_rfq',
+                AuditAction::PublishedSourcingRfq->value,
                 null,
                 ['rfq_number' => $rfq->rfq_number, 'deadline' => $rfq->submission_deadline->toIso8601String()]
             );
 
-            app(\App\Services\HimsNotificationWorkflowService::class)->rfqPublished($rfq, $eligibleSuppliers);
+            app(HimsNotificationWorkflowService::class)->rfqPublished($rfq, $eligibleSuppliers);
 
             $rfq->load(['lines.item', 'invitations.supplier']);
 

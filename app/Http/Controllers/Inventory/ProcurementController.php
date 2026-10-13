@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Enums\ApprovalChainType;
+use App\Enums\AuditAction;
 use App\Enums\Permission;
 use App\Enums\ProcurementMethod;
 use App\Enums\RequisitionStatus;
@@ -24,6 +25,7 @@ use App\Models\SupplierQuote;
 use App\Models\User;
 use App\Rules\ProcurementEligibleSupplier;
 use App\Services\DemandForecastService;
+use App\Services\HimsNotificationWorkflowService;
 use App\Services\Procurement\ApprovalRoutingEngine;
 use App\Services\Procurement\BudgetEncumbranceService;
 use App\Services\Procurement\EvaluationEngine;
@@ -359,20 +361,20 @@ class ProcurementController extends Controller implements HasMiddleware
 
         DB::transaction(function () use ($validated): void {
             ProcurementRequest::query()->lockForUpdate()->findOrFail($validated['procurement_request_id']);
-            $quote = SupplierQuote::updateOrCreate(
-                [
-                    'procurement_request_id' => $validated['procurement_request_id'],
-                    'supplier_id' => $validated['supplier_id'],
-                ],
-                collect($validated)->except(['procurement_request_id', 'supplier_id'])->all(),
-            );
+            $quote = SupplierQuote::firstOrNew([
+                'procurement_request_id' => $validated['procurement_request_id'],
+                'supplier_id' => $validated['supplier_id'],
+            ]);
+            $wasRevision = $quote->exists;
+            $oldValues = $wasRevision ? $quote->only(['supplier_id', 'quoted_price', 'status']) : null;
+            $quote->fill(collect($validated)->except(['procurement_request_id', 'supplier_id'])->all())->save();
 
             $this->auditService->record(
                 auth()->user(),
                 'SupplierQuote',
                 $quote->id,
-                'submitted_supplier_quote',
-                null,
+                ($wasRevision ? AuditAction::RevisedSupplierQuote : AuditAction::SubmittedSupplierQuote)->value,
+                $oldValues,
                 ['supplier_id' => $quote->supplier_id, 'quoted_price' => $quote->quoted_price]
             );
         });
@@ -590,7 +592,7 @@ class ProcurementController extends Controller implements HasMiddleware
                 auth()->user(),
                 'SourcingRfq',
                 $rfq->id,
-                'created_sourcing_rfq',
+                AuditAction::PublishedSourcingRfq->value,
                 null,
                 ['rfq_number' => $rfq->rfq_number, 'purchase_request_id' => $purchaseRequest?->id, 'deadline' => $rfq->submission_deadline->toIso8601String()]
             );
@@ -598,7 +600,7 @@ class ProcurementController extends Controller implements HasMiddleware
             return $rfq;
         });
 
-        app(\App\Services\HimsNotificationWorkflowService::class)->rfqPublished($rfq, $eligibleSuppliers);
+        app(HimsNotificationWorkflowService::class)->rfqPublished($rfq, $eligibleSuppliers);
 
         return redirect()->route('inventory.purchases')->with('success', 'Sourcing RFQ package published to accredited suppliers.');
     }

@@ -9,9 +9,9 @@ use App\Enums\QuoteStatus;
 use App\Enums\SupplierCompanyProfileStatus;
 use App\Enums\SupplierDocumentStatus;
 use App\Http\Requests\UpdateSupplierCompanyProfileRequest;
+use App\Models\InventoryItem;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderAcknowledgement;
-use App\Models\InventoryItem;
 use App\Models\QuoteLineItem;
 use App\Models\RfqSupplierInvitation;
 use App\Models\Shipment;
@@ -198,8 +198,7 @@ class SupplierPortalController extends Controller
                 if (! $validLines->has($line['po_line_id']) || $line['quantity'] > $validLines[$line['po_line_id']]) throw ValidationException::withMessages(['lines' => 'ASN lines must belong to this purchase order and may not exceed ordered quantities.']);
             }
             $shipment = Shipment::create([...collect($data)->except('lines')->all(), 'purchase_order_id' => $purchaseOrder->id, 'supplier_id' => $purchaseOrder->supplier_id, 'destination_facility' => 'Central Hospital Receiving Dock', 'status' => 'in_transit']);
-            $shipment->lines()->createMany($data['lines']);
-            return $shipment;
+            $shipment->lines()->createMany($data['lines']); return $shipment;
         });
         $audit->log(AuditAction::SubmittedAdvanceShipNotice, $request->user(), "Submitted ASN {$shipment->shipment_number} for {$purchaseOrder->po_number}.", $shipment, $shipment->shipment_number);
         app(\App\Services\HimsNotificationWorkflowService::class)->purchaseOrderShipmentDispatched(
@@ -238,15 +237,39 @@ class SupplierPortalController extends Controller
         abort_if($rfq->isBiddingClosed() || $rfq->status->value !== 'published', 422, 'Bidding is closed.');
         $data = $request->validate(['quote_number' => ['required', 'string', 'max:60'], 'payment_terms' => ['nullable', 'string', 'max:100'], 'payment_terms_custom' => ['nullable', 'string', 'max:100', Rule::requiredIf(fn () => $request->input('payment_terms') === 'other')], 'notes' => ['nullable', 'string', 'max:2000'], 'lines' => ['required', 'array'], 'lines.*.rfq_line_item_id' => ['required', 'integer', 'distinct'], 'lines.*.offered_unit_price' => ['required', 'numeric', 'min:0'], 'lines.*.offered_quantity' => ['required', 'integer', 'min:1'], 'lines.*.lead_time_days' => ['required', 'integer', 'min:0', 'max:3650']]);
         $paymentTerms = ($data['payment_terms'] ?? null) === 'other' ? $data['payment_terms_custom'] : ($data['payment_terms'] ?? null);
-        $quote = DB::transaction(function () use ($data, $paymentTerms, $rfq, $invitation) {
+        $result = DB::transaction(function () use ($data, $paymentTerms, $rfq, $invitation) {
             $invitation = RfqSupplierInvitation::query()->lockForUpdate()->findOrFail($invitation->id);
-            $valid = $rfq->lines->keyBy('id'); $total = 0;
-            foreach ($data['lines'] as $line) { if (! $valid->has($line['rfq_line_item_id'])) throw ValidationException::withMessages(['lines' => 'Bid lines must belong to the invited RFQ.']); $total += $line['offered_unit_price'] * $line['offered_quantity']; }
-            $quote = SupplierQuote::updateOrCreate(['sourcing_rfq_id' => $rfq->id, 'supplier_id' => $invitation->supplier_id], ['quote_number' => $data['quote_number'], 'quoted_price' => $total, 'total_bid_amount' => $total, 'currency' => $rfq->currency, 'status' => QuoteStatus::Submitted->value, 'is_sealed' => true, 'notes' => $data['notes'] ?? null, 'payment_terms' => $paymentTerms]);
-            $quote->lines()->delete(); foreach ($data['lines'] as $line) { $model = new QuoteLineItem($line); $model->computeLandedCost(); $quote->lines()->save($model); }
-            $invitation->update(['status' => 'submitted', 'acknowledged_at' => now()]); return $quote;
+            $valid = $rfq->lines->keyBy('id');
+            $total = 0;
+            foreach ($data['lines'] as $line) {
+                if (! $valid->has($line['rfq_line_item_id'])) {
+                    throw ValidationException::withMessages(['lines' => 'Bid lines must belong to the invited RFQ.']);
+                } $total += $line['offered_unit_price'] * $line['offered_quantity'];
+            }
+            $quote = SupplierQuote::firstOrNew(['sourcing_rfq_id' => $rfq->id, 'supplier_id' => $invitation->supplier_id]);
+            $wasRevision = $quote->exists;
+            $oldValues = $wasRevision ? $quote->only(['quote_number', 'quoted_price', 'status']) : [];
+            $quote->fill(['quote_number' => $data['quote_number'], 'quoted_price' => $total, 'total_bid_amount' => $total, 'currency' => $rfq->currency, 'status' => QuoteStatus::Submitted->value, 'is_sealed' => true, 'notes' => $data['notes'] ?? null, 'payment_terms' => $paymentTerms])->save();
+            $quote->lines()->delete();
+            foreach ($data['lines'] as $line) {
+                $model = new QuoteLineItem($line);
+                $model->computeLandedCost();
+                $quote->lines()->save($model);
+            }
+            $invitation->update(['status' => 'submitted', 'acknowledged_at' => now()]);
+
+            return ['quote' => $quote, 'was_revision' => $wasRevision, 'old_values' => $oldValues];
         });
-        $audit->log(AuditAction::SubmittedSupplierQuote, $request->user(), "Submitted bid for {$rfq->rfq_number}.", $quote, $data['quote_number']);
+        $quote = $result['quote'];
+        $audit->log(
+            $result['was_revision'] ? AuditAction::RevisedSupplierQuote : AuditAction::SubmittedSupplierQuote,
+            $request->user(),
+            $result['was_revision'] ? "Revised bid for {$rfq->rfq_number}." : "Submitted bid for {$rfq->rfq_number}.",
+            $quote,
+            $data['quote_number'],
+            oldValues: $result['old_values'],
+            newValues: $quote->only(['quote_number', 'quoted_price', 'status']),
+        );
         app(\App\Services\HimsNotificationWorkflowService::class)->rfqBidSubmitted($rfq, $quote, $invitation->supplier);
         return back()->with('success', 'Bid submitted securely. Competitor bids remain inaccessible.');
     }

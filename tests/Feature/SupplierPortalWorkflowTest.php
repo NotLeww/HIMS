@@ -10,6 +10,7 @@ use App\Enums\SupplierAccreditationStatus;
 use App\Enums\SupplierStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Models\AuditLog;
 use App\Models\GoodsReceiptNote;
 use App\Models\GoodsReceiptNoteLine;
 use App\Models\InventoryItem;
@@ -302,6 +303,10 @@ class SupplierPortalWorkflowTest extends TestCase
         ];
         $this->actingAs($bidderA)->post(route('supplier.rfqs.bid', $invitation), $bidPayload)->assertRedirect();
         $this->actingAs($bidderA)->post(route('supplier.rfqs.bid', $invitation), $bidPayload)->assertRedirect();
+        $this->assertDatabaseHas('audit_logs', ['action' => AuditAction::SubmittedSupplierQuote->value]);
+        $this->assertDatabaseHas('audit_logs', ['action' => AuditAction::RevisedSupplierQuote->value]);
+        $this->assertSame(1, AuditLog::where('action', AuditAction::SubmittedSupplierQuote)->count());
+        $this->assertSame(1, AuditLog::where('action', AuditAction::RevisedSupplierQuote)->count());
         $duplicateLinePayload = $bidPayload;
         $duplicateLinePayload['lines'][] = $bidPayload['lines'][0];
         $this->actingAs($bidderA)->from(route('supplier.rfqs.index'))->post(route('supplier.rfqs.bid', $invitation), $duplicateLinePayload)

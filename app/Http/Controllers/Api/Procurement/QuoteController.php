@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Procurement;
 
+use App\Enums\AuditAction;
 use App\Enums\Permission;
 use App\Enums\QuoteStatus;
 use App\Enums\RfqBiddingType;
@@ -10,6 +11,7 @@ use App\Models\RfqLineItem;
 use App\Models\SourcingRfq;
 use App\Models\Supplier;
 use App\Models\SupplierQuote;
+use App\Services\HimsNotificationWorkflowService;
 use App\Services\Procurement\EvaluationEngine;
 use App\Services\Procurement\ProcurementAuditService;
 use Illuminate\Http\JsonResponse;
@@ -88,6 +90,8 @@ class QuoteController extends Controller implements HasMiddleware
                 'sourcing_rfq_id' => $rfq->id,
                 'supplier_id' => $supplier->id,
             ]);
+            $wasRevision = $quote->exists;
+            $oldValues = $wasRevision ? $quote->only(['quote_number', 'total_bid_amount', 'currency', 'status']) : null;
             $quote->fill([
                 'currency' => strtoupper($validated['currency']),
                 'exchange_rate' => $exchangeRate,
@@ -156,12 +160,12 @@ class QuoteController extends Controller implements HasMiddleware
                 $request->user(),
                 'SupplierQuote',
                 $quote->id,
-                'submitted_supplier_quote',
-                null,
-                ['quote_number' => $quote->quote_number, 'supplier_id' => $supplier->id, 'sealed' => $isSealed]
+                ($wasRevision ? AuditAction::RevisedSupplierQuote : AuditAction::SubmittedSupplierQuote)->value,
+                $oldValues,
+                ['quote_number' => $quote->quote_number, 'supplier_id' => $supplier->id, 'total_bid_amount' => $quote->total_bid_amount, 'currency' => $quote->currency, 'status' => $quote->status, 'sealed' => $isSealed]
             );
 
-            app(\App\Services\HimsNotificationWorkflowService::class)->rfqBidSubmitted($rfq, $quote, $supplier);
+            app(HimsNotificationWorkflowService::class)->rfqBidSubmitted($rfq, $quote, $supplier);
 
             return response()->json([
                 'status' => 'success',

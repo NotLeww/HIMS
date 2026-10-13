@@ -162,7 +162,7 @@ class SupplierManagementService
 
     public function saveCompanyProfileDraft(Supplier $supplier, array $data, User $actor): Supplier
     {
-        return DB::transaction(function () use ($supplier, $data, $actor): Supplier {
+        return DB::transaction(function () use ($supplier, $data): Supplier {
             $supplier = Supplier::query()->whereKey($supplier->getKey())->lockForUpdate()->firstOrFail();
             if ($supplier->company_profile_status === SupplierCompanyProfileStatus::PendingReview) {
                 throw ValidationException::withMessages(['profile' => 'This profile is under review and cannot be edited.']);
@@ -176,14 +176,6 @@ class SupplierManagementService
                 'company_profile_draft' => Arr::only($data, self::COMPANY_PROFILE_FIELDS),
                 'company_profile_status' => $status,
             ]);
-            $this->audit->log(
-                AuditAction::SavedSupplierProfileDraft,
-                $actor,
-                'Saved the supplier company profile as a draft.',
-                $supplier,
-                $supplier->name,
-                newValues: ['company_profile_status' => $status->value],
-            );
 
             return $supplier->fresh();
         });

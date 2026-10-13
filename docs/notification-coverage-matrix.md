@@ -7,7 +7,7 @@ HIMS currently models one hospital organization: users and workflow records do n
 | Module | Trigger event | Recipient role | Recipient scope | Existing status | Required action | Verification |
 |---|---|---|---|---|---|---|
 | Notification feed | Bell opens or polls | Any active authenticated user | Only the authenticated user's morph-many notification feed | Working | Keep | `NotificationSystemTest`: feed ownership, pagination, empty state, unread count |
-| Notification feed | Mark one/all as read | Any active authenticated user | Only notification rows owned by that user | Working | Keep | `NotificationSystemTest`: cross-user 404, read state, audit record |
+| Notification feed | Mark one/all as read | Any active authenticated user | Only notification rows owned by that user | Working | Keep | `NotificationSystemTest`: cross-user 404 and read state; routine acknowledgement intentionally creates no audit event |
 | Notification feed | Open notification link | Notification owner with current destination access | Re-authorized permission and supplier/record relationship at click time | Working | Keep | `NotificationSystemTest`: permission downgrade and authorized redirect |
 | Notification feed | New item arrives through polling after an initially empty page | Any active authenticated user | Current user's feed | Broken | Fix | Empty state now hides and “Mark all as read” is always rendered under Alpine state; Blade assertions pass |
 | Supplier onboarding | Vendor Administrator invitation sent/resend | Invited pending supplier account | Exact email/user and supplier invitation | Working | Keep | `SupplierInvitationOnboardingTest`; email notification architecture retained |

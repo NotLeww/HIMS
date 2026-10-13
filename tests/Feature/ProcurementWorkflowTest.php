@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AuditAction;
 use App\Enums\SupplierAccreditationStatus;
 use App\Models\AuditLog;
 use App\Models\CostCenter;
@@ -176,6 +177,8 @@ class ProcurementWorkflowTest extends TestCase
 
         $this->assertSame(1, SupplierQuote::where('procurement_request_id', $procurementRequest->id)->where('supplier_id', $supplier->id)->count());
         $this->assertSame(39500.0, (float) $quote->fresh()->quoted_price);
+        $this->assertSame(1, AuditLog::where('action', AuditAction::SubmittedSupplierQuote->value)->count());
+        $this->assertSame(2, AuditLog::where('action', AuditAction::RevisedSupplierQuote->value)->count());
     }
 
     /**

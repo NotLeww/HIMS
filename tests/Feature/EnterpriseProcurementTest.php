@@ -306,6 +306,14 @@ class EnterpriseProcurementTest extends TestCase
             'target_quantity' => 3,
         ]);
         $this->assertSame(RequisitionStatus::Sourcing, $purchaseRequest->fresh()->status);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::PublishedSourcingRfq->value,
+            'target_id' => (string) $rfq->id,
+        ]);
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => AuditAction::CreatedSourcingRfq->value,
+            'target_id' => (string) $rfq->id,
+        ]);
     }
 
     public function test_rfq_packaging_enforces_supplier_accreditation_eligibility(): void
@@ -733,6 +741,16 @@ class EnterpriseProcurementTest extends TestCase
 
         $pr->refresh();
         $this->assertSame(RequisitionStatus::Approved, $pr->status);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::ApprovedProcurementStep->value,
+            'user_id' => $manager->id,
+            'target_id' => (string) $chain->id,
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::ApprovedPurchaseRequest->value,
+            'user_id' => $manager->id,
+            'target_id' => (string) $pr->id,
+        ]);
     }
 
     public function test_purchase_request_approval_card_displays_requested_items(): void
@@ -771,6 +789,35 @@ class EnterpriseProcurementTest extends TestCase
             ->assertSee('Powder-free nitrile gloves')
             ->assertSee('12,500.00')
             ->assertDontSee('Total requested amount');
+    }
+
+    public function test_purchase_request_rejection_records_step_and_final_business_events(): void
+    {
+        [$costCenter, , $requester] = $this->createCostCenterWithBudget(100000.00);
+        $approver = $this->createManager();
+        $purchaseRequest = PurchaseRequest::create([
+            'pr_number' => 'PR-2026-REJECT-AUDIT',
+            'requester_id' => $requester->id,
+            'cost_center_id' => $costCenter->id,
+            'title' => 'Audit rejection request',
+            'status' => RequisitionStatus::PendingApproval,
+            'total_estimated_amount' => 12000.00,
+        ]);
+        $chain = app(ApprovalRoutingEngine::class)->routePurchaseRequest($purchaseRequest);
+
+        app(ApprovalRoutingEngine::class)->rejectStep($chain, $approver, 'Budget priority changed.');
+
+        $this->assertSame(RequisitionStatus::Rejected, $purchaseRequest->fresh()->status);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::RejectedProcurementStep->value,
+            'user_id' => $approver->id,
+            'target_id' => (string) $chain->id,
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::RejectedPurchaseRequest->value,
+            'user_id' => $approver->id,
+            'target_id' => (string) $purchaseRequest->id,
+        ]);
     }
 
     public function test_approval_chain_filters_search_status_and_type(): void
@@ -1816,5 +1863,10 @@ class EnterpriseProcurementTest extends TestCase
 
         $this->assertEquals(RfqStatus::BiddingClosed, $expiredRfq->status);
         $this->assertEquals(RfqStatus::Published, $activeRfq->status);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::ClosedBiddingSourcingRfq->value,
+            'source' => 'system',
+            'target_id' => (string) $expiredRfq->id,
+        ]);
     }
 }
