@@ -281,15 +281,23 @@ class EnterpriseProcurementTest extends TestCase
 
         $this->assertDatabaseMissing('sourcing_rfqs', ['title' => 'RFQ with expired deadline']);
 
-        $this->actingAs($manager)->post(route('inventory.purchases.rfqs.store'), [
+        $rfqPayload = [
             'purchase_request_id' => $purchaseRequest->id,
             'title' => 'RFQ for Selected Request',
             'bidding_type' => 'sealed',
             'submission_deadline' => now()->addDays(5)->toDateTimeString(),
             'supplier_ids' => [$supplier->id],
-        ])->assertRedirect(route('inventory.purchases'));
+        ];
+
+        $this->actingAs($manager)->post(route('inventory.purchases.rfqs.store'), $rfqPayload)
+            ->assertRedirect(route('inventory.purchases'));
+
+        $this->actingAs($manager)->from(route('inventory.purchases'))->post(route('inventory.purchases.rfqs.store'), $rfqPayload)
+            ->assertRedirect(route('inventory.purchases'))
+            ->assertSessionHasErrors('purchase_request_id');
 
         $rfq = SourcingRfq::where('purchase_request_id', $purchaseRequest->id)->firstOrFail();
+        $this->assertSame(1, SourcingRfq::where('purchase_request_id', $purchaseRequest->id)->count());
         $this->assertDatabaseHas('rfq_line_items', [
             'sourcing_rfq_id' => $rfq->id,
             'pr_line_id' => $line->id,

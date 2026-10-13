@@ -21,6 +21,7 @@ use App\Models\RfqSupplierInvitation;
 use App\Models\SourcingRfq;
 use App\Models\Supplier;
 use App\Models\SupplierDiscrepancy;
+use App\Models\SupplierQuote;
 use App\Models\User;
 use App\Notifications\SupplierInvitationNotification;
 use App\Support\DemoPdfBuilder;
@@ -287,7 +288,7 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertSee('rfq-bid-'.$invitation->id, false)
             ->assertSee('id="payment-terms-custom-'.$invitation->id.'-error"', false)
             ->assertSee('aria-invalid="true"', false);
-        $this->actingAs($bidderA)->post(route('supplier.rfqs.bid', $invitation), [
+        $bidPayload = [
             'quote_number' => 'QUOTE-PORTAL-001',
             'payment_terms' => 'other',
             'payment_terms_custom' => '40% advance, balance on delivery',
@@ -298,7 +299,16 @@ class SupplierPortalWorkflowTest extends TestCase
                 'offered_quantity' => 50,
                 'lead_time_days' => 14,
             ]],
-        ])->assertRedirect();
+        ];
+        $this->actingAs($bidderA)->post(route('supplier.rfqs.bid', $invitation), $bidPayload)->assertRedirect();
+        $this->actingAs($bidderA)->post(route('supplier.rfqs.bid', $invitation), $bidPayload)->assertRedirect();
+        $duplicateLinePayload = $bidPayload;
+        $duplicateLinePayload['lines'][] = $bidPayload['lines'][0];
+        $this->actingAs($bidderA)->from(route('supplier.rfqs.index'))->post(route('supplier.rfqs.bid', $invitation), $duplicateLinePayload)
+            ->assertRedirect(route('supplier.rfqs.index'))
+            ->assertSessionHasErrors('lines.0.rfq_line_item_id');
+        $this->assertSame(1, SupplierQuote::where('sourcing_rfq_id', $rfq->id)->where('supplier_id', $supplierA->id)->count());
+        $this->assertDatabaseCount('quote_line_items', 1);
         $this->assertDatabaseHas('supplier_quotes', [
             'sourcing_rfq_id' => $rfq->id,
             'supplier_id' => $supplierA->id,

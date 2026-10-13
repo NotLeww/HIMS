@@ -504,7 +504,7 @@ class ProcurementController extends Controller implements HasMiddleware
                 ->withErrors(['rfq' => 'One or more selected suppliers are not accredited or eligible for procurement.']);
         }
 
-        DB::transaction(function () use ($validated, $eligibleSuppliers) {
+        $rfq = DB::transaction(function () use ($validated, $eligibleSuppliers) {
             $purchaseRequest = ! empty($validated['purchase_request_id'])
                 ? PurchaseRequest::with('lines.item')->lockForUpdate()->findOrFail($validated['purchase_request_id'])
                 : null;
