@@ -10,7 +10,6 @@ use App\Enums\Permission;
 use App\Enums\PurchaseOrderStatus;
 use App\Models\GoodsReceiptNote;
 use App\Models\GoodsReceiptNoteLine;
-use App\Models\SupplierDiscrepancy;
 use App\Models\InventoryItem;
 use App\Models\InventorySerial;
 use App\Models\ItemBatch;
@@ -18,6 +17,7 @@ use App\Models\PurchaseOrder;
 use App\Models\QualityInspection;
 use App\Models\StockMovement;
 use App\Models\StorageLocation;
+use App\Models\SupplierDiscrepancy;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\HimsNotificationService;
@@ -425,7 +425,7 @@ class GoodsReceiptService
 
             if ($hasDiscrepancies) {
                 $this->notifications->sendToPermission(
-                    Permission::ViewProcurement,
+                    Permission::ManageProcurement,
                     "grn-discrepancy-{$grn->id}",
                     'Delivery Discrepancy Flagged',
                     "Discrepancies were noted during dock intake for PO {$po->po_number} (GRN: {$grn->grn_number}).",

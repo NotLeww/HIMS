@@ -272,7 +272,7 @@ class QualityControlService
             if ($accept) {
                 if ($po->isFullyAccepted()) {
                     $this->notifications->sendToPermission(
-                        Permission::ViewProcurement, 'po-fully-accepted-'.$po->id,
+                        Permission::ManageProcurement, 'po-fully-accepted-'.$po->id,
                         'Purchase Order Fully Accepted: '.$po->po_number,
                         "All ordered units on {$po->po_number} passed QC. Accepted stock still requires put-away before it is available.",
                         NotificationPriority::Info, NotificationDestination::GoodsReceipt, ['grn' => $grn->id],
@@ -285,14 +285,14 @@ class QualityControlService
                     NotificationPriority::Info, NotificationDestination::WarehouseTask, ['task' => $task->id],
                 );
                 $this->notifications->sendToPermission(
-                    Permission::ViewProcurement, 'qc-stock-accepted-'.$qi->id.'-'.$line->accepted_quantity,
+                    Permission::ManageProcurement, 'qc-stock-accepted-'.$qi->id.'-'.$line->accepted_quantity,
                     $qi->inspection_status === 'approved' ? 'Delivery QC Accepted: '.$item->name : 'Delivery Partially Accepted: '.$item->name,
                     "{$quantity} {$purchaseUnit} accepted from GRN {$grn->grn_number}; put-away is pending.",
                     NotificationPriority::Info, NotificationDestination::GoodsReceipt, ['grn' => $grn->id],
                 );
             } else {
                 $this->notifications->sendToPermission(
-                    Permission::ViewProcurement, 'qc-stock-rejected-'.$qi->id.'-'.$line->rejected_quantity,
+                    Permission::ManageProcurement, 'qc-stock-rejected-'.$qi->id.'-'.$line->rejected_quantity,
                     'Delivery Stock Rejected in QC: '.$item->name,
                     "{$quantity} {$purchaseUnit} rejected from GRN {$grn->grn_number}. {$reason}",
                     NotificationPriority::Critical, NotificationDestination::GoodsReceipt, ['grn' => $grn->id],

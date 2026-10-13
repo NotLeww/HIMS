@@ -248,7 +248,7 @@ class SupplierManagementService
             return $review;
         });
 
-        $this->workflowNotifications->supplierProfileSubmitted($supplier, $actor);
+        $this->workflowNotifications->supplierProfileSubmitted($supplier->refresh(), $actor);
 
         return $review;
     }
@@ -476,7 +476,7 @@ class SupplierManagementService
 
     public function inactivate(Supplier $supplier, User $actor, string $reason): Supplier
     {
-        return DB::transaction(function () use ($supplier, $actor, $reason): Supplier {
+        $updated = DB::transaction(function () use ($supplier, $actor, $reason): Supplier {
             $supplier = Supplier::query()->whereKey($supplier->getKey())->lockForUpdate()->firstOrFail();
             if ($supplier->status === SupplierStatus::Inactive) {
                 throw ValidationException::withMessages(['status' => 'The supplier is already inactive.']);
@@ -490,6 +490,10 @@ class SupplierManagementService
 
             return $supplier->fresh();
         });
+
+        $this->workflowNotifications->supplierStatusChanged($updated, 'inactive', $actor, $reason);
+
+        return $updated;
     }
 
     public function verifyDocument(Supplier $supplier, SupplierDocument $document, User $actor, bool $verified, ?string $notes): SupplierDocument

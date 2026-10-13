@@ -35,7 +35,10 @@ class NotificationSystemTest extends TestCase
             ->assertOk()
             ->assertSee('No notifications')
             ->assertSee('You are all caught up')
-            ->assertDontSee('Mark all as read');
+            ->assertSee('Mark all as read')
+            ->assertSee('x-show="unreadCount > 0"', false)
+            ->assertSee('x-show="unreadCount === 0"', false)
+            ->assertSee('aria-live="polite"', false);
     }
 
     public function test_notification_feed_hides_legacy_recovery_alerts_and_loads_older_batches(): void
