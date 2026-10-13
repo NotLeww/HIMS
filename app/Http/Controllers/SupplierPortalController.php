@@ -189,7 +189,7 @@ class SupplierPortalController extends Controller
             'shipment_number' => ['required', 'string', 'max:80', 'unique:shipments,shipment_number'], 'dispatch_date' => ['required', 'date', 'before_or_equal:today'],
             'estimated_delivery_date' => ['required', 'date', 'after_or_equal:today', 'after_or_equal:dispatch_date'], 'carrier_name' => ['required', 'string', 'max:150'],
             'tracking_number' => ['nullable', 'string', 'max:100'], 'sscc' => ['nullable', 'digits:18'], 'notes' => ['nullable', 'string', 'max:2000'],
-            'lines' => ['required', 'array', 'min:1'], 'lines.*.po_line_id' => ['required', 'integer'], 'lines.*.quantity' => ['required', 'integer', 'min:1'],
+            'lines' => ['required', 'array', 'min:1'], 'lines.*.po_line_id' => ['required', 'integer', 'distinct'], 'lines.*.quantity' => ['required', 'integer', 'min:1'],
             'lines.*.lot_number' => ['nullable', 'string', 'max:100'], 'lines.*.serial_number' => ['nullable', 'string', 'max:100'], 'lines.*.expiry_date' => ['nullable', 'date', 'after:today'],
         ]);
         $shipment = DB::transaction(function () use ($data, $purchaseOrder) {
@@ -259,7 +259,7 @@ class SupplierPortalController extends Controller
     public function submitInvoice(Request $request, AuditLogger $audit): RedirectResponse
     {
         abort_unless($request->user()->can(Permission::SupplierManageInvoices->value), 403);
-        $data = $request->validate(['purchase_order_id' => ['required', 'integer'], 'invoice_number' => ['required', 'string', 'max:80'], 'invoice_date' => ['required', 'date', 'before_or_equal:today'], 'lines' => ['required', 'array', 'min:1'], 'lines.*.po_line_id' => ['required', 'integer'], 'lines.*.quantity' => ['required', 'integer', 'min:1'], 'lines.*.unit_price' => ['required', 'numeric', 'min:0']]);
+        $data = $request->validate(['purchase_order_id' => ['required', 'integer'], 'invoice_number' => ['required', 'string', 'max:80'], 'invoice_date' => ['required', 'date', 'before_or_equal:today'], 'lines' => ['required', 'array', 'min:1'], 'lines.*.po_line_id' => ['required', 'integer', 'distinct'], 'lines.*.quantity' => ['required', 'integer', 'min:1'], 'lines.*.unit_price' => ['required', 'numeric', 'min:0']]);
         $po = PurchaseOrder::where('supplier_id', $request->user()->supplier_id)->with('lines')->findOrFail($data['purchase_order_id']);
         $invoice = DB::transaction(function () use ($data, $po, $request) {
             $poLines = $po->lines->keyBy('id'); $total = 0; $matched = true; $rows = [];

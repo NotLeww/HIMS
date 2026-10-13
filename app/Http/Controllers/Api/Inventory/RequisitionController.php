@@ -165,7 +165,7 @@ class RequisitionController extends Controller implements HasMiddleware
 
         $validated = $request->validate([
             'lines' => ['nullable', 'array'],
-            'lines.*.line_id' => ['required', 'exists:material_requisition_lines,id'],
+            'lines.*.line_id' => ['required', 'distinct', 'exists:material_requisition_lines,id'],
             'lines.*.quantity' => ['required', 'integer', 'min:1'],
             'lines.*.location_id' => ['nullable', 'exists:storage_locations,id'],
             'lines.*.batch_id' => ['nullable', 'exists:item_batches,id'],

@@ -324,19 +324,21 @@ class ProcurementController extends Controller implements HasMiddleware
             'evaluation_status' => ['nullable', 'in:pending,approved,rejected'],
         ]);
 
-        $pr = ProcurementRequest::create([
-            ...$validated,
-            'request_number' => 'REQ-'.now()->format('YmdHis'),
-        ]);
+        DB::transaction(function () use ($validated): void {
+            $pr = ProcurementRequest::create([
+                ...$validated,
+                'request_number' => 'REQ-'.now()->format('YmdHis'),
+            ]);
 
-        $this->auditService->record(
-            auth()->user(),
-            'ProcurementRequest',
-            $pr->id,
-            'created_purchase_request',
-            null,
-            ['request_number' => $pr->request_number, 'item_id' => $pr->item_id, 'quantity' => $pr->requested_quantity]
-        );
+            $this->auditService->record(
+                auth()->user(),
+                'ProcurementRequest',
+                $pr->id,
+                'created_purchase_request',
+                null,
+                ['request_number' => $pr->request_number, 'item_id' => $pr->item_id, 'quantity' => $pr->requested_quantity]
+            );
+        });
 
         return redirect()->route('inventory.purchases')->with('success', 'Procurement request created successfully.');
     }
@@ -355,16 +357,25 @@ class ProcurementController extends Controller implements HasMiddleware
             'procurement_request_id.exists' => 'Select an approved procurement request.',
         ]);
 
-        $quote = SupplierQuote::create($validated);
+        DB::transaction(function () use ($validated): void {
+            ProcurementRequest::query()->lockForUpdate()->findOrFail($validated['procurement_request_id']);
+            $quote = SupplierQuote::updateOrCreate(
+                [
+                    'procurement_request_id' => $validated['procurement_request_id'],
+                    'supplier_id' => $validated['supplier_id'],
+                ],
+                collect($validated)->except(['procurement_request_id', 'supplier_id'])->all(),
+            );
 
-        $this->auditService->record(
-            auth()->user(),
-            'SupplierQuote',
-            $quote->id,
-            'submitted_supplier_quote',
-            null,
-            ['supplier_id' => $quote->supplier_id, 'quoted_price' => $quote->quoted_price]
-        );
+            $this->auditService->record(
+                auth()->user(),
+                'SupplierQuote',
+                $quote->id,
+                'submitted_supplier_quote',
+                null,
+                ['supplier_id' => $quote->supplier_id, 'quoted_price' => $quote->quoted_price]
+            );
+        });
 
         return redirect()->route('inventory.purchases')->with('success', 'Supplier quote submitted successfully.');
     }

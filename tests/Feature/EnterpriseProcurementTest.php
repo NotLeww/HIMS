@@ -40,6 +40,7 @@ use App\Services\Warehouse\WarehouseTaskService;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -524,9 +525,20 @@ class EnterpriseProcurementTest extends TestCase
             ->assertJsonValidationErrors(['currency', 'incoterms', 'payment_terms', 'validity_end_date']);
         $this->assertDatabaseCount('supplier_quotes', 0);
 
+        $duplicateLines = $quotePayload;
+        $duplicateLines['lines'][] = $quotePayload['lines'][0];
+        $this->postJson("/api/v1/procurement/rfqs/{$rfq->id}/quotes", $duplicateLines)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('lines.0.rfq_line_item_id');
+        $this->assertDatabaseCount('supplier_quotes', 0);
+
         $response = $this->postJson("/api/v1/procurement/rfqs/{$rfq->id}/quotes", $quotePayload);
         $response->assertStatus(201);
         $response->assertJsonPath('data.is_sealed', true);
+
+        $this->postJson("/api/v1/procurement/rfqs/{$rfq->id}/quotes", $quotePayload)->assertCreated();
+        $this->assertSame(1, SupplierQuote::where('sourcing_rfq_id', $rfq->id)->where('supplier_id', $supplier->id)->count());
+        $this->assertSame(1, QuoteLineItem::whereHas('quote', fn ($query) => $query->where('sourcing_rfq_id', $rfq->id))->count());
 
         $quote = SupplierQuote::where('sourcing_rfq_id', $rfq->id)->firstOrFail();
         $this->assertTrue((bool) $quote->is_sealed);
@@ -1198,6 +1210,27 @@ class EnterpriseProcurementTest extends TestCase
 
         // Crucial Check: Ensure only 1 PR was created in database!
         $this->assertSame(1, PurchaseRequest::where('title', 'Idempotent Requisition Test')->count());
+
+        $blockedKey = 'IDEMP-'.Str::uuid()->toString();
+        $cacheKey = 'idempotency:'.hash('sha256', implode(':', [
+            (string) $manager->id,
+            'POST',
+            'api/v1/procurement/requisitions',
+            $blockedKey,
+        ]));
+        $lock = Cache::lock($cacheKey.':lock', 30);
+        $this->assertTrue($lock->get());
+
+        try {
+            $this->withHeaders(['Idempotency-Key' => $blockedKey])
+                ->postJson('/api/v1/procurement/requisitions', [...$payload, 'title' => 'Concurrent duplicate attempt'])
+                ->assertConflict()
+                ->assertHeader('Retry-After', '1');
+        } finally {
+            $lock->release();
+        }
+
+        $this->assertDatabaseMissing('purchase_requests', ['title' => 'Concurrent duplicate attempt']);
     }
 
     public function test_web_ui_requisition_and_purchase_order_intake_forms_are_fully_functional_with_dropdowns_and_numeric_validation(): void

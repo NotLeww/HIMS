@@ -13,7 +13,7 @@ class EnsureIdempotency
     {
         $idempotencyKey = $request->header('Idempotency-Key');
 
-        if (! $idempotencyKey) {
+        if ($request->isMethodSafe() || ! $idempotencyKey) {
             return $next($request);
         }
 
@@ -25,30 +25,49 @@ class EnsureIdempotency
         ]));
         $requestFingerprint = hash('sha256', $request->getContent());
 
-        if (Cache::has($cacheKey)) {
-            $cached = Cache::get($cacheKey);
+        if ($cached = Cache::get($cacheKey)) {
+            return $this->replay($cached, $requestFingerprint);
+        }
 
-            if (($cached['fingerprint'] ?? null) !== $requestFingerprint) {
-                return response()->json([
-                    'message' => 'This Idempotency-Key was already used with a different request payload.',
-                ], 409);
+        $lock = Cache::lock($cacheKey.':lock', 30);
+
+        if (! $lock->get()) {
+            return response()->json([
+                'message' => 'An identical request is already being processed.',
+            ], 409, ['Retry-After' => '1']);
+        }
+
+        try {
+            if ($cached = Cache::get($cacheKey)) {
+                return $this->replay($cached, $requestFingerprint);
             }
 
-            return response()->json($cached['data'], $cached['status'], [
-                'X-Idempotent-Replay' => 'true',
-            ]);
+            $response = $next($request);
+
+            if ($response->isSuccessful()) {
+                Cache::put($cacheKey, [
+                    'status' => $response->getStatusCode(),
+                    'data' => json_decode($response->getContent(), true) ?? $response->getContent(),
+                    'fingerprint' => $requestFingerprint,
+                ], now()->addMinutes(30));
+            }
+
+            return $response;
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function replay(array $cached, string $requestFingerprint): Response
+    {
+        if (($cached['fingerprint'] ?? null) !== $requestFingerprint) {
+            return response()->json([
+                'message' => 'This Idempotency-Key was already used with a different request payload.',
+            ], 409);
         }
 
-        $response = $next($request);
-
-        if ($response->isSuccessful()) {
-            Cache::put($cacheKey, [
-                'status' => $response->getStatusCode(),
-                'data' => json_decode($response->getContent(), true) ?? $response->getContent(),
-                'fingerprint' => $requestFingerprint,
-            ], now()->addMinutes(30));
-        }
-
-        return $response;
+        return response()->json($cached['data'], $cached['status'], [
+            'X-Idempotent-Replay' => 'true',
+        ]);
     }
 }

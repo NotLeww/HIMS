@@ -152,6 +152,30 @@ class ProcurementWorkflowTest extends TestCase
 
         // storeQuote() never sets a status, so the migration default stands.
         $this->assertSame('submitted', $quote->status);
+
+        $this->actingAs($this->procurementOfficer())
+            ->post('/inventory/purchases/quotes', [
+                'procurement_request_id' => $procurementRequest->id,
+                'supplier_id' => $supplier->id,
+                'quoted_price' => 40500,
+                'notes' => 'Updated commercial offer',
+            ])
+            ->assertRedirect('/inventory/purchases');
+
+        $this->assertSame(1, SupplierQuote::where('procurement_request_id', $procurementRequest->id)->where('supplier_id', $supplier->id)->count());
+        $this->assertSame(40500.0, (float) $quote->fresh()->quoted_price);
+
+        $this->actingAs($this->procurementOfficer())
+            ->postJson('/api/v1/supplier-quotes', [
+                'procurement_request_id' => $procurementRequest->id,
+                'supplier_id' => $supplier->id,
+                'quoted_price' => 39500,
+                'notes' => 'API retry offer',
+            ])
+            ->assertCreated();
+
+        $this->assertSame(1, SupplierQuote::where('procurement_request_id', $procurementRequest->id)->where('supplier_id', $supplier->id)->count());
+        $this->assertSame(39500.0, (float) $quote->fresh()->quoted_price);
     }
 
     /**

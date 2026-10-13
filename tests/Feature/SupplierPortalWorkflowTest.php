@@ -329,6 +329,16 @@ class SupplierPortalWorkflowTest extends TestCase
         $this->assertDatabaseMissing('shipments', ['shipment_number' => 'ASN-FUTURE-DISPATCH']);
 
         $this->actingAs($operationsA)->post(route('supplier.orders.asns.store', $po), [
+            'shipment_number' => 'ASN-DUPLICATE-LINE', 'carrier_name' => 'Internal Carrier', 'dispatch_date' => today()->toDateString(),
+            'estimated_delivery_date' => today()->addDay()->toDateString(),
+            'lines' => [
+                ['po_line_id' => $line->id, 'quantity' => 4],
+                ['po_line_id' => $line->id, 'quantity' => 4],
+            ],
+        ])->assertSessionHasErrors('lines.0.po_line_id');
+        $this->assertDatabaseMissing('shipments', ['shipment_number' => 'ASN-DUPLICATE-LINE']);
+
+        $this->actingAs($operationsA)->post(route('supplier.orders.asns.store', $po), [
             'shipment_number' => 'ASN-PORTAL-001', 'carrier_name' => 'Internal Carrier', 'dispatch_date' => today()->toDateString(),
             'estimated_delivery_date' => today()->addDay()->toDateString(), 'sscc' => '123456789012345678',
             'lines' => [['po_line_id' => $line->id, 'quantity' => 8, 'lot_number' => 'LOT-A']],
@@ -356,6 +366,16 @@ class SupplierPortalWorkflowTest extends TestCase
 
         $this->actingAs($finance)->get(route('supplier.invoices.index'))->assertOk();
         $this->actingAs($finance)->post(route('supplier.orders.acknowledge', $po), ['response' => 'accepted'])->assertForbidden();
+        $this->actingAs($finance)->post(route('supplier.invoices.store'), [
+            'purchase_order_id' => $po->id,
+            'invoice_number' => 'INV-DUPLICATE-LINE',
+            'invoice_date' => today()->toDateString(),
+            'lines' => [
+                ['po_line_id' => $line->id, 'quantity' => 2, 'unit_price' => 20],
+                ['po_line_id' => $line->id, 'quantity' => 3, 'unit_price' => 20],
+            ],
+        ])->assertSessionHasErrors('lines.0.po_line_id');
+        $this->assertDatabaseMissing('supplier_invoices', ['invoice_number' => 'INV-DUPLICATE-LINE']);
         $this->actingAs($finance)->post(route('supplier.invoices.store'), ['purchase_order_id' => $po->id, 'invoice_number' => 'INV-001', 'invoice_date' => today()->toDateString(), 'lines' => [['po_line_id' => $line->id, 'quantity' => 5, 'unit_price' => 20]]])->assertRedirect();
         $this->assertDatabaseHas('supplier_invoices', ['supplier_id' => $supplier->id, 'invoice_number' => 'INV-001', 'status' => 'matched', 'total_amount' => 100]);
     }

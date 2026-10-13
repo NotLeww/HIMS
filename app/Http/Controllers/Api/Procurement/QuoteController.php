@@ -16,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class QuoteController extends Controller implements HasMiddleware
 {
@@ -55,7 +56,7 @@ class QuoteController extends Controller implements HasMiddleware
             'validity_end_date' => ['required', 'date', 'after:today'],
             'notes' => ['nullable', 'string'],
             'lines' => ['required', 'array', 'min:1'],
-            'lines.*.rfq_line_item_id' => ['required', 'exists:rfq_line_items,id'],
+            'lines.*.rfq_line_item_id' => ['required', 'distinct', Rule::exists('rfq_line_items', 'id')->where('sourcing_rfq_id', $rfq->id)],
             'lines.*.offered_unit_price' => ['required', 'numeric', 'min:0'],
             'lines.*.offered_quantity' => ['required', 'integer', 'min:1'],
             'lines.*.lead_time_days' => ['required', 'integer', 'min:1'],
@@ -81,12 +82,13 @@ class QuoteController extends Controller implements HasMiddleware
         $exchangeRate = (float) ($validated['exchange_rate'] ?? 1.0);
 
         return DB::transaction(function () use ($rfq, $supplier, $validated, $isSealed, $exchangeRate, $request) {
-            $quoteNumber = 'QTN-'.now()->format('Ymd').'-'.str_pad((string) mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+            SourcingRfq::query()->lockForUpdate()->findOrFail($rfq->id);
 
-            $quote = SupplierQuote::create([
+            $quote = SupplierQuote::firstOrNew([
                 'sourcing_rfq_id' => $rfq->id,
                 'supplier_id' => $supplier->id,
-                'quote_number' => $quoteNumber,
+            ]);
+            $quote->fill([
                 'currency' => strtoupper($validated['currency']),
                 'exchange_rate' => $exchangeRate,
                 'incoterms' => $validated['incoterms'],
@@ -97,6 +99,9 @@ class QuoteController extends Controller implements HasMiddleware
                 'unsealed_at' => null,
                 'notes' => $validated['notes'] ?? null,
             ]);
+            $quote->quote_number ??= 'QTN-'.now()->format('Ymd').'-'.str_pad((string) mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+            $quote->save();
+            $quote->lines()->delete();
 
             $totalBidAmount = 0.0;
 
