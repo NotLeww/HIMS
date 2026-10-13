@@ -133,7 +133,14 @@ class ProcurementController extends Controller implements HasMiddleware
             : null;
 
         // Sourcing RFQs
-        $rfqs = SourcingRfq::with(['lines.item', 'quotes.supplier', 'quotes.lines', 'invitations.supplier', 'evaluations.quote.supplier'])
+        $rfqs = SourcingRfq::with([
+            'lines.item',
+            'quotes.supplier',
+            'quotes.lines.rfqLineItem.item',
+            'invitations.supplier',
+            'evaluations.quote.supplier',
+            'evaluations.quote.lines.rfqLineItem.item',
+        ])
             ->latest('id')
             ->paginate(10, ['*'], 'rfq_page')
             ->withQueryString();

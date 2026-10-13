@@ -1099,6 +1099,9 @@
                     @endphp
 
                     @if($activeEvaluatedRfq && $activeEvaluatedRfq->evaluations->isNotEmpty())
+                        @php
+                            $rankedEvaluations = $activeEvaluatedRfq->evaluations->sortByDesc('composite_score')->values();
+                        @endphp
                         <div class="mt-4">
                             <div class="flex items-center justify-between bg-neutral-50 dark:bg-neutral-800/60 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800">
                                 <div>
@@ -1125,11 +1128,25 @@
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-neutral-200 dark:divide-neutral-800">
-                                        @foreach($activeEvaluatedRfq->evaluations->sortByDesc('composite_score') as $index => $eval)
+                                        @foreach($rankedEvaluations as $index => $eval)
                                             <tr class="{{ $index === 0 ? 'bg-emerald-50/50 dark:bg-emerald-950/30 font-medium' : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/50' }}">
                                                 <td class="px-3.5 py-3">
                                                     <p class="font-bold text-neutral-900 dark:text-neutral-100">{{ $eval->quote?->supplier?->name }}</p>
                                                     <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ $eval->quote?->quote_number }}</p>
+                                                    @if($eval->quote && ! $eval->quote->isMasked())
+                                                        <x-ui.button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            icon="eye"
+                                                            class="mt-1 -ml-2"
+                                                            x-on:click="$dispatch('open-modal', 'bid-offer-{{ $eval->quote->id }}')"
+                                                            aria-label="View bid offer from {{ $eval->quote->supplier?->name ?? 'supplier' }}"
+                                                            data-view-bid-offer="{{ $eval->quote->id }}"
+                                                        >
+                                                            View offer
+                                                        </x-ui.button>
+                                                    @endif
                                                 </td>
                                                 <td class="px-3.5 py-3">₱{{ number_format($eval->quote?->quoted_price, 2) }}</td>
                                                 <td class="px-3.5 py-3 font-semibold text-neutral-900 dark:text-neutral-100">₱{{ number_format($eval->normalized_landed_cost, 2) }}</td>
@@ -1169,6 +1186,104 @@
                                     </tbody>
                                 </table>
                             </div>
+
+                            @foreach($rankedEvaluations as $eval)
+                                @php
+                                    $quote = $eval->quote;
+                                @endphp
+                                @if($quote && ! $quote->isMasked())
+
+                                <x-ui.modal
+                                    name="bid-offer-{{ $quote->id }}"
+                                    title="Bid offer — {{ $quote->supplier?->name ?? 'Supplier' }}"
+                                    maxWidth="6xl"
+                                    flush
+                                >
+                                    <div class="space-y-5 p-4 sm:p-5">
+                                        <dl class="grid gap-4 rounded-lg border border-neutral-200 bg-neutral-50/70 p-4 sm:grid-cols-2 xl:grid-cols-4 dark:border-neutral-800 dark:bg-neutral-950/40">
+                                            <div class="min-w-0">
+                                                <dt class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Quote number</dt>
+                                                <dd class="mt-1 break-words text-sm font-semibold text-neutral-950 dark:text-white">{{ $quote->quote_number ?: 'Not provided' }}</dd>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <dt class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Total bid</dt>
+                                                <dd class="mt-1 text-sm font-semibold tabular-nums text-neutral-950 dark:text-white">{{ $quote->currency ?? 'PHP' }} {{ number_format((float) ($quote->total_bid_amount > 0 ? $quote->total_bid_amount : $quote->quoted_price), 2) }}</dd>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <dt class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Payment terms</dt>
+                                                <dd class="mt-1 break-words text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ $quote->payment_terms ?: 'Not provided' }}</dd>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <dt class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Offer validity</dt>
+                                                <dd class="mt-1 text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ $quote->validity_end_date?->format('M j, Y') ?? 'Not provided' }}</dd>
+                                            </div>
+                                        </dl>
+
+                                        <section aria-labelledby="bid-offer-lines-{{ $quote->id }}">
+                                            <div class="mb-3">
+                                                <h3 id="bid-offer-lines-{{ $quote->id }}" class="text-sm font-semibold text-neutral-950 dark:text-white">Offered line items</h3>
+                                                <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Supplier-submitted quantities, prices, delivery lead times, and evaluated landed costs.</p>
+                                            </div>
+
+                                            @if($quote->lines->isNotEmpty())
+                                                <x-ui.table :stickyHeader="false" aria-label="Offered line items from {{ $quote->supplier?->name ?? 'supplier' }}">
+                                                    <x-slot:head>
+                                                        <x-ui.table.th>Item</x-ui.table.th>
+                                                        <x-ui.table.th numeric>Offered quantity</x-ui.table.th>
+                                                        <x-ui.table.th numeric>Unit price</x-ui.table.th>
+                                                        <x-ui.table.th numeric>Lead time</x-ui.table.th>
+                                                        <x-ui.table.th numeric>Line total</x-ui.table.th>
+                                                        <x-ui.table.th numeric>Landed cost</x-ui.table.th>
+                                                    </x-slot:head>
+                                                    <tbody>
+                                                        @foreach($quote->lines as $line)
+                                                            @php
+                                                                $rfqLine = $line->rfqLineItem;
+                                                                $lineTotal = (float) $line->offered_unit_price * (int) $line->offered_quantity;
+                                                            @endphp
+                                                            <x-ui.table.row>
+                                                                <x-ui.table.td>
+                                                                    <p class="font-semibold text-neutral-950 dark:text-white">{{ $rfqLine?->item_description ?: ($rfqLine?->item?->name ?? 'Item not recorded') }}</p>
+                                                                    <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Requested: {{ number_format((int) ($rfqLine?->target_quantity ?? 0)) }} {{ $rfqLine?->uom ?? 'units' }}</p>
+                                                                    @if($line->notes)
+                                                                        <p class="mt-1 max-w-md break-words text-xs text-neutral-600 dark:text-neutral-300">Supplier note: {{ $line->notes }}</p>
+                                                                    @endif
+                                                                </x-ui.table.td>
+                                                                <x-ui.table.td numeric>{{ number_format($line->offered_quantity) }} {{ $rfqLine?->uom ?? 'units' }}</x-ui.table.td>
+                                                                <x-ui.table.td numeric>{{ $quote->currency ?? 'PHP' }} {{ number_format((float) $line->offered_unit_price, 2) }}</x-ui.table.td>
+                                                                <x-ui.table.td numeric>{{ number_format($line->lead_time_days) }} {{ str('day')->plural($line->lead_time_days) }}</x-ui.table.td>
+                                                                <x-ui.table.td numeric>{{ $quote->currency ?? 'PHP' }} {{ number_format($lineTotal, 2) }}</x-ui.table.td>
+                                                                <x-ui.table.td numeric class="font-semibold text-neutral-950 dark:text-white">{{ $quote->currency ?? 'PHP' }} {{ number_format((float) $line->landed_cost, 2) }}</x-ui.table.td>
+                                                            </x-ui.table.row>
+                                                        @endforeach
+                                                    </tbody>
+                                                </x-ui.table>
+                                            @else
+                                                <div class="rounded-lg border border-dashed border-neutral-300 px-4 py-6 text-center dark:border-neutral-700">
+                                                    <p class="text-sm font-semibold text-neutral-800 dark:text-neutral-200">No line-item breakdown was submitted.</p>
+                                                    <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Use the total bid above as the supplier's recorded offer.</p>
+                                                </div>
+                                            @endif
+                                        </section>
+
+                                        <div class="grid gap-4 lg:grid-cols-2">
+                                            <div class="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+                                                <h3 class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Delivery terms</h3>
+                                                <p class="mt-1 break-words text-sm text-neutral-800 dark:text-neutral-200">{{ $quote->incoterms ?: 'Not provided' }}</p>
+                                            </div>
+                                            <div class="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+                                                <h3 class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Supplier notes</h3>
+                                                <p class="mt-1 whitespace-pre-line break-words text-sm text-neutral-800 dark:text-neutral-200">{{ $quote->notes ?: 'No additional notes provided.' }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <x-slot:footer>
+                                        <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'bid-offer-{{ $quote->id }}')">Close</x-ui.button>
+                                    </x-slot:footer>
+                                </x-ui.modal>
+                                @endif
+                            @endforeach
                         </div>
                     @else
                         <div class="mt-4 rounded-lg border border-dashed border-neutral-300 p-8 text-center text-neutral-500">

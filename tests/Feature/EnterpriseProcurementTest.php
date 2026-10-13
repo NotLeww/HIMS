@@ -1417,6 +1417,7 @@ class EnterpriseProcurementTest extends TestCase
         $uiResponse->assertOk();
         $uiResponse->assertSee('Sealed • Bidding Open');
         $uiResponse->assertSee('Unlocks');
+        $uiResponse->assertDontSee('QTN-TEST-APEX-01');
     }
 
     public function test_sealed_rfq_evaluation_succeeds_after_deadline_elapses(): void
@@ -1458,6 +1459,8 @@ class EnterpriseProcurementTest extends TestCase
             'status' => QuoteStatus::Submitted->value,
             'quoted_price' => 70000.00,
             'total_bid_amount' => 70000.00,
+            'payment_terms' => 'Net 30',
+            'notes' => 'Includes manufacturer warranty and installation support.',
             'is_sealed' => true,
         ]);
 
@@ -1529,6 +1532,28 @@ class EnterpriseProcurementTest extends TestCase
             ->assertRedirect('/inventory/purchases');
 
         $this->assertCount(2, SourcingEvaluation::where('sourcing_rfq_id', $rfq->id)->get());
+
+        $detailsResponse = $this->actingAs($manager)
+            ->get(route('inventory.purchases', ['tab' => 'evaluations']));
+
+        $detailsResponse->assertOk()
+            ->assertSee('data-view-bid-offer="'.$quoteA->id.'"', false)
+            ->assertSee('View bid offer from Titanium Implants Corp')
+            ->assertSee('Bid offer — Titanium Implants Corp')
+            ->assertSee('QTN-TITANIUM-01')
+            ->assertSee('PHP 3,500.00')
+            ->assertSee('20 piece')
+            ->assertSee('6 days')
+            ->assertSee('Net 30')
+            ->assertSee('Includes manufacturer warranty and installation support.');
+
+        $restrictedResponse = $this->actingAs(User::factory()->warehouseStaff()->create())
+            ->get(route('inventory.purchases', ['tab' => 'evaluations']));
+
+        $restrictedResponse->assertOk()
+            ->assertDontSee('data-view-bid-offer=', false)
+            ->assertDontSee('QTN-TITANIUM-01')
+            ->assertDontSee('Includes manufacturer warranty and installation support.');
     }
 
     public function test_timezone_consistency_in_deadline_comparison(): void
