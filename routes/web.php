@@ -227,6 +227,7 @@ Route::middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])->
     Route::get('/inventory/logistics/chain-of-custody', [LogisticsController::class, 'chainOfCustody'])->name('inventory.logistics.chain-of-custody');
     Route::get('/inventory/logistics/ris/{requisition}', [LogisticsController::class, 'risShow'])->name('inventory.logistics.ris.show');
     Route::get('/inventory/purchases', [ProcurementController::class, 'index'])->name('inventory.purchases');
+    Route::get('/inventory/purchases/items/{item}/context', [ProcurementController::class, 'itemContext'])->name('inventory.purchases.item-context');
     Route::post('/inventory/purchases/requests', [ProcurementController::class, 'storeRequest'])->name('inventory.purchases.requests.store');
     Route::post('/inventory/purchases/quotes', [ProcurementController::class, 'storeQuote'])->name('inventory.purchases.quotes.store');
     Route::post('/inventory/purchases/requests/{procurementRequest}/approve', [ProcurementController::class, 'approve'])->name('inventory.purchases.requests.approve');

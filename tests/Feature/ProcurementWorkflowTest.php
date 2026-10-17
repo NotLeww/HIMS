@@ -118,7 +118,7 @@ class ProcurementWorkflowTest extends TestCase
         $this->request($this->supplier(), 'approved');
 
         $this->actingAs($this->procurementOfficer())
-            ->get('/inventory/purchases')
+            ->get('/inventory/purchases?tab=legacy_canvass')
             ->assertStatus(200)
             ->assertSee('Stage 3 &bull; Supplier quotation', false)
             ->assertSee('name="procurement_request_id"', false)
@@ -247,7 +247,7 @@ class ProcurementWorkflowTest extends TestCase
         $this->request();
 
         $this->actingAs($this->procurementOfficer())
-            ->get('/inventory/purchases')
+            ->get('/inventory/purchases?tab=legacy_canvass')
             ->assertStatus(200)
             ->assertSee('Approve a procurement request first')
             ->assertDontSee('name="quoted_price"', false);

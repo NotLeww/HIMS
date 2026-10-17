@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Services\Procurement\BudgetEncumbranceService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Mockery\MockInterface;
 use RuntimeException;
 use Tests\TestCase;
@@ -24,6 +25,136 @@ use Tests\TestCase;
 class PurchaseOrderWorkspaceTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_procurement_tabs_query_and_render_only_the_selected_workspace(): void
+    {
+        $manager = User::factory()->superAdministrator()->create();
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = strtolower($query->sql);
+        });
+
+        $this->actingAs($manager)->get(route('inventory.purchases'))
+            ->assertOk()
+            ->assertSee('Purchase Order Pipeline')
+            ->assertDontSee('Append-Only Procurement Audit Ledger');
+
+        $orderQueries = implode("\n", $queries);
+        foreach (['sourcing_rfqs', 'purchase_requests', 'approval_chains', 'procurement_audit_logs'] as $table) {
+            $this->assertStringNotContainsString($table, $orderQueries);
+        }
+
+        $queries = [];
+        $this->actingAs($manager)->get(route('inventory.purchases', ['tab' => 'audit_trail']))
+            ->assertOk()
+            ->assertSee('Append-Only Procurement Audit Ledger')
+            ->assertDontSee('Purchase Order Pipeline');
+
+        $auditQueries = implode("\n", $queries);
+        $this->assertStringContainsString('procurement_audit_logs', $auditQueries);
+        foreach (['sourcing_rfqs', 'purchase_orders', 'approval_chains', 'supplier_products'] as $table) {
+            $this->assertStringNotContainsString($table, $auditQueries);
+        }
+    }
+
+    public function test_procurement_tab_request_returns_only_the_server_authorized_workspace_fragment(): void
+    {
+        $manager = User::factory()->inventoryManager()->create();
+        $url = route('inventory.purchases', ['tab' => 'legacy_canvass']);
+        $full = $this->actingAs($manager)->get($url)->assertOk();
+        $fragment = $this->actingAs($manager)->withHeader('X-Procurement-Tab', '1')->get($url)
+            ->assertOk()
+            ->assertSee('data-procurement-active-tab="legacy_canvass"', false)
+            ->assertDontSee('data-procurement-header');
+
+        $this->assertStringContainsString('no-store', $fragment->headers->get('Cache-Control'));
+        $this->assertLessThan(strlen($full->getContent()), strlen($fragment->getContent()));
+
+        $this->actingAs($manager)->withHeader('X-Procurement-Tab', '1')
+            ->get(route('inventory.purchases', ['tab' => 'audit_trail']))
+            ->assertOk()
+            ->assertSee('data-procurement-active-tab="orders_revisions"', false)
+            ->assertDontSee('Append-Only Procurement Audit Ledger');
+    }
+
+    public function test_unavailable_procurement_tab_does_not_query_or_render_restricted_data(): void
+    {
+        $manager = User::factory()->inventoryManager()->create();
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = strtolower($query->sql);
+        });
+
+        $this->actingAs($manager)->get(route('inventory.purchases', ['tab' => 'audit_trail']))
+            ->assertOk()
+            ->assertSee('Purchase Order Pipeline')
+            ->assertDontSee('Append-Only Procurement Audit Ledger');
+
+        $this->assertStringNotContainsString('procurement_audit_logs', implode("\n", $queries));
+    }
+
+    public function test_orders_tab_defers_item_forecast_and_supplier_catalog_until_item_selection(): void
+    {
+        $manager = User::factory()->inventoryManager()->create();
+        $this->item();
+        $this->supplier();
+        $this->costCenter();
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = strtolower($query->sql);
+        });
+
+        $this->actingAs($manager)->get(route('inventory.purchases'))
+            ->assertOk()
+            ->assertSee('Prepare Purchase Order');
+
+        $sql = implode("\n", $queries);
+        $this->assertStringNotContainsString('stock_movements', $sql);
+        $this->assertStringNotContainsString('supplier_products', $sql);
+    }
+
+    public function test_item_context_loads_only_selected_item_and_authorized_supplier_terms(): void
+    {
+        $manager = User::factory()->inventoryManager()->create();
+        $item = $this->item();
+        $otherItem = $this->item('Other Supply', 'MED-OTHER-02');
+        $supplier = $this->supplier();
+        $product = SupplierProduct::create([
+            'supplier_id' => $supplier->id,
+            'item_id' => $item->id,
+            'minimum_order_quantity' => 5,
+            'is_active' => true,
+        ]);
+        SupplierPrice::create([
+            'supplier_product_id' => $product->id,
+            'unit_price' => 99.75,
+            'currency' => 'PHP',
+            'minimum_order_quantity' => 10,
+            'effective_from' => today()->subDay(),
+            'created_by' => $manager->id,
+        ]);
+        $inactiveSupplier = $this->supplier('Inactive Supplier');
+        $inactiveSupplier->update(['status' => 'inactive']);
+        SupplierProduct::create([
+            'supplier_id' => $inactiveSupplier->id,
+            'item_id' => $item->id,
+            'is_active' => true,
+        ]);
+        $this->actingAs($manager)->get(route('inventory.purchases.item-context', $item))
+            ->assertOk()
+            ->assertJsonPath('item.current_stock', 12)
+            ->assertJsonPath("supplier_terms.{$supplier->id}:{$item->id}.unit_cost", 99.75)
+            ->assertJsonPath("supplier_terms.{$supplier->id}:{$item->id}.minimum_order_quantity", 10)
+            ->assertJsonCount(1, 'supplier_terms')
+            ->assertDontSee($otherItem->sku);
+
+        $this->actingAs(User::factory()->viewer()->create())
+            ->get(route('inventory.purchases.item-context', $item))
+            ->assertForbidden();
+        $item->update(['status' => 'inactive']);
+        $this->actingAs($manager)->get(route('inventory.purchases.item-context', $item))
+            ->assertNotFound();
+    }
 
     private function item(string $name = 'Infusion Pump Set', string $sku = 'MED-PUMP-01', float $cost = 125.50): InventoryItem
     {
@@ -106,9 +237,10 @@ class PurchaseOrderWorkspaceTest extends TestCase
             ->assertSee('name="item_id"', false)
             ->assertSee('name="quantity"', false)
             ->assertSee('name="supplier_id"', false)
-            ->assertSee('Search accredited suppliers...')
-            ->assertSee('Select all')
-            ->assertSee('type="checkbox" name="supplier_ids[]"', false)
+            ->assertDontSee('Search accredited suppliers...')
+            ->assertDontSee('type="checkbox" name="supplier_ids[]"', false)
+            ->assertDontSee('Publish Sourcing RFQ Package')
+            ->assertDontSee('Append-Only Procurement Audit Ledger')
             ->assertDontSee('Hold Ctrl/Cmd')
             ->assertSee('On hand')
             ->assertSee('Reorder point')

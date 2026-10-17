@@ -23,6 +23,10 @@ class NotificationController extends Controller
     {
         $feed = $this->notifications->feedFor($this->user($request));
         $unreadCount = (clone $feed)->whereNull('read_at')->count();
+        if ($request->boolean('count_only')) {
+            return response()->json(['unread_count' => $unreadCount]);
+        }
+
         $notifications = $feed
             ->latest()
             ->orderByDesc('id')

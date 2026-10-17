@@ -58,9 +58,14 @@ Alpine.data('himsCountUp', ({ value, decimals = 0, duration = 1000 }) => ({
     },
 }));
 
-Alpine.data('inventoryReportTabs', ({ canViewFinancialData = false, freshnessEndpoint = null, initialVersion = '' } = {}) => ({
-    activeTab: 'overview',
+Alpine.data('inventoryReportTabs', ({ canViewFinancialData = false, freshnessEndpoint = null, initialVersion = '', initialTab = 'overview' } = {}) => ({
+    activeTab: initialTab,
     currentVersion: initialVersion,
+    loadedTabs: { [initialTab]: { loadedAt: Date.now(), version: initialVersion } },
+    loadingTab: null,
+    failedTab: null,
+    loadError: '',
+    tabRequest: null,
     pendingVersion: null,
     freshnessEndpoint,
     freshnessInterval: null,
@@ -77,18 +82,20 @@ Alpine.data('inventoryReportTabs', ({ canViewFinancialData = false, freshnessEnd
     ],
 
     init() {
-        const requestedTab = new URLSearchParams(window.location.search).get('section')
-            || window.location.hash.replace(/^#report-/, '');
-        if (this.tabs.includes(requestedTab)) this.activeTab = requestedTab;
         this.syncFilterTab();
         this.$nextTick(() => this.animateActiveTab());
         this.restoreScrollPosition();
         this.startLiveRefresh();
+        const hashTab = window.location.hash.replace(/^#report-/, '');
+        if (!new URLSearchParams(window.location.search).has('section') && this.tabs.includes(hashTab) && hashTab !== this.activeTab) {
+            this.selectTab(hashTab, 'replace');
+        }
     },
 
     destroy() {
         this.pauseLiveRefresh();
         this.freshnessRequest?.abort();
+        this.tabRequest?.abort();
         if (this.visibilityHandler) document.removeEventListener('visibilitychange', this.visibilityHandler);
     },
 
@@ -126,29 +133,42 @@ Alpine.data('inventoryReportTabs', ({ canViewFinancialData = false, freshnessEnd
         const dialogOpen = Array.from(document.querySelectorAll('[role="dialog"]'))
             .some((dialog) => window.getComputedStyle(dialog).display !== 'none');
 
-        return !editing && !dialogOpen;
+        return !editing && !dialogOpen && !this.loadingTab;
     },
 
     async pollFreshness() {
         if (this.freshnessPolling || document.hidden || !this.freshnessEndpoint) return;
         this.freshnessPolling = true;
-        this.freshnessRequest = new AbortController();
+        const controller = new AbortController();
+        this.freshnessRequest = controller;
+        const tab = this.activeTab;
+        const endpoint = new URL(this.freshnessEndpoint, window.location.href);
+        endpoint.searchParams.set('section', tab);
 
         try {
-            const response = await fetch(this.freshnessEndpoint, {
-                signal: this.freshnessRequest.signal,
+            const response = await fetch(endpoint, {
+                signal: controller.signal,
                 cache: 'no-store',
                 headers: {
                     Accept: 'application/json',
                     'X-Session-Activity': 'passive',
                 },
             });
+            if (response.redirected && new URL(response.url).pathname !== endpoint.pathname) {
+                window.location.assign(response.url);
+                return;
+            }
+            if ([401, 403, 419].includes(response.status)) {
+                window.location.reload();
+                return;
+            }
             if (!response.ok) {
                 this.liveStatus = 'Live update unavailable';
                 return;
             }
 
             const data = await response.json();
+            if (tab !== this.activeTab) return;
             if (!data.version || data.version === this.currentVersion) {
                 this.liveStatus = 'Live updates on';
                 return;
@@ -160,8 +180,10 @@ Alpine.data('inventoryReportTabs', ({ canViewFinancialData = false, freshnessEnd
         } catch (error) {
             if (error.name !== 'AbortError') this.liveStatus = 'Live update unavailable';
         } finally {
-            this.freshnessRequest = null;
-            this.freshnessPolling = false;
+            if (this.freshnessRequest === controller) {
+                this.freshnessRequest = null;
+                this.freshnessPolling = false;
+            }
         }
     },
 
@@ -189,13 +211,82 @@ Alpine.data('inventoryReportTabs', ({ canViewFinancialData = false, freshnessEnd
         }));
     },
 
-    selectTab(tab) {
+    async selectTab(tab, history = 'push') {
         if (!this.tabs.includes(tab)) return;
+        if (tab === this.activeTab) {
+            this.tabRequest?.abort();
+            this.tabRequest = null;
+            this.loadingTab = null;
+            this.loadError = '';
+            this.failedTab = null;
+            return;
+        }
+        this.tabRequest?.abort();
+        this.freshnessRequest?.abort();
+        this.tabRequest = null;
+        this.freshnessRequest = null;
+        this.freshnessPolling = false;
+        this.loadingTab = null;
+        this.loadError = '';
+        this.failedTab = null;
 
-        this.activeTab = tab;
+        const cached = this.loadedTabs[tab];
+        if (cached && Date.now() - cached.loadedAt < 30000) {
+            this.activateTab(tab, cached.version, history);
+            this.pollFreshness();
+            return;
+        }
+
+        const controller = new AbortController();
+        this.tabRequest = controller;
+        this.loadingTab = tab;
         const url = new URL(window.location.href);
-        url.hash = tab === 'overview' ? '' : `report-${tab}`;
-        window.history.replaceState({}, '', url);
+        url.searchParams.set('section', tab);
+        url.hash = '';
+        try {
+            const response = await fetch(url, { signal: controller.signal, headers: { Accept: 'text/html' } });
+            if (response.redirected && new URL(response.url).pathname !== url.pathname) {
+                window.location.assign(response.url);
+                return;
+            }
+            if ([401, 403, 419].includes(response.status)) {
+                window.location.reload();
+                return;
+            }
+            if (!response.ok) throw new Error('Report section request failed.');
+            const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+            const source = page.getElementById(`report-panel-${tab}`);
+            const target = document.getElementById(`report-panel-${tab}`);
+            const version = page.getElementById('report-sections')?.dataset.reportVersion;
+            if (!source?.innerHTML.trim() || !target || !version) throw new Error('Report section unavailable.');
+            if (this.tabRequest !== controller) return;
+            target.innerHTML = source.innerHTML;
+            this.loadedTabs[tab] = { loadedAt: Date.now(), version };
+            this.activateTab(tab, version, history);
+        } catch (error) {
+            if (error.name !== 'AbortError' && this.tabRequest === controller) {
+                this.failedTab = tab;
+                this.loadError = 'Could not load this report section. Please try again.';
+            }
+        } finally {
+            if (this.tabRequest === controller) {
+                this.tabRequest = null;
+                this.loadingTab = null;
+            }
+        }
+    },
+
+    activateTab(tab, version, history) {
+        this.activeTab = tab;
+        this.currentVersion = version;
+        this.pendingVersion = null;
+        this.liveStatus = 'Live updates on';
+        const url = new URL(window.location.href);
+        if (tab === 'overview') url.searchParams.delete('section');
+        else url.searchParams.set('section', tab);
+        url.hash = '';
+        if (history === 'push') window.history.pushState({}, '', url);
+        else if (history === 'replace') window.history.replaceState({}, '', url);
         this.syncFilterTab();
         this.$nextTick(() => this.animateActiveTab());
     },
@@ -5233,6 +5324,7 @@ const procurementWorkspaceTabs = ['enterprise_s2p', 'orders_revisions', 'legacy_
 
 Alpine.data('procurementWorkspace', ({
     activeTab = 'orders_revisions',
+    itemContextUrl = null,
     items = [],
     suppliers = [],
     supplierTerms = {},
@@ -5241,6 +5333,7 @@ Alpine.data('procurementWorkspace', ({
     openPurchaseOrderId = null,
 } = {}) => ({
     activeTab,
+    itemContextUrl,
     items,
     suppliers,
     supplierTerms,
@@ -5256,18 +5349,87 @@ Alpine.data('procurementWorkspace', ({
     openPurchaseOrderId,
     revisedDeliveryDate: String(approvalCorrection?.revised_delivery_date || ''),
     deliveryDateChangeReason: String(approvalCorrection?.reason || ''),
+    itemContextLoading: false,
+    itemContextError: '',
+    itemContextRequest: null,
+    tabLoading: false,
+    tabError: '',
+    tabRequest: null,
+    failedTabUrl: null,
+    popstateHandler: null,
 
     init() {
-        const requestedTab = new URLSearchParams(window.location.search).get('tab');
-
-        if (procurementWorkspaceTabs.includes(requestedTab)) this.activeTab = requestedTab;
-
+        this.popstateHandler = () => {
+            const tab = new URLSearchParams(window.location.search).get('tab') || 'orders_revisions';
+            if (tab !== this.activeTab) {
+                this.loadTab(window.location.href, false);
+            } else if (this.tabRequest) {
+                this.tabRequest.abort();
+                this.tabRequest = null;
+                this.tabLoading = false;
+            }
+        };
+        window.addEventListener('popstate', this.popstateHandler);
+        this.$watch('itemId', (itemId) => this.loadItemContext(itemId));
+        if (this.itemId) this.loadItemContext(this.itemId);
         if (this.approvalCorrection) {
             this.$nextTick(() => this.$dispatch('open-modal', 'reschedule-po-delivery'));
         } else if (this.openPurchaseOrderId) {
             this.$nextTick(() => {
                 document.querySelector(`[data-purchase-order-details="${Number(this.openPurchaseOrderId)}"]`)?.click();
             });
+        }
+    },
+
+    destroy() {
+        this.itemContextRequest?.abort();
+        this.tabRequest?.abort();
+        if (this.popstateHandler) window.removeEventListener('popstate', this.popstateHandler);
+    },
+
+    async loadItemContext(itemId, force = false) {
+        this.itemContextRequest?.abort();
+        this.itemContextRequest = null;
+        this.itemContextLoading = false;
+        this.itemContextError = '';
+        const item = this.items.find((candidate) => String(candidate.id) === String(itemId));
+        if (!item || !this.itemContextUrl) return;
+        if (!force && item.contextLoaded && Date.now() - item.contextLoadedAt < 30000) return;
+
+        item.contextLoaded = false;
+        const controller = new AbortController();
+        this.itemContextRequest = controller;
+        this.itemContextLoading = true;
+        try {
+            const response = await fetch(this.itemContextUrl.replace('__ITEM__', encodeURIComponent(itemId)), {
+                signal: controller.signal,
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            if (response.redirected) {
+                window.location.assign(response.url);
+                return;
+            }
+            if ([401, 403, 419].includes(response.status)) {
+                window.location.reload();
+                return;
+            }
+            if (!response.ok) throw new Error('Item context request failed.');
+            const data = await response.json();
+            if (this.itemContextRequest !== controller || String(this.itemId) !== String(itemId)) return;
+            for (const key of Object.keys(this.supplierTerms)) {
+                if (key.endsWith(`:${itemId}`)) delete this.supplierTerms[key];
+            }
+            Object.assign(this.supplierTerms, data.supplier_terms || {});
+            Object.assign(item, data.item, { contextLoaded: true, contextLoadedAt: Date.now() });
+        } catch (error) {
+            if (error.name !== 'AbortError' && this.itemContextRequest === controller) {
+                this.itemContextError = 'Could not load item pricing and forecast. Please try again.';
+            }
+        } finally {
+            if (this.itemContextRequest === controller) {
+                this.itemContextRequest = null;
+                this.itemContextLoading = false;
+            }
         }
     },
 
@@ -5278,10 +5440,72 @@ Alpine.data('procurementWorkspace', ({
         url.searchParams.set('tab', tab);
         if (tab !== 'sourcing_rfqs') url.searchParams.delete('purchase_request_id');
         url.hash = '';
-        window.himsNavigate(url.toString(), {
-            message: 'Loading latest procurement data...',
-            replace: true,
-        });
+        return this.loadTab(url.toString());
+    },
+
+    retryTab() {
+        if (this.failedTabUrl) this.loadTab(this.failedTabUrl.url, this.failedTabUrl.pushHistory);
+    },
+
+    async loadTab(url, pushHistory = true) {
+        if (pushHistory && url === window.location.href) {
+            this.tabRequest?.abort();
+            this.tabRequest = null;
+            this.tabLoading = false;
+            this.tabError = '';
+            return;
+        }
+        this.tabRequest?.abort();
+        const controller = new AbortController();
+        this.tabRequest = controller;
+        this.tabLoading = true;
+        this.tabError = '';
+        this.failedTabUrl = null;
+
+        try {
+            const response = await fetch(url, {
+                signal: controller.signal,
+                cache: 'no-store',
+                headers: {
+                    Accept: 'text/html',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-Procurement-Tab': '1',
+                    'X-Session-Activity': 'passive',
+                },
+            });
+            if (response.redirected) {
+                window.location.assign(response.url);
+                return;
+            }
+            if ([401, 403, 419].includes(response.status)) {
+                window.location.reload();
+                return;
+            }
+            if (!response.ok) throw new Error('Procurement tab request failed.');
+            const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+            const replacement = page.querySelector('[data-procurement-workspace]');
+            const current = document.querySelector('[data-procurement-workspace]');
+            if (!replacement || !current || !procurementWorkspaceTabs.includes(replacement.dataset.procurementActiveTab)) {
+                throw new Error('Procurement tab content was unavailable.');
+            }
+            if (this.tabRequest !== controller) return;
+            if (pushHistory) window.history.pushState({ himsProcurementTab: true }, '', url);
+            Alpine.mutateDom(() => {
+                Alpine.destroyTree(current);
+                current.replaceWith(replacement);
+                Alpine.initTree(replacement);
+            });
+        } catch (error) {
+            if (error.name !== 'AbortError' && this.tabRequest === controller) {
+                this.tabError = 'Could not load this procurement tab. Please try again.';
+                this.failedTabUrl = { url, pushHistory };
+            }
+        } finally {
+            if (this.tabRequest === controller) {
+                this.tabRequest = null;
+                this.tabLoading = false;
+            }
+        }
     },
 
     selectedItem() {
@@ -5364,6 +5588,8 @@ Alpine.data('procurementWorkspace', ({
             }
             return;
         }
+
+        if (!this.selectedItem().contextLoaded) return;
 
         if (this.trustedUnitCost() <= 0) {
             const warningEl = form.querySelector('#po-cost-warning');

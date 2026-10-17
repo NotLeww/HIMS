@@ -156,7 +156,7 @@ class InventoryReportTest extends TestCase
             ->assertSee("selectTab('procurement')", false)
             ->assertSee('animate-report-metrics', false)
             ->assertSee('data-inventory-report-active-tab', false)
-            ->assertSee('min-w-[90rem] table-fixed', false)
+            ->assertDontSee('min-w-[90rem] table-fixed', false)
             ->assertSee('Valuation &amp; Locations', false)
             ->assertSee('View batches', false)
             ->assertSee('open-report-tab', false)
@@ -167,10 +167,76 @@ class InventoryReportTest extends TestCase
             ->assertSee('x-text="liveStatus"', false)
             ->assertSee('print:!block', false);
 
+        $this->actingAs($financialReader)->get(route('inventory.reports', ['section' => 'procurement']))
+            ->assertOk()
+            ->assertSee('min-w-[90rem] table-fixed', false)
+            ->assertDontSee('View batches', false);
+
+        $this->actingAs($financialReader)->get(route('inventory.reports', ['print_all' => 1]))
+            ->assertOk()
+            ->assertSee('Valuation by Category')
+            ->assertSee('Most Consumed Items')
+            ->assertSee('Expiry Exposure - Detailed Batches');
+
         // A viewer without ViewProcurementSensitiveData does not see the procurement spending tab
         $this->actingAs($nonFinancialReader)->get('/inventory/reports')
             ->assertStatus(200)
             ->assertDontSee('Procurement &amp; Spending', false);
+        $this->actingAs($nonFinancialReader)->get(route('inventory.reports', ['section' => 'procurement']))
+            ->assertForbidden();
+        $this->actingAs($nonFinancialReader)->get(route('inventory.reports', ['print_all' => 1]))
+            ->assertOk()
+            ->assertDontSee('min-w-[90rem] table-fixed', false);
+    }
+
+    public function test_expiry_section_skips_unrelated_report_queries(): void
+    {
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = strtolower($query->sql);
+        });
+
+        $this->actingAs($this->reader())->get(route('inventory.reports', ['section' => 'expiry']))
+            ->assertOk()
+            ->assertSee('Expiry Exposure - Detailed Batches')
+            ->assertDontSee('min-w-[90rem] table-fixed', false);
+
+        $sql = implode("\n", $queries);
+        $this->assertStringContainsString('item_batches', $sql);
+        $this->assertStringNotContainsString('purchase_orders', $sql);
+        $this->assertStringNotContainsString('stock_movements', $sql);
+    }
+
+    public function test_nonfinancial_overview_skips_procurement_data(): void
+    {
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            $queries[] = strtolower($query->sql);
+        });
+
+        $this->actingAs(User::factory()->viewer()->create())->get(route('inventory.reports'))
+            ->assertOk()
+            ->assertDontSee('Ordered value');
+
+        $sql = implode("\n", $queries);
+        foreach (['purchase_orders', 'goods_receipt_notes', 'suppliers'] as $table) {
+            $this->assertStringNotContainsString($table, $sql);
+        }
+    }
+
+    public function test_report_deep_links_render_only_the_requested_section(): void
+    {
+        $reader = $this->reader();
+        $headings = [
+            'valuation' => 'Valuation by Category',
+            'movements' => 'Most Consumed Items',
+            'expiry' => 'Expiry Exposure - Detailed Batches',
+        ];
+        foreach ($headings as $section => $heading) {
+            $this->actingAs($reader)->get(route('inventory.reports', ['section' => $section]))
+                ->assertOk()
+                ->assertSee($heading);
+        }
     }
 
     public function test_report_freshness_token_changes_when_report_source_data_changes(): void
@@ -195,6 +261,20 @@ class InventoryReportTest extends TestCase
             ->json('version');
 
         $this->assertNotSame($initialVersion, $updatedVersion);
+    }
+
+    public function test_report_freshness_only_tracks_the_active_section_sources(): void
+    {
+        $this->actingAs($this->reader());
+        $expiryUrl = route('inventory.reports.freshness', ['section' => 'expiry']);
+        $procurementUrl = route('inventory.reports.freshness', ['section' => 'procurement']);
+        $expiryVersion = $this->getJson($expiryUrl)->assertOk()->json('version');
+        $procurementVersion = $this->getJson($procurementUrl)->assertOk()->json('version');
+
+        Supplier::create(['name' => 'Report freshness supplier', 'status' => 'active']);
+
+        $this->assertSame($expiryVersion, $this->getJson($expiryUrl)->assertOk()->json('version'));
+        $this->assertNotSame($procurementVersion, $this->getJson($procurementUrl)->assertOk()->json('version'));
     }
 
     /**

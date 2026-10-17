@@ -43,6 +43,7 @@
             fn ($parameter) => $parameter !== null && $parameter !== ''
         ));
     };
+    if ($printAll || $activeSection === 'overview') {
     $expiryRiskUnits = $expiry['expired']['units'] + $expiry['expiring_soon']['units'];
     $periodContext = $currentPeriod === 'all'
         ? 'all available history through '.$period['to']->format('M d, Y')
@@ -73,11 +74,12 @@
         ->map(fn (array $row) => number_format($row['movements']).' '.$row['type']->label().' movements')
         ->values()
         ->all();
-    $procurementTooltipDetails = [
+    $procurementTooltipDetails = $canViewFinancialData ? [
         'Ordered: ₱'.number_format($spend['ordered']['value'], 2),
         'QC accepted: ₱'.number_format($spend['received']['value'], 2),
         'Outstanding (all time): ₱'.number_format($spend['outstanding']['value'], 2),
-    ];
+    ] : [];
+    }
 @endphp
 
 <x-app-layout>
@@ -729,12 +731,15 @@
 
     <div
         id="report-sections"
+        data-report-version="{{ $reportDataVersion }}"
         x-data="inventoryReportTabs({
+            initialTab: @js($activeSection),
             canViewFinancialData: {{ $canViewFinancialData ? 'true' : 'false' }},
-            freshnessEndpoint: @js(route('inventory.reports.freshness')),
+            freshnessEndpoint: @js($printAll ? null : route('inventory.reports.freshness')),
             initialVersion: @js($reportDataVersion),
         })"
         x-on:open-report-tab.window="selectTab($event.detail.tab); $nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'start' }))"
+        x-on:popstate.window="selectTab(new URLSearchParams(window.location.search).get('section') || 'overview', 'none')"
         class="space-y-4"
     >
         <div class="rounded-xl border border-neutral-200 bg-white p-2 shadow-xs dark:border-neutral-800 dark:bg-neutral-900 print:hidden">
@@ -811,7 +816,7 @@
                     >
                         <x-ui.icon name="exclamation-triangle" class="h-4 w-4" />
                         <span>Expiry Risk Batches</span>
-                        @if ($expiry['rows']->isNotEmpty())
+                        @if (isset($expiry) && $expiry['rows']->isNotEmpty())
                             <span class="rounded-full bg-warning-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-warning-800 dark:bg-warning-950/70 dark:text-warning-300">
                                 {{ $expiry['rows']->count() }}
                             </span>
@@ -823,10 +828,18 @@
                     <span class="h-1.5 w-1.5 rounded-full" :class="pendingVersion ? 'bg-warning-500' : 'bg-success-500'"></span>
                     <span x-text="liveStatus"></span>
                 </div>
+                <x-ui.button variant="ghost" size="sm" :href="route('inventory.reports', array_merge(request()->query(), ['print_all' => 1]))" target="_blank" rel="noopener" class="print:hidden">Print all sections</x-ui.button>
             </div>
         </div>
 
+        <p x-show="loadingTab" x-cloak role="status" class="text-sm text-neutral-600 dark:text-neutral-300" x-text="`Loading ${loadingTab?.replaceAll('_', ' ')} report...`"></p>
+        <div x-show="loadError" x-cloak role="alert" class="flex flex-wrap items-center gap-3 text-sm text-danger-700 dark:text-danger-300">
+            <span x-text="loadError"></span>
+            <x-ui.button variant="secondary" size="sm" type="button" x-on:click="selectTab(failedTab)">Retry</x-ui.button>
+        </div>
+
         <div id="report-panel-overview" x-show="activeTab === 'overview'" x-cloak class="space-y-4 print:!block">
+        @if($printAll || $activeSection === 'overview')
     {{-- ------------------------------------------------ 1. inventory summary --}}
 
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-12">
@@ -1261,6 +1274,7 @@
         </x-ui.card>
     </div>
 
+        @endif
         </div>
 
     {{-- --------------------------------------------------- 3. interactive detailed report center --}}
@@ -1268,6 +1282,7 @@
     <div id="report-detail-tabs" class="space-y-4">
         {{-- Tab 1: Valuation & Locations --}}
         <div id="report-panel-valuation" x-show="activeTab === 'valuation'" x-cloak class="space-y-4 print:!block">
+            @if($printAll || $activeSection === 'valuation')
             <div class="grid gap-4 lg:grid-cols-2">
                 <x-ui.card :padding="false">
                     <x-slot name="header">
@@ -1425,11 +1440,13 @@
                     </x-ui.table>
                 </x-ui.card>
             </div>
+            @endif
         </div>
 
         {{-- Tab 2: Procurement & Spending --}}
         @if ($canViewFinancialData)
         <div id="report-panel-procurement" x-show="activeTab === 'procurement'" x-cloak class="space-y-4 print:!block">
+            @if($printAll || $activeSection === 'procurement')
             <section class="space-y-4">
                 <div class="flex items-center gap-3">
                     <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm">
@@ -1607,11 +1624,13 @@
                     @endforelse
                 </div>
             </x-ui.card>
+            @endif
         </div>
         @endif
 
         {{-- Tab 3: Movements & Consumption --}}
         <div id="report-panel-movements" x-show="activeTab === 'movements'" x-cloak class="space-y-4 print:!block">
+            @if($printAll || $activeSection === 'movements')
             <div
                 x-data="{
                     consumedSearch: '',
@@ -1767,10 +1786,12 @@
                     </tbody>
                 </x-ui.table>
             </x-ui.card>
+            @endif
         </div>
 
         {{-- Tab 4: Expiry Risk Batches --}}
         <div id="report-panel-expiry" x-show="activeTab === 'expiry'" x-cloak class="space-y-6 print:!block">
+            @if($printAll || $activeSection === 'expiry')
             <x-ui.card title="Expiry Exposure - Detailed Batches" subtitle="Batches holding stock that are expired or approaching expiry." :padding="false">
                 <x-ui.table :sticky-header="false">
                     <x-ui.table.head>
@@ -1819,6 +1840,7 @@
                     </tbody>
                 </x-ui.table>
             </x-ui.card>
+            @endif
         </div>
     </div>
     </div>

@@ -92,6 +92,10 @@ class NotificationSystemTest extends TestCase
             ->assertDontSee('Critical system event')
             ->assertDontSee('Other user notification');
 
+        $this->actingAs($user)->getJson(route('notifications.index', ['count_only' => 1]))
+            ->assertOk()
+            ->assertExactJson(['unread_count' => 17]);
+
         $secondPage = $this->actingAs($user)->getJson($firstPage->json('next_url'))
             ->assertOk()
             ->assertJsonPath('loaded_count', 8)

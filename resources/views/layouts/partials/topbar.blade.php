@@ -264,18 +264,20 @@
             unreadCount: @js($topbarUnreadCount),
             nextUrl: @js($topbarNotificationsNextUrl),
             loading: false,
+            refreshRequestId: 0,
             loadError: '',
             statusMessage: '',
             init() {
                 setInterval(() => {
                     if (!document.hidden) {
-                        this.refresh();
+                        this.refresh(true);
                     }
                 }, 60000);
             },
-            async refresh() {
+            async refresh(countOnly = false) {
+                const requestId = ++this.refreshRequestId;
                 try {
-                    const response = await fetch(@js(route('notifications.index')), {
+                    const response = await fetch(countOnly ? @js(route('notifications.index', ['count_only' => 1])) : @js(route('notifications.index')), {
                         headers: {
                             'Accept': 'application/json',
                             'X-Requested-With': 'XMLHttpRequest'
@@ -283,10 +285,14 @@
                     });
                     if (response.ok) {
                         const data = await response.json();
+                        if (requestId !== this.refreshRequestId) return;
                         if (data.unread_count !== undefined) {
                             const countChanged = this.unreadCount !== data.unread_count;
                             this.unreadCount = data.unread_count;
-                            if (countChanged && data.html) {
+                            if (countOnly && countChanged && this.open) {
+                                this.refresh();
+                            }
+                            if (!countOnly && data.html !== undefined) {
                                 this.$refs.notificationItems.innerHTML = data.html;
                                 this.nextUrl = data.next_url;
                             }
