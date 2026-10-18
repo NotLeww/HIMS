@@ -22,12 +22,14 @@ use App\Models\RfqSupplierInvitation;
 use App\Models\SourcingRfq;
 use App\Models\Supplier;
 use App\Models\SupplierDiscrepancy;
-use App\Models\SupplierDocument;
+use App\Models\SupplierInvitation;
+use App\Models\SupplierProduct;
 use App\Models\SupplierQuote;
 use App\Models\User;
 use App\Services\HimsNotificationService;
 use App\Services\HimsNotificationWorkflowService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class NotificationWorkflowAuditTest extends TestCase
@@ -69,16 +71,18 @@ class NotificationWorkflowAuditTest extends TestCase
         $supplierB = $this->createSupplier('Beta Medical');
 
         $hospitalManager = User::factory()->inventoryManager()->create();
+        $hospitalApprover = User::factory()->administrator()->create();
         $supplierAAdmin = $this->createSupplierUser($supplierA, UserRole::VendorAdministrator);
         $supplierBAdmin = $this->createSupplierUser($supplierB, UserRole::VendorAdministrator);
 
         // 1. Supplier A submits profile updates
         $this->workflow->supplierProfileSubmitted($supplierA, $supplierAAdmin);
 
-        $hospitalNotification = $hospitalManager->notifications()->first();
+        $hospitalNotification = $hospitalApprover->notifications()->first();
         $this->assertNotNull($hospitalNotification);
         $this->assertSame(NotificationDestination::SupplierManagement->value, $hospitalNotification->data['destination']);
         $this->assertSame($supplierA->id, $hospitalNotification->data['route_parameters']['supplier']);
+        $this->assertSame(0, $hospitalManager->notifications()->count());
         $this->assertSame(0, $supplierBAdmin->notifications()->count());
 
         // 2. Hospital requests changes to profile
@@ -89,7 +93,22 @@ class NotificationWorkflowAuditTest extends TestCase
         $this->assertSame(NotificationDestination::SupplierCompanyProfile->value, $supplierNotification->data['destination']);
         $this->assertStringContainsString('Mayor permit', $supplierNotification->data['message']);
         $this->assertSame(0, $supplierBAdmin->fresh()->notifications()->count());
-        $this->assertSame(1, $hospitalManager->fresh()->notifications()->count()); // Hospital reviewer not notified of own action
+        $this->assertSame(0, $hospitalManager->fresh()->notifications()->count()); // Hospital reviewer not notified of own action
+    }
+
+    public function test_same_day_profile_resubmission_creates_a_new_approver_notification(): void
+    {
+        $supplier = $this->createSupplier();
+        $supplierAdmin = $this->createSupplierUser($supplier);
+        $hospitalApprover = User::factory()->administrator()->create();
+
+        $supplier->forceFill(['company_profile_submitted_at' => now()->startOfSecond()]);
+        $this->workflow->supplierProfileSubmitted($supplier, $supplierAdmin);
+
+        $supplier->forceFill(['company_profile_submitted_at' => now()->startOfSecond()->addSecond()]);
+        $this->workflow->supplierProfileSubmitted($supplier, $supplierAdmin);
+
+        $this->assertSame(2, $hospitalApprover->notifications()->count());
     }
 
     public function test_supplier_accreditation_decisions_notify_supplier_administrators(): void
@@ -123,6 +142,7 @@ class NotificationWorkflowAuditTest extends TestCase
     {
         $supplier = $this->createSupplier();
         $hospitalManager = User::factory()->inventoryManager()->create();
+        $hospitalAdministrator = User::factory()->administrator()->create();
         $supplierAdmin = $this->createSupplierUser($supplier, UserRole::VendorAdministrator);
 
         $document = $supplier->documents()->create([
@@ -140,6 +160,7 @@ class NotificationWorkflowAuditTest extends TestCase
         $this->workflow->supplierComplianceUploaded($supplier, $document, $supplierAdmin);
 
         $this->assertSame(1, $hospitalManager->notifications()->count());
+        $this->assertSame(1, $hospitalAdministrator->notifications()->count());
         $hospitalNotice = $hospitalManager->notifications()->first();
         $this->assertSame(NotificationDestination::SupplierManagement->value, $hospitalNotice->data['destination']);
         $this->assertStringContainsString('FDA License to Operate', $hospitalNotice->data['message']);
@@ -174,7 +195,7 @@ class NotificationWorkflowAuditTest extends TestCase
         $invitationA = RfqSupplierInvitation::create([
             'sourcing_rfq_id' => $rfq->id,
             'supplier_id' => $supplierA->id,
-            'portal_token' => \Illuminate\Support\Str::random(32),
+            'portal_token' => Str::random(32),
             'invited_at' => now(),
         ]);
 
@@ -298,7 +319,7 @@ class NotificationWorkflowAuditTest extends TestCase
         $this->assertSame('Purchase order accepted by supplier', $ackNotice->data['title']);
 
         // 3. Shipment dispatched (ASN)
-        $this->workflow->purchaseOrderShipmentDispatched($po, 'ASN-2026-001', $supplierOps);
+        $this->workflow->purchaseOrderShipmentDispatched($po, 'ASN-2026-001');
 
         $this->assertSame(1, $warehouseReceiver->notifications()->count());
         $shipNotice = $warehouseReceiver->notifications()->first();
@@ -355,6 +376,105 @@ class NotificationWorkflowAuditTest extends TestCase
         // Supplier responds to discrepancy
         $this->workflow->discrepancyResponded($discrepancy, $supplierOps);
         $this->assertSame(2, $warehouseReceiver->fresh()->notifications()->count());
+
+        // Hospital closes the discrepancy and only the linked supplier's fulfillment users are notified.
+        $otherSupplier = $this->createSupplier('Unrelated Supplier');
+        $otherSupplierOps = $this->createSupplierUser($otherSupplier, UserRole::VendorOperations);
+        $this->actingAs($poIssuer)->patch(route('inventory.suppliers.discrepancies.resolve', [$supplier, $discrepancy]), [
+            'resolution' => 'Replacement units accepted and case closed.',
+        ])->assertRedirect();
+        $this->assertSame(3, $supplierOps->fresh()->notifications()->count());
+        $this->assertTrue($supplierOps->fresh()->notifications()->get()->contains(
+            fn ($notification) => $notification->data['title'] === 'Delivery discrepancy resolved'
+        ));
+        $this->assertSame(0, $otherSupplierOps->notifications()->count());
+    }
+
+    public function test_supplier_catalog_approval_and_inactivation_notify_only_linked_supplier_administrators(): void
+    {
+        $supplier = $this->createSupplier();
+        $otherSupplier = $this->createSupplier('Other Supplier');
+        $manager = User::factory()->inventoryManager()->create();
+        $administrator = User::factory()->administrator()->create();
+        $supplierAdmin = $this->createSupplierUser($supplier);
+        $supplierOps = $this->createSupplierUser($supplier, UserRole::VendorOperations);
+        $otherSupplierAdmin = $this->createSupplierUser($otherSupplier);
+        $item = InventoryItem::create([
+            'name' => 'Infusion Set',
+            'sku' => 'MED-INFUSION-SET',
+            'unit' => 'piece',
+            'status' => 'active',
+        ]);
+        $product = SupplierProduct::create([
+            'supplier_id' => $supplier->id,
+            'item_id' => $item->id,
+            'supplier_product_name' => 'Sterile Infusion Set',
+            'approval_status' => 'pending_review',
+            'is_active' => false,
+        ]);
+
+        $this->actingAs($manager)->patch(route('inventory.suppliers.products.approve', [$supplier, $product]))
+            ->assertRedirect();
+
+        $catalogNotice = $supplierAdmin->notifications()->sole();
+        $this->assertSame('Catalog product approved', $catalogNotice->data['title']);
+        $this->assertSame(NotificationDestination::SupplierCatalog->value, $catalogNotice->data['destination']);
+        $this->actingAs($supplierAdmin)
+            ->get(route('notifications.open', $catalogNotice->id))
+            ->assertRedirect(route('supplier.catalog.index'));
+        $this->assertSame(0, $supplierOps->notifications()->count());
+        $this->assertSame(0, $otherSupplierAdmin->notifications()->count());
+
+        $this->actingAs($administrator, 'admin')->post(route('inventory.suppliers.inactivate', $supplier), [
+            'inactivation_reason' => 'Supplier requested account closure.',
+        ])->assertRedirect();
+
+        $this->assertSame(2, $supplierAdmin->fresh()->notifications()->count());
+        $this->assertTrue($supplierAdmin->fresh()->notifications()->get()->contains(
+            fn ($notification) => $notification->data['title'] === 'Supplier account inactivated'
+        ));
+        $this->assertSame(0, $supplierOps->fresh()->notifications()->count());
+        $this->assertSame(0, $otherSupplierAdmin->fresh()->notifications()->count());
+    }
+
+    public function test_hospital_notifications_target_action_roles_not_read_only_procurement_users(): void
+    {
+        $supplier = $this->createSupplier();
+        $supplierUser = $this->createSupplierUser($supplier);
+        $administrator = User::factory()->administrator()->create();
+        $manager = User::factory()->inventoryManager()->create();
+        $viewer = User::factory()->viewer()->create();
+        $auditor = User::factory()->auditor()->create();
+        $po = PurchaseOrder::create([
+            'po_number' => 'PO-INVOICE-ROUTING-001',
+            'supplier_id' => $supplier->id,
+            'created_by' => $manager->id,
+            'quantity' => 1,
+            'unit_cost' => 100,
+            'total_amount' => 100,
+            'status' => PurchaseOrderStatus::Fulfilled,
+            'requested_at' => now(),
+        ]);
+        $invitation = SupplierInvitation::create([
+            'supplier_id' => $supplier->id,
+            'user_id' => $supplierUser->id,
+            'invited_by' => $administrator->id,
+            'email' => $supplierUser->email,
+            'token_hash' => hash('sha256', 'notification-audit-token'),
+            'status' => SupplierInvitation::STATUS_ACCEPTED,
+            'delivery_status' => SupplierInvitation::DELIVERY_SENT,
+            'invited_at' => now()->subHour(),
+            'expires_at' => now()->addDay(),
+            'accepted_at' => now(),
+        ]);
+
+        $this->workflow->supplierInvitationAccepted($invitation, $supplierUser);
+        $this->workflow->invoiceSubmitted($po, 'INV-ROUTING-001');
+
+        $this->assertSame('Supplier invitation accepted', $administrator->notifications()->sole()->data['title']);
+        $this->assertSame('Supplier invoice submitted', $manager->notifications()->sole()->data['title']);
+        $this->assertSame(0, $viewer->notifications()->count());
+        $this->assertSame(0, $auditor->notifications()->count());
     }
 
     public function test_material_requisition_decisions_notify_requester_and_allow_navigation(): void

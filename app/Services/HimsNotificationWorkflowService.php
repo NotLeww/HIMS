@@ -29,8 +29,8 @@ class HimsNotificationWorkflowService
     public function supplierProfileSubmitted(Supplier $supplier, User $actor): void
     {
         $this->notifications->sendToPermission(
-            Permission::ManageSuppliers,
-            "supplier:{$supplier->id}:profile-submitted:".now()->toDateString(),
+            Permission::ApproveSuppliers,
+            "supplier:{$supplier->id}:profile-submitted:".($supplier->company_profile_submitted_at?->format('YmdHis.u') ?? now()->format('YmdHis.u')),
             'Supplier company profile submitted',
             "{$supplier->name} submitted company profile updates for review.",
             NotificationPriority::Info,
@@ -58,7 +58,7 @@ class HimsNotificationWorkflowService
     public function supplierAccreditationSubmitted(Supplier $supplier, User $actor): void
     {
         $this->notifications->sendToPermission(
-            Permission::ManageSuppliers,
+            Permission::ApproveSuppliers,
             "supplier:{$supplier->id}:accreditation-submitted:".now()->toDateString(),
             'Supplier accreditation review requested',
             "{$supplier->name} submitted company profile for accreditation review.",
@@ -93,12 +93,23 @@ class HimsNotificationWorkflowService
 
     public function supplierStatusChanged(Supplier $supplier, string $newStatus, User $actor, ?string $reason = null): void
     {
-        $isSuspended = $newStatus === 'suspended';
-        $title = $isSuspended ? 'Supplier account suspended' : 'Supplier account reactivated';
-        $message = $isSuspended
-            ? "Your supplier account has been suspended. Reason: {$reason}"
-            : 'Your supplier account has been reactivated.';
-        $priority = $isSuspended ? NotificationPriority::Critical : NotificationPriority::Info;
+        [$title, $message, $priority] = match ($newStatus) {
+            'suspended' => [
+                'Supplier account suspended',
+                "Your supplier account has been suspended. Reason: {$reason}",
+                NotificationPriority::Critical,
+            ],
+            'inactive' => [
+                'Supplier account inactivated',
+                "Your supplier account has been inactivated. Reason: {$reason}",
+                NotificationPriority::Critical,
+            ],
+            default => [
+                'Supplier account reactivated',
+                'Your supplier account has been reactivated.',
+                NotificationPriority::Info,
+            ],
+        };
 
         $this->notifications->sendToSupplierPermission(
             $supplier,
@@ -129,7 +140,7 @@ class HimsNotificationWorkflowService
         $this->notifications->sendToSupplierPermission(
             $supplier,
             Permission::SupplierManageProfile,
-            "supplier-doc:{$document->id}:verified-".($verified ? '1' : '0').":".now()->timestamp,
+            "supplier-doc:{$document->id}:verified-".($verified ? '1' : '0').':'.now()->timestamp,
             $title,
             $message,
             $priority,
@@ -142,7 +153,7 @@ class HimsNotificationWorkflowService
     public function supplierComplianceUploaded(Supplier $supplier, SupplierDocument $document, User $actor): void
     {
         $this->notifications->sendToPermission(
-            Permission::ManageSuppliers,
+            Permission::ReviewSupplierCompliance,
             "supplier-doc:{$document->id}:uploaded:".now()->toDateString(),
             'Compliance document uploaded',
             "{$supplier->name} uploaded compliance document: {$document->document_type}.",
@@ -158,7 +169,7 @@ class HimsNotificationWorkflowService
         $supplierName = $invitation->supplier?->name ?? 'Supplier';
 
         $this->notifications->sendToPermission(
-            Permission::ManageSuppliers,
+            Permission::ApproveSuppliers,
             "invitation:{$invitation->id}:accepted",
             'Supplier invitation accepted',
             "{$user->name} from {$supplierName} accepted their invitation and activated their account.",
@@ -375,7 +386,7 @@ class HimsNotificationWorkflowService
         $supplierName = $po->supplier?->name ?? 'Supplier';
 
         $this->notifications->sendToPermission(
-            Permission::ViewProcurement,
+            Permission::ManageProcurement,
             "po:{$po->id}:invoice:{$invoiceNumber}",
             'Supplier invoice submitted',
             "{$supplierName} submitted invoice {$invoiceNumber} for PO {$po->po_number}.",
@@ -391,10 +402,52 @@ class HimsNotificationWorkflowService
             Permission::ManageSuppliers,
             "product:{$product->id}:submitted:".now()->toDateString(),
             'Supplier catalog product updated',
-            "{$supplier->name} submitted catalog product '{$product->product_name}' for approval.",
+            "{$supplier->name} submitted catalog product '{$product->supplier_product_name}' for approval.",
             NotificationPriority::Info,
             NotificationDestination::SupplierManagement,
             ['supplier' => $supplier->id],
+        );
+    }
+
+    public function catalogProductApproved(Supplier $supplier, SupplierProduct $product, User $actor): void
+    {
+        $this->notifications->sendToSupplierPermission(
+            $supplier,
+            Permission::SupplierManageProfile,
+            "product:{$product->id}:approved",
+            'Catalog product approved',
+            "Catalog product '{$product->supplier_product_name}' was approved for operational use.",
+            NotificationPriority::Info,
+            NotificationDestination::SupplierCatalog,
+            ['supplier' => $supplier->id],
+            except: $actor,
+        );
+    }
+
+    public function discrepancyResolved(SupplierDiscrepancy $discrepancy, User $actor): void
+    {
+        $supplier = $discrepancy->supplier;
+        if (! $supplier) {
+            return;
+        }
+
+        $po = $discrepancy->receiptLine?->goodsReceiptNote?->purchaseOrder;
+        $poId = $po?->id ?? (int) ($discrepancy->receiptLine?->goodsReceiptNote?->purchase_order_id ?? 0);
+        $poNumber = $po?->po_number ?? ($poId > 0 ? "PO #{$poId}" : 'delivery');
+
+        $this->notifications->sendToSupplierPermission(
+            $supplier,
+            Permission::SupplierFulfillOrders,
+            "discrepancy:{$discrepancy->id}:resolved",
+            'Delivery discrepancy resolved',
+            "The hospital closed the delivery discrepancy on {$poNumber}.",
+            NotificationPriority::Info,
+            NotificationDestination::SupplierOrder,
+            [
+                'purchase_order' => $poId,
+                'supplier' => $supplier->id,
+            ],
+            except: $actor,
         );
     }
 

@@ -44,6 +44,28 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class InventoryReportService
 {
+    /** Tables that feed the interactive report dashboard. */
+    private const FRESHNESS_TABLES = [
+        'inventory_items',
+        'item_categories',
+        'item_stock_levels',
+        'item_batches',
+        'storage_locations',
+        'suppliers',
+        'purchase_orders',
+        'goods_receipt_notes',
+        'grn_line_items',
+        'quality_inspections',
+        'stock_movements',
+    ];
+
+    private const SECTION_FRESHNESS_TABLES = [
+        'valuation' => ['inventory_items', 'item_categories', 'item_stock_levels', 'storage_locations'],
+        'procurement' => ['suppliers', 'purchase_orders', 'goods_receipt_notes', 'grn_line_items', 'quality_inspections', 'inventory_items', 'item_batches', 'item_stock_levels'],
+        'movements' => ['stock_movements', 'inventory_items', 'item_categories', 'storage_locations', 'item_stock_levels'],
+        'expiry' => ['item_batches', 'inventory_items', 'item_stock_levels', 'storage_locations'],
+    ];
+
     /** Window the movement and spend sections cover unless asked otherwise. */
     public const DEFAULT_PERIOD_DAYS = 30;
 
@@ -81,11 +103,39 @@ class InventoryReportService
     ];
 
     /**
+     * Return a stable token that changes when any report source changes.
+     */
+    public function dataVersion(?string $section = null, bool $includeFinancial = true): string
+    {
+        $tables = self::SECTION_FRESHNESS_TABLES[$section] ?? self::FRESHNESS_TABLES;
+        if (! $includeFinancial) {
+            $tables = array_diff($tables, ['suppliers', 'purchase_orders', 'goods_receipt_notes', 'grn_line_items', 'quality_inspections']);
+        }
+        $queries = collect($tables)
+            ->map(fn (string $table) => DB::table($table)->selectRaw(
+                '? as source, COUNT(*) as row_count, MAX(updated_at) as last_updated_at',
+                [$table],
+            ));
+
+        $combined = $queries->shift();
+        foreach ($queries as $query) {
+            $combined->unionAll($query);
+        }
+
+        $versions = DB::query()
+            ->fromSub($combined, 'report_source_versions')
+            ->orderBy('source')
+            ->get();
+
+        return hash('sha256', json_encode($versions, JSON_THROW_ON_ERROR));
+    }
+
+    /**
      * Every figure the screen needs, in one call.
      *
      * @return array<string, mixed>
      */
-    public function build(int $days = self::DEFAULT_PERIOD_DAYS, ?Carbon $from = null, ?Carbon $to = null, array $filters = []): array
+    public function build(int $days = self::DEFAULT_PERIOD_DAYS, ?Carbon $from = null, ?Carbon $to = null, array $filters = [], ?string $section = null, bool $includeFinancial = true): array
     {
         if ($from && $to) {
             $since = $from;
@@ -117,23 +167,31 @@ class InventoryReportService
         $movementType = ! empty($filters['movement_type']) ? (string) $filters['movement_type'] : null;
         $stockStatusFilter = ! empty($filters['stock_status']) ? (string) $filters['stock_status'] : null;
 
-        $stockStatus = $this->stockStatus($categoryId, $locationId, $stockStatusFilter);
-        $movementsByType = $this->movementsByType($since, $until, $movementType, $locationId, $categoryId);
+        $needs = fn (string ...$sections): bool => $section === null || in_array($section, $sections, true);
+        $stockStatus = $needs('overview', 'valuation') ? $this->stockStatus($categoryId, $locationId, $stockStatusFilter) : null;
+        $movementsByType = $needs('overview') ? $this->movementsByType($since, $until, $movementType, $locationId, $categoryId) : null;
 
         return [
             'period' => $period,
-            'summary' => $this->summary($stockStatus),
-            'stockStatus' => $stockStatus,
-            'expiry' => $this->expiryExposure($categoryId, $locationId),
-            'valuationByCategory' => $this->valuationByCategory($categoryId, $locationId, $stockStatusFilter),
-            'stockByLocation' => $this->stockByLocation($categoryId, $locationId, $stockStatusFilter),
-            'spend' => $this->procurementSpend($since, $until, $supplierId),
-            'spendBySupplier' => $this->spendBySupplier($since, $until, $supplierId),
-            'receivingReconciliation' => $this->receivingReconciliation($since, $until, $supplierId),
-            'movementsByType' => $movementsByType,
-            'movementTotals' => $this->movementTotals($movementsByType),
-            'topConsumedItems' => $this->topConsumedItems($since, $until, $categoryId, $locationId),
-            'recentMovements' => $this->recentMovements($since, 15, $until, $movementType, $locationId, $categoryId),
+            ...($stockStatus !== null ? ['summary' => $this->summary($stockStatus), 'stockStatus' => $stockStatus] : []),
+            ...($needs('overview', 'expiry') ? ['expiry' => $this->expiryExposure($categoryId, $locationId)] : []),
+            ...($needs('valuation') ? [
+                'valuationByCategory' => $this->valuationByCategory($categoryId, $locationId, $stockStatusFilter),
+                'stockByLocation' => $this->stockByLocation($categoryId, $locationId, $stockStatusFilter),
+            ] : []),
+            ...($includeFinancial && $needs('overview', 'procurement') ? ['spend' => $this->procurementSpend($since, $until, $supplierId)] : []),
+            ...($includeFinancial && $needs('procurement') ? [
+                'spendBySupplier' => $this->spendBySupplier($since, $until, $supplierId),
+                'receivingReconciliation' => $this->receivingReconciliation($since, $until, $supplierId),
+            ] : []),
+            ...($movementsByType !== null ? [
+                'movementsByType' => $movementsByType,
+                'movementTotals' => $this->movementTotals($movementsByType),
+            ] : []),
+            ...($needs('movements') ? [
+                'topConsumedItems' => $this->topConsumedItems($since, $until, $categoryId, $locationId),
+                'recentMovements' => $this->recentMovements($since, 15, $until, $movementType, $locationId, $categoryId),
+            ] : []),
             'activeFilters' => $filters,
         ];
     }

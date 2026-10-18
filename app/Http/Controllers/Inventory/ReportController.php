@@ -51,6 +51,8 @@ class ReportController extends Controller implements HasMiddleware
     public function index(Request $request): View
     {
         $dashboardFilters = $request->validate([
+            'section' => ['nullable', Rule::in(['overview', 'valuation', 'procurement', 'movements', 'expiry'])],
+            'print_all' => ['nullable', 'boolean'],
             'period' => ['nullable', 'string', Rule::in(array_keys(InventoryReportService::PERIOD_OPTIONS))],
             'from' => ['nullable', 'required_if:period,custom', 'date', 'before_or_equal:today'],
             'to' => ['nullable', 'required_if:period,custom', 'date', 'after_or_equal:from', 'before_or_equal:today'],
@@ -102,7 +104,13 @@ class ReportController extends Controller implements HasMiddleware
             'stock_status' => $dashboardFilters['stock_status'] ?? null,
         ], fn ($value) => $value !== null && $value !== '');
 
-        $reportData = $this->reports->build($days, $customFrom, $customTo, $activeFilters);
+        $section = $dashboardFilters['section'] ?? 'overview';
+        if ($section === 'procurement' && ! $request->user()->can(Permission::ViewProcurementSensitiveData->value)) {
+            abort(403);
+        }
+        $printAll = $request->boolean('print_all');
+        $canViewFinancial = $request->user()->can(Permission::ViewProcurementSensitiveData->value);
+        $reportData = $this->reports->build($days, $customFrom, $customTo, $activeFilters, $printAll ? null : $section, $canViewFinancial);
 
         return view('inventory.reports.index', [
             ...$reportData,
@@ -111,12 +119,32 @@ class ReportController extends Controller implements HasMiddleware
             'exportFormats' => InventoryReportService::EXPORT_FORMATS,
             'categories' => ItemCategory::orderBy('name')->get(['id', 'name', 'code']),
             'locations' => StorageLocation::orderBy('name')->get(['id', 'name', 'code', 'status']),
-            'suppliers' => Supplier::where('status', 'active')->orderBy('name')->get(['id', 'name']),
+            'suppliers' => $canViewFinancial ? Supplier::where('status', 'active')->orderBy('name')->get(['id', 'name']) : collect(),
             'movementTypes' => MovementType::cases(),
+            'activeSection' => $section,
+            'printAll' => $printAll,
             'currentPeriod' => $periodParam ?? ($request->has('days') ? (string) $days : '30'),
             'currentFrom' => $fromParam,
             'currentTo' => $toParam,
+            'reportDataVersion' => $this->reports->dataVersion($printAll ? null : $section, $canViewFinancial),
         ]);
+    }
+
+    /**
+     * Lightweight version probe used by the visible reports page.
+     */
+    public function freshness(Request $request): JsonResponse
+    {
+        $section = $request->validate([
+            'section' => ['nullable', Rule::in(['overview', 'valuation', 'procurement', 'movements', 'expiry'])],
+        ])['section'] ?? null;
+        if ($section === 'procurement' && ! $request->user()->can(Permission::ViewProcurementSensitiveData->value)) {
+            abort(403);
+        }
+
+        return response()->json([
+            'version' => $this->reports->dataVersion($section, $request->user()->can(Permission::ViewProcurementSensitiveData->value)),
+        ])->header('Cache-Control', 'no-store, private');
     }
 
     /**

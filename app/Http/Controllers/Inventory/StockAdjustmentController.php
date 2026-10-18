@@ -19,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class StockAdjustmentController extends Controller implements HasMiddleware
@@ -177,48 +178,48 @@ class StockAdjustmentController extends Controller implements HasMiddleware
 
         // Routine adjustment: executed directly by authorized inventory manager
         try {
-            $this->automationService->recordMovement([
-                'item_id' => $validated['item_id'],
-                'movement_type' => MovementType::Adjustment,
-                'quantity' => $delta,
-                'to_location_id' => $locationId,
-                'remarks' => $validated['reason'] ?? $explanation,
-            ], $request->user()->id);
+            DB::transaction(function () use ($validated, $delta, $locationId, $explanation, $reasonCode, $unitCost, $request, $item): void {
+                $currentQty = $this->automationService->availableAt((int) $validated['item_id'], $locationId);
+                $adj = InventoryAdjustment::create([
+                    'adjustment_number' => 'ADJ-'.now()->format('Ymd').'-'.str_pad((string) (InventoryAdjustment::count() + 1), 4, '0', STR_PAD_LEFT),
+                    'item_id' => $validated['item_id'],
+                    'storage_location_id' => $locationId,
+                    'current_quantity' => $currentQty,
+                    'adjustment_quantity' => $delta,
+                    'resulting_quantity' => $currentQty + $delta,
+                    'unit_cost' => $unitCost,
+                    'total_variance_value' => round($delta * $unitCost, 2),
+                    'adjustment_type' => $validated['adjustment_type'],
+                    'reason_code' => $reasonCode,
+                    'explanation' => $validated['reason'] ?? $explanation,
+                    'status' => 'posted',
+                    'requested_by_id' => $request->user()->id,
+                    'approved_by_id' => $request->user()->id,
+                    'posted_at' => now(),
+                ]);
 
-            // Record in InventoryAdjustment ledger
-            $adjNumber = 'ADJ-'.now()->format('Ymd').'-'.str_pad((string) (InventoryAdjustment::count() + 1), 4, '0', STR_PAD_LEFT);
-            $currentQty = $this->automationService->availableAt((int) $validated['item_id'], $locationId);
+                $this->automationService->recordMovement([
+                    'item_id' => $validated['item_id'],
+                    'movement_type' => MovementType::Adjustment,
+                    'quantity' => $delta,
+                    'to_location_id' => $locationId,
+                    'remarks' => $validated['reason'] ?? $explanation,
+                ], $request->user()->id, $adj);
 
-            $adj = InventoryAdjustment::create([
-                'adjustment_number' => $adjNumber,
-                'item_id' => $validated['item_id'],
-                'storage_location_id' => $locationId,
-                'current_quantity' => $currentQty - $delta,
-                'adjustment_quantity' => $delta,
-                'resulting_quantity' => $currentQty,
-                'unit_cost' => $unitCost,
-                'total_variance_value' => round($delta * $unitCost, 2),
-                'adjustment_type' => $validated['adjustment_type'],
-                'reason_code' => $reasonCode,
-                'explanation' => $validated['reason'] ?? $explanation,
-                'status' => 'posted',
-                'requested_by_id' => $request->user()->id,
-                'approved_by_id' => $request->user()->id,
-                'posted_at' => now(),
-            ]);
-
-            $this->auditLogger->record(
-                AuditAction::PostedInventoryAdjustment,
-                actor: $request->user(),
-                target: $adj,
-                description: "Posted inventory adjustment {$adj->adjustment_number} for {$item->name} (Delta: {$adj->adjustment_quantity})",
-                targetName: $adj->adjustment_number,
-                newValues: [
-                    'adjustment_number' => $adj->adjustment_number,
-                    'delta' => $adj->adjustment_quantity,
-                    'resulting_quantity' => $adj->resulting_quantity,
-                ]
-            );
+                $this->auditLogger->record(
+                    AuditAction::PostedInventoryAdjustment,
+                    actor: $request->user(),
+                    target: $adj,
+                    description: "Posted inventory adjustment {$adj->adjustment_number} for {$item->name} (Delta: {$adj->adjustment_quantity}).",
+                    targetName: $adj->adjustment_number,
+                    oldValues: ['quantity' => $adj->current_quantity],
+                    newValues: [
+                        'adjustment_number' => $adj->adjustment_number,
+                        'delta' => $adj->adjustment_quantity,
+                        'resulting_quantity' => $adj->resulting_quantity,
+                    ]
+                );
+            });
 
             return redirect()->route('inventory.adjustments')->with('success', 'Stock adjustment applied successfully.');
         } catch (DomainException $e) {

@@ -35,31 +35,51 @@
         <x-ui.modal
             name="schedule-form-modal"
             :title="$editing ? 'Edit scheduled report' : 'Create scheduled report'"
-            maxWidth="3xl"
+            maxWidth="4xl"
         >
+            <x-slot:header>
+                <div class="flex min-w-0 items-center gap-3">
+                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 ring-1 ring-primary-100 dark:bg-primary-950/70 dark:text-primary-300 dark:ring-primary-900">
+                        <x-ui.icon name="calendar" class="h-5 w-5" />
+                    </span>
+                    <div class="min-w-0">
+                        <h2 id="schedule-form-modal-title" class="text-base font-semibold text-neutral-950 dark:text-white">
+                            {{ $editing ? 'Edit scheduled report' : 'Create scheduled report' }}
+                        </h2>
+                        <p class="mt-0.5 text-xs leading-5 text-neutral-500 dark:text-neutral-400">Configure automated delivery of current report data.</p>
+                    </div>
+                </div>
+            </x-slot:header>
+
             <form method="POST" action="{{ $formAction }}"
                   data-loading-text="{{ $editing ? 'Saving...' : 'Creating...' }}"
+                  novalidate
                   x-data="{
+                      canSubmit: false,
                       frequency: @js($selectedFrequency),
                       reportType: @js($selectedReportType),
                       inventoryFilters() { return ['all', 'stock_status', 'valuation', 'stock_by_location', 'expiry_exposure', 'movement_history', 'most_consumed', 'movements_by_type'].includes(this.reportType) },
                       supplierFilter() { return ['all', 'procurement_expense', 'spend_by_supplier'].includes(this.reportType) },
                       movementFilter() { return ['all', 'movement_history', 'movements_by_type'].includes(this.reportType) },
                       statusFilter() { return ['all', 'stock_status', 'valuation', 'stock_by_location'].includes(this.reportType) },
+                      refreshValidity() { this.$nextTick(() => this.canSubmit = this.$el.checkValidity()); },
                   }"
-                  class="space-y-4">
+                  x-init="refreshValidity()"
+                  x-on:input="refreshValidity()"
+                  x-on:change="refreshValidity()"
+                  class="space-y-5">
                 @csrf
                 @if ($editing)
                     @method('PATCH')
                 @endif
 
-                <x-ui.field name="report_type" label="Report" type="select" :options="$reportTypes"
+                <x-ui.field name="report_type" label="Report" icon="document-chart-bar" type="select" :options="$reportTypes"
                             :value="$selectedReportType" required x-model="reportType" />
 
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <x-ui.field name="report_format" label="Format" type="select" :options="$formats"
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <x-ui.field name="report_format" label="Format" icon="document-text" type="select" :options="$formats"
                                 :value="$editing?->report_format ?? 'pdf'" required />
-                    <x-ui.field name="recipient_user_id" label="Recipient" type="select" required
+                    <x-ui.field name="recipient_user_id" label="Recipient" icon="users" type="select" required
                                 :value="$editing?->recipient_user_id" placeholder="Select an authorized user">
                         @foreach ($recipients as $recipient)
                             <option value="{{ $recipient->id }}" @selected((string) old('recipient_user_id', $editing?->recipient_user_id) === (string) $recipient->id)>
@@ -69,35 +89,44 @@
                     </x-ui.field>
                 </div>
 
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <x-ui.field name="frequency" label="Frequency" type="select" :options="$frequencies"
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <x-ui.field name="frequency" label="Frequency" icon="arrow-path" type="select" :options="$frequencies"
                                 :value="$selectedFrequency" required x-model="frequency" />
-                    <x-ui.field name="run_at" label="Run time" type="time"
+                    <x-ui.field name="run_at" label="Run time" icon="clock" type="time"
                                 :value="substr((string) ($editing?->run_at ?? '08:00'), 0, 5)" required />
                 </div>
 
                 <div x-show="frequency === 'weekly'" x-cloak>
                     <x-ui.field name="day_of_week" label="Day of week" type="select" :options="$daysOfWeek"
-                                :value="$editing?->day_of_week ?? 1" x-bind:disabled="frequency !== 'weekly'" />
+                                :value="$editing?->day_of_week ?? 1" x-bind:required="frequency === 'weekly'"
+                                x-bind:disabled="frequency !== 'weekly'" />
                 </div>
 
                 <div x-show="frequency === 'monthly'" x-cloak>
                     <x-ui.field name="day_of_month" label="Day of month" type="number"
                                 :value="$editing?->day_of_month ?? 1" min="1" max="31"
                                 hint="For shorter months, HIMS runs the report on the last day."
+                                x-bind:required="frequency === 'monthly'"
                                 x-bind:disabled="frequency !== 'monthly'" />
                 </div>
 
-                <div class="border-t border-neutral-200 pt-4 dark:border-neutral-800">
-                    <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Report filters</h3>
-                    <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Relative periods are recalculated whenever the report runs.</p>
+                <div class="border-t border-neutral-200 pt-5 dark:border-neutral-800">
+                    <div class="flex items-start gap-3">
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-950/60 dark:text-primary-300">
+                            <x-ui.icon name="funnel" class="h-4.5 w-4.5" />
+                        </span>
+                        <div class="min-w-0">
+                            <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Report filters</h3>
+                            <p class="mt-0.5 text-xs leading-5 text-neutral-500 dark:text-neutral-400">Relative periods are recalculated whenever the report runs.</p>
+                        </div>
+                    </div>
 
-                    <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <x-ui.field name="period" label="Reporting period" type="select" :options="$periods"
+                    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <x-ui.field name="period" label="Reporting period" icon="calendar" type="select" :options="$periods"
                                     :value="$filters['period'] ?? '30'" required />
 
                         <div x-show="inventoryFilters()" x-cloak>
-                            <x-ui.field name="category_id" label="Category" type="select"
+                            <x-ui.field name="category_id" label="Category" icon="tag" type="select"
                                         :value="$filters['category_id'] ?? null" placeholder="All categories"
                                         x-bind:disabled="!inventoryFilters()">
                                 @foreach ($categories as $category)
@@ -107,7 +136,7 @@
                         </div>
 
                         <div x-show="inventoryFilters()" x-cloak>
-                            <x-ui.field name="storage_location_id" label="Location" type="select"
+                            <x-ui.field name="storage_location_id" label="Location" icon="map-pin" type="select"
                                         :value="$filters['storage_location_id'] ?? null" placeholder="All locations"
                                         x-bind:disabled="!inventoryFilters()">
                                 @foreach ($locations as $location)
@@ -117,7 +146,7 @@
                         </div>
 
                         <div x-show="supplierFilter()" x-cloak>
-                            <x-ui.field name="supplier_id" label="Supplier" type="select"
+                            <x-ui.field name="supplier_id" label="Supplier" icon="building-storefront" type="select"
                                         :value="$filters['supplier_id'] ?? null" placeholder="All suppliers"
                                         x-bind:disabled="!supplierFilter()">
                                 @foreach ($suppliers as $supplier)
@@ -127,7 +156,7 @@
                         </div>
 
                         <div x-show="movementFilter()" x-cloak>
-                            <x-ui.field name="movement_type" label="Movement type" type="select"
+                            <x-ui.field name="movement_type" label="Movement type" icon="arrow-path" type="select"
                                         :value="$filters['movement_type'] ?? null" placeholder="All movement types"
                                         x-bind:disabled="!movementFilter()">
                                 @foreach ($movementTypes as $movementType)
@@ -137,7 +166,7 @@
                         </div>
 
                         <div x-show="statusFilter()" x-cloak>
-                            <x-ui.field name="status" label="Stock status" type="select"
+                            <x-ui.field name="status" label="Stock status" icon="cube" type="select"
                                         :value="$filters['status'] ?? null" placeholder="All stock statuses"
                                         x-bind:disabled="!statusFilter()"
                                         :options="['in_stock' => 'In Stock', 'low_stock' => 'Low Stock', 'out_of_stock' => 'Out of Stock']" />
@@ -145,11 +174,14 @@
                     </div>
                 </div>
 
-                <div class="flex flex-wrap justify-end gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+                <div class="flex flex-col-reverse gap-2 border-t border-neutral-200 pt-4 sm:flex-row sm:justify-end dark:border-neutral-800">
                     @if ($editing)
-                        <x-ui.button variant="secondary" :href="route('inventory.reports.schedules')">Cancel</x-ui.button>
+                        <x-ui.button variant="secondary" size="lg" :href="route('inventory.reports.schedules')">Cancel</x-ui.button>
+                    @else
+                        <x-ui.button type="button" variant="secondary" size="lg" x-on:click="$dispatch('close-modal', 'schedule-form-modal')">Cancel</x-ui.button>
                     @endif
-                    <x-ui.button type="submit" icon="calendar" data-loading-text="{{ $editing ? 'Saving...' : 'Creating...' }}">
+                    <x-ui.button type="submit" size="lg" icon="calendar" disabled x-bind:disabled="!canSubmit"
+                                 data-loading-text="{{ $editing ? 'Saving...' : 'Creating...' }}">
                         {{ $editing ? 'Save Schedule' : 'Create Schedule' }}
                     </x-ui.button>
                 </div>

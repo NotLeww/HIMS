@@ -30,6 +30,7 @@ enum NotificationDestination: string
     case SupplierManagement = 'supplier_management';
     case SupplierCompanyProfile = 'supplier_company_profile';
     case SupplierCompliance = 'supplier_compliance';
+    case SupplierCatalog = 'supplier_catalog';
     case SupplierRfqs = 'supplier_rfqs';
     case SupplierOrder = 'supplier_order';
     case LogisticsDocuments = 'logistics_documents';
@@ -54,9 +55,7 @@ enum NotificationDestination: string
                 || $user->hasPermission(Permission::ReceivePurchaseOrder),
             self::WarehouseTask => $user->hasPermission(Permission::ViewWarehouseTasks),
             self::SupplierManagement => $user->hasPermission(Permission::ViewSuppliers),
-            self::SupplierCompanyProfile => $user->hasPermission(Permission::SupplierManageProfile)
-                && $this->belongsToSupplier($user, $parameters),
-            self::SupplierCompliance => $user->hasPermission(Permission::SupplierManageProfile)
+            self::SupplierCompanyProfile, self::SupplierCompliance, self::SupplierCatalog => $user->hasPermission(Permission::SupplierManageProfile)
                 && $this->belongsToSupplier($user, $parameters),
             self::SupplierRfqs => $user->hasPermission(Permission::SupplierSubmitBids)
                 && $this->belongsToSupplier($user, $parameters),
@@ -91,7 +90,7 @@ enum NotificationDestination: string
                     ->visibleInPipeline()
                     ->whereKey((int) $parameters['purchase_order'])
                     ->exists(),
-            self::SupplierManagement, self::SupplierCompanyProfile, self::SupplierCompliance => Supplier::query()
+            self::SupplierManagement, self::SupplierCompanyProfile, self::SupplierCompliance, self::SupplierCatalog => Supplier::query()
                 ->whereKey((int) ($parameters['supplier'] ?? 0))
                 ->exists(),
             self::SupplierRfqs => empty($parameters['invitation'])
@@ -135,6 +134,7 @@ enum NotificationDestination: string
             ]),
             self::SupplierCompanyProfile => route('supplier.company-profile.edit'),
             self::SupplierCompliance => route('supplier.compliance.index'),
+            self::SupplierCatalog => route('supplier.catalog.index'),
             self::SupplierRfqs => route('supplier.rfqs.index'),
             self::SupplierOrder => route('supplier.orders.show', [
                 'purchaseOrder' => (int) ($parameters['purchase_order'] ?? 0),

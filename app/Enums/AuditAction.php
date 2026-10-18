@@ -29,6 +29,7 @@ enum AuditAction: string
     case SentSupplierInvitation = 'sent_supplier_invitation';
     case FailedSupplierInvitation = 'failed_supplier_invitation';
     case AcceptedSupplierInvitation = 'accepted_supplier_invitation';
+    case RevokedSupplierInvitation = 'revoked_supplier_invitation';
     case SavedSupplierProfileDraft = 'saved_supplier_profile_draft';
     case SubmittedSupplier = 'submitted_supplier';
     case RequestedSupplierProfileChanges = 'requested_supplier_profile_changes';
@@ -67,9 +68,14 @@ enum AuditAction: string
     case UpdatedSupplierContract = 'updated_supplier_contract';
     case CreatedPurchaseRequest = 'created_purchase_request';
     case ApprovedPurchaseRequest = 'approved_purchase_request';
+    case RejectedPurchaseRequest = 'rejected_purchase_request';
     case CreatedSourcingRfq = 'created_sourcing_rfq';
     case PublishedSourcingRfq = 'published_sourcing_rfq';
+    case ClosedBiddingSourcingRfq = 'closed_bidding_sourcing_rfq';
     case SubmittedSupplierQuote = 'submitted_supplier_quote';
+    case RevisedSupplierQuote = 'revised_supplier_quote';
+    case ApprovedProcurementStep = 'approved_procurement_step';
+    case RejectedProcurementStep = 'rejected_procurement_step';
     case AcknowledgedPurchaseOrder = 'acknowledged_purchase_order';
     case SubmittedAdvanceShipNotice = 'submitted_advance_ship_notice';
     case RespondedToSupplierDiscrepancy = 'responded_to_supplier_discrepancy';
@@ -129,6 +135,7 @@ enum AuditAction: string
     case ShipmentDispatched = 'shipment_dispatched';
     case ShipmentArrivedDock = 'shipment_arrived_dock';
     case CreatedProcessReview = 'created_process_review';
+    case RefreshedProcessReview = 'refreshed_process_review';
     case UpdatedProcessReview = 'updated_process_review';
     case SubmittedProcessReview = 'submitted_process_review';
     case ApprovedProcessReview = 'approved_process_review';
@@ -200,6 +207,7 @@ enum AuditAction: string
             self::SentSupplierInvitation => 'Sent Supplier Invitation',
             self::FailedSupplierInvitation => 'Supplier Invitation Delivery Failed',
             self::AcceptedSupplierInvitation => 'Accepted Supplier Invitation',
+            self::RevokedSupplierInvitation => 'Revoked Supplier Invitation',
             self::SavedSupplierProfileDraft => 'Saved Supplier Profile Draft',
             self::SubmittedSupplier => 'Submitted Supplier',
             self::RequestedSupplierProfileChanges => 'Requested Supplier Profile Changes',
@@ -238,9 +246,14 @@ enum AuditAction: string
             self::UpdatedSupplierContract => 'Updated Supplier Contract',
             self::CreatedPurchaseRequest => 'Created Purchase Request',
             self::ApprovedPurchaseRequest => 'Approved Purchase Request',
+            self::RejectedPurchaseRequest => 'Rejected Purchase Request',
             self::CreatedSourcingRfq => 'Created Sourcing RFQ',
             self::PublishedSourcingRfq => 'Published Sourcing RFQ',
+            self::ClosedBiddingSourcingRfq => 'Closed Sourcing RFQ Bidding',
             self::SubmittedSupplierQuote => 'Submitted Supplier Quote',
+            self::RevisedSupplierQuote => 'Revised Supplier Quote',
+            self::ApprovedProcurementStep => 'Approved Procurement Step',
+            self::RejectedProcurementStep => 'Rejected Procurement Step',
             self::AcknowledgedPurchaseOrder => 'Acknowledged Purchase Order',
             self::SubmittedAdvanceShipNotice => 'Submitted Advance Ship Notice',
             self::RespondedToSupplierDiscrepancy => 'Responded to Supplier Discrepancy',
@@ -300,6 +313,7 @@ enum AuditAction: string
             self::ShipmentDispatched => 'Shipment Dispatched',
             self::ShipmentArrivedDock => 'Shipment Arrived at Dock',
             self::CreatedProcessReview => 'Created Process Review',
+            self::RefreshedProcessReview => 'Refreshed Process Review',
             self::UpdatedProcessReview => 'Updated Process Review',
             self::SubmittedProcessReview => 'Submitted Process Review',
             self::ApprovedProcessReview => 'Approved Process Review',
@@ -393,11 +407,12 @@ enum AuditAction: string
                 self::DeletedScheduledReport,
             ], true) => 'Reports & Analytics',
             str_contains($this->value, 'ai_chat') => 'AI Assistant',
-            str_contains($this->value, 'supplier') && ! in_array($this, [self::SubmittedSupplierQuote], true) => 'Supplier Management',
+            str_contains($this->value, 'supplier') && ! in_array($this, [self::SubmittedSupplierQuote, self::RevisedSupplierQuote], true) => 'Supplier Management',
             str_contains($this->value, 'purchase_request')
                 || str_contains($this->value, 'sourcing_rfq')
                 || str_contains($this->value, 'purchase_order')
-                || $this === self::SubmittedSupplierQuote => 'Procurement',
+                || str_contains($this->value, 'procurement_step')
+                || in_array($this, [self::SubmittedSupplierQuote, self::RevisedSupplierQuote], true) => 'Procurement',
             str_contains($this->value, 'material_requisition') || $this === self::AcknowledgedMaterialIssuance => 'Store Requisitions',
             str_contains($this->value, 'inventory_item') => 'Item Master',
             $this === self::RecordedStockMovement => 'Inventory Movements',

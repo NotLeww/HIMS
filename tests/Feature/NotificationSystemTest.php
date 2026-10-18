@@ -35,7 +35,10 @@ class NotificationSystemTest extends TestCase
             ->assertOk()
             ->assertSee('No notifications')
             ->assertSee('You are all caught up')
-            ->assertDontSee('Mark all as read');
+            ->assertSee('Mark all as read')
+            ->assertSee('x-show="unreadCount > 0"', false)
+            ->assertSee('x-show="unreadCount === 0"', false)
+            ->assertSee('aria-live="polite"', false);
     }
 
     public function test_notification_feed_hides_legacy_recovery_alerts_and_loads_older_batches(): void
@@ -88,6 +91,10 @@ class NotificationSystemTest extends TestCase
             ->assertJsonPath('next_url', fn ($url) => is_string($url) && $url !== '')
             ->assertDontSee('Critical system event')
             ->assertDontSee('Other user notification');
+
+        $this->actingAs($user)->getJson(route('notifications.index', ['count_only' => 1]))
+            ->assertOk()
+            ->assertExactJson(['unread_count' => 17]);
 
         $secondPage = $this->actingAs($user)->getJson($firstPage->json('next_url'))
             ->assertOk()
@@ -205,18 +212,12 @@ class NotificationSystemTest extends TestCase
         $this->actingAs($user)->patch(route('notifications.read', $own->id))->assertRedirect();
         $this->assertNotNull($own->fresh()->read_at);
         $this->assertSame(1, $user->fresh()->unreadNotifications()->count());
-        $this->assertDatabaseHas('audit_logs', [
-            'action' => AuditAction::AcknowledgedNotification->value,
-            'user_id' => $user->id,
-            'target_id' => $own->id,
-        ]);
+        $this->assertSame(0, AuditLog::where('action', AuditAction::AcknowledgedNotification)->count());
 
         $this->actingAs($user)->patch(route('notifications.read-all'))->assertRedirect();
         $this->assertSame(0, $user->fresh()->unreadNotifications()->count());
         $this->assertNull($others->fresh()->read_at);
-        $this->assertSame(2, AuditLog::where('action', AuditAction::AcknowledgedNotification)
-            ->where('user_id', $user->id)
-            ->count());
+        $this->assertSame(0, AuditLog::where('action', AuditAction::AcknowledgedNotification)->count());
     }
 
     public function test_notification_link_rechecks_current_authorization_before_redirecting(): void

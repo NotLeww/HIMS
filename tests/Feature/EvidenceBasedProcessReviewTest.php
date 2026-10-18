@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AuditAction;
 use App\Enums\UserRole;
 use App\Models\CostCenter;
 use App\Models\CycleCountDoc;
@@ -230,6 +231,16 @@ class EvidenceBasedProcessReviewTest extends TestCase
         $this->assertGreaterThan(0, $review->inventoryShrinkageReports()->count());
         $this->assertGreaterThan(0, $review->processRecommendations()->count());
 
+        $this->actingAs($this->evaluator)->get(route('reviews.show', $review))
+            ->assertOk()
+            ->assertSee('data-metric-target="scorecards"', false)
+            ->assertSee('data-metric-target="savings"', false)
+            ->assertSee('data-metric-target="shrinkage"', false)
+            ->assertSee('data-metric-target="velocity"', false)
+            ->assertSee('freshnessEndpoint:', false)
+            ->assertSee('refreshEndpoint:', false)
+            ->assertSee('Draft analysis auto-refresh is on');
+
         // Verify COA Rule 4 Escalation was flagged for 4% shrinkage
         $shrinkageReport = $review->inventoryShrinkageReports()->first();
         $this->assertTrue($shrinkageReport->requires_admin_escalation);
@@ -240,11 +251,70 @@ class EvidenceBasedProcessReviewTest extends TestCase
         $this->assertEquals(100.00, (float) $savingsLog->variance_amount);
         $this->assertFalse($savingsLog->is_above_ceiling);
 
+        // Source changes mark a draft stale and regenerate its stored evidence.
+        $initialVersion = $review->metrics_summary['source_data_version'] ?? null;
+        $this->assertNotNull($initialVersion);
+        $this->assertNotNull($review->metrics_summary['analysis_refreshed_at'] ?? null);
+
+        $this->travel(1)->seconds();
+        $line->update([
+            'unit_price' => 2.5000,
+            'total_line_amount' => 500.00,
+        ]);
+
+        $freshnessResponse = $this->actingAs($this->evaluator)
+            ->getJson(route('reviews.freshness', $review));
+
+        $freshnessResponse
+            ->assertOk()
+            ->assertJson([
+                'refreshable' => true,
+                'stale' => true,
+            ]);
+        $this->assertStringContainsString('no-store', (string) $freshnessResponse->headers->get('Cache-Control'));
+
+        $this->actingAs($this->evaluator)
+            ->postJson(route('reviews.refresh-analysis', $review))
+            ->assertOk()
+            ->assertJson(['refreshed' => true]);
+
+        $review->refresh();
+        $this->assertNotSame($initialVersion, $review->metrics_summary['source_data_version']);
+        $this->assertEquals(200.00, (float) $review->procurementSavingsLogs()->first()->variance_amount);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $this->evaluator->id,
+            'action' => AuditAction::RefreshedProcessReview->value,
+            'target_id' => (string) $review->id,
+        ]);
+
         // 5. Submit for Approval
         $submitRes = $this->actingAs($this->evaluator)->post(route('reviews.submit', $review));
         $submitRes->assertRedirect(route('reviews.show', $review));
         $review->refresh();
         $this->assertEquals('submitted', $review->status);
+
+        $frozenVersion = $review->metrics_summary['source_data_version'];
+        $this->travel(1)->seconds();
+        $line->update([
+            'unit_price' => 2.0000,
+            'total_line_amount' => 400.00,
+        ]);
+
+        $this->actingAs($this->evaluator)
+            ->getJson(route('reviews.freshness', $review))
+            ->assertOk()
+            ->assertJson([
+                'refreshable' => false,
+                'stale' => false,
+                'version' => $frozenVersion,
+            ]);
+
+        $this->actingAs($this->evaluator)
+            ->postJson(route('reviews.refresh-analysis', $review))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('status');
+        $this->assertSame($frozenVersion, $review->fresh()->metrics_summary['source_data_version']);
+        $this->assertEquals(200.00, (float) $review->procurementSavingsLogs()->first()->variance_amount);
 
         // 6. Maker-Checker Segregation of Duties:
         // A) Evaluator (InventoryManager) lacks ApproveProcessReview permission -> 403 Forbidden
@@ -375,6 +445,28 @@ class EvidenceBasedProcessReviewTest extends TestCase
                         'sla_breach_rate' => 25.0,
                         'status' => 'elevated',
                     ],
+                    'stage_2' => [
+                        'name' => 'Sourcing RFQ to Award',
+                        'sample_count' => 1,
+                        'mean_tat_days' => 2.0,
+                        'min_tat_days' => 2.0,
+                        'max_tat_days' => 2.0,
+                        'variance_sigma' => 0.0,
+                        'sla_target_days' => 7.0,
+                        'sla_breach_rate' => 0.0,
+                        'status' => 'healthy',
+                    ],
+                    'stage_3' => [
+                        'name' => 'PO Issuance to Conforme',
+                        'sample_count' => 0,
+                        'mean_tat_days' => 0.0,
+                        'min_tat_days' => 0.0,
+                        'max_tat_days' => 0.0,
+                        'variance_sigma' => 0.0,
+                        'sla_target_days' => 2.0,
+                        'sla_breach_rate' => 0.0,
+                        'status' => 'insufficient_data',
+                    ],
                 ],
             ],
         ]);
@@ -392,7 +484,34 @@ class EvidenceBasedProcessReviewTest extends TestCase
         $this->assertStringNotContainsString('Validation Exception:', $createView);
 
         // Show page
-        $this->actingAs($this->evaluator)->get(route('reviews.show', $review))->assertOk();
+        $this->actingAs($this->evaluator)->get(route('reviews.show', $review))
+            ->assertOk()
+            ->assertSee('End-to-End Supply Chain Turnaround Time &amp; Lead Time Variability', false)
+            ->assertSee('Population standard deviation (σ), available from 2 transactions')
+            ->assertSee('Lead Time Standard Deviation (σ)')
+            ->assertSee('Not available; at least two transactions are required')
+            ->assertSee('Not available; no transactions were recorded')
+            ->assertSee('data-metric-title="Total Spend Evaluated"', false)
+            ->assertSee('data-metric-title="DPRI Net Price Savings"', false)
+            ->assertSee('data-metric-title="Average Supplier Score"', false)
+            ->assertSee('data-metric-title="Physical Stock Accuracy"', false)
+            ->assertSee('data-metric-title="Critical Bottleneck"', false)
+            ->assertSee('data-metric-summary=', false)
+            ->assertSee('data-metric-target="velocity"', false)
+            ->assertSee("@click=\"openMetricTab('velocity')\"", false)
+            ->assertDontSee('data-metric-target="scorecards"', false)
+            ->assertDontSee('data-metric-target="savings"', false)
+            ->assertDontSee('data-metric-target="shrinkage"', false)
+            ->assertSee('id="review-panel-velocity"', false)
+            ->assertSee('id="review-panel-scorecards"', false)
+            ->assertSee('id="review-panel-savings"', false)
+            ->assertSee('id="review-panel-shrinkage"', false)
+            ->assertDontSee('($\sigma$)')
+            ->assertDontSee('Lead Time Variance');
+
+        $this->actingAs($this->viewer)
+            ->postJson(route('reviews.refresh-analysis', $review))
+            ->assertForbidden();
 
         // DPRI Index page
         $this->actingAs($this->evaluator)->get(route('reviews.dpri'))->assertOk();

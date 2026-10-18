@@ -118,7 +118,7 @@ class RecommendationEngine
                 'target_type' => null,
                 'target_id' => null,
                 'target_name' => $criticalStage['name'],
-                'problem_detected' => "Critical process lag in '{$criticalStage['name']}': Mean turnaround time is {$criticalStage['mean_tat_days']} days against SLA target of {$criticalStage['sla_target_days']} days (Variance Sigma: {$criticalStage['variance_sigma']} days).",
+                'problem_detected' => "Critical process lag in '{$criticalStage['name']}': Mean turnaround time is {$criticalStage['mean_tat_days']} days against SLA target of {$criticalStage['sla_target_days']} days (Standard Deviation: {$criticalStage['variance_sigma']} days).",
                 'evidence_metrics' => $criticalStage,
                 'root_cause_analysis' => 'Administrative backlog, routing delays, or manual sign-off dependencies.',
                 'recommended_action' => "Implement fast-track sign-off protocol or automated notification escalation for {$criticalStage['name']}.",

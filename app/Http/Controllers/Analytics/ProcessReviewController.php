@@ -26,7 +26,7 @@ class ProcessReviewController extends Controller implements HasMiddleware
         return [
             'auth:web,admin,super_admin',
             new Middleware('can:'.Permission::ViewProcessReviews->value, only: ['index', 'show', 'dpriIndex']),
-            new Middleware('can:'.Permission::CreateProcessReview->value, only: ['create', 'store', 'update', 'submit', 'checkAvailability', 'storeDpri']),
+            new Middleware('can:'.Permission::CreateProcessReview->value, only: ['create', 'store', 'update', 'submit', 'checkAvailability', 'storeDpri', 'freshness', 'refreshAnalysis']),
             new Middleware('can:'.Permission::ApproveProcessReview->value, only: ['approve', 'reject']),
             new Middleware('can:'.Permission::ImplementProcessReview->value, only: ['implementRecommendation']),
         ];
@@ -130,6 +130,42 @@ class ProcessReviewController extends Controller implements HasMiddleware
         ]);
 
         return view('reviews.show', compact('review'));
+    }
+
+    public function freshness(KpiProcessReview $review): JsonResponse
+    {
+        if (! $review->isDraft()) {
+            return response()
+                ->json([
+                    'refreshable' => false,
+                    'stale' => false,
+                    'version' => $review->metrics_summary['source_data_version'] ?? null,
+                ])
+                ->header('Cache-Control', 'no-store, private');
+        }
+
+        $currentVersion = $this->reviewService->sourceDataVersion();
+
+        return response()
+            ->json([
+                'refreshable' => true,
+                'stale' => ($review->metrics_summary['source_data_version'] ?? null) !== $currentVersion,
+                'version' => $currentVersion,
+            ])
+            ->header('Cache-Control', 'no-store, private');
+    }
+
+    public function refreshAnalysis(Request $request, KpiProcessReview $review): JsonResponse
+    {
+        $refreshed = $this->reviewService->refreshDraftAnalysis($review, $request->user());
+        $review->refresh();
+
+        return response()
+            ->json([
+                'refreshed' => $refreshed,
+                'version' => $review->metrics_summary['source_data_version'] ?? null,
+            ])
+            ->header('Cache-Control', 'no-store, private');
     }
 
     public function update(Request $request, KpiProcessReview $review): RedirectResponse

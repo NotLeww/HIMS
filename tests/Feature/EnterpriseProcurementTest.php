@@ -40,6 +40,7 @@ use App\Services\Warehouse\WarehouseTaskService;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -263,7 +264,7 @@ class EnterpriseProcurementTest extends TestCase
         $this->actingAs($manager)
             ->get(route('inventory.purchases', ['tab' => 'sourcing_rfqs', 'purchase_request_id' => $purchaseRequest->id]))
             ->assertOk()
-            ->assertSee(route('inventory.purchases', ['tab' => 'sourcing_rfqs', 'purchase_request_id' => $purchaseRequest->id]).'#rfq-package-form')
+            ->assertSee('id="rfq-package-form"', false)
             ->assertSee('showRfqForm: true', false)
             ->assertSee("\$el.scrollIntoView({ block: 'start' })", false)
             ->assertSee('value="'.$purchaseRequest->id.'"', false)
@@ -281,15 +282,23 @@ class EnterpriseProcurementTest extends TestCase
 
         $this->assertDatabaseMissing('sourcing_rfqs', ['title' => 'RFQ with expired deadline']);
 
-        $this->actingAs($manager)->post(route('inventory.purchases.rfqs.store'), [
+        $rfqPayload = [
             'purchase_request_id' => $purchaseRequest->id,
             'title' => 'RFQ for Selected Request',
             'bidding_type' => 'sealed',
             'submission_deadline' => now()->addDays(5)->toDateTimeString(),
             'supplier_ids' => [$supplier->id],
-        ])->assertRedirect(route('inventory.purchases'));
+        ];
+
+        $this->actingAs($manager)->post(route('inventory.purchases.rfqs.store'), $rfqPayload)
+            ->assertRedirect(route('inventory.purchases'));
+
+        $this->actingAs($manager)->from(route('inventory.purchases'))->post(route('inventory.purchases.rfqs.store'), $rfqPayload)
+            ->assertRedirect(route('inventory.purchases'))
+            ->assertSessionHasErrors('purchase_request_id');
 
         $rfq = SourcingRfq::where('purchase_request_id', $purchaseRequest->id)->firstOrFail();
+        $this->assertSame(1, SourcingRfq::where('purchase_request_id', $purchaseRequest->id)->count());
         $this->assertDatabaseHas('rfq_line_items', [
             'sourcing_rfq_id' => $rfq->id,
             'pr_line_id' => $line->id,
@@ -297,6 +306,14 @@ class EnterpriseProcurementTest extends TestCase
             'target_quantity' => 3,
         ]);
         $this->assertSame(RequisitionStatus::Sourcing, $purchaseRequest->fresh()->status);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::PublishedSourcingRfq->value,
+            'target_id' => (string) $rfq->id,
+        ]);
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => AuditAction::CreatedSourcingRfq->value,
+            'target_id' => (string) $rfq->id,
+        ]);
     }
 
     public function test_rfq_packaging_enforces_supplier_accreditation_eligibility(): void
@@ -516,9 +533,20 @@ class EnterpriseProcurementTest extends TestCase
             ->assertJsonValidationErrors(['currency', 'incoterms', 'payment_terms', 'validity_end_date']);
         $this->assertDatabaseCount('supplier_quotes', 0);
 
+        $duplicateLines = $quotePayload;
+        $duplicateLines['lines'][] = $quotePayload['lines'][0];
+        $this->postJson("/api/v1/procurement/rfqs/{$rfq->id}/quotes", $duplicateLines)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('lines.0.rfq_line_item_id');
+        $this->assertDatabaseCount('supplier_quotes', 0);
+
         $response = $this->postJson("/api/v1/procurement/rfqs/{$rfq->id}/quotes", $quotePayload);
         $response->assertStatus(201);
         $response->assertJsonPath('data.is_sealed', true);
+
+        $this->postJson("/api/v1/procurement/rfqs/{$rfq->id}/quotes", $quotePayload)->assertCreated();
+        $this->assertSame(1, SupplierQuote::where('sourcing_rfq_id', $rfq->id)->where('supplier_id', $supplier->id)->count());
+        $this->assertSame(1, QuoteLineItem::whereHas('quote', fn ($query) => $query->where('sourcing_rfq_id', $rfq->id))->count());
 
         $quote = SupplierQuote::where('sourcing_rfq_id', $rfq->id)->firstOrFail();
         $this->assertTrue((bool) $quote->is_sealed);
@@ -713,6 +741,16 @@ class EnterpriseProcurementTest extends TestCase
 
         $pr->refresh();
         $this->assertSame(RequisitionStatus::Approved, $pr->status);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::ApprovedProcurementStep->value,
+            'user_id' => $manager->id,
+            'target_id' => (string) $chain->id,
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::ApprovedPurchaseRequest->value,
+            'user_id' => $manager->id,
+            'target_id' => (string) $pr->id,
+        ]);
     }
 
     public function test_purchase_request_approval_card_displays_requested_items(): void
@@ -751,6 +789,35 @@ class EnterpriseProcurementTest extends TestCase
             ->assertSee('Powder-free nitrile gloves')
             ->assertSee('12,500.00')
             ->assertDontSee('Total requested amount');
+    }
+
+    public function test_purchase_request_rejection_records_step_and_final_business_events(): void
+    {
+        [$costCenter, , $requester] = $this->createCostCenterWithBudget(100000.00);
+        $approver = $this->createManager();
+        $purchaseRequest = PurchaseRequest::create([
+            'pr_number' => 'PR-2026-REJECT-AUDIT',
+            'requester_id' => $requester->id,
+            'cost_center_id' => $costCenter->id,
+            'title' => 'Audit rejection request',
+            'status' => RequisitionStatus::PendingApproval,
+            'total_estimated_amount' => 12000.00,
+        ]);
+        $chain = app(ApprovalRoutingEngine::class)->routePurchaseRequest($purchaseRequest);
+
+        app(ApprovalRoutingEngine::class)->rejectStep($chain, $approver, 'Budget priority changed.');
+
+        $this->assertSame(RequisitionStatus::Rejected, $purchaseRequest->fresh()->status);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::RejectedProcurementStep->value,
+            'user_id' => $approver->id,
+            'target_id' => (string) $chain->id,
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::RejectedPurchaseRequest->value,
+            'user_id' => $approver->id,
+            'target_id' => (string) $purchaseRequest->id,
+        ]);
     }
 
     public function test_approval_chain_filters_search_status_and_type(): void
@@ -1190,6 +1257,27 @@ class EnterpriseProcurementTest extends TestCase
 
         // Crucial Check: Ensure only 1 PR was created in database!
         $this->assertSame(1, PurchaseRequest::where('title', 'Idempotent Requisition Test')->count());
+
+        $blockedKey = 'IDEMP-'.Str::uuid()->toString();
+        $cacheKey = 'idempotency:'.hash('sha256', implode(':', [
+            (string) $manager->id,
+            'POST',
+            'api/v1/procurement/requisitions',
+            $blockedKey,
+        ]));
+        $lock = Cache::lock($cacheKey.':lock', 30);
+        $this->assertTrue($lock->get());
+
+        try {
+            $this->withHeaders(['Idempotency-Key' => $blockedKey])
+                ->postJson('/api/v1/procurement/requisitions', [...$payload, 'title' => 'Concurrent duplicate attempt'])
+                ->assertConflict()
+                ->assertHeader('Retry-After', '1');
+        } finally {
+            $lock->release();
+        }
+
+        $this->assertDatabaseMissing('purchase_requests', ['title' => 'Concurrent duplicate attempt']);
     }
 
     public function test_web_ui_requisition_and_purchase_order_intake_forms_are_fully_functional_with_dropdowns_and_numeric_validation(): void
@@ -1227,25 +1315,30 @@ class EnterpriseProcurementTest extends TestCase
         $item = $this->createItem('Rapid Diagnostic Antigen Cartridge', 'MED-ANT-001');
 
         // 1. Verify UI Render of Form Elements, Dropdowns, Numeric Constraints & Autogenerated Previews
-        $response = $this->actingAs($manager)->get('/inventory/purchases');
+        $response = $this->actingAs($manager)->get(route('inventory.purchases', ['tab' => 'enterprise_s2p']));
         $response->assertStatus(200);
 
-        // Verify the server-owned PR preview and reviewed PO workflow.
+        // Each intake form is rendered by its own workspace tab.
         $response->assertSee('PR-'.now()->format('Ymd').'-AUTO');
-        $response->assertSee('id="direct-po-form"', false);
-        $response->assertSee('Review Purchase Order');
-        $response->assertSee('purchase-order-details');
+        $response->assertDontSee('id="direct-po-form"', false);
 
         // Verify Dropdown elements
         $response->assertSee('name="procurement_category_id"', false);
         $response->assertSee('name="procurement_method"', false);
         $response->assertSee('name="cost_center_id"', false);
-        $response->assertSee('name="payment_terms"', false);
-        $response->assertSee('name="incoterms"', false);
 
         // Verify Strict Numeric Input Constraints
         $response->assertSee('inputmode="numeric"', false);
         $response->assertSee('inputmode="decimal"', false);
+
+        $orderResponse = $this->actingAs($manager)->get(route('inventory.purchases'));
+        $orderResponse->assertOk()
+            ->assertSee('id="direct-po-form"', false)
+            ->assertSee('Review Purchase Order')
+            ->assertSee('purchase-order-details')
+            ->assertSee('name="payment_terms"', false)
+            ->assertSee('name="incoterms"', false)
+            ->assertDontSee('name="procurement_category_id"', false);
 
         // 2. Submit Functional Purchase Request via Web Route
         $prPayload = [
@@ -1413,10 +1506,11 @@ class EnterpriseProcurementTest extends TestCase
         $this->assertEquals(0, SourcingEvaluation::where('sourcing_rfq_id', $rfq->id)->count());
 
         // 4. Verify UI view renders disabled sealed button and lock message
-        $uiResponse = $this->actingAs($manager)->get('/inventory/purchases');
+        $uiResponse = $this->actingAs($manager)->get(route('inventory.purchases', ['tab' => 'sourcing_rfqs']));
         $uiResponse->assertOk();
         $uiResponse->assertSee('Sealed • Bidding Open');
         $uiResponse->assertSee('Unlocks');
+        $uiResponse->assertDontSee('QTN-TEST-APEX-01');
     }
 
     public function test_sealed_rfq_evaluation_succeeds_after_deadline_elapses(): void
@@ -1458,6 +1552,8 @@ class EnterpriseProcurementTest extends TestCase
             'status' => QuoteStatus::Submitted->value,
             'quoted_price' => 70000.00,
             'total_bid_amount' => 70000.00,
+            'payment_terms' => 'Net 30',
+            'notes' => 'Includes manufacturer warranty and installation support.',
             'is_sealed' => true,
         ]);
 
@@ -1529,6 +1625,28 @@ class EnterpriseProcurementTest extends TestCase
             ->assertRedirect('/inventory/purchases');
 
         $this->assertCount(2, SourcingEvaluation::where('sourcing_rfq_id', $rfq->id)->get());
+
+        $detailsResponse = $this->actingAs($manager)
+            ->get(route('inventory.purchases', ['tab' => 'evaluations']));
+
+        $detailsResponse->assertOk()
+            ->assertSee('data-view-bid-offer="'.$quoteA->id.'"', false)
+            ->assertSee('View bid offer from Titanium Implants Corp')
+            ->assertSee('Bid offer — Titanium Implants Corp')
+            ->assertSee('QTN-TITANIUM-01')
+            ->assertSee('PHP 3,500.00')
+            ->assertSee('20 piece')
+            ->assertSee('6 days')
+            ->assertSee('Net 30')
+            ->assertSee('Includes manufacturer warranty and installation support.');
+
+        $restrictedResponse = $this->actingAs(User::factory()->warehouseStaff()->create())
+            ->get(route('inventory.purchases', ['tab' => 'evaluations']));
+
+        $restrictedResponse->assertOk()
+            ->assertDontSee('data-view-bid-offer=', false)
+            ->assertDontSee('QTN-TITANIUM-01')
+            ->assertDontSee('Includes manufacturer warranty and installation support.');
     }
 
     public function test_timezone_consistency_in_deadline_comparison(): void
@@ -1750,5 +1868,10 @@ class EnterpriseProcurementTest extends TestCase
 
         $this->assertEquals(RfqStatus::BiddingClosed, $expiredRfq->status);
         $this->assertEquals(RfqStatus::Published, $activeRfq->status);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::ClosedBiddingSourcingRfq->value,
+            'source' => 'system',
+            'target_id' => (string) $expiredRfq->id,
+        ]);
     }
 }

@@ -20,16 +20,7 @@
     </div>
 
     @php
-        $requestedTab = request('tab');
-        $defaultTab = match (true) {
-            in_array($requestedTab, ['enterprise_s2p', 'orders_revisions', 'legacy_canvass', 'sourcing_rfqs', 'evaluations', 'doa_approvals', 'audit_trail'], true) => $requestedTab,
-            request()->has('request_page') => 'enterprise_s2p',
-            request()->has('purchase_request_id') => 'sourcing_rfqs',
-            request()->has('rfq_page') => request('tab') === 'evaluations' ? 'evaluations' : 'sourcing_rfqs',
-            request()->has('approval_page') => 'doa_approvals',
-            request()->has('audit_page') => 'audit_trail',
-            default => 'orders_revisions',
-        };
+        $defaultTab = $activeTab;
         $canIssuePurchaseOrder = auth()->user()?->can(\App\Enums\Permission::IssuePurchaseOrder->value) ?? false;
         $canViewSupplierLocation = auth()->user()?->canAny([
             \App\Enums\Permission::ViewSupplierSensitiveData->value,
@@ -41,26 +32,20 @@
         $procurementWorkspaceConfig = [
             'activeTab' => $defaultTab,
             'openPurchaseOrderId' => request()->integer('open_po') ?: null,
-            'items' => $canIssuePurchaseOrder ? $items->map(function ($item) use ($itemProcurementContext) {
-                $context = $itemProcurementContext->get((string) $item->id, []);
-
+            'itemContextUrl' => route('inventory.purchases.item-context', ['item' => '__ITEM__']),
+            'items' => $activeTab === 'orders_revisions' && $canIssuePurchaseOrder ? $items->map(function ($item) {
                 return [
                     'id' => $item->id,
                     'name' => $item->name,
                     'sku' => $item->sku,
                     'unit' => $item->unit ?: 'unit',
                     'category' => $item->category?->name ?? 'Uncategorized',
-                    'current_stock' => $context['current_stock'] ?? 0,
-                    'reorder_point' => $context['reorder_point'] ?? (int) $item->reorder_level,
-                    'recent_demand' => $context['recent_demand'] ?? 0,
-                    'average_daily_usage' => $context['average_daily_usage'] ?? 0,
-                    'suggested_order_quantity' => $context['suggested_order_quantity'] ?? 0,
-                    'trend' => $context['trend'] ?? 'Not enough data',
+                    'contextLoaded' => false,
                     'catalog_unit_cost' => (float) $item->unit_cost,
                     'lead_time_days' => (int) ($item->lead_time_days ?: 7),
                 ];
             })->values() : [],
-            'suppliers' => $canIssuePurchaseOrder ? $suppliers->map(fn ($supplier) => [
+            'suppliers' => $activeTab === 'orders_revisions' && $canIssuePurchaseOrder ? $suppliers->map(fn ($supplier) => [
                 'id' => $supplier->id,
                 'name' => $supplier->name,
                 'status' => $supplier->status->value,
@@ -71,7 +56,6 @@
                     ? (float) $supplier->latestApprovedScorecard->total_score
                     : null,
             ])->values() : [],
-            'supplierTerms' => $canIssuePurchaseOrder ? $supplierCatalogTerms : [],
             'initial' => [
                 'itemId' => old('item_id'),
                 'supplierId' => old('supplier_id'),
@@ -89,12 +73,20 @@
         ];
     @endphp
 
+    @fragment('procurement-workspace')
     <div
+        data-procurement-workspace
+        data-procurement-active-tab="{{ $activeTab }}"
         x-data="procurementWorkspace({{ Js::from($procurementWorkspaceConfig) }})"
         x-init="$nextTick(() => document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: 'start' }))"
         x-effect="if (activeTab === 'legacy_canvass') $dispatch('hims-load-legacy-procurement')"
         class="space-y-6"
     >
+            <p x-show="tabLoading" x-cloak role="status" class="rounded-lg bg-primary-50 px-4 py-2 text-sm text-primary-800 dark:bg-primary-950 dark:text-primary-200">Loading procurement tab...</p>
+            <div x-show="tabError" x-cloak role="alert" class="flex items-center gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-800 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-200">
+                <span x-text="tabError"></span>
+                <button type="button" class="font-semibold underline focus-visible:outline-2 focus-visible:outline-offset-2" @click="retryTab()">Retry</button>
+            </div>
 
 
             @if($errors->any())
@@ -112,6 +104,7 @@
             @endif
 
             {{-- Operational KPI Metric Cards (Standardized 3-Zone Architecture per hims-ui-ux) --}}
+            @if($activeTab === 'orders_revisions')
             <div x-show="activeTab === 'orders_revisions'" x-cloak class="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4 xl:gap-4">
                 {{-- 1. Open Purchase Orders --}}
                 <a href="{{ route('inventory.purchases', ['po_status' => 'open']).'#purchase-orders' }}" data-metric-title="Open purchase orders" data-metric-details="{{ json_encode($poMetricDetails['open']) }}" class="group rounded-xl border border-neutral-200/90 bg-white p-5 shadow-xs dark:border-neutral-800 dark:bg-neutral-900/95 flex flex-col justify-between hover:border-primary-400 dark:hover:border-primary-600 transition-all duration-150 focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950">
@@ -194,6 +187,7 @@
                 </a>
             </div>
 
+            @endif
             {{-- Navigation: Major Dropdown Tabs --}}
             <div
                 class="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-2.5 shadow-sm"
@@ -223,7 +217,7 @@
                         @canany([\App\Enums\Permission::GenerateForecasts->value, \App\Enums\Permission::ViewReports->value, 'view_procurement_sensitive_data', 'manage_sourcing', 'evaluate_bids', 'award_procurement'])
                             <optgroup label="Strategic Sourcing">
                                 @canany(['view_procurement_sensitive_data', 'manage_sourcing', 'evaluate_bids'])
-                                    <option value="sourcing_rfqs" :selected="activeTab === 'sourcing_rfqs'">Sourcing Events &amp; RFQs ({{ $rfqs->total() }})</option>
+                                    <option value="sourcing_rfqs" :selected="activeTab === 'sourcing_rfqs'">Sourcing Events &amp; RFQs</option>
                                 @endcanany
                                 @canany(['view_procurement_sensitive_data', 'evaluate_bids', 'award_procurement'])
                                     <option value="evaluations" :selected="activeTab === 'evaluations'">Comparative Evaluation &amp; Landed Cost Matrix</option>
@@ -334,7 +328,7 @@
                             >
                                 <x-ui.icon name="globe-alt" class="h-4 w-4 text-blue-600 dark:text-blue-400" />
                                 <span>Strategic Sourcing</span>
-                                @if($rfqs->total() > 0)
+                                @if($activeTab === 'sourcing_rfqs' && $rfqs->total() > 0)
                                     <span class="rounded-full bg-blue-100 dark:bg-blue-950/70 px-1.5 py-0.2 text-[10px] font-bold text-blue-800 dark:text-blue-300">{{ $rfqs->total() }}</span>
                                 @endif
                                 <span class="text-[10px] font-mono text-neutral-400 font-normal" x-text="activeTab === 'sourcing_rfqs' ? '(RFQs)' : (activeTab === 'evaluations' ? '(Evaluations)' : '')"></span>
@@ -462,6 +456,7 @@
             </div>
 
             {{-- ======================================================== TAB 1: Enterprise S2P Workspace --}}
+            @if($activeTab === 'enterprise_s2p')
             @canany(['view_procurement_sensitive_data', 'create_requisition', 'manage_sourcing', 'issue_purchase_order', 'manage_procurement'])
             <div x-show="activeTab === 'enterprise_s2p'" x-cloak class="space-y-6">
                 @can('create_requisition')
@@ -740,7 +735,9 @@
             </div>
             @endcanany
 
+            @endif
             {{-- ======================================================== TAB 2: Sourcing Events & RFQs --}}
+            @if($activeTab === 'sourcing_rfqs')
             @canany(['view_procurement_sensitive_data', 'manage_sourcing', 'evaluate_bids'])
             <div x-show="activeTab === 'sourcing_rfqs'" x-cloak class="space-y-6">
                 @can('manage_sourcing')
@@ -1082,7 +1079,9 @@
             </div>
             @endcanany
 
+            @endif
             {{-- ======================================================== TAB 3: Comparative Evaluation & Landed Cost Matrix --}}
+            @if($activeTab === 'evaluations')
             @canany(['view_procurement_sensitive_data', 'evaluate_bids', 'award_procurement'])
             <div x-show="activeTab === 'evaluations'" x-cloak class="space-y-6">
                 <div class="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/90 p-6 shadow-sm">
@@ -1099,6 +1098,9 @@
                     @endphp
 
                     @if($activeEvaluatedRfq && $activeEvaluatedRfq->evaluations->isNotEmpty())
+                        @php
+                            $rankedEvaluations = $activeEvaluatedRfq->evaluations->sortByDesc('composite_score')->values();
+                        @endphp
                         <div class="mt-4">
                             <div class="flex items-center justify-between bg-neutral-50 dark:bg-neutral-800/60 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800">
                                 <div>
@@ -1125,11 +1127,25 @@
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-neutral-200 dark:divide-neutral-800">
-                                        @foreach($activeEvaluatedRfq->evaluations->sortByDesc('composite_score') as $index => $eval)
+                                        @foreach($rankedEvaluations as $index => $eval)
                                             <tr class="{{ $index === 0 ? 'bg-emerald-50/50 dark:bg-emerald-950/30 font-medium' : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/50' }}">
                                                 <td class="px-3.5 py-3">
                                                     <p class="font-bold text-neutral-900 dark:text-neutral-100">{{ $eval->quote?->supplier?->name }}</p>
                                                     <p class="text-xs text-neutral-500 dark:text-neutral-400">{{ $eval->quote?->quote_number }}</p>
+                                                    @if($eval->quote && ! $eval->quote->isMasked())
+                                                        <x-ui.button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            icon="eye"
+                                                            class="mt-1 -ml-2"
+                                                            x-on:click="$dispatch('open-modal', 'bid-offer-{{ $eval->quote->id }}')"
+                                                            aria-label="View bid offer from {{ $eval->quote->supplier?->name ?? 'supplier' }}"
+                                                            data-view-bid-offer="{{ $eval->quote->id }}"
+                                                        >
+                                                            View offer
+                                                        </x-ui.button>
+                                                    @endif
                                                 </td>
                                                 <td class="px-3.5 py-3">₱{{ number_format($eval->quote?->quoted_price, 2) }}</td>
                                                 <td class="px-3.5 py-3 font-semibold text-neutral-900 dark:text-neutral-100">₱{{ number_format($eval->normalized_landed_cost, 2) }}</td>
@@ -1169,6 +1185,104 @@
                                     </tbody>
                                 </table>
                             </div>
+
+                            @foreach($rankedEvaluations as $eval)
+                                @php
+                                    $quote = $eval->quote;
+                                @endphp
+                                @if($quote && ! $quote->isMasked())
+
+                                <x-ui.modal
+                                    name="bid-offer-{{ $quote->id }}"
+                                    title="Bid offer — {{ $quote->supplier?->name ?? 'Supplier' }}"
+                                    maxWidth="6xl"
+                                    flush
+                                >
+                                    <div class="space-y-5 p-4 sm:p-5">
+                                        <dl class="grid gap-4 rounded-lg border border-neutral-200 bg-neutral-50/70 p-4 sm:grid-cols-2 xl:grid-cols-4 dark:border-neutral-800 dark:bg-neutral-950/40">
+                                            <div class="min-w-0">
+                                                <dt class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Quote number</dt>
+                                                <dd class="mt-1 break-words text-sm font-semibold text-neutral-950 dark:text-white">{{ $quote->quote_number ?: 'Not provided' }}</dd>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <dt class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Total bid</dt>
+                                                <dd class="mt-1 text-sm font-semibold tabular-nums text-neutral-950 dark:text-white">{{ $quote->currency ?? 'PHP' }} {{ number_format((float) ($quote->total_bid_amount > 0 ? $quote->total_bid_amount : $quote->quoted_price), 2) }}</dd>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <dt class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Payment terms</dt>
+                                                <dd class="mt-1 break-words text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ $quote->payment_terms ?: 'Not provided' }}</dd>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <dt class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Offer validity</dt>
+                                                <dd class="mt-1 text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ $quote->validity_end_date?->format('M j, Y') ?? 'Not provided' }}</dd>
+                                            </div>
+                                        </dl>
+
+                                        <section aria-labelledby="bid-offer-lines-{{ $quote->id }}">
+                                            <div class="mb-3">
+                                                <h3 id="bid-offer-lines-{{ $quote->id }}" class="text-sm font-semibold text-neutral-950 dark:text-white">Offered line items</h3>
+                                                <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Supplier-submitted quantities, prices, delivery lead times, and evaluated landed costs.</p>
+                                            </div>
+
+                                            @if($quote->lines->isNotEmpty())
+                                                <x-ui.table :stickyHeader="false" aria-label="Offered line items from {{ $quote->supplier?->name ?? 'supplier' }}">
+                                                    <x-slot:head>
+                                                        <x-ui.table.th>Item</x-ui.table.th>
+                                                        <x-ui.table.th numeric>Offered quantity</x-ui.table.th>
+                                                        <x-ui.table.th numeric>Unit price</x-ui.table.th>
+                                                        <x-ui.table.th numeric>Lead time</x-ui.table.th>
+                                                        <x-ui.table.th numeric>Line total</x-ui.table.th>
+                                                        <x-ui.table.th numeric>Landed cost</x-ui.table.th>
+                                                    </x-slot:head>
+                                                    <tbody>
+                                                        @foreach($quote->lines as $line)
+                                                            @php
+                                                                $rfqLine = $line->rfqLineItem;
+                                                                $lineTotal = (float) $line->offered_unit_price * (int) $line->offered_quantity;
+                                                            @endphp
+                                                            <x-ui.table.row>
+                                                                <x-ui.table.td>
+                                                                    <p class="font-semibold text-neutral-950 dark:text-white">{{ $rfqLine?->item_description ?: ($rfqLine?->item?->name ?? 'Item not recorded') }}</p>
+                                                                    <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">Requested: {{ number_format((int) ($rfqLine?->target_quantity ?? 0)) }} {{ $rfqLine?->uom ?? 'units' }}</p>
+                                                                    @if($line->notes)
+                                                                        <p class="mt-1 max-w-md break-words text-xs text-neutral-600 dark:text-neutral-300">Supplier note: {{ $line->notes }}</p>
+                                                                    @endif
+                                                                </x-ui.table.td>
+                                                                <x-ui.table.td numeric>{{ number_format($line->offered_quantity) }} {{ $rfqLine?->uom ?? 'units' }}</x-ui.table.td>
+                                                                <x-ui.table.td numeric>{{ $quote->currency ?? 'PHP' }} {{ number_format((float) $line->offered_unit_price, 2) }}</x-ui.table.td>
+                                                                <x-ui.table.td numeric>{{ number_format($line->lead_time_days) }} {{ str('day')->plural($line->lead_time_days) }}</x-ui.table.td>
+                                                                <x-ui.table.td numeric>{{ $quote->currency ?? 'PHP' }} {{ number_format($lineTotal, 2) }}</x-ui.table.td>
+                                                                <x-ui.table.td numeric class="font-semibold text-neutral-950 dark:text-white">{{ $quote->currency ?? 'PHP' }} {{ number_format((float) $line->landed_cost, 2) }}</x-ui.table.td>
+                                                            </x-ui.table.row>
+                                                        @endforeach
+                                                    </tbody>
+                                                </x-ui.table>
+                                            @else
+                                                <div class="rounded-lg border border-dashed border-neutral-300 px-4 py-6 text-center dark:border-neutral-700">
+                                                    <p class="text-sm font-semibold text-neutral-800 dark:text-neutral-200">No line-item breakdown was submitted.</p>
+                                                    <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Use the total bid above as the supplier's recorded offer.</p>
+                                                </div>
+                                            @endif
+                                        </section>
+
+                                        <div class="grid gap-4 lg:grid-cols-2">
+                                            <div class="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+                                                <h3 class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Delivery terms</h3>
+                                                <p class="mt-1 break-words text-sm text-neutral-800 dark:text-neutral-200">{{ $quote->incoterms ?: 'Not provided' }}</p>
+                                            </div>
+                                            <div class="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+                                                <h3 class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Supplier notes</h3>
+                                                <p class="mt-1 whitespace-pre-line break-words text-sm text-neutral-800 dark:text-neutral-200">{{ $quote->notes ?: 'No additional notes provided.' }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <x-slot:footer>
+                                        <x-ui.button type="button" variant="secondary" x-on:click="$dispatch('close-modal', 'bid-offer-{{ $quote->id }}')">Close</x-ui.button>
+                                    </x-slot:footer>
+                                </x-ui.modal>
+                                @endif
+                            @endforeach
                         </div>
                     @else
                         <div class="mt-4 rounded-lg border border-dashed border-neutral-300 p-8 text-center text-neutral-500">
@@ -1185,7 +1299,9 @@
             </div>
             @endcanany
 
+            @endif
             {{-- ======================================================== TAB 4: Delegation of Authority (DOA) Hub --}}
+            @if($activeTab === 'doa_approvals')
             @can('approve_purchase_order')
             <div x-show="activeTab === 'doa_approvals'" x-cloak class="space-y-6">
                 <section class="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900/90" aria-labelledby="doa-heading">
@@ -1563,7 +1679,9 @@
             </div>
             @endcan
 
+            @endif
             {{-- ======================================================== PRIMARY: Purchase Order Workspace --}}
+            @if($activeTab === 'orders_revisions')
             <div x-show="activeTab === 'orders_revisions'" x-cloak class="space-y-4">
                 <div class="grid items-start gap-4 {{ $canIssuePurchaseOrder ? 'lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.65fr)]' : '' }}">
                     @can(\App\Enums\Permission::IssuePurchaseOrder->value)
@@ -1604,8 +1722,14 @@
                                         @endforeach
                                     </x-ui.field>
 
+                                    <p x-show="itemContextLoading" x-cloak role="status" class="text-xs text-neutral-600">Loading item forecast and supplier prices...</p>
+                                    <div x-show="itemContextError" x-cloak role="alert" class="flex flex-wrap items-center gap-2 text-xs text-danger-700">
+                                        <span x-text="itemContextError"></span>
+                                        <x-ui.button type="button" size="sm" variant="secondary" x-on:click="loadItemContext(itemId)">Retry</x-ui.button>
+                                    </div>
+
                                     {{-- Item context: only the figures that decide whether to reorder. --}}
-                                    <div x-show="selectedItem()" x-cloak class="rounded-md border border-neutral-200 bg-neutral-50 p-2.5">
+                                    <div x-show="selectedItem()?.contextLoaded" x-cloak class="rounded-md border border-neutral-200 bg-neutral-50 p-2.5">
                                         <p class="truncate text-[10px] font-semibold uppercase tracking-wide text-neutral-500" x-text="selectedItem()?.category"></p>
                                         <dl class="mt-1.5 grid grid-cols-3 gap-2">
                                             <div>
@@ -1657,7 +1781,7 @@
                                         @endforeach
                                     </x-ui.field>
 
-                                    <div x-show="selectedSupplier()" x-cloak class="rounded-md border border-primary-100 bg-primary-50/60 p-2.5">
+                                    <div x-show="selectedSupplier() && selectedItem()?.contextLoaded" x-cloak class="rounded-md border border-primary-100 bg-primary-50/60 p-2.5">
                                         <div class="flex flex-wrap items-center justify-between gap-2">
                                             <p class="text-xs font-semibold text-primary-900" x-text="selectedSupplier()?.name"></p>
                                             <template x-if="selectedSupplier()?.score !== null">
@@ -1710,7 +1834,7 @@
                                         </div>
                                     </details>
 
-                                    <div id="po-cost-warning" x-show="selectedItem() && selectedSupplier() && trustedUnitCost() <= 0" x-cloak class="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-300">
+                                    <div id="po-cost-warning" x-show="selectedItem()?.contextLoaded && selectedSupplier() && trustedUnitCost() <= 0" x-cloak class="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-300">
                                         <div class="flex items-center gap-1.5 font-medium">
                                             <svg class="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                                             <span>No catalog unit price configured (₱0.00)</span>
@@ -1722,10 +1846,10 @@
                                         <div class="flex items-end justify-between gap-3">
                                             <div>
                                                 <p class="text-[10px] font-medium uppercase tracking-wide text-primary-700 dark:text-primary-400">Estimated commitment</p>
-                                                <p class="mt-0.5 text-xl font-semibold tabular-nums text-primary-900 dark:text-primary-100" x-text="formatCurrency(orderTotal(), selectedTerms()?.currency)"></p>
+                                                <p class="mt-0.5 text-xl font-semibold tabular-nums text-primary-900 dark:text-primary-100" x-text="selectedItem() && !selectedItem()?.contextLoaded ? 'Loading price...' : formatCurrency(orderTotal(), selectedTerms()?.currency)"></p>
                                                 <p class="mt-0.5 text-[10px] text-primary-700 dark:text-primary-400">Expected <span class="font-medium" x-text="expectedDeliveryLabel()"></span></p>
                                             </div>
-                                            <x-ui.button type="button" size="sm" x-on:click="openPurchaseOrderReview($refs.purchaseOrderForm)" icon="clipboard-document-check">Review Purchase Order</x-ui.button>
+                                            <x-ui.button type="button" size="sm" x-bind:disabled="selectedItem() && !selectedItem()?.contextLoaded" x-on:click="openPurchaseOrderReview($refs.purchaseOrderForm)" icon="clipboard-document-check">Review Purchase Order</x-ui.button>
                                         </div>
                                     </div>
                                 </form>
@@ -2505,7 +2629,9 @@
                     </x-ui.modal>
                 @endcan
             </div>
+            @endif
             {{-- ======================================================== TAB 6: Standard Canvassing --}}
+            @if($activeTab === 'legacy_canvass')
             {{-- ======================================================== TAB 6: Standard Canvassing --}}
             @php
                 $initialCanvassStep = 1;
@@ -2995,7 +3121,9 @@
                 </div>
             </div>
 
+            @endif
             {{-- ======================================================== TAB 7: Procurement Audit Trail --}}
+            @if($activeTab === 'audit_trail')
             @can('view_audit_trail')
             <div x-show="activeTab === 'audit_trail'" x-cloak class="space-y-6">
                 <div class="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/90 p-6 shadow-sm">
@@ -3043,7 +3171,9 @@
             </div>
             @endcan
 
+            @endif
             {{-- B2B cXML Modal Viewer --}}
+            @if($activeTab === 'orders_revisions')
             <div x-show="showCxmlModal" x-cloak class="fixed inset-0 z-[60] overflow-y-auto" style="display: none;">
                 <div class="flex min-h-screen items-center justify-center p-4">
                     <div class="fixed inset-0 bg-neutral-900/60 transition-opacity" @click="showCxmlModal = false"></div>
@@ -3067,7 +3197,9 @@
                 </div>
             </div>
 
+            @endif
         </div>
+    @endfragment
 
     {{-- Preserved Legacy API Rendering Scripts --}}
     <script>
@@ -3268,7 +3400,7 @@
             loadProcurementRequestsFromApi();
             loadSupplierQuotesFromApi();
             loadItemsAndSuppliersForForm();
-        }, { once: true });
+        });
 
         let purchaseOrderPaginationPending = false;
         let purchaseOrderPaginationHistory = false;
@@ -3326,7 +3458,11 @@
         }, true);
 
         window.addEventListener('popstate', () => {
+            const workspace = document.querySelector('[data-procurement-workspace]');
+            const targetTab = new URLSearchParams(window.location.search).get('tab') || 'orders_revisions';
             if (purchaseOrderPaginationHistory
+                && workspace?.dataset.procurementActiveTab === 'orders_revisions'
+                && targetTab === 'orders_revisions'
                 && window.location.pathname === '{{ route('inventory.purchases', absolute: false) }}') {
                 loadPurchaseOrderPage(window.location.href, false);
             }

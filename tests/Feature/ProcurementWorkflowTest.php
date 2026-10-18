@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AuditAction;
 use App\Enums\SupplierAccreditationStatus;
 use App\Models\AuditLog;
 use App\Models\CostCenter;
@@ -117,7 +118,7 @@ class ProcurementWorkflowTest extends TestCase
         $this->request($this->supplier(), 'approved');
 
         $this->actingAs($this->procurementOfficer())
-            ->get('/inventory/purchases')
+            ->get('/inventory/purchases?tab=legacy_canvass')
             ->assertStatus(200)
             ->assertSee('Stage 3 &bull; Supplier quotation', false)
             ->assertSee('name="procurement_request_id"', false)
@@ -152,6 +153,32 @@ class ProcurementWorkflowTest extends TestCase
 
         // storeQuote() never sets a status, so the migration default stands.
         $this->assertSame('submitted', $quote->status);
+
+        $this->actingAs($this->procurementOfficer())
+            ->post('/inventory/purchases/quotes', [
+                'procurement_request_id' => $procurementRequest->id,
+                'supplier_id' => $supplier->id,
+                'quoted_price' => 40500,
+                'notes' => 'Updated commercial offer',
+            ])
+            ->assertRedirect('/inventory/purchases');
+
+        $this->assertSame(1, SupplierQuote::where('procurement_request_id', $procurementRequest->id)->where('supplier_id', $supplier->id)->count());
+        $this->assertSame(40500.0, (float) $quote->fresh()->quoted_price);
+
+        $this->actingAs($this->procurementOfficer())
+            ->postJson('/api/v1/supplier-quotes', [
+                'procurement_request_id' => $procurementRequest->id,
+                'supplier_id' => $supplier->id,
+                'quoted_price' => 39500,
+                'notes' => 'API retry offer',
+            ])
+            ->assertCreated();
+
+        $this->assertSame(1, SupplierQuote::where('procurement_request_id', $procurementRequest->id)->where('supplier_id', $supplier->id)->count());
+        $this->assertSame(39500.0, (float) $quote->fresh()->quoted_price);
+        $this->assertSame(1, AuditLog::where('action', AuditAction::SubmittedSupplierQuote->value)->count());
+        $this->assertSame(2, AuditLog::where('action', AuditAction::RevisedSupplierQuote->value)->count());
     }
 
     /**
@@ -220,7 +247,7 @@ class ProcurementWorkflowTest extends TestCase
         $this->request();
 
         $this->actingAs($this->procurementOfficer())
-            ->get('/inventory/purchases')
+            ->get('/inventory/purchases?tab=legacy_canvass')
             ->assertStatus(200)
             ->assertSee('Approve a procurement request first')
             ->assertDontSee('name="quoted_price"', false);

@@ -8,6 +8,7 @@ use App\Enums\Permission;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\AuditLog;
+use App\Models\SupplierInvitation;
 use App\Models\User;
 use App\Notifications\AccountActivationCancelled;
 use App\Notifications\AccountCreated;
@@ -312,27 +313,36 @@ class UserAccountService
                 'activation_cancellation_notice_sent_at' => null,
             ])->saveQuietly();
 
+            $supplierInvitation = $lockedUser->supplierInvitation()
+                ->with('supplier')
+                ->where('status', SupplierInvitation::STATUS_PENDING)
+                ->first();
+
             $lockedUser->supplierInvitation()
-                ->where('status', \App\Models\SupplierInvitation::STATUS_PENDING)
+                ->where('status', SupplierInvitation::STATUS_PENDING)
                 ->update([
-                    'status' => \App\Models\SupplierInvitation::STATUS_REVOKED,
+                    'status' => SupplierInvitation::STATUS_REVOKED,
                     'revoked_at' => now(),
                     'revoked_by' => $actor->getKey(),
                     'updated_at' => now(),
                 ]);
 
             $this->audit->log(
-                AuditAction::AccountActivationCancelled,
+                $supplierInvitation ? AuditAction::RevokedSupplierInvitation : AuditAction::AccountActivationCancelled,
                 $actor,
-                "Cancelled account activation for {$lockedUser->name}.",
-                $lockedUser,
-                $lockedUser->name,
-                oldValues: ['status' => UserStatus::PendingActivation->value],
-                newValues: [
-                    'status' => UserStatus::Cancelled->value,
+                $supplierInvitation
+                    ? 'Revoked the supplier onboarding invitation and cancelled its pending account activation.'
+                    : "Cancelled account activation for {$lockedUser->name}.",
+                $supplierInvitation?->refresh() ?? $lockedUser,
+                $supplierInvitation?->supplier?->name ?? $lockedUser->name,
+                oldValues: $supplierInvitation
+                    ? ['invitation_status' => SupplierInvitation::STATUS_PENDING, 'account_status' => UserStatus::PendingActivation->value]
+                    : ['status' => UserStatus::PendingActivation->value],
+                newValues: $supplierInvitation ? [
+                    'invitation_status' => SupplierInvitation::STATUS_REVOKED,
+                    'account_status' => UserStatus::Cancelled->value,
                     'reason' => $reason->label(),
-                    'additional_details' => $details,
-                ],
+                ] : ['status' => UserStatus::Cancelled->value, 'reason' => $reason->label()],
                 businessReason: $reason->label(),
             );
 

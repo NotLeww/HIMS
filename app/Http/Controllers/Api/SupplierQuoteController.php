@@ -2,16 +2,19 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\AuditAction;
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSupplierQuoteRequest;
 use App\Http\Requests\UpdateSupplierQuoteRequest;
 use App\Http\Resources\SupplierQuoteResource;
+use App\Models\ProcurementRequest;
 use App\Models\SupplierQuote;
 use App\Services\Procurement\ProcurementAuditService;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\Support\Facades\DB;
 
 class SupplierQuoteController extends Controller implements HasMiddleware
 {
@@ -41,23 +44,46 @@ class SupplierQuoteController extends Controller implements HasMiddleware
     public function store(StoreSupplierQuoteRequest $request)
     {
         $data = $request->validated();
-        $sq = SupplierQuote::create($data);
+        $sq = DB::transaction(function () use ($data, $request): SupplierQuote {
+            ProcurementRequest::query()->lockForUpdate()->findOrFail($data['procurement_request_id']);
+            $quote = SupplierQuote::firstOrNew([
+                'procurement_request_id' => $data['procurement_request_id'],
+                'supplier_id' => $data['supplier_id'],
+            ]);
+            $wasRevision = $quote->exists;
+            $oldValues = $wasRevision ? $quote->only(['supplier_id', 'quoted_price', 'status']) : null;
+            $quote->fill(collect($data)->except(['procurement_request_id', 'supplier_id'])->all())->save();
 
-        $this->auditService->record(
-            $request->user(),
-            'SupplierQuote',
-            $sq->id,
-            'submitted_supplier_quote',
-            null,
-            ['supplier_id' => $sq->supplier_id, 'quoted_price' => $sq->quoted_price]
-        );
+            $this->auditService->record(
+                $request->user(),
+                'SupplierQuote',
+                $quote->id,
+                ($wasRevision ? AuditAction::RevisedSupplierQuote : AuditAction::SubmittedSupplierQuote)->value,
+                $oldValues,
+                ['supplier_id' => $quote->supplier_id, 'quoted_price' => $quote->quoted_price]
+            );
+
+            return $quote;
+        });
 
         return (new SupplierQuoteResource($sq))->response()->setStatusCode(201);
     }
 
     public function update(UpdateSupplierQuoteRequest $request, SupplierQuote $supplier_quote)
     {
+        $oldValues = $supplier_quote->only(['supplier_id', 'quoted_price', 'status']);
         $supplier_quote->update($request->validated());
+
+        if ($supplier_quote->wasChanged()) {
+            $this->auditService->record(
+                $request->user(),
+                'SupplierQuote',
+                $supplier_quote->id,
+                AuditAction::RevisedSupplierQuote->value,
+                $oldValues,
+                $supplier_quote->only(['supplier_id', 'quoted_price', 'status']),
+            );
+        }
 
         return new SupplierQuoteResource($supplier_quote);
     }

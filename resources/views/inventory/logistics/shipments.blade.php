@@ -187,7 +187,7 @@
                                             default => 'bg-neutral-100 text-neutral-700 ring-neutral-600/20 dark:bg-neutral-800 dark:text-neutral-300 dark:ring-neutral-700',
                                         };
                                     @endphp
-                                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset {{ $statusBadge }}">
+                                    <span class="inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset {{ $statusBadge }}">
                                         {{ ucwords(str_replace('_', ' ', $shipment->status)) }}
                                     </span>
                                 </td>

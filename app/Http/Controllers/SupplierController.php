@@ -26,8 +26,9 @@ use App\Models\SupplierProduct;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\FileContentValidator;
-use App\Services\SupplierManagementService;
+use App\Services\HimsNotificationWorkflowService;
 use App\Services\SupplierInvitationService;
+use App\Services\SupplierManagementService;
 use App\Services\UserAccountService;
 use App\Support\MetricDetails;
 use App\Support\SuperAdminPasswordConfirmation;
@@ -517,6 +518,7 @@ class SupplierController extends Controller implements HasMiddleware
         $oldStatus = $supplierProduct->approval_status;
         $supplierProduct->update(['approval_status' => 'approved', 'is_active' => true]);
         $this->audit->log(AuditAction::UpdatedSupplierProduct, request()->user(), 'Approved a supplier-submitted catalog product.', $supplierProduct, $supplierProduct->supplier_product_name, oldValues: ['approval_status' => $oldStatus], newValues: ['approval_status' => 'approved']);
+        app(HimsNotificationWorkflowService::class)->catalogProductApproved($supplier, $supplierProduct, request()->user());
 
         return back()->with('success', 'Catalog product approved for operational use.');
     }
@@ -528,6 +530,7 @@ class SupplierController extends Controller implements HasMiddleware
         $oldStatus = $discrepancy->status;
         $discrepancy->update([...$data, 'status' => 'closed', 'resolved_by' => $request->user()->id, 'resolved_at' => now()]);
         $this->audit->log(AuditAction::ResolvedSupplierDiscrepancy, $request->user(), 'Hospital review closed a supplier receiving discrepancy.', $discrepancy, "Discrepancy {$discrepancy->id}", oldValues: ['status' => $oldStatus], newValues: ['status' => 'closed']);
+        app(HimsNotificationWorkflowService::class)->discrepancyResolved($discrepancy, $request->user());
 
         return back()->with('success', 'Supplier discrepancy resolved and closed.');
     }

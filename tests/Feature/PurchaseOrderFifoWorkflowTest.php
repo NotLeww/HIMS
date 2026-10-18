@@ -1473,15 +1473,15 @@ class PurchaseOrderFifoWorkflowTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->manager)
-            ->get(route('inventory.purchases'));
+            ->get(route('inventory.purchases', ['tab' => 'doa_approvals']));
 
         $response->assertOk();
         $response->assertSee('PO-DOA-AUTH-001');
-        $response->assertSee('Commitment amount');
+        $response->assertSee('Item pricing breakdown');
         $response->assertSee('Sterile Gauze Sponge DOA');
         $response->assertSee('₱500.00/pack');
         $response->assertSee('₱2,000.00');
-        $response->assertSee('Purchase Order Total:');
+        $response->assertSee('Order commitment');
     }
 
     /**

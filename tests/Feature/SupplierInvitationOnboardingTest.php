@@ -118,6 +118,16 @@ class SupplierInvitationOnboardingTest extends TestCase
         $this->get(route('supplier-invitations.accept', $secondToken))->assertSessionHasErrors('email');
         $this->assertSame(SupplierInvitation::STATUS_REVOKED, $invitation->fresh()->status);
         $this->assertSame(UserStatus::Cancelled, $user->fresh()->status);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::RevokedSupplierInvitation->value,
+            'user_id' => $admin->id,
+            'target_type' => $invitation->getMorphClass(),
+            'target_id' => (string) $invitation->id,
+        ]);
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => AuditAction::AccountActivationCancelled->value,
+            'user_id' => $admin->id,
+        ]);
 
         $this->actingAs($admin, 'admin')->post(route('inventory.suppliers.invitations.resend', [$invitation->supplier, $invitation]))
             ->assertSessionHas('success');

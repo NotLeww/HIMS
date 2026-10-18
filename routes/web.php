@@ -227,6 +227,7 @@ Route::middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])->
     Route::get('/inventory/logistics/chain-of-custody', [LogisticsController::class, 'chainOfCustody'])->name('inventory.logistics.chain-of-custody');
     Route::get('/inventory/logistics/ris/{requisition}', [LogisticsController::class, 'risShow'])->name('inventory.logistics.ris.show');
     Route::get('/inventory/purchases', [ProcurementController::class, 'index'])->name('inventory.purchases');
+    Route::get('/inventory/purchases/items/{item}/context', [ProcurementController::class, 'itemContext'])->name('inventory.purchases.item-context');
     Route::post('/inventory/purchases/requests', [ProcurementController::class, 'storeRequest'])->name('inventory.purchases.requests.store');
     Route::post('/inventory/purchases/quotes', [ProcurementController::class, 'storeQuote'])->name('inventory.purchases.quotes.store');
     Route::post('/inventory/purchases/requests/{procurementRequest}/approve', [ProcurementController::class, 'approve'])->name('inventory.purchases.requests.approve');
@@ -246,6 +247,7 @@ Route::middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])->
     Route::get('/inventory/stock', [InventoryController::class, 'stock'])->name('inventory.stock');
     Route::get('/inventory/alerts', [InventoryController::class, 'alerts'])->name('inventory.alerts');
     Route::get('/inventory/reports', [ReportController::class, 'index'])->name('inventory.reports');
+    Route::get('/inventory/reports/freshness', [ReportController::class, 'freshness'])->name('inventory.reports.freshness');
     Route::get('/inventory/reports/generate', [ReportController::class, 'generate'])->name('inventory.reports.generate');
     Route::get('/inventory/reports/schedules', [ScheduledReportController::class, 'index'])->name('inventory.reports.schedules');
     Route::post('/inventory/reports/schedules', [ScheduledReportController::class, 'store'])->name('inventory.reports.schedules.store');
@@ -273,6 +275,8 @@ Route::middleware(['auth:web,admin,super_admin', 'verified', 'internal-user'])->
     Route::post('/reviews/check-availability', [ProcessReviewController::class, 'checkAvailability'])->name('reviews.check-availability');
     Route::get('/reviews/dpri', [ProcessReviewController::class, 'dpriIndex'])->name('reviews.dpri');
     Route::post('/reviews/dpri', [ProcessReviewController::class, 'storeDpri'])->name('reviews.dpri.store');
+    Route::get('/reviews/{review}/freshness', [ProcessReviewController::class, 'freshness'])->name('reviews.freshness');
+    Route::post('/reviews/{review}/refresh-analysis', [ProcessReviewController::class, 'refreshAnalysis'])->name('reviews.refresh-analysis');
     Route::get('/reviews/{review}', [ProcessReviewController::class, 'show'])->name('reviews.show');
     Route::put('/reviews/{review}', [ProcessReviewController::class, 'update'])->name('reviews.update');
     Route::post('/reviews/{review}/submit', [ProcessReviewController::class, 'submit'])->name('reviews.submit');

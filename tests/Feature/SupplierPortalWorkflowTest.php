@@ -10,6 +10,7 @@ use App\Enums\SupplierAccreditationStatus;
 use App\Enums\SupplierStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Models\AuditLog;
 use App\Models\GoodsReceiptNote;
 use App\Models\GoodsReceiptNoteLine;
 use App\Models\InventoryItem;
@@ -21,6 +22,7 @@ use App\Models\RfqSupplierInvitation;
 use App\Models\SourcingRfq;
 use App\Models\Supplier;
 use App\Models\SupplierDiscrepancy;
+use App\Models\SupplierQuote;
 use App\Models\User;
 use App\Notifications\SupplierInvitationNotification;
 use App\Support\DemoPdfBuilder;
@@ -287,7 +289,7 @@ class SupplierPortalWorkflowTest extends TestCase
             ->assertSee('rfq-bid-'.$invitation->id, false)
             ->assertSee('id="payment-terms-custom-'.$invitation->id.'-error"', false)
             ->assertSee('aria-invalid="true"', false);
-        $this->actingAs($bidderA)->post(route('supplier.rfqs.bid', $invitation), [
+        $bidPayload = [
             'quote_number' => 'QUOTE-PORTAL-001',
             'payment_terms' => 'other',
             'payment_terms_custom' => '40% advance, balance on delivery',
@@ -298,7 +300,20 @@ class SupplierPortalWorkflowTest extends TestCase
                 'offered_quantity' => 50,
                 'lead_time_days' => 14,
             ]],
-        ])->assertRedirect();
+        ];
+        $this->actingAs($bidderA)->post(route('supplier.rfqs.bid', $invitation), $bidPayload)->assertRedirect();
+        $this->actingAs($bidderA)->post(route('supplier.rfqs.bid', $invitation), $bidPayload)->assertRedirect();
+        $this->assertDatabaseHas('audit_logs', ['action' => AuditAction::SubmittedSupplierQuote->value]);
+        $this->assertDatabaseHas('audit_logs', ['action' => AuditAction::RevisedSupplierQuote->value]);
+        $this->assertSame(1, AuditLog::where('action', AuditAction::SubmittedSupplierQuote)->count());
+        $this->assertSame(1, AuditLog::where('action', AuditAction::RevisedSupplierQuote)->count());
+        $duplicateLinePayload = $bidPayload;
+        $duplicateLinePayload['lines'][] = $bidPayload['lines'][0];
+        $this->actingAs($bidderA)->from(route('supplier.rfqs.index'))->post(route('supplier.rfqs.bid', $invitation), $duplicateLinePayload)
+            ->assertRedirect(route('supplier.rfqs.index'))
+            ->assertSessionHasErrors('lines.0.rfq_line_item_id');
+        $this->assertSame(1, SupplierQuote::where('sourcing_rfq_id', $rfq->id)->where('supplier_id', $supplierA->id)->count());
+        $this->assertDatabaseCount('quote_line_items', 1);
         $this->assertDatabaseHas('supplier_quotes', [
             'sourcing_rfq_id' => $rfq->id,
             'supplier_id' => $supplierA->id,
@@ -317,6 +332,16 @@ class SupplierPortalWorkflowTest extends TestCase
             'lines' => [['po_line_id' => $line->id, 'quantity' => 8]],
         ])->assertSessionHasErrors('dispatch_date');
         $this->assertDatabaseMissing('shipments', ['shipment_number' => 'ASN-FUTURE-DISPATCH']);
+
+        $this->actingAs($operationsA)->post(route('supplier.orders.asns.store', $po), [
+            'shipment_number' => 'ASN-DUPLICATE-LINE', 'carrier_name' => 'Internal Carrier', 'dispatch_date' => today()->toDateString(),
+            'estimated_delivery_date' => today()->addDay()->toDateString(),
+            'lines' => [
+                ['po_line_id' => $line->id, 'quantity' => 4],
+                ['po_line_id' => $line->id, 'quantity' => 4],
+            ],
+        ])->assertSessionHasErrors('lines.0.po_line_id');
+        $this->assertDatabaseMissing('shipments', ['shipment_number' => 'ASN-DUPLICATE-LINE']);
 
         $this->actingAs($operationsA)->post(route('supplier.orders.asns.store', $po), [
             'shipment_number' => 'ASN-PORTAL-001', 'carrier_name' => 'Internal Carrier', 'dispatch_date' => today()->toDateString(),
@@ -346,6 +371,16 @@ class SupplierPortalWorkflowTest extends TestCase
 
         $this->actingAs($finance)->get(route('supplier.invoices.index'))->assertOk();
         $this->actingAs($finance)->post(route('supplier.orders.acknowledge', $po), ['response' => 'accepted'])->assertForbidden();
+        $this->actingAs($finance)->post(route('supplier.invoices.store'), [
+            'purchase_order_id' => $po->id,
+            'invoice_number' => 'INV-DUPLICATE-LINE',
+            'invoice_date' => today()->toDateString(),
+            'lines' => [
+                ['po_line_id' => $line->id, 'quantity' => 2, 'unit_price' => 20],
+                ['po_line_id' => $line->id, 'quantity' => 3, 'unit_price' => 20],
+            ],
+        ])->assertSessionHasErrors('lines.0.po_line_id');
+        $this->assertDatabaseMissing('supplier_invoices', ['invoice_number' => 'INV-DUPLICATE-LINE']);
         $this->actingAs($finance)->post(route('supplier.invoices.store'), ['purchase_order_id' => $po->id, 'invoice_number' => 'INV-001', 'invoice_date' => today()->toDateString(), 'lines' => [['po_line_id' => $line->id, 'quantity' => 5, 'unit_price' => 20]]])->assertRedirect();
         $this->assertDatabaseHas('supplier_invoices', ['supplier_id' => $supplier->id, 'invoice_number' => 'INV-001', 'status' => 'matched', 'total_amount' => 100]);
     }

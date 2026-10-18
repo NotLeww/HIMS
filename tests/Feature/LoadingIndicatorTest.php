@@ -139,14 +139,14 @@ class LoadingIndicatorTest extends TestCase
         );
     }
 
-    public function test_procurement_tabs_reload_fresh_server_data_with_the_shared_loader(): void
+    public function test_procurement_tabs_show_inline_loading_and_retry_states(): void
     {
-        $script = file_get_contents(resource_path('js/app.js'));
+        $manager = User::factory()->inventoryManager()->create();
 
-        $this->assertStringContainsString("message: 'Loading latest procurement data...'", $script);
-        $this->assertStringContainsString('navigateToTab(tab)', $script);
-        $this->assertStringContainsString('window.himsNavigate(url.toString()', $script);
-        $this->assertStringNotContainsString("this.\$watch('activeTab'", $script);
+        $this->actingAs($manager)->get(route('inventory.purchases'))
+            ->assertOk()
+            ->assertSee('Loading procurement tab...')
+            ->assertSee('@click="retryTab()"', false);
     }
 
     public function test_account_settings_forms_have_accessible_specific_loading_states(): void

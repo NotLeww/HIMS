@@ -40,7 +40,7 @@ class ProcurementAuditService
             $this->auditLogger->log(
                 $matchingAuditAction,
                 $actor,
-                ($actor?->name ?? 'System')." performed {$actionType} on {$entityName} #{$entityId}.",
+                "{$matchingAuditAction->label()}: {$entityName} #{$entityId}.",
                 targetName: "{$entityName} #{$entityId}",
                 targetType: $entityName,
                 targetId: $entityId,

@@ -264,18 +264,20 @@
             unreadCount: @js($topbarUnreadCount),
             nextUrl: @js($topbarNotificationsNextUrl),
             loading: false,
+            refreshRequestId: 0,
             loadError: '',
             statusMessage: '',
             init() {
                 setInterval(() => {
                     if (!document.hidden) {
-                        this.refresh();
+                        this.refresh(true);
                     }
                 }, 60000);
             },
-            async refresh() {
+            async refresh(countOnly = false) {
+                const requestId = ++this.refreshRequestId;
                 try {
-                    const response = await fetch(@js(route('notifications.index')), {
+                    const response = await fetch(countOnly ? @js(route('notifications.index', ['count_only' => 1])) : @js(route('notifications.index')), {
                         headers: {
                             'Accept': 'application/json',
                             'X-Requested-With': 'XMLHttpRequest'
@@ -283,10 +285,14 @@
                     });
                     if (response.ok) {
                         const data = await response.json();
+                        if (requestId !== this.refreshRequestId) return;
                         if (data.unread_count !== undefined) {
                             const countChanged = this.unreadCount !== data.unread_count;
                             this.unreadCount = data.unread_count;
-                            if (countChanged && data.html) {
+                            if (countOnly && countChanged && this.open) {
+                                this.refresh();
+                            }
+                            if (!countOnly && data.html !== undefined) {
                                 this.$refs.notificationItems.innerHTML = data.html;
                                 this.nextUrl = data.next_url;
                             }
@@ -365,23 +371,24 @@
                 <div class="min-w-0">
                     <h2 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Notifications</h2>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400"
+                       role="status"
+                       aria-live="polite"
+                       aria-atomic="true"
                        x-text="unreadCount > 0 ? `${unreadCount} unread` : 'You are all caught up'">
                         {{ $topbarUnreadCount > 0 ? $topbarUnreadCount.' unread' : 'You are all caught up' }}
                     </p>
                 </div>
-                @if($topbarUnreadCount > 0)
-                    <div x-show="unreadCount > 0">
-                        <form method="POST" action="{{ route('notifications.read-all') }}" class="shrink-0">
-                            @csrf
-                            @method('PATCH')
-                            <button type="submit" class="whitespace-nowrap rounded-md px-2 py-1 text-xs font-semibold text-primary-700 hover:bg-primary-50
-                                                           dark:text-primary-400 dark:hover:bg-primary-950/50
-                                                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
-                                Mark all as read
-                            </button>
-                        </form>
-                    </div>
-                @endif
+                <div x-show="unreadCount > 0" x-cloak>
+                    <form method="POST" action="{{ route('notifications.read-all') }}" class="shrink-0">
+                        @csrf
+                        @method('PATCH')
+                        <button type="submit" class="whitespace-nowrap rounded-md px-2 py-1 text-xs font-semibold text-primary-700 hover:bg-primary-50
+                                                       dark:text-primary-400 dark:hover:bg-primary-950/50
+                                                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">
+                            Mark all as read
+                        </button>
+                    </form>
+                </div>
             </div>
 
             <div class="max-h-[min(70vh,32rem)] w-full min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain">
@@ -390,7 +397,7 @@
                 </div>
 
                 @if($topbarNotifications->isEmpty())
-                    <div class="flex flex-col items-center px-6 py-10 text-center">
+                    <div x-show="unreadCount === 0" class="flex flex-col items-center px-6 py-10 text-center">
                         <x-ui.empty-artwork category="governance" size="sm" />
                         <p class="mt-3 text-sm font-semibold text-neutral-800 dark:text-neutral-200">No notifications</p>
                         <p class="mt-1 max-w-xs text-xs leading-5 text-neutral-500 dark:text-neutral-400">

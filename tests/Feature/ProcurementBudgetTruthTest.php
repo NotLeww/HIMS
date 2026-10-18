@@ -44,7 +44,7 @@ class ProcurementBudgetTruthTest extends TestCase
         ]);
 
         $this->actingAs(User::factory()->inventoryManager()->create())
-            ->get(route('inventory.purchases'))
+            ->get(route('inventory.purchases', ['tab' => 'enterprise_s2p']))
             ->assertOk()
             ->assertSeeText('No budget configured')
             ->assertSeeText('Avail: ₱1,250.00')

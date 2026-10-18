@@ -36,7 +36,7 @@ Route::prefix('v1')->group(function () {
     Route::post('auth/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 
     // Protected API
-    Route::middleware(['auth:sanctum', 'verified', EnforceDeviceSecurityForApiToken::class])->group(function () {
+    Route::middleware(['auth:sanctum', 'verified', EnforceDeviceSecurityForApiToken::class, EnsureIdempotency::class])->group(function () {
         // Item masters are retired by status. Permanent deletion would orphan
         // stock, receipt, count, and audit history, so no DELETE route exists.
         Route::apiResource('inventory-items', InventoryItemController::class)->only(['index', 'show', 'store', 'update']);
@@ -58,7 +58,7 @@ Route::prefix('v1')->group(function () {
         Route::get('dashboard-summary', [DashboardController::class, 'summary']);
 
         // Enterprise Source-to-Pay (S2P) & Procure-to-Pay (P2P) Endpoints
-        Route::prefix('procurement')->middleware(EnsureIdempotency::class)->group(function () {
+        Route::prefix('procurement')->group(function () {
             Route::get('requisitions', [RequisitionController::class, 'index']);
             Route::get('requisitions/{requisition}', [RequisitionController::class, 'show']);
             Route::post('requisitions', [RequisitionController::class, 'store']);
@@ -74,7 +74,7 @@ Route::prefix('v1')->group(function () {
         });
 
         // Enterprise Materials Management & Inventory Endpoints
-        Route::prefix('inventory')->middleware(EnsureIdempotency::class)->group(function () {
+        Route::prefix('inventory')->group(function () {
             Route::get('receipts', [GoodsReceiptController::class, 'index']);
             Route::get('receipts/{goodsReceiptNote}', [GoodsReceiptController::class, 'show']);
             Route::post('receipts', [GoodsReceiptController::class, 'store']);
