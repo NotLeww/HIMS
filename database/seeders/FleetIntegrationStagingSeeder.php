@@ -11,6 +11,8 @@ use App\Models\StorageLocation;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use LogicException;
 
 class FleetIntegrationStagingSeeder extends Seeder
@@ -24,14 +26,15 @@ class FleetIntegrationStagingSeeder extends Seeder
         DB::transaction(function (): void {
             $requester = User::query()->firstOrCreate(
                 ['email' => 'fleet-test-contact@example.invalid'],
-                User::factory()->make([
+                [
                     'name' => 'Synthetic Fleet Test Contact',
+                    'password' => Hash::make(Str::random(64)),
                     'role' => UserRole::Viewer,
                     'status' => UserStatus::Active,
                     'department' => 'Supply Chain Staging',
                     'employee_id' => 'STG-FLEET-001',
-                    'phone' => '0000000000',
-                ])->getAttributes(),
+                    'phone' => null,
+                ],
             );
 
             $warehouse = StorageLocation::query()->firstOrCreate(
