@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DemandPlanController;
+use App\Http\Controllers\Api\FleetDeliveryController;
 use App\Http\Controllers\Api\Inventory\AdjustmentController;
 use App\Http\Controllers\Api\Inventory\CycleCountController;
 use App\Http\Controllers\Api\Inventory\GoodsReceiptController;
@@ -23,6 +24,7 @@ use App\Http\Controllers\Api\StorageLocationController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\SupplierQuoteController;
 use App\Http\Middleware\EnforceDeviceSecurityForApiToken;
+use App\Http\Middleware\EnsureFleetApiKey;
 use App\Http\Middleware\EnsureIdempotency;
 use Illuminate\Support\Facades\Route;
 
@@ -31,6 +33,11 @@ foreach (['adjustmentId', 'batchId', 'countId', 'itemId', 'reqId', 'rfqId'] as $
 }
 
 Route::prefix('v1')->group(function () {
+    Route::get('integrations/fleet/deliveries', [FleetDeliveryController::class, 'index'])
+        ->middleware([EnsureFleetApiKey::class, 'throttle:60,1']);
+    Route::get('integrations/fleet/deliveries/{deliveryId}', [FleetDeliveryController::class, 'show'])
+        ->middleware([EnsureFleetApiKey::class, 'throttle:60,1']);
+
     // Auth
     Route::post('auth/token', [AuthController::class, 'token']);
     Route::post('auth/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');

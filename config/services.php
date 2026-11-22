@@ -54,4 +54,8 @@ return [
         'forecast_fallback_minutes' => (int) env('GEMINI_FORECAST_FALLBACK_MINUTES', 10),
     ],
 
+    'fleet' => [
+        'api_key_sha256' => env('FLEET_INTEGRATION_API_KEY_SHA256'),
+    ],
+
 ];
