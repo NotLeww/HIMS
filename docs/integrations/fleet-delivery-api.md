@@ -4,9 +4,9 @@
 
 `GET /api/v1/integrations/fleet/deliveries`
 
-The collection returns Logistics 1 material requisitions that have been fully issued and are awaiting department acknowledgment. It is read-only; the Fleet system cannot issue stock or change HIMS requisition status.
+The collection returns Logistics 1 requisitions explicitly marked for Fleet delivery, with an exact destination receiving point recorded, that have been fully issued and are awaiting department acknowledgment. Department pickup and other arrangements are excluded. It is read-only; the Fleet system cannot issue stock or change HIMS requisition status.
 
-An acknowledged delivery can still be looked up by its delivery ID with `GET /api/v1/integrations/fleet/deliveries/{deliveryId}`. The detail endpoint returns only requisitions in `issued` or `acknowledged` state; other states and unknown IDs return `404`.
+An acknowledged Fleet delivery can still be looked up by its delivery ID with `GET /api/v1/integrations/fleet/deliveries/{deliveryId}`. The detail endpoint returns only Fleet-designated requisitions in `issued` or `acknowledged` state with a destination receiving point; other arrangements, states, and unknown IDs return `404`.
 
 Example: `GET /api/v1/integrations/fleet/deliveries/MR-20261120-0001`
 
@@ -36,6 +36,7 @@ Uses Laravel pagination fields (`data`, `links`, `current_page`, `last_page`, `p
   "status": "ready_for_scheduling",
   "supply_status": "issued",
   "department": "Emergency",
+  "delivery_method": "fleet",
   "urgency": "urgent",
   "required_date": "2026-11-25",
   "issued_at": "2026-11-20T02:30:00.000000Z",
@@ -43,15 +44,19 @@ Uses Laravel pagination fields (`data`, `links`, `current_page`, `last_page`, `p
   "pickup_contact": null,
   "destination": {
     "department": "Emergency",
-    "location": null,
+    "location": "Main Building / 3rd Floor / Emergency receiving desk",
     "address": null,
     "contact": {
-      "name": "Synthetic Requisition Contact",
-      "phone": "09XXXXXXXXX",
-      "role": "requisition_requester"
+      "name": "Synthetic Emergency Receiver",
+      "phone": null,
+      "role": "delivery_recipient"
     }
   },
-  "delivery_time_window": null,
+  "delivery_time_window": {
+    "start": "08:00",
+    "end": "10:00",
+    "timezone": "Asia/Manila"
+  },
   "items": [
     {
       "sku": "SUP-001",
@@ -75,6 +80,7 @@ Complete collection response for one result (synthetic example; pagination URLs 
       "status": "ready_for_scheduling",
       "supply_status": "issued",
       "department": "Emergency",
+      "delivery_method": "fleet",
       "urgency": "urgent",
       "required_date": "2026-11-25",
       "issued_at": "2026-11-20T02:30:00.000000Z",
@@ -82,15 +88,19 @@ Complete collection response for one result (synthetic example; pagination URLs 
       "pickup_contact": null,
       "destination": {
         "department": "Emergency",
-        "location": null,
+        "location": "Main Building / 3rd Floor / Emergency receiving desk",
         "address": null,
         "contact": {
-          "name": "Synthetic Requisition Contact",
-          "phone": "09XXXXXXXXX",
-          "role": "requisition_requester"
+          "name": "Synthetic Emergency Receiver",
+          "phone": null,
+          "role": "delivery_recipient"
         }
       },
-      "delivery_time_window": null,
+      "delivery_time_window": {
+        "start": "08:00",
+        "end": "10:00",
+        "timezone": "Asia/Manila"
+      },
       "items": [
         {
           "sku": "SUP-001",
@@ -124,7 +134,7 @@ The collection includes only requisitions currently in `issued` status without a
 
 `delivery_id` is the HIMS requisition number, protected by a database uniqueness constraint and assigned when the requisition is created. Normal partial issuance does not create a new ID: the requisition remains `picking` and is excluded from the Fleet collection until all lines are issued. The current feed therefore represents a fully issued requisition, not separate transport jobs for each partial issue.
 
-The feed currently includes every fully issued, unacknowledged material requisition and has no `requires_fleet` or pickup-method flag. Whether all such requisitions should be transported by Fleet is an operational decision for Logistics 1. If some are self-pickup or use another carrier, define that selection rule before production and add a reliable HIMS field/filter if required.
+New web requisitions record one of `fleet`, `department_pickup`, or `other`. A fleet choice requires a destination location and receiving contact name. The optional off-site address, receiving phone, and preferred time range are stored when supplied. Other arrangements require a short description. The general authenticated requisition API accepts the same fields when supplied for compatibility with existing callers; API-created requisitions without an arrangement remain unclassified and are excluded from this Fleet feed. The feed includes only records marked `fleet` with a destination location, so issued status alone never signals that Fleet should schedule it. Existing rows remain unclassified after migration and must not be presumed Fleet deliveries.
 
 Example detail response after department acknowledgment:
 
@@ -135,6 +145,7 @@ Example detail response after department acknowledgment:
     "status": "department_acknowledged",
     "supply_status": "acknowledged",
     "department": "Emergency",
+    "delivery_method": "fleet",
     "urgency": "urgent",
     "required_date": "2026-11-25",
     "issued_at": "2026-11-20T02:30:00.000000Z",
@@ -142,15 +153,19 @@ Example detail response after department acknowledgment:
     "pickup_contact": null,
     "destination": {
       "department": "Emergency",
-      "location": null,
+      "location": "Main Building / 3rd Floor / Emergency receiving desk",
       "address": null,
       "contact": {
-        "name": "Synthetic Requisition Contact",
-        "phone": "09XXXXXXXXX",
-        "role": "requisition_requester"
+        "name": "Synthetic Emergency Receiver",
+        "phone": null,
+        "role": "delivery_recipient"
       }
     },
-    "delivery_time_window": null,
+    "delivery_time_window": {
+      "start": "08:00",
+      "end": "10:00",
+      "timezone": "Asia/Manila"
+    },
     "items": [
       {
         "sku": "SUP-001",
@@ -164,7 +179,7 @@ Example detail response after department acknowledgment:
 }
 ```
 
-Pickup location uses the configured storage-location hierarchy (`parent / child / location`). The pickup contact is `null` because HIMS has no pickup-contact field on storage locations. Destination department is known; destination location and address are `null` because they are not captured on material requisitions. The destination contact currently identifies the requisition requester, with their HIMS phone number when available. A required date is available, but no preferred time window is stored, so `delivery_time_window` is `null`.
+Pickup location uses the configured storage-location hierarchy (`parent / child / location`). Destination location, receiving contact, optional address, and optional time window come from requisition details; the time range is in the configured HIMS timezone. If no time window was requested, `delivery_time_window` is `null`.
 
 ## Polling and error handling
 
@@ -180,12 +195,13 @@ It will use `X-API-Key` and return `delivery_id`, `reservation_number`, `dispatc
 
 Create a high-entropy shared key, place the plaintext only in the approved secret manager for the Fleet client, and configure its SHA-256 hexadecimal digest as `FLEET_INTEGRATION_API_KEY_SHA256` in the HIMS deployment environment. Rebuild Laravel's configuration cache after setting it. Rotate the key by coordinating a replacement with Logistics 2 and updating both systems together.
 
-The endpoint is not active until a key digest is configured. Provide Logistics 2 the HTTPS base URL for the deployed environment; this repository does not contain the deployment hostname or the shared key.
+The endpoint is not active until a key digest is configured. The production endpoint is `https://supply.djnrmhs.com/api/v1/integrations/fleet/deliveries` (deployment hostname supplied by Logistics 1). Use a separate production key from staging and configure its SHA-256 digest only in the production secret environment. Follow `docs/integrations/fleet-production-launch.md` for the coordinated rollout. Never transfer or store the plaintext key in this repository or in Codex chat.
 
 ## Staging smoke-check
 
 1. Configure the key digest in the staging secret store and rebuild the Laravel configuration cache.
 2. In the staging HIMS UI, create a synthetic department requisition and issue it through the normal Logistics 1 workflow. Do not create test records in production.
+   Existing synthetic Fleet sample records created before the delivery-arrangement migration remain unclassified. Re-run `FleetIntegrationStagingSeeder` in staging to refresh those sample records before checking the feed.
 3. Request the endpoint with the staging URL and key. Confirm the delivery ID, department, issued quantities, and pickup location match the staged requisition.
 4. Repeat without a key and with an incorrect key; both requests should return `401`. A request when the key digest is unset should return `503`.
 5. Acknowledge the requisition in the staging HIMS UI; it should disappear from the collection but remain retrievable from the detail endpoint by delivery ID with `department_acknowledged` status.

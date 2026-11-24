@@ -1,6 +1,12 @@
 <x-app-layout>
     <div class="space-y-6" x-data="{
         newRequisitionModal: {{ ($errors->any() || $preselectedItem) ? 'true' : 'false' }},
+        deliveryMethod: {{ Js::from(old('delivery_method', '')) }},
+        destinationLocation: {{ Js::from(old('destination_location', '')) }},
+        deliveryContactName: {{ Js::from(old('delivery_contact_name', auth()->user()->name)) }},
+        deliveryMethodNotes: {{ Js::from(old('delivery_method_notes', '')) }},
+        deliveryWindowStart: {{ Js::from(old('delivery_window_start', '')) }},
+        deliveryWindowEnd: {{ Js::from(old('delivery_window_end', '')) }},
         selectedDepartment: {{ Js::from($selectedDepartment) }},
         departmentCostCenterMap: {{ Js::from($departmentCostCenterMap) }},
         assignedCostCenter() {
@@ -741,7 +747,7 @@
                                     <label class="flex items-end text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-1.5 h-6 truncate" title="Requesting Department">
                                         <span>Requesting Dept.</span> <span class="text-rose-500 ml-0.5">*</span>
                                     </label>
-                                    <select name="department" x-model="selectedDepartment" required class="h-9 block w-full rounded-lg border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-2xs focus:border-primary-500 focus:ring-primary-500 text-xs font-medium py-1.5 px-2.5">
+                                    <select name="department" id="requisition-department" x-model="selectedDepartment" required class="h-9 block w-full rounded-lg border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-2xs focus:border-primary-500 focus:ring-primary-500 text-xs font-medium py-1.5 px-2.5">
                                         <option value="">-- Select Dept --</option>
                                         @foreach($departments as $dept)
                                             <option value="{{ $dept }}">{{ $dept }}</option>
@@ -811,6 +817,59 @@
                                     @enderror
                                 </div>
                             </div>
+
+                            <section class="space-y-3 border-t border-neutral-200 pt-4 dark:border-neutral-800" aria-labelledby="delivery-arrangement-heading">
+                                <div>
+                                    <h4 id="delivery-arrangement-heading" class="text-sm font-bold text-neutral-900 dark:text-neutral-100">Delivery arrangement</h4>
+                                    <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Choose how the issued supplies will reach your department. Fleet scheduling requires an exact receiving point. The recipient name and any phone number entered will be shared with Logistics 2.</p>
+                                </div>
+                                <div>
+                                    <label for="delivery-method" class="mb-1.5 block text-xs font-semibold text-neutral-700 dark:text-neutral-300">Arrangement <span class="text-rose-500">*</span></label>
+                                    <select id="delivery-method" name="delivery_method" x-model="deliveryMethod" required aria-describedby="delivery-method-error" class="block w-full rounded-lg border-neutral-300 bg-white py-2 pl-3 pr-10 text-sm text-neutral-900 shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 sm:max-w-md">
+                                        <option value="">Select arrangement</option>
+                                        <option value="fleet">Hospital Fleet delivery</option>
+                                        <option value="department_pickup">Department pickup from Logistics 1</option>
+                                        <option value="other">Other arrangement</option>
+                                    </select>
+                                    @error('delivery_method')<p id="delivery-method-error" class="mt-1 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>@enderror
+                                </div>
+                                <div x-show="deliveryMethod === 'other'" x-cloak class="sm:max-w-xl">
+                                    <label for="delivery-method-notes" class="mb-1.5 block text-xs font-semibold text-neutral-700 dark:text-neutral-300">Describe the arrangement <span class="text-rose-500">*</span></label>
+                                    <input id="delivery-method-notes" name="delivery_method_notes" x-model="deliveryMethodNotes" x-bind:required="deliveryMethod === 'other'" x-bind:disabled="deliveryMethod !== 'other'" maxlength="255" placeholder="e.g. Department staff collection at central dispatch" class="block w-full rounded-lg border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                    @error('delivery_method_notes')<p class="mt-1 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>@enderror
+                                </div>
+                                <div x-show="deliveryMethod === 'fleet'" x-cloak class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <label for="destination-location" class="mb-1.5 block text-xs font-semibold text-neutral-700 dark:text-neutral-300">Building / floor / room / receiving point <span class="text-rose-500">*</span></label>
+                                        <input id="destination-location" name="destination_location" x-model="destinationLocation" x-bind:required="deliveryMethod === 'fleet'" x-bind:disabled="deliveryMethod !== 'fleet'" maxlength="255" aria-describedby="destination-location-error" placeholder="e.g. Main Building, 3rd Floor, Ward receiving desk" class="block w-full rounded-lg border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                        @error('destination_location')<p id="destination-location-error" class="mt-1 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>@enderror
+                                    </div>
+                                    <div>
+                                        <label for="destination-address" class="mb-1.5 block text-xs font-semibold text-neutral-700 dark:text-neutral-300">Address (if off-site)</label>
+                                        <input id="destination-address" name="destination_address" value="{{ old('destination_address') }}" x-bind:disabled="deliveryMethod !== 'fleet'" maxlength="500" placeholder="Street, barangay, city" class="block w-full rounded-lg border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                        @error('destination_address')<p class="mt-1 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>@enderror
+                                    </div>
+                                    <div>
+                                        <label for="delivery-contact-name" class="mb-1.5 block text-xs font-semibold text-neutral-700 dark:text-neutral-300">Receiving contact <span class="text-rose-500">*</span></label>
+                                        <input id="delivery-contact-name" name="delivery_contact_name" x-model="deliveryContactName" x-bind:required="deliveryMethod === 'fleet'" x-bind:disabled="deliveryMethod !== 'fleet'" maxlength="150" aria-describedby="delivery-contact-name-error" class="block w-full rounded-lg border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                        @error('delivery_contact_name')<p id="delivery-contact-name-error" class="mt-1 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>@enderror
+                                    </div>
+                                    <div>
+                                        <label for="delivery-contact-phone" class="mb-1.5 block text-xs font-semibold text-neutral-700 dark:text-neutral-300">Contact phone (optional)</label>
+                                        <input id="delivery-contact-phone" name="delivery_contact_phone" value="{{ old('delivery_contact_phone') }}" x-bind:disabled="deliveryMethod !== 'fleet'" maxlength="40" class="block w-full rounded-lg border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                        @error('delivery_contact_phone')<p class="mt-1 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>@enderror
+                                    </div>
+                                    <div>
+                                        <label for="delivery-window-start" class="mb-1.5 block text-xs font-semibold text-neutral-700 dark:text-neutral-300">Preferred time window (optional)</label>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <input id="delivery-window-start" type="time" name="delivery_window_start" x-model="deliveryWindowStart" x-bind:disabled="deliveryMethod !== 'fleet'" aria-label="Preferred delivery window start" class="block w-full rounded-lg border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                            <input type="time" name="delivery_window_end" x-model="deliveryWindowEnd" x-bind:disabled="deliveryMethod !== 'fleet'" aria-label="Preferred delivery window end" class="block w-full rounded-lg border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-2xs focus:border-primary-500 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100">
+                                        </div>
+                                        @error('delivery_window_start')<p class="mt-1 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>@enderror
+                                        @error('delivery_window_end')<p class="mt-1 text-xs text-rose-600 dark:text-rose-400">{{ $message }}</p>@enderror
+                                    </div>
+                                </div>
+                            </section>
 
                             {{-- REQUESTED ITEMS SECTION --}}
                             <div class="border-t border-neutral-200 dark:border-neutral-800 pt-3.5">
@@ -939,7 +998,7 @@
                                     Cancel
                                 </button>
                                 <button type="submit"
-                                    :disabled="lines.length === 0 || !assignedCostCenter()"
+                                    :disabled="lines.length === 0 || !assignedCostCenter() || !deliveryMethod || (deliveryMethod === 'fleet' && (!destinationLocation.trim() || !deliveryContactName.trim() || ((deliveryWindowStart || deliveryWindowEnd) && (!deliveryWindowStart || !deliveryWindowEnd || deliveryWindowStart >= deliveryWindowEnd)))) || (deliveryMethod === 'other' && !deliveryMethodNotes.trim())"
                                     :class="(!assignedCostCenter() && selectedDepartment) ? 'opacity-50 cursor-not-allowed' : ''"
                                     class="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 active:bg-primary-800 transition disabled:opacity-50 disabled:cursor-not-allowed">
                                     Submit Store Requisition

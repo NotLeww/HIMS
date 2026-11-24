@@ -263,6 +263,24 @@
                         <p class="text-xs text-neutral-500">
                             Required by: {{ $requisition->required_date ? $requisition->required_date->format('M d, Y') : 'Not specified' }}
                         </p>
+                        <p class="mt-1 text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                            Arrangement: {{ match($requisition->delivery_method) { 'fleet' => 'Hospital Fleet', 'department_pickup' => 'Department pickup', 'other' => 'Other', default => 'Not specified' } }}
+                        </p>
+                        @if($requisition->destination_location)
+                            <p class="mt-1 text-xs text-neutral-500">Destination: {{ $requisition->destination_location }}</p>
+                        @endif
+                        @if($requisition->destination_address)
+                            <p class="mt-1 text-xs text-neutral-500">Address: {{ $requisition->destination_address }}</p>
+                        @endif
+                        @if($requisition->delivery_method_notes)
+                            <p class="mt-1 text-xs text-neutral-500">Arrangement details: {{ $requisition->delivery_method_notes }}</p>
+                        @endif
+                        @if($requisition->delivery_contact_name)
+                            <p class="mt-1 text-xs text-neutral-500">Receiving contact: {{ $requisition->delivery_contact_name }}{{ $requisition->delivery_contact_phone ? ' · '.$requisition->delivery_contact_phone : '' }}</p>
+                        @endif
+                        @if($requisition->delivery_window_start && $requisition->delivery_window_end)
+                            <p class="mt-1 text-xs text-neutral-500">Preferred time: {{ substr((string) $requisition->delivery_window_start, 0, 5) }}–{{ substr((string) $requisition->delivery_window_end, 0, 5) }} ({{ config('app.timezone') }})</p>
+                        @endif
                         </div>
                     </div>
                 </div>

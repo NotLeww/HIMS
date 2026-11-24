@@ -18,6 +18,8 @@ class FleetDeliveryController extends Controller
         $deliveries = MaterialRequisition::query()
             ->where('status', 'issued')
             ->whereNull('acknowledged_at')
+            ->where('delivery_method', 'fleet')
+            ->whereNotNull('destination_location')
             ->with($this->deliveryRelations())
             ->orderBy('issued_at')
             ->orderBy('id')
@@ -33,6 +35,8 @@ class FleetDeliveryController extends Controller
         $requisition = MaterialRequisition::query()
             ->where('requisition_number', $deliveryId)
             ->whereIn('status', ['issued', 'acknowledged'])
+            ->where('delivery_method', 'fleet')
+            ->whereNotNull('destination_location')
             ->with($this->deliveryRelations())
             ->firstOrFail();
 
@@ -50,18 +54,23 @@ class FleetDeliveryController extends Controller
             'required_date' => $requisition->required_date?->toDateString(),
             'issued_at' => $requisition->issued_at?->toISOString(),
             'acknowledged_at' => $requisition->acknowledged_at?->toISOString(),
+            'delivery_method' => $requisition->delivery_method,
             'pickup_contact' => null,
             'destination' => [
                 'department' => $requisition->department,
-                'location' => null,
-                'address' => null,
-                'contact' => $requisition->requestingUser ? [
-                    'name' => $requisition->requestingUser->name,
-                    'phone' => $requisition->requestingUser->phone,
-                    'role' => 'requisition_requester',
+                'location' => $requisition->destination_location,
+                'address' => $requisition->destination_address,
+                'contact' => $requisition->delivery_contact_name ? [
+                    'name' => $requisition->delivery_contact_name,
+                    'phone' => $requisition->delivery_contact_phone,
+                    'role' => 'delivery_recipient',
                 ] : null,
             ],
-            'delivery_time_window' => null,
+            'delivery_time_window' => $requisition->delivery_window_start && $requisition->delivery_window_end ? [
+                'start' => substr((string) $requisition->delivery_window_start, 0, 5),
+                'end' => substr((string) $requisition->delivery_window_end, 0, 5),
+                'timezone' => config('app.timezone'),
+            ] : null,
             'items' => $requisition->lines
                 ->filter(fn ($line): bool => $line->issued_quantity > 0)
                 ->map(fn ($line): array => [
