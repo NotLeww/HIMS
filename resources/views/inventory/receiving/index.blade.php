@@ -17,13 +17,21 @@
     <div class="space-y-6" x-data="{
         showReceiveModal: false,
         selectedPo: null,
+        selectedShipmentId: '',
         actualSupplierId: '',
         poLines: [],
         openOrders: {{ Js::from($openPurchaseOrders) }},
         barcodeLookupUrl: {{ Js::from(route('inventory.warehousing.lookup-barcode')) }},
+        selectedShipment() {
+            return this.selectedPo?.shipments?.find(shipment => String(shipment.id) === String(this.selectedShipmentId)) || null;
+        },
+        dockReadyShipments() {
+            return (this.selectedPo?.shipments || []).filter(shipment => ['arrived_at_dock', 'received'].includes(shipment.status));
+        },
         selectPo(poId) {
             this.selectedPo = this.openOrders.find(p => p.id == poId);
-            this.actualSupplierId = '';
+            this.selectedShipmentId = '';
+            this.actualSupplierId = this.selectedPo?.supplier_id || '';
             if (!this.selectedPo) {
                 this.poLines = [];
                 return;
@@ -179,6 +187,7 @@
                             <tr>
                                 <th class="px-6 py-3 font-medium">PO Number</th>
                                 <th class="px-6 py-3 font-medium">Supplier</th>
+                                <th class="px-6 py-3 font-medium">Inbound shipment</th>
                                 <th class="px-6 py-3 font-medium">Order Items</th>
                                 <th class="px-6 py-3 font-medium">Total Encumbered</th>
                                 <th class="px-6 py-3 font-medium">Fulfillment Status</th>
@@ -193,6 +202,21 @@
                                     </td>
                                     <td class="px-6 py-4 font-medium text-neutral-900">
                                         {{ $po->supplier?->name ?? 'N/A' }}
+                                    </td>
+                                    <td class="px-6 py-4 text-xs">
+                                        @php
+                                            $dockShipment = $po->shipments->first(fn ($shipment) => $shipment->isDelivered());
+                                        @endphp
+                                        @if($dockShipment)
+                                            <span class="font-mono font-semibold text-emerald-700 dark:text-emerald-300">{{ $dockShipment->shipment_number }}</span>
+                                            <span class="mt-1 block text-emerald-700 dark:text-emerald-300">Arrived at dock</span>
+                                        @elseif($po->shipments->isNotEmpty())
+                                            <span class="font-mono text-neutral-700 dark:text-neutral-300">{{ $po->shipments->sortByDesc('id')->first()->shipment_number }}</span>
+                                            <span class="mt-1 block text-amber-700 dark:text-amber-300">{{ \Illuminate\Support\Str::headline($po->shipments->sortByDesc('id')->first()->status) }} · await dock arrival</span>
+                                        @else
+                                            <span class="text-amber-700 dark:text-amber-300">No shipment registered</span>
+                                            <a href="{{ route('inventory.logistics.shipments') }}" class="mt-1 block font-semibold text-primary-700 hover:underline dark:text-primary-300">Open Shipments &amp; Logistics</a>
+                                        @endif
                                     </td>
                                     <td class="px-6 py-4 text-xs">
                                         <div class="space-y-1.5">
@@ -242,18 +266,22 @@
                                     <td class="px-6 py-4 text-right hims-sticky-actions min-w-[170px]">
                                         @can(\App\Enums\Permission::ReceivePurchaseOrder->value)
                                             <button
+                                                @disabled(! $po->shipments->contains(fn ($shipment) => $shipment->isDelivered()))
                                                 type="button"
                                                 @click="selectPo('{{ $po->id }}'); showReceiveModal = true"
-                                                class="inline-flex whitespace-nowrap items-center gap-1.5 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-primary-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+                                                class="inline-flex whitespace-nowrap items-center gap-1.5 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-primary-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:cursor-not-allowed disabled:opacity-50"
                                             >
                                                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
                                                 Receive Shipment
                                             </button>
+                                            @unless($po->shipments->contains(fn ($shipment) => $shipment->isDelivered()))
+                                                <span class="mt-1 block text-right text-xs text-amber-700 dark:text-amber-300">Awaiting Logistics2 dock confirmation</span>
+                                            @endunless
                                         @endcan
                                     </td>
                                 </tr>
                             @empty
-                                <x-ui.table.empty colspan="6" artwork="receiving" title="No deliveries awaiting receipt" message="All eligible purchase-order deliveries are currently up to date." />
+                                <x-ui.table.empty colspan="7" artwork="receiving" title="No deliveries awaiting receipt" message="All eligible purchase-order deliveries are currently up to date." />
                             @endforelse
                         </tbody>
                     </table>
@@ -385,6 +413,18 @@
                             </div>
                         </div>
 
+                        <div class="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                            <label for="shipment_id" class="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">Inbound shipment that arrived at dock <span class="text-rose-600">*</span></label>
+                            <select id="shipment_id" name="shipment_id" x-model="selectedShipmentId" required :disabled="dockReadyShipments().length === 0" class="mt-1 block w-full rounded-lg border border-neutral-300 bg-white text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 disabled:cursor-not-allowed disabled:opacity-60">
+                                <option value="">Select a dock-arrived shipment</option>
+                                <template x-for="shipment in dockReadyShipments()" :key="shipment.id">
+                                    <option :value="shipment.id" x-text="`${shipment.shipment_number} · ${shipment.carrier_name || 'Carrier not recorded'} · ${shipment.status}`"></option>
+                                </template>
+                            </select>
+                            <p x-show="selectedPo && dockReadyShipments().length === 0" x-cloak class="mt-2 text-xs text-amber-700 dark:text-amber-300" role="status">Walang dock-arrived shipment para sa PO na ito. I-record muna ang supplier shipment sa Documents &amp; Logistics at markahang Arrived at Dock.</p>
+                            <p x-show="selectedShipment()" x-cloak class="mt-2 text-xs text-neutral-600 dark:text-neutral-300">Carrier: <span class="font-medium" x-text="selectedShipment()?.carrier_name || 'Not recorded'"></span> · Waybill: <span class="font-mono" x-text="selectedShipment()?.waybill_number || 'Not recorded'"></span></p>
+                        </div>
+
                         {{-- Carrier & Logistics Inputs --}}
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
@@ -398,14 +438,14 @@
                             </div>
                             <p class="self-end text-xs text-neutral-600 dark:text-neutral-300">Check the supplier, SKU and UOM on the delivered goods against the approved PO before submission.</p>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300">Carrier / Logistics Provider</label>
-                                <input type="text" name="carrier_name" placeholder="e.g. LBC Express, 2GO" class="mt-1 block w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 shadow-xs focus:border-primary-500 focus:ring-primary-500 text-sm">
+                                <input type="text" name="carrier_name" :value="selectedShipment()?.carrier_name || ''" readonly class="mt-1 block w-full rounded-lg border border-neutral-300 bg-neutral-100 text-sm text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300">Waybill / Airway Bill No.</label>
-                                <input type="text" name="waybill_number" placeholder="e.g. AWB-982341" class="mt-1 block w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 shadow-xs focus:border-primary-500 focus:ring-primary-500 text-sm">
+                                <input type="text" name="waybill_number" :value="selectedShipment()?.waybill_number || ''" readonly class="mt-1 block w-full rounded-lg border border-neutral-300 bg-neutral-100 text-sm text-neutral-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300">Packing Slip / Delivery Receipt</label>
@@ -635,7 +675,7 @@
                         <button type="button" @click="showReceiveModal = false" class="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2 text-xs font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors">
                             Cancel
                         </button>
-                        <button type="submit" class="rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 transition-colors">
+                        <button type="submit" :disabled="!selectedShipmentId || !actualSupplierId" class="rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 transition-colors disabled:cursor-not-allowed disabled:opacity-50">
                             Confirm Dock Receipt &amp; Quarantine Stock
                         </button>
                     </div>

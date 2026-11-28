@@ -15,6 +15,7 @@ use App\Models\InventorySerial;
 use App\Models\ItemBatch;
 use App\Models\PurchaseOrder;
 use App\Models\QualityInspection;
+use App\Models\Shipment;
 use App\Models\StockMovement;
 use App\Models\StorageLocation;
 use App\Models\SupplierDiscrepancy;
@@ -47,11 +48,25 @@ class GoodsReceiptService
             // Lock PO to avoid race condition on concurrent receiving
             $po = PurchaseOrder::lockForUpdate()->with(['lines.item', 'supplier'])->findOrFail($purchaseOrder->id);
 
+            if (empty($data['shipment_id'])) {
+                throw ValidationException::withMessages(['shipment_id' => ['Select the supplier shipment that arrived at the receiving dock before creating a GRN.']]);
+            }
+
+            $shipment = Shipment::query()->lockForUpdate()->findOrFail($data['shipment_id']);
+            if ((int) $shipment->purchase_order_id !== (int) $po->id
+                || (int) $shipment->supplier_id !== (int) $po->supplier_id) {
+                throw ValidationException::withMessages(['shipment_id' => ['The selected shipment is not linked to this purchase order and supplier.']]);
+            }
+
+            $data['carrier_name'] = $shipment->carrier_name;
+            $data['waybill_number'] = $shipment->waybill_number;
+
             if (! empty($data['receipt_key'])) {
                 $existing = GoodsReceiptNote::with('lines')->where('receipt_key', $data['receipt_key'])->first();
                 if ($existing) {
-                    if ((int) $existing->purchase_order_id !== (int) $po->id) {
-                        throw ValidationException::withMessages(['receipt_key' => ['This receiving key belongs to another purchase order.']]);
+                    if ((int) $existing->purchase_order_id !== (int) $po->id
+                        || (int) $existing->shipment_id !== (int) $shipment->id) {
+                        throw ValidationException::withMessages(['receipt_key' => ['This receiving key belongs to another purchase order or shipment.']]);
                     }
                     $submitted = collect($data['lines'] ?? [])->map(fn ($line) => (int) $line['po_line_id'].':'.(int) $line['received_quantity'])->sort()->values()->all();
                     $recorded = $existing->lines->map(fn ($line) => $line->po_line_id.':'.$line->received_quantity)->sort()->values()->all();
@@ -72,6 +87,37 @@ class GoodsReceiptService
 
             if ($po->isFullyAccepted()) {
                 throw new DomainException("Purchase Order {$po->po_number} is already fully accepted.");
+            }
+
+            if (! $shipment->isDelivered()) {
+                throw new DomainException("Shipment {$shipment->shipment_number} must be recorded as arrived at the receiving dock before this PO can be received.");
+            }
+
+            $shipmentLines = $shipment->lines()->get()->keyBy('po_line_id');
+            if ($shipmentLines->isNotEmpty()) {
+                $previouslyReceived = GoodsReceiptNoteLine::query()
+                    ->whereHas('goodsReceiptNote', fn ($query) => $query->where('shipment_id', $shipment->id))
+                    ->selectRaw('po_line_id, SUM(received_quantity) AS total_received')
+                    ->groupBy('po_line_id')
+                    ->pluck('total_received', 'po_line_id');
+
+                foreach ($data['lines'] ?? [] as $lineInput) {
+                    $lineId = (int) ($lineInput['po_line_id'] ?? 0);
+                    $receivedQty = (int) ($lineInput['received_quantity'] ?? 0);
+                    if ($receivedQty <= 0) {
+                        continue;
+                    }
+
+                    $shipmentLine = $shipmentLines->get($lineId);
+                    if (! $shipmentLine) {
+                        throw ValidationException::withMessages(['lines' => ['Every received PO line must be included in the selected supplier shipment.']]);
+                    }
+
+                    $remainingShipmentQty = (int) $shipmentLine->quantity - (int) ($previouslyReceived[$lineId] ?? 0);
+                    if ($receivedQty > $remainingShipmentQty) {
+                        throw ValidationException::withMessages(['lines' => ["Received quantity for PO line #{$lineId} exceeds the remaining quantity on shipment {$shipment->shipment_number} ({$remainingShipmentQty})."]]);
+                    }
+                }
             }
 
             foreach (['packing_slip_number', 'waybill_number'] as $referenceField) {
@@ -113,6 +159,7 @@ class GoodsReceiptService
             $grn = GoodsReceiptNote::create([
                 'grn_number' => $grnNumber,
                 'purchase_order_id' => $po->id,
+                'shipment_id' => $shipment->id,
                 'quarantine_location_id' => $quarantineLocation->id,
                 'receipt_key' => $data['receipt_key'] ?? null,
                 'packing_slip_key' => filled($data['packing_slip_number'] ?? null)

@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DemandPlanController;
 use App\Http\Controllers\Api\FleetDeliveryController;
+use App\Http\Controllers\Api\FleetSupplierPickupController;
 use App\Http\Controllers\Api\Inventory\AdjustmentController;
 use App\Http\Controllers\Api\Inventory\CycleCountController;
 use App\Http\Controllers\Api\Inventory\GoodsReceiptController;
@@ -36,6 +37,12 @@ Route::prefix('v1')->group(function () {
     Route::get('integrations/fleet/deliveries', [FleetDeliveryController::class, 'index'])
         ->middleware([EnsureFleetApiKey::class, 'throttle:60,1']);
     Route::get('integrations/fleet/deliveries/{deliveryId}', [FleetDeliveryController::class, 'show'])
+        ->middleware([EnsureFleetApiKey::class, 'throttle:60,1']);
+    Route::get('integrations/fleet/supplier-pickups', [FleetSupplierPickupController::class, 'index'])
+        ->middleware([EnsureFleetApiKey::class, 'throttle:60,1']);
+    Route::get('integrations/fleet/supplier-pickups/{shipmentNumber}', [FleetSupplierPickupController::class, 'show'])
+        ->middleware([EnsureFleetApiKey::class, 'throttle:60,1']);
+    Route::patch('integrations/fleet/supplier-pickups/{shipmentNumber}/status', [FleetSupplierPickupController::class, 'updateStatus'])
         ->middleware([EnsureFleetApiKey::class, 'throttle:60,1']);
 
     // Auth

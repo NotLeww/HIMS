@@ -107,16 +107,12 @@
 
             @if (in_array($order->status, ['acknowledged', 'partially_fulfilled']))
                 <x-ui.card title="Create Advance Ship Notice">
+                    <p class="mb-4 text-sm text-neutral-600 dark:text-neutral-300">Submitting this notice tells HIMS and Logistics2 that the order is ready for pickup. It does not mark the shipment as dispatched or received.</p>
                     <form method="POST" action="{{ route('supplier.orders.asns.store', $order) }}" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                         @csrf
                         <x-ui.field name="shipment_number" label="ASN number" required />
-                        <x-ui.field name="carrier_name" label="Carrier" required />
-                        <x-ui.field name="tracking_number" label="Tracking number" />
                         <x-ui.field name="sscc" label="SSCC (18 digits)" />
-                        <div x-data="{ dispatchDate: @js(old('dispatch_date', today()->toDateString())) }" class="contents">
-                            <x-ui.field name="dispatch_date" label="Shipment date" type="date" x-model="dispatchDate" :max="today()->toDateString()" required />
-                            <x-ui.field name="estimated_delivery_date" label="Expected arrival" type="date" x-bind:min="dispatchDate || @js(today()->toDateString())" required />
-                        </div>
+                        <x-ui.field name="estimated_delivery_date" label="Expected arrival at hospital" type="date" :min="today()->toDateString()" required />
 
                         @foreach ($order->lines as $i => $line)
                             <input type="hidden" name="lines[{{ $i }}][po_line_id]" value="{{ $line->id }}">

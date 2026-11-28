@@ -318,15 +318,15 @@ class HimsNotificationWorkflowService
         );
     }
 
-    public function purchaseOrderShipmentDispatched(PurchaseOrder $po, string $trackingNumber): void
+    public function purchaseOrderAsnSubmitted(PurchaseOrder $po, string $asnNumber): void
     {
         $supplierName = $po->supplier?->name ?? 'Supplier';
 
         $this->notifications->sendToPermission(
             Permission::ReceivePurchaseOrder,
-            "po:{$po->id}:asn:{$trackingNumber}",
+            "po:{$po->id}:asn:{$asnNumber}",
             'Advance shipping notice (ASN) received',
-            "{$supplierName} dispatched shipment {$trackingNumber} for PO {$po->po_number}.",
+            "{$supplierName} submitted ASN {$asnNumber} for PO {$po->po_number}. Logistics2 pickup is now required.",
             NotificationPriority::Info,
             NotificationDestination::GoodsReceipt,
             ['purchase_order' => $po->id],

@@ -35,6 +35,7 @@
                 <div class="w-full sm:w-52">
                     <select name="status" class="block w-full rounded-lg border-neutral-300 py-1.5 text-xs text-neutral-800 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
                         <option value="">All Statuses</option>
+                        <option value="created" {{ request('status') === 'created' ? 'selected' : '' }}>Awaiting Logistics2 Pickup</option>
                         <option value="dispatched" {{ request('status') === 'dispatched' ? 'selected' : '' }}>Dispatched</option>
                         <option value="in_transit" {{ request('status') === 'in_transit' ? 'selected' : '' }}>In Transit</option>
                         <option value="customs_hold" {{ request('status') === 'customs_hold' ? 'selected' : '' }}>Customs / Quarantine Hold</option>
@@ -194,7 +195,17 @@
 
                                 <td class="px-5 py-3.5 align-top text-right whitespace-nowrap w-36 min-w-36">
                                     @can(\App\Enums\Permission::ManageLogisticsRecords->value)
-                                        @if(!$shipment->isDelivered())
+                                        @if($shipment->purchase_order_id)
+                                            @if($shipment->status === 'created')
+                                                <span class="inline-flex h-8 items-center text-xs font-medium text-amber-700 dark:text-amber-300">Awaiting Logistics2 pickup</span>
+                                            @elseif($shipment->status === 'in_transit')
+                                                <span class="inline-flex h-8 items-center text-xs font-medium text-blue-700 dark:text-blue-300">Logistics2 in transit</span>
+                                            @elseif($shipment->isDelivered())
+                                                <span class="inline-flex h-8 items-center text-xs font-medium text-neutral-400 dark:text-neutral-500">Docked</span>
+                                            @else
+                                                <span class="inline-flex h-8 items-center text-xs font-medium text-neutral-500 dark:text-neutral-400">{{ ucwords(str_replace('_', ' ', $shipment->status)) }}</span>
+                                            @endif
+                                        @elseif(!$shipment->isDelivered())
                                             <button
                                                 type="button"
                                                 @click="openDockArrival(@js([

@@ -50,7 +50,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
         $dateFrom = filled($filters['date_from'] ?? null) ? Carbon::parse($filters['date_from'], config('app.timezone'))->startOfDay() : null;
         $dateTo = filled($filters['date_to'] ?? null) ? Carbon::parse($filters['date_to'], config('app.timezone'))->endOfDay() : null;
 
-        $goodsReceipts = GoodsReceiptNote::with(['purchaseOrder', 'supplier', 'receivedBy', 'lines.item'])
+        $goodsReceipts = GoodsReceiptNote::with(['purchaseOrder', 'shipment', 'supplier', 'receivedBy', 'lines.item'])
             ->when($dateFrom, fn ($query) => $query->where('received_at', '>=', $dateFrom))
             ->when($dateTo, fn ($query) => $query->where('received_at', '<=', $dateTo))
             ->latest('received_at')
@@ -58,7 +58,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
             ->withQueryString();
 
         // Open purchase orders available for dock receiving
-        $openPurchaseOrders = PurchaseOrder::with(['supplier', 'lines.item'])
+        $openPurchaseOrders = PurchaseOrder::with(['supplier', 'lines.item', 'shipments'])
             ->whereIn('status', [
                 PurchaseOrderStatus::Approved->value,
                 PurchaseOrderStatus::Dispatched->value,
@@ -106,6 +106,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
         abort_unless(auth()->user()->hasPermission(Permission::ViewInventory)
             || auth()->user()->hasPermission(Permission::ReceivePurchaseOrder), 403);
         $goodsReceiptNote->load([
+            'shipment.destinationStorageLocation',
             'purchaseOrder.lines.item',
             'purchaseOrder.shipments' => fn ($query) => $query->latest('actual_delivery_date')->latest('id'),
             'purchaseOrder.shipments.destinationStorageLocation',
@@ -127,9 +128,10 @@ class GoodsReceiptController extends Controller implements HasMiddleware
         ]);
 
         $shipments = $goodsReceiptNote->purchaseOrder?->shipments ?? collect();
-        $linkedShipment = filled($goodsReceiptNote->waybill_number)
+        $linkedShipment = $goodsReceiptNote->shipment
+            ?? (filled($goodsReceiptNote->waybill_number)
             ? $shipments->first(fn ($shipment) => strcasecmp((string) $shipment->waybill_number, (string) $goodsReceiptNote->waybill_number) === 0)
-            : ($shipments->count() === 1 ? $shipments->first() : null);
+            : ($shipments->count() === 1 ? $shipments->first() : null));
 
         $storageLocations = StorageLocation::where('status', 'active')
             ->where('is_quarantine', false)
@@ -147,6 +149,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
     {
         $validated = $request->validate([
             'purchase_order_id' => ['required', 'exists:purchase_orders,id'],
+            'shipment_id' => ['required', 'exists:shipments,id'],
             'receipt_key' => ['nullable', 'string', 'max:100'],
             'actual_supplier_id' => ['required', 'exists:suppliers,id'],
             'carrier_name' => ['nullable', 'string', 'max:100'],

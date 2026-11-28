@@ -178,13 +178,20 @@ class ShipmentTrackingService
     /**
      * Record shipment arrival at hospital receiving dock and verify cold chain telemetry.
      */
-    public function recordDockArrival(Shipment $shipment, array $dockData, User $receiver): Shipment
+    public function recordDockArrival(Shipment $shipment, array $dockData, ?User $receiver, bool $fromFleetIntegration = false): Shipment
     {
-        if ($shipment->isDelivered()) {
-            throw new InvalidArgumentException("Shipment {$shipment->shipment_number} has already been received at dock.");
-        }
+        return DB::transaction(function () use ($shipment, $dockData, $receiver, $fromFleetIntegration) {
+            $shipment = Shipment::query()->lockForUpdate()->findOrFail($shipment->id);
+            if ($shipment->isDelivered()) {
+                throw new InvalidArgumentException("Shipment {$shipment->shipment_number} has already been received at dock.");
+            }
+            if ($shipment->purchase_order_id && ! $fromFleetIntegration) {
+                throw new InvalidArgumentException('Supplier PO shipments must be marked arrived by Logistics2 before they can enter receiving.');
+            }
+            if ($shipment->purchase_order_id && $shipment->status !== 'in_transit') {
+                throw new InvalidArgumentException('A supplier PO shipment must be picked up by Logistics2 before dock arrival can be recorded.');
+            }
 
-        return DB::transaction(function () use ($shipment, $dockData, $receiver) {
             $isColdChain = $shipment->is_cold_chain;
             $tempMin = isset($dockData['temp_min']) ? (float) $dockData['temp_min'] : $shipment->temp_min;
             $tempMax = isset($dockData['temp_max']) ? (float) $dockData['temp_max'] : $shipment->temp_max;
@@ -215,12 +222,12 @@ class ShipmentTrackingService
                 data: [
                     'event_type' => 'dock_arrival',
                     'releasing_party_name' => $shipment->driver_name ?? $shipment->carrier_name,
-                    'receiving_user_id' => $receiver->id,
-                    'receiving_party_name' => $receiver->name.' (Receiving Officer)',
+                    'receiving_user_id' => $receiver?->id,
+                    'receiving_party_name' => $receiver ? $receiver->name.' (Receiving Officer)' : 'HIMS Receiving Dock',
                     'origin_location' => $shipment->pickup_location_name ?? $shipment->origin_address,
                     'destination_location' => $shipment->destination_facility,
                     'package_condition' => $tempExcursion ? 'cold_chain_excursion' : $dockData['package_condition'],
-                    'verification_method' => 'credential_auth',
+                    'verification_method' => $receiver ? 'credential_auth' : 'api_integration',
                     'notes' => 'Shipment arrived. Cold Chain: '.($isColdChain ? 'YES' : 'NO').
                              ($isColdChain ? " (Min: {$tempMin}°C, Max: {$tempMax}°C, Excursion: ".($tempExcursion ? 'DETECTED-QUARANTINE' : 'PASS').')' : ''),
                 ],
@@ -231,7 +238,67 @@ class ShipmentTrackingService
                 action: AuditAction::ShipmentArrivedDock,
                 actor: $receiver,
                 target: $shipment,
-                description: "Shipment {$shipment->shipment_number} arrived at receiving dock. Cold Chain Excursion: ".($tempExcursion ? 'YES' : 'NO')
+                description: "Shipment {$shipment->shipment_number} arrived at receiving dock. Cold Chain Excursion: ".($tempExcursion ? 'YES' : 'NO'),
+                source: $receiver ? null : 'integration',
+            );
+
+            return $shipment;
+        });
+    }
+
+    /**
+     * Confirm pickup of a supplier ASN by the Logistics2 integration.
+     *
+     * @param  array<string, mixed>  $pickupData
+     */
+    public function confirmFleetPickup(Shipment $shipment, array $pickupData): Shipment
+    {
+        return DB::transaction(function () use ($shipment, $pickupData): Shipment {
+            $shipment = Shipment::query()->lockForUpdate()->findOrFail($shipment->id);
+
+            if ($shipment->status === 'in_transit') {
+                return $shipment;
+            }
+            if (! $shipment->purchase_order_id || $shipment->status !== 'created') {
+                throw new InvalidArgumentException('Only an ASN awaiting Logistics2 pickup can be marked as picked up.');
+            }
+            if ($shipment->estimated_delivery_date
+                && CarbonImmutable::parse($pickupData['actual_pickup_date'])->startOfDay()->greaterThanOrEqualTo($shipment->estimated_delivery_date->copy()->startOfDay())) {
+                throw new InvalidArgumentException('The Logistics2 pickup date must be before the expected hospital arrival date.');
+            }
+
+            $oldStatus = $shipment->status;
+            $shipment->update([
+                'status' => 'in_transit',
+                'dispatch_date' => $pickupData['actual_pickup_date'],
+                'carrier_name' => $pickupData['carrier_name'],
+                'tracking_number' => $pickupData['tracking_number'] ?? $shipment->tracking_number,
+                'waybill_number' => $pickupData['waybill_number'] ?? $shipment->waybill_number,
+                'vehicle_plate_number' => $pickupData['vehicle_plate_number'] ?? $shipment->vehicle_plate_number,
+                'driver_name' => $pickupData['driver_name'] ?? $shipment->driver_name,
+                'driver_contact' => $pickupData['driver_contact'] ?? $shipment->driver_contact,
+            ]);
+
+            $this->custodyService->recordTransfer(
+                trackable: $shipment,
+                data: [
+                    'event_type' => 'supplier_pickup_confirmed',
+                    'releasing_party_name' => $shipment->pickup_contact_name ?? $shipment->supplier?->name,
+                    'receiving_party_name' => $shipment->driver_name ?? $shipment->carrier_name,
+                    'origin_location' => $shipment->pickup_location_name ?? $shipment->origin_address,
+                    'destination_location' => $shipment->destination_facility,
+                    'verification_method' => 'api_integration',
+                    'notes' => "Logistics2 confirmed pickup of ASN {$shipment->shipment_number}.",
+                ],
+            );
+
+            $this->auditLogger->record(
+                action: AuditAction::ShipmentDispatched,
+                target: $shipment,
+                description: "Logistics2 confirmed supplier pickup for ASN {$shipment->shipment_number}.",
+                oldValues: ['status' => $oldStatus],
+                newValues: ['status' => 'in_transit', 'purchase_order_id' => $shipment->purchase_order_id],
+                source: 'integration',
             );
 
             return $shipment;

@@ -186,26 +186,47 @@ class SupplierPortalController extends Controller
         abort_unless($request->user()->can(Permission::SupplierFulfillOrders->value), 403);
         abort_unless(in_array($purchaseOrder->statusEnum(), [PurchaseOrderStatus::Acknowledged, PurchaseOrderStatus::PartiallyFulfilled], true), 422);
         $data = $request->validate([
-            'shipment_number' => ['required', 'string', 'max:80', 'unique:shipments,shipment_number'], 'dispatch_date' => ['required', 'date', 'before_or_equal:today'],
-            'estimated_delivery_date' => ['required', 'date', 'after_or_equal:today', 'after_or_equal:dispatch_date'], 'carrier_name' => ['required', 'string', 'max:150'],
-            'tracking_number' => ['nullable', 'string', 'max:100'], 'sscc' => ['nullable', 'digits:18'], 'notes' => ['nullable', 'string', 'max:2000'],
+            'shipment_number' => ['required', 'string', 'max:80', 'unique:shipments,shipment_number'],
+            'dispatch_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'estimated_delivery_date' => ['required', 'date', 'after_or_equal:today'],
+            'sscc' => ['nullable', 'digits:18'], 'notes' => ['nullable', 'string', 'max:2000'],
             'lines' => ['required', 'array', 'min:1'], 'lines.*.po_line_id' => ['required', 'integer', 'distinct'], 'lines.*.quantity' => ['required', 'integer', 'min:1'],
             'lines.*.lot_number' => ['nullable', 'string', 'max:100'], 'lines.*.serial_number' => ['nullable', 'string', 'max:100'], 'lines.*.expiry_date' => ['nullable', 'date', 'after:today'],
         ]);
         $shipment = DB::transaction(function () use ($data, $purchaseOrder) {
+            $supplier = $purchaseOrder->supplier()->firstOrFail();
+            if (blank($supplier->address)) {
+                throw ValidationException::withMessages(['shipment_number' => ['The supplier pickup address must be recorded before requesting a Logistics2 pickup.']]);
+            }
+
             $validLines = $purchaseOrder->lines()->pluck('ordered_quantity', 'id');
             foreach ($data['lines'] as $line) {
                 if (! $validLines->has($line['po_line_id']) || $line['quantity'] > $validLines[$line['po_line_id']]) throw ValidationException::withMessages(['lines' => 'ASN lines must belong to this purchase order and may not exceed ordered quantities.']);
             }
-            $shipment = Shipment::create([...collect($data)->except('lines')->all(), 'purchase_order_id' => $purchaseOrder->id, 'supplier_id' => $purchaseOrder->supplier_id, 'destination_facility' => 'Central Hospital Receiving Dock', 'status' => 'in_transit']);
+            $shipment = Shipment::create([
+                'shipment_number' => $data['shipment_number'],
+                'purchase_order_id' => $purchaseOrder->id,
+                'supplier_id' => $purchaseOrder->supplier_id,
+                'pickup_location_type' => 'supplier_address',
+                'pickup_location_name' => $supplier->name.' - Registered Address',
+                'pickup_contact_name' => $supplier->contact_person,
+                'pickup_contact_number' => $supplier->phone,
+                'origin_address' => $supplier->address,
+                'carrier_name' => 'HIMS LOGISTICS',
+                'sscc' => $data['sscc'] ?? null,
+                'notes' => $data['notes'] ?? null,
+                'destination_facility' => 'Central Hospital Receiving Dock',
+                'estimated_delivery_date' => $data['estimated_delivery_date'],
+                'status' => 'created',
+            ]);
             $shipment->lines()->createMany($data['lines']); return $shipment;
         });
-        $audit->log(AuditAction::SubmittedAdvanceShipNotice, $request->user(), "Submitted ASN {$shipment->shipment_number} for {$purchaseOrder->po_number}.", $shipment, $shipment->shipment_number);
-        app(\App\Services\HimsNotificationWorkflowService::class)->purchaseOrderShipmentDispatched(
+        $audit->log(AuditAction::SubmittedAdvanceShipNotice, $request->user(), "Submitted ASN {$shipment->shipment_number} for Logistics2 supplier pickup for {$purchaseOrder->po_number}.", $shipment, $shipment->shipment_number, newValues: ['status' => 'created', 'purchase_order_id' => $purchaseOrder->id]);
+        app(\App\Services\HimsNotificationWorkflowService::class)->purchaseOrderAsnSubmitted(
             $purchaseOrder,
             $shipment->shipment_number,
         );
-        return back()->with('success', 'Advance Ship Notice submitted.');
+        return back()->with('success', 'ASN submitted. Logistics2 can now schedule pickup from the supplier.');
     }
 
     public function discrepancies(Request $request): View

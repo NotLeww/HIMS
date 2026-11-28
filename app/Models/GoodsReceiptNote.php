@@ -16,6 +16,7 @@ class GoodsReceiptNote extends Model
         'dr_number',
         'sales_invoice_number',
         'purchase_order_id',
+        'shipment_id',
         'quarantine_location_id',
         'receipt_key',
         'packing_slip_key',
@@ -48,6 +49,11 @@ class GoodsReceiptNote extends Model
     public function purchaseOrder(): BelongsTo
     {
         return $this->belongsTo(PurchaseOrder::class);
+    }
+
+    public function shipment(): BelongsTo
+    {
+        return $this->belongsTo(Shipment::class);
     }
 
     public function supplier(): BelongsTo

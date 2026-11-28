@@ -78,7 +78,7 @@ class Shipment extends Model
 
     public function goodsReceiptNotes(): HasMany
     {
-        return $this->hasMany(GoodsReceiptNote::class, 'purchase_order_id', 'purchase_order_id');
+        return $this->hasMany(GoodsReceiptNote::class);
     }
 
     public function documents(): HasMany

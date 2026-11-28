@@ -28,7 +28,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
 
     public function index(): JsonResponse
     {
-        $receipts = GoodsReceiptNote::with(['supplier', 'purchaseOrder', 'receivedBy', 'lines.item'])
+        $receipts = GoodsReceiptNote::with(['supplier', 'purchaseOrder', 'shipment', 'receivedBy', 'lines.item'])
             ->latest('received_at')
             ->paginate(25);
 
@@ -37,7 +37,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
 
     public function show(GoodsReceiptNote $goodsReceiptNote): JsonResponse
     {
-        $goodsReceiptNote->load(['supplier', 'purchaseOrder', 'receivedBy', 'lines.item', 'lines.inspections']);
+        $goodsReceiptNote->load(['supplier', 'purchaseOrder', 'shipment', 'receivedBy', 'lines.item', 'lines.inspections']);
 
         return response()->json($goodsReceiptNote);
     }
@@ -47,6 +47,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
         $request->merge(['receipt_key' => $request->input('receipt_key', $request->header('Idempotency-Key'))]);
         $validated = $request->validate([
             'purchase_order_id' => ['required', 'exists:purchase_orders,id'],
+            'shipment_id' => ['required', 'exists:shipments,id'],
             'receipt_key' => ['nullable', 'string', 'max:100'],
             'actual_supplier_id' => ['required', 'exists:suppliers,id'],
             'destination_location_id' => ['nullable', 'exists:storage_locations,id'],
@@ -84,7 +85,7 @@ class GoodsReceiptController extends Controller implements HasMiddleware
 
             return response()->json([
                 'message' => "Goods receipt {$grn->grn_number} created and placed into Quarantine.",
-                'data' => $grn->load('lines.item'),
+                'data' => $grn->load(['lines.item', 'shipment']),
             ], 201);
         } catch (DomainException $e) {
             return response()->json(['message' => $e->getMessage()], 422);

@@ -1983,8 +1983,15 @@
                                     $receivedQuantity = $poLines->isNotEmpty() ? (int) $poLines->sum('received_quantity') : ($po->received_at ? $orderedQuantity : 0);
                                     $expectedDelivery = $po->shipments->sortByDesc('id')->first()?->estimated_delivery_date ?? $po->delivery_date;
                                     $isOverdue = $expectedDelivery && $expectedDelivery->lt(today()) && !in_array($po->status, ['received', 'fulfilled', 'cancelled', 'rejected'], true);
-                                    $canReceiveThisPo = $statusEnum?->canReceiveStock()
+                                    $poCanEnterReceiving = $statusEnum?->canReceiveStock()
                                         ?? in_array($po->status, ['approved', 'dispatched', 'acknowledged', 'partially_fulfilled', 'partially_received', 'issued'], true);
+                                    $hasDockReadyShipment = $po->shipments->contains(fn ($shipment) => $shipment->isDelivered());
+                                    $canReceiveThisPo = $poCanEnterReceiving && $hasDockReadyShipment;
+                                    $latestGrn = $po->goodsReceiptNotes->sortByDesc('received_at')->first();
+                                    $grnShipment = $latestGrn?->shipment;
+                                    if (!$grnShipment && filled($latestGrn?->waybill_number)) {
+                                        $grnShipment = $po->shipments->first(fn ($shipment) => strcasecmp((string) $shipment->waybill_number, (string) $latestGrn->waybill_number) === 0);
+                                    }
                                     
                                     $currentUser = auth()->user();
                                     $canApprovePoPermission = $currentUser?->can(\App\Enums\Permission::ApprovePurchaseOrder->value) ?? false;
@@ -2310,10 +2317,16 @@
                                                 @if($canReceiveThisPo)
                                                     <x-ui.button :href="route('inventory.receiving.index', ['purchase_order_id' => $po->id])" size="sm" icon="check-circle">Record delivery</x-ui.button>
                                                 @elseif(in_array($po->status, ['received', 'fulfilled'], true))
-                                                    <span class="inline-flex items-center gap-1 text-xs font-semibold text-success-700 dark:text-success-400">
-                                                        <svg class="h-3.5 w-3.5 text-success-600 dark:text-success-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                                    Delivery recorded
-                                                    </span>
+                                                    @if($grnShipment && $grnShipment->isDelivered())
+                                                        <span class="inline-flex items-center gap-1 text-xs font-semibold text-success-700 dark:text-success-400">
+                                                            <svg class="h-3.5 w-3.5 text-success-600 dark:text-success-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                            Received via {{ $grnShipment->shipment_number }}
+                                                        </span>
+                                                    @else
+                                                        <span class="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-400" title="This existing receipt has no linked dock-arrived supplier shipment.">
+                                                            GRN recorded · shipment link needs review
+                                                        </span>
+                                                    @endif
                                                 @endif
                                             @endcan
                                         </div>

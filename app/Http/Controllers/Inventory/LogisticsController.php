@@ -96,7 +96,7 @@ class LogisticsController extends Controller implements HasMiddleware
             ->selectRaw("SUM(CASE WHEN status = 'accepted' AND coa_transmitted_at IS NULL AND acceptance_date <= ? THEN 1 ELSE 0 END) AS coa_due", [now()->subDays(3)->toDateString()])
             ->first();
         $shipmentMetrics = Shipment::query()
-            ->selectRaw("SUM(CASE WHEN status IN ('dispatched', 'in_transit', 'customs_hold') THEN 1 ELSE 0 END) AS active_shipments")
+            ->selectRaw("SUM(CASE WHEN status IN ('created', 'dispatched', 'in_transit', 'customs_hold') THEN 1 ELSE 0 END) AS active_shipments")
             ->selectRaw('SUM(CASE WHEN temp_excursion = ? THEN 1 ELSE 0 END) AS dock_excursions', [true])
             ->selectRaw("SUM(CASE WHEN status NOT IN ('arrived_at_dock', 'received') AND estimated_delivery_date IS NOT NULL AND estimated_delivery_date < ? THEN 1 ELSE 0 END) AS overdue_shipments", [now()->toDateString()])
             ->first();
@@ -133,7 +133,7 @@ class LogisticsController extends Controller implements HasMiddleware
             ->take(6)
             ->get();
         $pendingIars = InspectionAcceptanceReport::with('supplier')->whereIn('status', ['pending_inspection', 'inspected_passed'])->latest()->take(5)->get();
-        $activeShipments = Shipment::with('supplier')->whereIn('status', ['dispatched', 'in_transit', 'customs_hold'])->latest()->take(5)->get();
+        $activeShipments = Shipment::with('supplier')->whereIn('status', ['created', 'dispatched', 'in_transit', 'customs_hold'])->latest()->take(5)->get();
         $excursionShipments = Shipment::with('supplier')->where('temp_excursion', true)->latest()->take(5)->get();
         $metricDetails = [
             'documents' => MetricDetails::from($recentDocuments, $metrics['total_documents'], fn (LogisticsDocument $document): string => $document->tracking_number.' · '.$document->title, 'No logistics documents registered'),

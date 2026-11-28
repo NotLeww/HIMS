@@ -79,6 +79,15 @@
                                 Delivery reference:
                                 <span class="font-mono font-semibold text-neutral-800 dark:text-neutral-200">{{ $deliveryReceiptNumber ?: 'Not provided' }}</span>
                             </p>
+                            <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+                                Inbound shipment:
+                                @if($linkedShipment)
+                                    <span class="font-mono font-semibold text-neutral-700 dark:text-neutral-300">{{ $linkedShipment->shipment_number }}</span>
+                                    · {{ \Illuminate\Support\Str::headline($linkedShipment->status) }}
+                                @else
+                                    <span class="font-semibold text-amber-700 dark:text-amber-300">Not linked to a shipment record</span>
+                                @endif
+                            </p>
                         </div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -465,7 +474,7 @@
                     <div class="flex items-start gap-3">
                         <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">1</span>
                         <div class="min-w-0">
-                            <p class="text-sm font-bold text-emerald-950 dark:text-emerald-100">Delivery recorded</p>
+                            <p class="text-sm font-bold text-emerald-950 dark:text-emerald-100">Dock receipt recorded</p>
                             <p class="mt-1 text-xs leading-5 text-emerald-700 dark:text-emerald-300">{{ $goodsReceiptNote->received_at?->format('M d, Y · h:i A') ?? 'Timestamp unavailable' }}</p>
                         </div>
                     </div>
